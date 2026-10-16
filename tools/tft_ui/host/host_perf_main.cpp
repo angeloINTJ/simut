@@ -11,6 +11,7 @@
 //   S <sample> <theme> <us> <clear> <draw> <hash> <differing pixels>
 //   TOTAL <samples> <us> <clear> <draw> <hash> <differing pixels> <most calls in a record> <most bytes of text in one> <frames that did not fit>
 // Usage: host_perf --hash   (the strip hash tests)
+//        host_perf --vidro  (the full repaint without a clear, on a model of the glass)
 //        host_perf <reps> [--only <part of a sample's name>] [--corrupt] [--direto]
 //   --direto: do not record; every strip runs the screen's draw function (the compose before Pintor::gravar( ): the A of an A/B)
 //   --corrupt: flips one pixel of one strip after it is drawn. The control: every frame must then report exactly 1 differing pixel.
@@ -163,10 +164,56 @@ int diferentes( const amostra::Amostra &a, const ua::Tema &tema, ua::Faixa &faix
   return dif;
 }
 
+// --vidro: the argument of DisplayManager::uaPintar( )'s full repaint, on a model of the glass. The repaint no longer clears the glass: it blackens the
+// band the alignment offset uncovers (TftWithOffset::fillMarginsBlack( ), whose four conditions the model repeats) and pushes the six strips
+// at the offset, clipped to the glass. For every offset from -4 to 4 in x and in y, from a glass full of stale pixels, every pixel must end black
+// (the band) or a strip's (the rest), none stale. The controls leave the band out, or push five strips: both must leave stale pixels.
+int provarVidro( ) {
+  static uint16_t vidro[ua::ALTURA_PAINEL][ua::LARGURA_PAINEL];
+  constexpr uint16_t VELHO = 0xDEAD, TIRA = 0xAAAA;
+  int falhas = 0;
+  for ( int variante = 0; variante < 3; variante++ ) {   // 0: the repaint, 1: without the band, 2: five strips
+    long velhos = 0, errados = 0, casos = 0;
+    for ( int oy = -4; oy <= 4; oy++ )
+      for ( int ox = -4; ox <= 4; ox++ ) {
+        for ( auto &linha : vidro )
+          for ( auto &v : linha ) v = VELHO;
+        auto enche = [&]( int x, int y, int w, int h ) {
+          for ( int j = y; j < y + h; j++ )
+            for ( int i = x; i < x + w; i++ ) vidro[j][i] = 0;
+        };
+        if ( variante != 1 ) {
+          if ( ox > 0 ) enche( 0, 0, ox, 240 ); else if ( ox < 0 ) enche( 320 + ox, 0, -ox, 240 );
+          if ( oy > 0 ) enche( 0, 0, 320, oy ); else if ( oy < 0 ) enche( 0, 240 + oy, 320, -oy );
+        }
+        for ( int k = 0; k < ( variante == 2 ? 5 : ua::FAIXAS ); k++ )
+          for ( int j = 0; j < ua::ALTURA_FAIXA; j++ )
+            for ( int i = 0; i < ua::LARGURA_PAINEL; i++ ) {
+              const int x = i + ox, y = k * ua::ALTURA_FAIXA + j + oy;
+              if ( x >= 0 && x < 320 && y >= 0 && y < 240 ) vidro[y][x] = TIRA;
+            }
+        for ( int y = 0; y < 240; y++ )
+          for ( int x = 0; x < 320; x++ ) {
+            const bool dentro = x - ox >= 0 && x - ox < 320 && y - oy >= 0 && y - oy < 240;
+            const uint16_t esperado = dentro ? ( variante == 2 && y - oy >= 200 ? VELHO : TIRA ) : 0;
+            if ( vidro[y][x] == VELHO ) velhos++;
+            if ( vidro[y][x] != esperado ) errados++;
+          }
+        casos++;
+      }
+    const bool ok = variante == 0 ? ( velhos == 0 && errados == 0 ) : ( velhos > 0 );
+    if ( !ok ) falhas++;
+    printf( "%s %s: %ld stale pixels, %ld pixels not as expected, in %ld offsets\n", ok ? "ok  " : "FAIL",
+            variante == 0 ? "the repaint (band blackened, six strips)" : variante == 1 ? "control: without the band" : "control: five strips", velhos, errados, casos );
+  }
+  return falhas;
+}
+
 }  // namespace
 
 int main( int argc, char **argv ) {
   if ( argc > 1 && !strcmp( argv[1], "--hash" ) ) return provarHash( );
+  if ( argc > 1 && !strcmp( argv[1], "--vidro" ) ) return provarVidro( );
   const int reps = argc > 1 ? atoi( argv[1] ) : 20;
   const char *so = nullptr;
   bool corromper = false;

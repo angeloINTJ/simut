@@ -186,11 +186,16 @@ bool DisplayManager::uaPintar( const UaQuadro &q, UiMode modo, uint32_t hash ) {
   const uint32_t t0 = millis( );
   uint8_t enviadas = 0;
   _uaPintando = true;
-  if ( _uaTudo ) {
-    /* The glass goes black, not to the theme's background: the band the alignment offset uncovers is black (fastClearScreen( ) ends in
-     * fillMarginsBlack( )) and so is the margin of every strip (ua::margemPreta( ) below), which makes the margin one black in either
-     * theme. Then every strip is pushed. */
-    fastClearScreen( ua::PRETO );
+  const bool tudo = _uaTudo;
+  if ( tudo ) {
+    /* A full repaint does not clear the glass first any more: fastClearScreen( ) was 56 ms of black at 24 MHz before the first strip (measured on
+     * the bench on 2026-10-15). The six strips cover the panel's 320 x 240, each paints the margin black itself (ua::margemPreta( ) below), and
+     * all six are pushed whatever their hash says (the test below), so no pixel of the old frame is left under them. What they do not reach is
+     * the band the alignment offset uncovers: TftWithOffset shifts the image by (ox, oy), so |ox| columns and |oy| rows of the glass lie outside
+     * it. That band is black, as fastClearScreen( ) left it (it ended in fillMarginsBlack( )), and fillMarginsBlack( ) paints exactly it, at the
+     * offset the TFT has now: nothing at 0. When Ajustes, Alinhar moves the offset, the old band is covered by the new strips and the new one
+     * is blackened here, before them. */
+    _driver.tft->fillMarginsBlack( );
     for ( int k = 0; k < FAIXAS; k++ ) s_faixa[k] = 0;
   }
   p.gravar( );
@@ -205,7 +210,7 @@ bool DisplayManager::uaPintar( const UaQuadro &q, UiMode modo, uint32_t hash ) {
      * the margin's included. */
     ua::margemPreta( p );
     const uint32_t h = ua::hashFaixa( cv->getBuffer( ), (size_t)LARGURA_FAIXA * ALTURA_FAIXA );
-    if ( h == s_faixa[k] ) continue;
+    if ( !tudo && h == s_faixa[k] ) continue;
     blitCanvas( cv, 0, (int16_t)( k * ALTURA_FAIXA ), LARGURA_FAIXA, ALTURA_FAIXA );
     s_faixa[k] = h;
     enviadas++;
