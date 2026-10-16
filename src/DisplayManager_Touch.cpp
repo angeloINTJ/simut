@@ -153,6 +153,12 @@ void DisplayManager::handleTouch( ) {
  if (!timeSince(_lastTouchTime, 15)) return;
  TS_Point p = _driver.ts->getPoint( );
 
+ /* An injected touch is read ONCE per pass, here: the gates below (the sensitivity
+ * screen's Cancelar, the calibration's measuring phase, the pressure gate) all use
+ * this one value, so they cannot disagree about whether a finger is behind the
+ * touch. */
+ const bool simNow = __atomic_load_n(&_simTouchActive, __ATOMIC_ACQUIRE);
+
  /* ── Sensitivity calibration mode: minimum threshold ──
  * Uses p.z > 50 (ADC noise floor) instead of the calibrated
  * threshold, to capture the full user pressure range. */
@@ -171,11 +177,20 @@ void DisplayManager::handleTouch( ) {
  * _sensThreshold — lowest stable p.z found
  */
 
- /* CANCEL button: accepts touch at any pressure */
- if (p.z >= 50) {
+ /* CANCEL button: accepts touch at any pressure — an injected tap too (POST
+ * /api/touch, 'touch sim'). It carries no pressure (nothing is on the glass, so
+ * the library reads z = 0): the p.z gate shut it out, mapTouchPoint( ) was never
+ * reached, and it was the only place the flag was cleared. Bench, 2026-10-16, on
+ * the UI-branch image (the same handleTouch logic as main): the board stayed on
+ * this screen for 42 s and beyond, until a web reboot. It is still never a
+ * pressure sample: with nothing on the glass z = 0, and the p.z < 30 return below
+ * drops it. */
+ if (p.z >= 50 || simNow) {
  int16_t sx, sy;
  mapTouchPoint(p, sx, sy);
  if (sy > 195 && sx < 125) {
+ /* Provenance before the accept, as below: stale, it blinds the mirror that sent the tap for 5 s. */
+ _lastTouchInjected = simNow;
  if (acceptTouch(0)) {
  if (_sharedState.isBooting) {
  _calXMin = 300; _calXMax = 3800;
@@ -283,7 +298,6 @@ void DisplayManager::handleTouch( ) {
 	 * _rawTouchState and mapTouchPoint bypasses the ADC mapping, but the
 	 * pressure check between them was never taught about the bypass — so
 	 * `touch sim` answered "injected" and moved nothing. */
- const bool simNow = __atomic_load_n(&_simTouchActive, __ATOMIC_ACQUIRE);
  if (!simNow && p.z < _sensZThreshold) return;
 
  /* Provenance of the touch that is about to open the 5 s priority window,
@@ -326,6 +340,16 @@ void DisplayManager::handleTouch( ) {
 
 
  if (_calStep < 8) {
+ /* An injected touch is not a sample: it has no raw position. getPoint( ) hands
+ * back the library's cached x/y of the last real touch, and the pressure gate above
+ * lets the injection in (simNow), so it would start a hold from those stale values,
+ * and a hold of CAL_HOLD_MS (400 ms) or more would record a corner from them on
+ * release: a wedge turned into a corrupted calibration, now that the flag ends on its
+ * own clock (2026-10-16). Ignored before the hold starts, so no corner is ever taken
+ * from it. It sits after the verdict buttons (_calPhase >= 1), which an injected tap
+ * still presses; an injection over a real finger's hold only pauses that
+ * finger's samples until it ends. */
+ if (simNow) return;
  if (!_calHolding) {
  /* Hold start: reset accumulators */
  _calHolding = true;
