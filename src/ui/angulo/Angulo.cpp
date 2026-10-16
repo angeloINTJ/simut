@@ -354,7 +354,7 @@ uint16_t misturar16( uint16_t fg, uint16_t bg, uint8_t a ) {
 // one of squared radius in2 (in2 < 0: a whole disc), everything in eighths of a
 // pixel so that it stays integer: (dx8, dy8) is the pixel's corner nearest the
 // centre's opposite side, and the 4 x 4 samples sit at its (2k + 1) / 8 points.
-uint8_t cobertura( int32_t dx8, int32_t dy8, int32_t out2, int32_t in2 ) {
+constexpr uint8_t cobertura( int32_t dx8, int32_t dy8, int32_t out2, int32_t in2 ) {
   uint8_t n = 0;
   for ( int32_t l = 0; l < 4; l++ ) {
     const int32_t dy = dy8 + 2 * l + 1;
@@ -366,6 +366,48 @@ uint8_t cobertura( int32_t dx8, int32_t dy8, int32_t out2, int32_t in2 ) {
   }
   return n;
 }
+
+// The coverage of a pixel of a rounded corner depends on nothing but its place (i, j), the radius and the shape, a fill or a 1 px outline, so for
+// the radii the screens draw it is a table, built by the compiler out of the very function above (the 16 samples a pixel cost on the board:
+// cantos took 9.6 ms of the dashboard's 73, measured on 2026-10-15). A corner of radius r is r x r bytes, row j from the top and column i from the
+// outer edge: r = 1..12 (RAIO_CONTROLE 6, RAIO_CARTAO 12, the pills up to 24 px high), 650 B for each shape. A disc of radius r is the same coverage
+// mirrored four ways, so (r + 1) x (r + 1) bytes cover it from its centre: r = 0..8 (the knob of a switch is the biggest), 285 B for each shape.
+// Both are in flash (constexpr): no RAM. A bigger radius, or a shape that is neither, is computed as before.
+constexpr int R_TAB = 12, R_DISCO = 8;
+constexpr int tamCantos( int r ) { return r * ( r + 1 ) * ( 2 * r + 1 ) / 6; }
+constexpr int tamDisco( int r ) { return ( r + 1 ) * ( r + 2 ) * ( 2 * r + 3 ) / 6; }
+
+struct TabCantos {
+  uint8_t d[2][tamCantos( R_TAB )];
+  constexpr TabCantos( ) : d{} {
+    for ( int r = 1; r <= R_TAB; r++ ) {
+      const int off = tamCantos( r - 1 );
+      for ( int k = 0; k < 2; k++ ) {
+        const int32_t out = 8 * r, in = 8 * ( r - 1 );
+        const int32_t in2 = k == 0 || in <= 0 ? -1 : in * in;
+        for ( int j = 0; j < r; j++ )
+          for ( int i = 0; i < r; i++ ) d[k][off + j * r + i] = cobertura( 8 * ( i - r ), 8 * ( j - r ), out * out, in2 );
+      }
+    }
+  }
+};
+constexpr TabCantos kCantos;
+
+struct TabDisco {
+  uint8_t d[2][tamDisco( R_DISCO )];
+  constexpr TabDisco( ) : d{} {
+    for ( int r = 0; r <= R_DISCO; r++ ) {
+      const int off = tamDisco( r - 1 );
+      for ( int k = 0; k < 2; k++ ) {
+        const int32_t out = 8 * r + 4, in = 8 * r - 4;
+        const int32_t in2 = k == 0 || in <= 0 ? -1 : in * in;
+        for ( int j = 0; j <= r; j++ )
+          for ( int i = 0; i <= r; i++ ) d[k][off + j * ( r + 1 ) + i] = cobertura( 8 * i - 4, 8 * j - 4, out * out, in2 );
+      }
+    }
+  }
+};
+constexpr TabDisco kDisco;
 
 }  // namespace
 
@@ -379,13 +421,17 @@ void Pintor::misturar( int16_t x, int16_t y, uint16_t c, uint8_t a ) {
 // outside the disc of squared radius in2 (an outline; in2 < 0 for a fill). Rows
 // outside the strip being drawn (janela) are skipped: they are not kept.
 void Pintor::cantos( int16_t x, int16_t y, int16_t w, int16_t h, int16_t r, uint16_t c, int32_t in2 ) {
-  const int32_t out = 8 * r;
+  const int32_t out = 8 * r, in = 8 * ( r - 1 );
+  // The table, when the radius is one it holds and the shape is the fill or the 1 px outline roundRect( ) asks for.
+  const uint8_t *tab = nullptr;
+  if ( r >= 1 && r <= R_TAB && ( in2 < 0 || in2 == ( in > 0 ? in * in : -1 ) ) ) tab = &kCantos.d[in2 < 0 ? 0 : 1][tamCantos( r - 1 )];
   for ( int16_t j = 0; j < r; j++ ) {
     const int16_t ya = y + j, yb = y + h - 1 - j;
     const bool cima = ya >= jy0_ && ya < jy1_, baixo = yb >= jy0_ && yb < jy1_;
     if ( !cima && !baixo ) continue;
     for ( int16_t i = 0; i < r; i++ ) {
-      const uint8_t a = cobertura( 8 * ( i - r ), 8 * ( j - r ), out * out, in2 );
+      const uint8_t a = tab ? tab[j * r + i] : cobertura( 8 * ( i - r ), 8 * ( j - r ), out * out, in2 );
+      if ( a == 0 ) continue;   // misturar( ) would return at once, four times
       if ( cima ) { misturar( x + i, ya, c, a ); misturar( x + w - 1 - i, ya, c, a ); }
       if ( baixo ) { misturar( x + i, yb, c, a ); misturar( x + w - 1 - i, yb, c, a ); }
     }
@@ -397,10 +443,14 @@ void Pintor::cantos( int16_t x, int16_t y, int16_t w, int16_t h, int16_t r, uint
 // centre; the outline is the ring between r - 0.5 and r + 0.5 (in2 >= 0).
 void Pintor::disco( int16_t x, int16_t y, int16_t r, uint16_t c, int32_t in2 ) {
   if ( r < 0 || fora( y - r, 2 * r + 1 ) ) return;
-  const int32_t out = 8 * r + 4;
+  const int32_t out = 8 * r + 4, in = 8 * r - 4;
+  const uint8_t *tab = nullptr;
+  if ( r <= R_DISCO && ( in2 < 0 || in2 == ( in > 0 ? in * in : -1 ) ) ) tab = &kDisco.d[in2 < 0 ? 0 : 1][tamDisco( r - 1 )];
   for ( int16_t j = -r; j <= r; j++ ) {
     if ( y + j < jy0_ || y + j >= jy1_ ) continue;
-    for ( int16_t i = -r; i <= r; i++ ) misturar( x + i, y + j, c, cobertura( 8 * i - 4, 8 * j - 4, out * out, in2 ) );
+    const int aj = j < 0 ? -j : j;
+    for ( int16_t i = -r; i <= r; i++ )
+      misturar( x + i, y + j, c, tab ? tab[aj * ( r + 1 ) + ( i < 0 ? -i : i )] : cobertura( 8 * i - 4, 8 * j - 4, out * out, in2 ) );
   }
 }
 
