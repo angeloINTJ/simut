@@ -72,7 +72,10 @@ void separarLimites( SensorRecord &rec ) {
  * did it (DisplayManager_Touch.cpp:884-922): a tenth-rounded value held inside
  * the channel's sane range, then MIN and MAX pulled apart by moving the one the
  * user is NOT holding, so the digit under the finger keeps going the way it
- * was pressed. Read-modify-write: chMin/chMax live in a packed struct. */
+ * was pressed. Read-modify-write: chMin/chMax live in a packed struct.
+ * Kept as a copy on purpose (S8b, B1): the core's actLimitStep( ) could not take this step without moving the product images outside handleTouch( ) or the Angulo's
+ * functions outside the step's list (docs/analysis/UI_DRIVERS.md 4.4). It stays, with the copy of the hold's ramp in uaToqueAjustes( ), until the original's limits
+ * code is restructured. */
 void passoLimite( SensorRecord &rec, int idx, float step ) {
   const SensorType st = (SensorType)rec.sensorType;
   const uint8_t n = sensorLimitCount( st );
