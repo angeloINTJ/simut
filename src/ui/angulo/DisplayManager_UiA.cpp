@@ -224,8 +224,10 @@ bool DisplayManager::uaPintar( const UaQuadro &q, UiMode modo, uint32_t hash ) {
   uint8_t enviadas = 0;
   _uaPintando = true;
   if ( _uaTudo ) {
-    /* The black margins the alignment offset uncovers, and every strip. */
-    fastClearScreen( tema.fundo );
+    /* The glass goes black, not to the theme's background: the band the alignment offset uncovers is black (fastClearScreen( ) ends in
+     * fillMarginsBlack( )) and so is the margin of every strip (ua::margemPreta( ) below), which makes the margin one black in either
+     * theme. Then every strip is pushed. */
+    fastClearScreen( ua::PRETO );
     for ( int k = 0; k < FAIXAS; k++ ) s_faixa[k] = 0;
   }
   for ( int k = 0; k < FAIXAS; k++ ) {
@@ -233,6 +235,9 @@ bool DisplayManager::uaPintar( const UaQuadro &q, UiMode modo, uint32_t hash ) {
     p.janela( (int16_t)( k * ALTURA_FAIXA ), (int16_t)( ( k + 1 ) * ALTURA_FAIXA ) );
     faixa.fillScreen( tema.fundo );
     q.desenhar( p, q.vm );
+    /* After the screen, so that nothing it drew reaches the margin, and before the hash: a strip is pushed when its pixels changed,
+     * the margin's included. */
+    ua::margemPreta( p );
     const uint32_t h = fnv( cv->getBuffer( ), (size_t)LARGURA_FAIXA * ALTURA_FAIXA * 2 );
     if ( h == s_faixa[k] ) continue;
     blitCanvas( cv, 0, (int16_t)( k * ALTURA_FAIXA ), LARGURA_FAIXA, ALTURA_FAIXA );

@@ -209,6 +209,16 @@ void Pintor::rect( int16_t x, int16_t y, int16_t w, int16_t h, uint16_t c ) {
 
 void Pintor::line( int16_t x0, int16_t y0, int16_t x1, int16_t y1, uint16_t c ) { g_.drawLine( x0, y0, x1, y1, c ); }
 
+void margemPreta( Pintor &p ) {
+  // The top and bottom bands are as wide as the surface and the side ones run between them, so no pixel is painted twice. The size is
+  // the surface's (the firmware's strip reports the panel's 320 x 240 and keeps only its own rows), not a literal.
+  const int16_t w = p.gfx( ).width( ), h = p.gfx( ).height( );
+  p.fillRect( 0, 0, w, MARGEM, PRETO );
+  p.fillRect( 0, (int16_t)( h - MARGEM ), w, MARGEM, PRETO );
+  p.fillRect( 0, MARGEM, MARGEM, (int16_t)( h - 2 * MARGEM ), PRETO );
+  p.fillRect( (int16_t)( w - MARGEM ), MARGEM, MARGEM, (int16_t)( h - 2 * MARGEM ), PRETO );
+}
+
 namespace {
 
 // fg over bg, a sixteenths of fg: each channel widened to 8 bits (high bits

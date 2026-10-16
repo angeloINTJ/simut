@@ -7,6 +7,7 @@ card and a pill, filled and outlined, and three circles, each drawn black on whi
 what the smoothing promises and what it must not change. Nothing outside the shape's box; the
 straight edges and the inside as before; tones between background and colour in the corner (the
 smoothing); four mirror-image corners; coverage that never drops along an edge toward its middle.
+Then ua::margemPreta( ): the four bands of the margin are black and no pixel inside the safe area is touched.
 
 Then the instrument is bitten: the same program built with -DCANTOS_SEM_LEITOR draws the shapes
 with Adafruit GFX itself, its all-or-nothing arcs, what the Pintor drew before and the 45-degree

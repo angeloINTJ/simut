@@ -9,6 +9,9 @@ GFX 1.12.6, draws every sample in both themes, and fails when a sample:
   - asks the kit for a glyph or an icon it does not have;
   - draws text outside the panel's safe area (x 4..315, y 4..235: the display
     alignment moves the image up to 4 px, DisplayManager.h);
+  - leaves a pixel of the margin around that area (MARGEM px, read from src/ui/angulo/Angulo.h) that is not
+    0x0000 in the frame of either theme: ua::margemPreta( ) paints it after every screen, the harness calls it,
+    so a frame fails when that call is gone;
   - draws two strings whose ink boxes overlap;
   - draws a badge over another string's ink (the badge's fill hides what it covers; its own
     label is the one string allowed inside it);
@@ -49,7 +52,7 @@ import tempfile
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 HERE = pathlib.Path(__file__).resolve().parent
 SHIM = HERE / 'host' / 'shim'
-SAFE = (4, 316, 4, 236)          # x0, x1 (exclusive), y0, y1 (exclusive)
+W, H = 320, 240                  # the panel; the safe area is derived from the kit's MARGEM (margem_do_kit( ))
 MIN_ALVO = 24
 RETIC = '…'
 ACEITOS = HERE / 'cortes_aceitos.txt'
@@ -163,6 +166,37 @@ def alvo_inerte():
     return int(m.group(1))
 
 
+def margem_do_kit():
+    """The margin's width in pixels, read from the source of truth (MARGEM in src/ui/angulo/Angulo.h), not copied here."""
+    texto = (ROOT / 'src' / 'ui' / 'angulo' / 'Angulo.h').read_text(encoding='utf-8')
+    m = re.search(r'\bMARGEM\s*=\s*(\d+)\s*,', texto)
+    if not m:
+        print('MARGEM not found in src/ui/angulo/Angulo.h', file=sys.stderr)
+        return None
+    return int(m.group(1))
+
+
+def conferir_margem(nome, tema, dados, m, erros):
+    """The frame <nome>_<theme>.565 against the margin rule: every pixel of the four bands (x < m, x >= W - m, y < m,
+    y >= H - m) is 0x0000 in both themes (the light theme's background is #f6f6f4, the dark one's #161513: neither is
+    black). One failure per frame, with how many pixels are not black and the first. Returns that count."""
+    raw = (dados / f'{nome}_{tema}.565').read_bytes()
+    if len(raw) != 2 * W * H:
+        erros.append(f'{nome}_{tema}: the frame holds {len(raw)} bytes, not {2 * W * H}')
+        return 1
+    ruins = []
+    for y in range(H):
+        linha = raw[2 * y * W:2 * (y + 1) * W]
+        xs = range(W) if y < m or y >= H - m else (*range(m), *range(W - m, W))
+        ruins.extend((x, y) for x in xs if linha[2 * x] or linha[2 * x + 1])
+    if ruins:
+        x, y = ruins[0]
+        v = raw[2 * (y * W + x)] | (raw[2 * (y * W + x) + 1] << 8)
+        erros.append(f'{nome}_{tema}: {len(ruins)} of the {W * H - (W - 2 * m) * (H - 2 * m)} margin pixels are not black '
+                     f'(the first, {x},{y}, is 0x{v:04X})')
+    return len(ruins)
+
+
 def conferir_controles(nome, dados, alvos, inerte, erros):
     """The controls a sample drew (<nome>_<theme>.controles) against its targets. Returns (checked, excluded,
     dimmed on purpose). Each control lies fully inside some target; then, by the hit test the firmware runs (the
@@ -235,7 +269,11 @@ def main():
         inerte = alvo_inerte()
         if inerte is None:
             return 2
-        conferidos = excluidos = cobertos = 0
+        margem = margem_do_kit()
+        if margem is None:
+            return 2
+        seguro = (margem, W - margem, margem, H - margem)    # x0, x1 (exclusive), y0, y1 (exclusive)
+        conferidos = excluidos = cobertos = pretas = 0
         maior = (0, '', 0)
         nomes = sorted({p.name[:-len('.alvos')] for p in dados.glob('*.alvos')})
         for nome in nomes:
@@ -263,6 +301,7 @@ def main():
                 falta = int((dados / f'{nome}_{tema}.faltam').read_text().strip() or 0)
                 if falta:
                     erros.append(f'{nome}_{tema}: {falta} glyphs or icons missing')
+                pretas += conferir_margem(nome, tema, dados, margem, erros) == 0
                 textos, selos = [], []
                 for linha in (dados / f'{nome}_{tema}.textos').read_text().splitlines():
                     partes = linha.split(' ', 5)
@@ -272,7 +311,7 @@ def main():
                         selos.append((x0, x1, y0, y1, t))
                         continue
                     textos.append((x0, x1, y0, y1, t))
-                    if x0 < SAFE[0] or x1 > SAFE[1] or y0 < SAFE[2] or y1 > SAFE[3]:
+                    if x0 < seguro[0] or x1 > seguro[1] or y0 < seguro[2] or y1 > seguro[3]:
                         erros.append(f'{nome}_{tema}: "{t}" ink {x0}..{x1} x {y0}..{y1} leaves the safe area')
                 for i in range(len(textos)):
                     for j in range(i + 1, len(textos)):
@@ -330,7 +369,8 @@ def main():
             print('FAIL:', e)
         print(f'{len(nomes)} samples, {len(erros)} failures, {len(avisos)} warnings, {cortes} accepted cuts, '
               f'{conferidos} controls checked, {excluidos} excluded at the call, {cobertos} dimmed on purpose, '
-              f'largest target list {maior[0]} of {maior[2]} ({maior[1]})')
+              f'largest target list {maior[0]} of {maior[2]} ({maior[1]}), '
+              f'{pretas} of {2 * len(nomes)} frames with a black margin')
         if args.out:
             from PIL import Image, ImageDraw
             out = pathlib.Path(args.out)

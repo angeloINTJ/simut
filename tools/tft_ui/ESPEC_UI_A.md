@@ -15,7 +15,7 @@ imagem de produto.
 | Referências do plano | `entrega/referencia/telas/A_*.png`, `entrega/referencia/teclados/*.png` | as imagens que o plano desenhou |
 | Contrato das telas | `src/ui/angulo/telas/Telas.h` | `Alvo`, `addAlvo`, `alvoEm`, `copiar`, `quebrar`, `VmStatus` + `desenharStatus` (barra de status com a marca) |
 | Telas de referência | `src/ui/angulo/telas/Base.{h,cpp}`, amostras em `tools/tft_ui/amostras/base.cpp` | mensagem de resultado e diálogo de confirmação: **o modelo a copiar** |
-| Arnês | `python3 tools/tft_ui/host_telas.py <grupo> --out <pasta>` | compila o kit, `Telas.cpp`, `src/ui/angulo/telas/<Grupo>*.cpp` e `tools/tft_ui/amostras/<grupo>.cpp`; desenha cada amostra nos dois temas; falha com glifo ou ícone ausente, texto fora da área segura (x 4..315, y 4..235), dois textos sobrepostos, texto que cruza a borda de um alvo, texto cortado com "…" que `tools/tft_ui/cortes_aceitos.txt` não aceita para aquela amostra (corte só de dado longo de propósito, com o motivo; linha cujo corte não acontece mais também falha) ou alvo fora da tela; avisa alvo menor que 24 px e alvos sobrepostos; grava PNG por quadro, PNG com os alvos e a folha `_folha.png` |
+| Arnês | `python3 tools/tft_ui/host_telas.py <grupo> --out <pasta>` | compila o kit, `Telas.cpp`, `src/ui/angulo/telas/<Grupo>*.cpp` e `tools/tft_ui/amostras/<grupo>.cpp`; desenha cada amostra nos dois temas; falha com glifo ou ícone ausente, texto fora da área segura (x 4..315, y 4..235), pixel da margem de 4 px em volta dela (`MARGEM`) que não seja 0x0000 no quadro de um dos temas, dois textos sobrepostos, texto que cruza a borda de um alvo, texto cortado com "…" que `tools/tft_ui/cortes_aceitos.txt` não aceita para aquela amostra (corte só de dado longo de propósito, com o motivo; linha cujo corte não acontece mais também falha) ou alvo fora da tela; avisa alvo menor que 24 px e alvos sobrepostos; grava PNG por quadro, PNG com os alvos e a folha `_folha.png` |
 | Levantamento do código atual | do estudo, fora da árvore: `~/Documentos/simut/scratchpad/synth_20261014/inventario/*.md`; na árvore há a auditoria `docs/analysis/UI_DRIVERS.md` (os ramos de toque e os desenhos imediatos, seções 3.3 e 3.5), sem as coordenadas de cada tela | coordenadas, comportamento, eventos e dados de cada tela do painel de hoje (`dashboard_alarme_boot.md`, `grafico_tema_idioma_nucleos.md`, `configuracoes_sistema.md`, `pin_usuarios_alarmes.md`) |
 
 Ícones disponíveis (nome, tamanho): veja `src/ui/angulo/AnguloIcones.h`. Faltando um, **não**
@@ -49,7 +49,12 @@ edite `tools/tft_ui/gerar_meta.js`: diga no relatório (o integrador acrescenta 
    `alvos` usam a mesma. Alvos: enum próprio da tela (`0` = nada), `indice` = linha, tecla, coluna.
    Lista os alvos **ativos**; um controle desenhado desabilitado entra como alvo **inerte** (tipo 0, "Alvo inerte" em "Qual alvo
    responde"); com um popup aberto, as teclas do popup e, inertes, os controles que ficam à vista atrás dele.
-4. O fundo já vem pintado com `T.fundo`; a tela pinta o resto. Cores só por papel do tema
+4. O fundo já vem pintado com `T.fundo`; a tela pinta o resto. A **margem** de 4 px em volta da área segura
+   (`MARGEM` em `Angulo.h`: x < 4, x ≥ 316, y < 4, y ≥ 236) é **preta** nos dois temas (`PRETO`, RGB565 0x0000, a única cor do
+   kit que não é papel do tema): é a faixa que o alinhamento da tela (Ajustes, Alinhar, ±4 px) usa, e o tema claro a deixava com o
+   fundo, ao lado da faixa preta que o deslocamento descobre. A tela não desenha nela e não chama nada: `ua::margemPreta( Pintor& )`
+   a pinta depois do desenho (no firmware, a cada faixa de `uaPintar( )`, que também limpa o vidro para preto; no arnês, a cada
+   amostra), e `host_telas.py` reprova o quadro de qualquer tema com um pixel dela que não seja 0x0000. Cores só por papel do tema
    (`p.t( ).acento`…), nunca literal. Espaços da grade de 4 px (`ESP1`..`ESP7`, `PAD`, `Y0`, `H_STATUS`).
    Raios do kit (`RAIO_CONTROLE` 6, `RAIO_CARTAO` 12, `RAIO_TOTAL`). Sem sombra em cartão.
 5. Texto (Ângulo §7, `~/Documentos/simut/ANGULO.md`): português do Brasil, caixa de sentença, botão é

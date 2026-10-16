@@ -62,6 +62,8 @@ int main( int argc, char **argv ) {
       ua::hostLimparControles( );
       const uint32_t faltavam = ua::glifosFaltando( );
       a.desenhar( p );
+      // And the margin black after it, the call uaPintar( ) makes after each strip: the frame written below is the glass's.
+      ua::margemPreta( p );
       snprintf( path, sizeof path, "%s/%s_%s.565", argv[1], a.nome, nomeTema );
       FILE *f = fopen( path, "wb" );
       if ( !f ) { perror( path ); return 2; }

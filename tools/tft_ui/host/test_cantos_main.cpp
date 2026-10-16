@@ -1,4 +1,4 @@
-// The smoothed corners and circles of ua::Pintor (src/ui/angulo/Angulo.cpp), checked on the host
+// The smoothed corners and circles of ua::Pintor, and ua::margemPreta( ) (src/ui/angulo/Angulo.cpp), checked on the host
 // in Adafruit GFX's GFXcanvas16. Run by tools/tft_ui/test_cantos.py, which also builds it with
 // -DCANTOS_SEM_LEITOR (the shapes drawn by Adafruit GFX itself, its all-or-nothing arcs) as the control
 // that must fail the intermediate-tone checks.
@@ -130,9 +130,32 @@ void circulo( const char *caso, int16_t r, bool contorno ) {
   conferir( intermedios >= 4, caso, msg );
 }
 
+// ua::margemPreta( ): the four bands of the margin are black, and not one pixel inside the safe area is touched.
+void margem( ) {
+  GFXcanvas16 cv( 320, 240 );
+  LeitorCanvas leitor( cv );
+  const ua::Tema t = tema( );
+  ua::Pintor p( cv, t, leitor );
+  p.clear( t.fundo );
+  ua::margemPreta( p );
+  int pretos = 0, intactos = 0, foraDePreto = 0, tocados = 0;
+  for ( int16_t j = 0; j < 240; j++ )
+    for ( int16_t i = 0; i < 320; i++ ) {
+      const bool naMargem = i < ua::MARGEM || i >= 320 - ua::MARGEM || j < ua::MARGEM || j >= 240 - ua::MARGEM;
+      const uint16_t v = cv.getPixel( i, j );
+      if ( naMargem ) ( v == ua::PRETO ? pretos : foraDePreto )++;
+      else ( v == t.fundo ? intactos : tocados )++;
+    }
+  char msg[96];
+  snprintf( msg, sizeof msg, "all %d pixels of the four bands are black", 320 * 240 - 312 * 232 );
+  conferir( foraDePreto == 0 && pretos == 320 * 240 - 312 * 232, "margin", msg );
+  conferir( tocados == 0 && intactos == 312 * 232, "margin", "no pixel inside the safe area is touched" );
+}
+
 }  // namespace
 
 int main( ) {
+  margem( );
   caixa( "button 72x36 r6, fill", 72, 36, ua::RAIO_CONTROLE, false );
   caixa( "button 72x36 r6, outline", 72, 36, ua::RAIO_CONTROLE, true );
   caixa( "card 120x80 r12, fill", 120, 80, ua::RAIO_CARTAO, false );

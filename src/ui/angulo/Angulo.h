@@ -51,7 +51,11 @@ enum : int16_t {
   PAD = ESP3,          // text inset in a card or row
   H_STATUS = 28,       // status bar
   Y0 = 36,             // first content row of family A
+  MARGEM = 4,          // the glass's margin, the band the display alignment moves the image into: no ink, and margemPreta( ) paints it black
 };
+
+// RGB565 black, the glass's colour when nothing is lit: not a role of the theme, so no theme can change it.
+constexpr uint16_t PRETO = 0x0000;
 
 // Math.round(v / 2) and Math.round(n / d) for integers (d > 0), half up.
 int16_t rd2( int32_t v );
@@ -190,6 +194,12 @@ private:
   Leitor &l_;
   int16_t jy0_ = -32768, jy1_ = 32767;
 };
+
+// The margin the display alignment (Ajustes, Alinhar; TftWithOffset.h, +-4 px) uses: the MARGEM px around the safe area (x < MARGEM,
+// x >= width - MARGEM, y < MARGEM, y >= height - MARGEM) painted PRETO, in every theme. It goes through the Pintor, so a strip of
+// the firmware keeps only its own rows. A screen does not call it: DisplayManager::uaPintar( ) calls it after each strip's draw and
+// tools/tft_ui/host/host_telas_main.cpp after each sample's, so a frame on the host is the frame on the glass.
+void margemPreta( Pintor &p );
 
 // Text centred vertically in [y, y + h): cap height (or x height).
 Tinta textoCentrado( Pintor &p, const char *s, int16_t x, int16_t y, int16_t h, Fonte f, uint16_t cor,
