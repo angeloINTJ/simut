@@ -40,9 +40,25 @@ public:
     if ( r0 < 0 ) r0 = 0;
     if ( r1 > ALTURA_FAIXA ) r1 = ALTURA_FAIXA;
     if ( x0 >= x1 || r0 >= r1 ) return;
+    // Two pixels to a 32-bit store wherever the run is on a word (a row of this buffer is 320 pixels, and the buffer is word aligned), four stores
+    // a pass: the clear of a strip is 12,800 pixels, six times a frame, and the screens fill rectangles all the time. The ends go one pixel at a time.
+    const uint32_t dupla = (uint32_t)c | (uint32_t)c << 16;
     for ( int16_t r = r0; r < r1; r++ ) {
       uint16_t *p = buf_ + (int32_t)r * LARGURA_PAINEL + x0;
-      for ( int16_t i = x0; i < x1; i++ ) *p++ = c;
+      int n = x1 - x0;
+      if ( ( reinterpret_cast<uintptr_t>( p ) & 2 ) && n > 0 ) {
+        *p++ = c;
+        n--;
+      }
+      Palavra *q = reinterpret_cast<Palavra *>( p );
+      for ( ; n >= 8; n -= 8, q += 4 ) {
+        q[0] = dupla;
+        q[1] = dupla;
+        q[2] = dupla;
+        q[3] = dupla;
+      }
+      for ( ; n >= 2; n -= 2 ) *q++ = dupla;
+      if ( n ) *reinterpret_cast<uint16_t *>( q ) = c;
     }
   }
   void drawFastHLine( int16_t x, int16_t y, int16_t w, uint16_t c ) override { fillRect( x, y, w, 1, c ); }
