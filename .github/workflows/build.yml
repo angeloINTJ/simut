@@ -186,6 +186,20 @@ jobs:
           python3 tools/test_net_boundary.py
           python3 tools/check_net_boundary.py
 
+      # patch.sh runs again and again: after every override that merges, and in the
+      # firmware jobs on a warm ~/.platformio cache that already carries them (see
+      # "Apply framework overrides" below). Each step skips itself when a grep finds
+      # the marker its own patch adds. A marker the patch does not add costs nothing
+      # on the first run and ends the second: `patch` meets the applied hunk, asks
+      # "Assume -R?", rejects it, and `set -e` stops the script before the steps after
+      # it and before the cache invalidation. Step 2b-ter (#274) did exactly that
+      # from 2026-10-15. The test breaks each guard four ways and requires exactly one
+      # finding; the gate reads patch.sh against patches/.
+      - name: Framework overrides (every patch.sh guard matches its patch)
+        run: |
+          python3 tools/test_patch_sentinels.py
+          python3 tools/check_patch_sentinels.py
+
       # The configurator's rules (tools/features.toml [[rules]], each measured
       # by compiling the forbidden combination). They are applied twice: by
       # docs/configurador/rules.js, so the page can lock an option, and by
