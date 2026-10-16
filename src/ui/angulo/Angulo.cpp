@@ -201,6 +201,12 @@ int s_bytesLista = 0;   // at most 32,767: a record's offset into the list is an
 int s_nRegOps = 0;
 int s_topo = 0;         // the offset the bytes filling the list from its end have reached; s_bytesLista with none
 Op *regOps( ) { return reinterpret_cast<Op *>( s_lista ); }
+
+// The blends remembered (mist( ), below), one entry for each coverage: declared here so that Pintor::gravar( ) can clear them.
+struct Lembrada {
+  uint16_t fg, bg, res;
+};
+Lembrada s_lembradas[16];
 }  // namespace
 
 void Pintor::lista( void *mem, size_t bytes ) {
@@ -214,6 +220,9 @@ void Pintor::lista( void *mem, size_t bytes ) {
 }
 
 void Pintor::gravar( ) {
+  // An entry of the blends' memo is three stores, and a restart of Core 1 does not clear .bss: a recording starts from none, so that no frame trusts what an
+  // interrupted one left (96 B, a few stores a paint).
+  memset( s_lembradas, 0, sizeof s_lembradas );
   s_nRegOps = 0;
   s_topo = s_bytesLista;
   pronto_ = false;
@@ -457,11 +466,8 @@ uint16_t misturar16( uint16_t fg, uint16_t bg, uint8_t a ) {
 // misturar16( ) remembered, one entry for each coverage a (1 to 15). The corners of a screen's boxes mix the same few colours over the same background
 // again and again (the detail's six cards and their outlines are ~1,500 blends a frame), so the arithmetic runs once for each (colour, background,
 // coverage) and the rest cost a compare and a load: a hit returns what misturar16( ) returns, for it is a function of the three. All zero is a valid
-// entry (black over black is black). 96 B of RAM, the one cost of the boxes' speed-up; the board's cantos took 20.9 of the detail's 53 ms (2026-10-16).
-struct Lembrada {
-  uint16_t fg, bg, res;
-};
-Lembrada s_lembradas[16];
+// entry (black over black is black), and it is what Pintor::gravar( ) leaves at the start of each recording. 96 B of RAM, held by tools/ui_ram_budget.json; the
+// boxes took 20.9 of the detail's 53.0 ms on the board (2026-10-16).
 inline uint16_t mist( uint16_t fg, uint16_t bg, uint8_t a ) {
   Lembrada &m = s_lembradas[a & 15];
   if ( m.fg != fg || m.bg != bg ) {
@@ -563,8 +569,9 @@ void Pintor::cantos( int16_t x, int16_t y, int16_t w, int16_t h, int16_t r, uint
   // The strip's own case, which is every box the firmware draws: the table, a raw buffer whose rows are the window's, the box inside the surface's columns.
   // Each row of a corner is then walked once in the table, the spans and the blends go straight into the buffer (a span was a Pintor::fillRect( ) call, with
   // its window and surface tests, and a Faixa::fillRect( ) behind it; a blend, misturar( )'s tests and the arithmetic): on the board the boxes took 11.9 ms of the
-  // chart's 60.3 and 20.9 of the detail's 53.0, ~40 us a span or blend, nearly all of it instructions fetched from flash (2026-10-16). The same pixels in the
-  // same cells: host_perf --caixas holds them to a per-pixel reference, and every frame to the one Adafruit GFX draws whole.
+  // chart's 60.3 and 20.9 of the detail's 53.0, for 204 spans and 764 blends on the chart and 324 and 1,452 on the detail (counted on the host, in this function):
+  // ~12 us an operation, nearly all of it instructions fetched from flash (2026-10-16). The same pixels in the same cells: host_perf --caixas holds them to a
+  // per-pixel reference, and every frame to the one Adafruit GFX draws whole.
   if ( tab && bruto_ && x >= 0 && (int32_t)x + w <= bLarg_ && (int32_t)x + w <= g_.width( ) && jy0_ >= bTopo_ && jy1_ <= bTopo_ + bAlt_ && jy0_ >= 0 &&
        jy1_ <= g_.height( ) ) {
     for ( int16_t j = 0; j < r; j++ ) {

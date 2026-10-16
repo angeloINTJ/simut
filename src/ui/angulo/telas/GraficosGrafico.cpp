@@ -81,7 +81,7 @@ struct PlotGrafico {
   int16_t px0, px1, py0, py1;    // the plot
   int32_t lo, hi;                // what the plot's height spans, in tenths
   int32_t lo2, hi2;              // the second curve's
-  int16_t yMin[3], yMax[3];      // the rows each of the three functions draws within (band, second curve, mean); yMin > yMax: it draws nothing
+  int16_t yMin[3], yMax[3];      // the rows each of the three functions draws within (band, second curve, mean); off the panel: it draws nothing
 };
 
 // What the targets need and the data does not move: the two actions' boxes and the footer's. alvosGrafico( ) takes only this (the layout also works out the
@@ -374,9 +374,11 @@ PlotGrafico s_plot;
 
 // Is the window wholly outside the rows function `slot` draws within? Those are the rows of its own values (extentes( )), not the plot's whole height: on the
 // board the three functions took 12.7 of the chart's 60.3 ms, 0.8 to 1.0 ms in each of the three strips that held part of the plot but none of the curves, which
-// walked every bucket and bisected their limits for nothing (2026-10-16). The slack is the one the plot's height had: a square reaches LADO_PONTO.
+// walked every bucket and bisected their limits for nothing (2026-10-16). The slack is the one the plot's height had: a square reaches LADO_PONTO. A function with
+// nothing to draw is no special case here: its rows are off the panel (SEM_LINHAS), so every strip skips it, and a frame drawn whole, whose window has no edges,
+// still runs it. That keeps host_perf --guarda a differential: a wrong limit is wrong in the strips only.
 bool foraDoPlot( const Pintor &p, const PlotGrafico &l, int slot ) {
-  return l.yMin[slot] > l.yMax[slot] || p.fora( (int16_t)( l.yMin[slot] - LADO_PONTO ), (int16_t)( l.yMax[slot] - l.yMin[slot] + 2 * LADO_PONTO + 2 ) );
+  return p.fora( (int16_t)( l.yMin[slot] - LADO_PONTO ), (int16_t)( l.yMax[slot] - l.yMin[slot] + 2 * LADO_PONTO + 2 ) );
 }
 
 // What a window of rows cannot show, in values. A value's row falls as the value rises (yDe( ) clamps, and rdiv( ) never turns round), so within the scale
@@ -497,8 +499,10 @@ void desenharMedia( Pintor &p, const void *arg ) {
 }
 
 // The rows each of the three functions draws within, from the frame's own values: yDe( ) clamps and never turns round, so the extreme values give the extreme
-// rows (the band's from its tops and bottoms and the buckets' means together, so that an inverted bucket cannot leave one out). A function with no bucket gets
-// yMin > yMax and draws nothing.
+// rows (the band's from its tops and bottoms and the buckets' means together, so that an inverted bucket cannot leave one out). A function with no bucket gets rows off the
+// panel (SEM_LINHAS): every strip skips it.
+constexpr int16_t SEM_LINHAS = 4096;
+
 void extentes( const VmGrafico &vm, PlotGrafico &l, bool temV2 ) {
   int32_t tb = INT32_MIN, bb = INT32_MAX, tm = INT32_MIN, bm = INT32_MAX, t2 = INT32_MIN, b2 = INT32_MAX;
   for ( int i = 0; i < l.n; i++ ) {
@@ -525,7 +529,7 @@ void extentes( const VmGrafico &vm, PlotGrafico &l, bool temV2 ) {
       if ( v2 < b2 ) b2 = v2;
     }
   }
-  l.yMin[0] = 1; l.yMax[0] = 0; l.yMin[1] = 1; l.yMax[1] = 0; l.yMin[2] = 1; l.yMax[2] = 0;
+  for ( int k = 0; k < 3; k++ ) l.yMin[k] = l.yMax[k] = SEM_LINHAS;
   // Only a value inside its scale has a row that follows it (rdiv( ) narrows to 16 bits, as Limiares' comment says of yDe( )): the screens' values always are, and
   // a function that holds one outside keeps the plot's whole height, as it had.
   auto linhas = [&]( int slot, int32_t topo, int32_t fundo, int32_t lo, int32_t hi ) {

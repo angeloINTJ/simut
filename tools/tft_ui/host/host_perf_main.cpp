@@ -514,29 +514,38 @@ int provarGuarda( ) {
   }
   printf( "%s --guarda: the chart with its second curve on the plot's first and last rows, strips on %d grids: %ld pixels differ\n", dif == 0 ? "ok  " : "FAIL", grades, dif );
   // a flat chart (a scale of 10 tenths) with inverted buckets, values outside the scale whose row wraps: the stretch that spans one is drawn from the top of the plot,
-  // which a guard that spared it by its other value would lose
-  for ( int i = 0; i < GRAFICO_BALDES; i++ ) vm.bMedia[i] = vm.bMin[i] = vm.bMax[i] = vm.bMedia2[i] = SEM_DADO;
-  vm.serie2 = Serie2::NENHUMA;
-  vm.n = 40;
-  for ( int i = 0; i < vm.n; i++ ) {
-    vm.bMedia[i] = 200;
-    vm.bMin[i] = 198;
-    vm.bMax[i] = 202;
-  }
-  vm.bMax[10] = -5000;   // under its mean, no minimum
-  vm.bMin[10] = SEM_DADO;
-  vm.bMin[20] = 5000;    // over its mean, no maximum
-  vm.bMax[20] = SEM_DADO;
-  vm.bMax[30] = -5000;   // both
-  vm.bMin[30] = 5000;
+  // which a guard that spared it by its other value would lose. One chart for each kind of bucket (2026-10-16, the review of the plot's row limits): with a
+  // maximum under its mean and a minimum over it in the same chart, a limit that ignored one of them still met the other, kept the plot's whole height, and the
+  // chart passed while the limit was wrong. Alone, each is what tells the limits that the band reaches out of the scale. Held by mutation: extentes( ) without
+  // its scale test, without the buckets' maxima, or without their minima must fail here.
   long difInv = 0;
-  for ( int t = 0; t < 2; t++ ) {
-    const ua::Tema &tema = t ? ua::temaClaro( ) : ua::temaEscuro( );
-    GFXcanvas16 inteira( ua::LARGURA_PAINEL, ua::ALTURA_PAINEL );
-    desenharInteira( a, tema, inteira );
-    for ( int d = 0; d < ua::ALTURA_FAIXA; d++ ) difInv += diferentes( a, tema, faixa, inteira, false, d );
+  for ( int que = 0; que < 3; que++ ) {
+    for ( int i = 0; i < GRAFICO_BALDES; i++ ) vm.bMedia[i] = vm.bMin[i] = vm.bMax[i] = vm.bMedia2[i] = SEM_DADO;
+    vm.serie2 = Serie2::NENHUMA;
+    vm.n = 40;
+    for ( int i = 0; i < vm.n; i++ ) {
+      vm.bMedia[i] = 200;
+      vm.bMin[i] = 198;
+      vm.bMax[i] = 202;
+    }
+    if ( que == 0 ) {   // under its mean, no minimum
+      vm.bMax[10] = -5000;
+      vm.bMin[10] = SEM_DADO;
+    } else if ( que == 1 ) {   // over its mean, no maximum
+      vm.bMin[20] = 5000;
+      vm.bMax[20] = SEM_DADO;
+    } else {   // both
+      vm.bMax[30] = -5000;
+      vm.bMin[30] = 5000;
+    }
+    for ( int t = 0; t < 2; t++ ) {
+      const ua::Tema &tema = t ? ua::temaClaro( ) : ua::temaEscuro( );
+      GFXcanvas16 inteira( ua::LARGURA_PAINEL, ua::ALTURA_PAINEL );
+      desenharInteira( a, tema, inteira );
+      for ( int d = 0; d < ua::ALTURA_FAIXA; d++ ) difInv += diferentes( a, tema, faixa, inteira, false, d );
+    }
   }
-  printf( "%s --guarda: a flat chart with inverted buckets (values outside the scale), strips on 20 grids, both themes: %ld pixels differ\n", difInv == 0 ? "ok  " : "FAIL", difInv );
+  printf( "%s --guarda: flat charts with inverted buckets (a maximum under its mean, a minimum over it, both; values outside the scale), strips on 20 grids, both themes: %ld pixels differ\n", difInv == 0 ? "ok  " : "FAIL", difInv );
   long difSorteio = 0;
   const int sorteios = 300;
   for ( int s = 0; s < sorteios; s++ ) {
