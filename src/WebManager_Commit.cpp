@@ -1871,9 +1871,13 @@ void WebManager::handleApiCommitAll( ) {
 	 * Hard reboot via LogManager::safeReboot( ) — consolidated sequence:
 	 * - markCleanReboot: autopsy does NOT report as HW_WATCHDOG (intentional)
 	 * - Serial.flush + Serial.end: USB CDC cleanly disconnects on host
-	 * - watchdog_enable(500, 1): 500ms WDT guarantees reset even if something
-	 * hangs (lockout, multicore, flash GC). Eliminates the window where
-	 * a frozen display could occur between save completion and reset.
+	 * - a watchdog TRIGGER with LOAD at its maximum and ENABLE cleared (not
+	 * watchdog_enable( ), which this comment named until 2026-10-18 and the
+	 * function has not called in this repository's history: v1.0.0 already
+	 * carried the "reload confirm bricks" fix, where an ENABLE left set
+	 * survives the reset and fires inside the next boot).
+	 * safeReboot( ) first writes the log records still in RAM, then runs the
+	 * pre-reboot hook, which writes the open history block (LogManager.cpp).
 	 */
 	LogManager::instance( ).safeReboot( );
 }

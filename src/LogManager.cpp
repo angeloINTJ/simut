@@ -859,10 +859,24 @@ void LogManager::safeReboot( ) {
  /* Persist before anything else: below this point the console detaches and
   * the chip resets, and the history block still open lives in RAM. Cleared
   * before the call so a hook that somehow reaches safeReboot again cannot
-  * recurse. Suppressed by callers that just erased the filesystem. */
+  * recurse. Suppressed by callers that just erased the filesystem.
+  *
+  * The log's own RAM comes first. writeCompactToFlash( ) holds a record in
+  * _pendingLogs for TOUCH_PRIORITY_MS (5 s) after a touch on the panel, while
+  * the storage holds its heavy-task lock, and while the Bluetooth console's
+  * update runs (setForceBuffer( )), and only a later write or the touch's
+  * release puts it on flash. A planned restart in that window dropped
+  * it, and markCleanReboot( ) below then hid the restart from the autopsy too:
+  * a reboot with no record at all. NetworkManager::update( ) runs on every
+  * pass, the touch window included, so the radio's planned restarts (ctx 3 and
+  * 4 of SYS_WIFI_CONNECT) and the setup AP's timeout were exposed. Inside the
+  * hook's guard because the two callers that suppress it (a restore that
+  * replaced the filesystem, `system format`) must not have records of the
+  * filesystem they replaced written into the new one either. */
  if (_preRebootFn) {
  void (*fn)( ) = _preRebootFn;
  _preRebootFn = nullptr;
+ flushPendingIfAny( );
  fn( );
  }
 
@@ -943,6 +957,7 @@ void LogManager::safeRebootFlashUpdate(uint32_t updateBase) {
  if (_preRebootFn) {
  void (*fn)( ) = _preRebootFn;
  _preRebootFn = nullptr;
+ flushPendingIfAny( ); /* the records in RAM first, as in safeReboot( ) */
  fn( );
  }
  markCleanReboot( );
