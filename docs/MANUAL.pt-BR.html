@@ -5054,11 +5054,13 @@ E6614103E7512B29,uSALA-1,Sala,55.00,52.00</code></pre>
 <p>Três recusas seguidas, com o aparelho ligado há mais de 30 min, fazem o aparelho reiniciar para recuperar o rádio. Antes, ele grava o evento 10 com contexto 3. Nos primeiros 30 min depois de um boot, ele não reinicia por esse motivo, então um rádio que continua quebrado custa no máximo um reinício a cada meia hora.</p>
 <p>Até a v2.8.0, uma recusa prendia o aparelho por até 15 s dentro do pedido, e o watchdog, que reinicia o aparelho depois de 8,4 s sem resposta, o reiniciava. O log mostrava só a autópsia de um travamento no módulo <code>WIFI</code>, contexto 202 (<a href="#cap-16-travamento">Como ler um travamento</a>).</p>
 <h4 id="cap-09-mudo">Quando o rádio não responde à busca</h4>
-<p>A escada mede quanto tempo o pedido de busca leva para voltar. Num rádio que responde, ele volta em milissegundos. Num rádio que parou de responder, só volta depois do tempo-limite do driver, perto de 1 s. Uma busca assim que passa do prazo de 15 s é de um rádio mudo, e depois dela a escada não tenta entrar na rede às cegas: num rádio mudo, esse pedido de conexão prendia o aparelho além dos 8,4 s do watchdog.</p>
+<p>A escada mede quanto tempo o pedido de busca leva para voltar. Num rádio que responde, ele volta em milissegundos. Num rádio que parou de responder, só volta depois do tempo-limite do driver, perto de 1 s. Uma busca assim que passa do prazo de 15 s é de um rádio mudo.</p>
+<p>Logo depois de o rádio emudecer, os primeiros pedidos ainda voltam em milissegundos, com erro. Por isso, quando uma busca que voltou rápido passa do prazo, o aparelho faz uma leitura curta ao rádio. Se o rádio responde, a busca só se perdeu e a escada segue como sempre. Se não responde, é um rádio mudo.</p>
+<p>Depois de uma busca de rádio mudo, a escada não tenta entrar na rede às cegas: num rádio mudo, esse pedido de conexão prendia o aparelho além dos 8,4 s do watchdog.</p>
 <p>Duas buscas seguidas de um rádio mudo, com o aparelho ligado há mais de 30 min, fazem o aparelho reiniciar para recuperar o rádio. Antes, ele grava o evento 10 com contexto 4. Nos primeiros 30 min depois de um boot, ele segue buscando, sem reiniciar e sem tentar entrar na rede.</p>
 <p>Até a v2.11.1, a escada tentava entrar às cegas depois de duas buscas sem resposta, e o watchdog reiniciava o aparelho. O log mostrava só a autópsia de um travamento no módulo <code>WIFI</code>, contexto 202 (<a href="#cap-16-travamento">Como ler um travamento</a>).</p>
 <h4 id="cap-09-vigilancia">Outros motivos para reconectar</h4>
-<p>Conectado, o aparelho confere o sinal uma vez por minuto. Um sinal impossível, 0 dBm ou mais, ou abaixo de −120 dBm, indica que o rádio parou de responder de verdade, mesmo que o Wi-Fi ainda se diga conectado. Duas leituras impossíveis seguidas fazem o aparelho derrubar a conexão e entrar na escada, com o evento <strong>Implausible RSSI twice — link presumed dead, reconnecting</strong>.</p>
+<p>Conectado, o aparelho confere o sinal uma vez por minuto. Um sinal impossível, 0 dBm ou mais, ou abaixo de −120 dBm, ou uma leitura que o rádio não responde, indica que o rádio parou de responder de verdade, mesmo que o Wi-Fi ainda se diga conectado. Duas leituras assim seguidas fazem o aparelho derrubar a conexão e entrar na escada, com o evento <strong>Implausible RSSI twice — link presumed dead, reconnecting</strong>.</p>
 <h4 id="cap-09-log">Como ler a escada no log de eventos</h4>
 <p>A página <strong>Histórico e Logs</strong> mostra os eventos (<a href="#cap-16">capítulo 16</a>). Os que contam a história da rede:</p>
 <div class="tw"><table>
@@ -5148,12 +5150,12 @@ E6614103E7512B29,uSALA-1,Sala,55.00,52.00</code></pre>
 <tr class="odd">
 <td>11</td>
 <td><code>Implausible RSSI twice — link presumed dead, reconnecting</code></td>
-<td>O rádio parou de responder; o contexto é a leitura</td>
+<td>O rádio parou de responder; o contexto é a leitura, ou −999 quando o rádio não respondeu à leitura</td>
 </tr>
 <tr class="even">
 <td>12</td>
-<td><code>Scan never finished — abandoning it (start took &lt;n&gt; ms)</code></td>
-<td>Uma busca passou do prazo de 15 s; o tempo é o que o pedido da busca levou para voltar</td>
+<td><code>Scan never finished — abandoning it (start took &lt;n&gt; ms, read &lt;r&gt;)</code></td>
+<td>Uma busca passou do prazo de 15 s; o tempo é o que o pedido da busca levou para voltar, e a leitura, quando houve, é a resposta do rádio: 0 quando respondeu</td>
 </tr>
 <tr class="odd">
 <td>403</td>
@@ -25922,7 +25924,7 @@ O formato de arquivo que a placa aceita no modo BOOTSEL (<a href="#cap-03">capí
 </section>
 </main>
 <footer class="colofao">
-<p>Manual do SIMUT, gerado em 15/10/2026 por <code>tools/build_manual.py</code> a partir de <code>docs/_manual/</code>. Licença MIT, como o firmware.</p>
+<p>Manual do SIMUT, gerado em 21/10/2026 por <code>tools/build_manual.py</code> a partir de <code>docs/_manual/</code>. Licença MIT, como o firmware.</p>
 <p>Visual no padrão Ângulo. Fonte de títulos: Ângulo Display, recorte da Bricolage Grotesque SemiBold, SIL Open Font License 1.1.</p>
 </footer>
 </div>

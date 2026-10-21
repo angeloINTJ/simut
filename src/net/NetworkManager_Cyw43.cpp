@@ -32,6 +32,32 @@
 #include <bearssl/bearssl_hash.h>     /* br_sha256_* for that derivation (V-05) */
 #include "pico/cyw43_arch.h"           /* enable_sta_mode: scanning needs the STA itf */
 
+/* Two reads of the chip for their return code, which WiFi.* hides: the driver's
+ * 0 for a chip that answered, or its error for one that did not. That error is
+ * -CYW43_EIO (-6, "F2 not ready") for the first ~16 sends to a chip that went
+ * silent, which fail in milliseconds while the SDPCM credits it last granted
+ * last, and -CYW43_ETIMEDOUT (-2) for every send after them, 1 s each (bench,
+ * 2026-10-17, #266). The driver ignores the status of a response
+ * (sdpcm_process_rx_packet( ) in cyw43_ll.c, "TODO need to handle errors"), so
+ * a chip that answers at all answers 0. */
+
+/** One read the chip has to answer; the antenna setting is never refused. */
+static int radioRead( ) {
+ uint32_t antdiv = 0;
+ return cyw43_ioctl(&cyw43_state, CYW43_IOCTL_GET_ANTDIV, sizeof antdiv, (uint8_t *)&antdiv, CYW43_ITF_STA);
+}
+
+/** The link's level, and whether the chip answered the read at all.
+ *  WiFi.RSSI( ) cannot say the second: when its ioctl fails it returns a
+ *  variable nobody wrote (CYW43lwIP::RSSI( ), arduino-pico 5.6.1), and on the
+ *  bench on 2026-10-17 that leftover was 0 — implausible by luck. The driver
+ *  also refuses without asking, -CYW43_EPERM, when the STA interface is down;
+ *  both callers read only a link that is up (NET_READY, and getRssi( ) behind
+ *  isLinkUp( )), where that interface is up too. */
+static bool readRssi(int32_t &out) {
+ return cyw43_wifi_get_rssi(&cyw43_state, &out) == 0;
+}
+
 /**
  * @brief The radio's half of begin( ): the station mode, the static address or DHCP, and the
  * join. begin( ) has copied the SSID, the password and the rest of the settings into the
@@ -195,10 +221,11 @@ bool NetworkManager::startScan( ) {
   * stuck at 1 for the rest of the boot. Bring it up first; the AP stays up
   * beside it, because the browser asking for this list is connected to it. */
  if (_state == NET_AP_CONFIG && !_scanStaForced) {
-/* The one call into the CYW43 control code that this unit makes outside the
- * framework's WiFi class. In a build for board = rpipico (any driver but the
- * CYW43) the radio's driver is not linked, and this call alone pulls
- * cyw43_ctrl.c.o in, which wants the __wrap_cyw43_cb_* that only the Pico W's
+/* One of the three calls into the CYW43 control code that this unit makes
+ * outside the framework's WiFi class; the other two are radioRead( ) and
+ * readRssi( ) at the top of this file, which need the driver's return code.
+ * In a build for board = rpipico (any driver but the CYW43) the radio's
+ * driver is not linked, and any of the three pulls cyw43_ctrl.c.o in, which wants the __wrap_cyw43_cb_* that only the Pico W's
  * libraries provide (2026-09-26 study: kept out, the release links for the plain
  * Pico). A guard on the chip kept it out of NetworkManager.cpp; since 2026-10-13
  * the whole unit is out of such a build, by [net.cyw43].units in
@@ -334,17 +361,15 @@ void NetworkManager::updateLinkStates( ) {
  LOG_CODE(LOG_INFO, "NET", SYS_WIFI_SCAN, 0, String(TRL("Scanning for SSID (backoff=")) + (_reconnectDelay/1000) + "s)");
  /* Timed, because the return value cannot tell a silent radio from a
   * working one (CYW43lwIP::scanNetworks answers -1 for any async start,
-  * and 0 for a refusal the driver already swallowed). The duration can:
-  * the "escan" iovar is one synchronous round trip, milliseconds on a chip
-  * that answers and the driver's full timeout on one that does not. The
-  * value is only read if this scan never finishes — see
-  * WIFI_SCAN_START_SILENT_MS for the field log that fixed the threshold. */
+  * and 0 for a refusal the driver already swallowed). A slow start can:
+  * the "escan" iovar waits the driver's full timeout on a chip that does
+  * not answer. A quick one cannot, and does not end a silent streak: the
+  * first sends to a chip that just went silent fail in milliseconds too
+  * (radioRead( )). The value is only read if this scan never finishes —
+  * see WIFI_SCAN_START_SILENT_MS for the field log and the bench. */
  const uint32_t scanAskedAt = millis( );
  WiFi.scanNetworks(true);
  _scanStartTookMs = millis( ) - scanAskedAt;
- if (_scanStartTookMs < WIFI_SCAN_START_SILENT_MS) {
- _silentScans = 0; /* the radio answered: a silent streak, if any, is over */
- }
  _state = NET_SCANNING_RETRY;
  _stateTimer = millis( ); /* the scan deadline starts here */
  } else { _reconnectTimer = millis( ); }
@@ -374,22 +399,31 @@ void NetworkManager::updateLinkStates( ) {
  if (n == -1) {
  if (timeSince(_stateTimer, WIFI_SCAN_TIMEOUT_MS)) {
  /* Two radios reach this line and only one of them may be joined. A
-  * start the chip answered (milliseconds) and a completion it lost is
-  * the wedge above: the chip is fine, and the blind join is the escape.
-  * A start the chip did NOT answer (the driver's own timeout) is a
-  * silent radio, and WiFi.begin( ) on it is up to 15 synchronous ioctl
-  * timeouts of 1 s before any bounded wait — the HW-watchdog reboots of
-  * 2026-09-30 and 2026-10-11 09:28 (WIFI_SCAN_START_SILENT_MS). The ctx
-  * counts the streak the record belongs to: misses toward the blind
-  * join, or silent starts toward the planned restart. */
- const bool silent = (_scanStartTookMs >= WIFI_SCAN_START_SILENT_MS);
- /* The duration rides on the console text only (the TRL literal and
-  * its pack entries are untouched): it is the number that says which
-  * of the two radios this was, and the bench will want to read it. */
+  * chip that answers and lost a completion is the wedge above: the
+  * blind join is the escape. A silent radio is not to be joined:
+  * WiFi.begin( ) on it is up to 14 synchronous ioctl timeouts of 1 s
+  * before any bounded wait — the HW-watchdog reboots of 2026-09-30 and
+  * 2026-10-11 09:28 (WIFI_SCAN_START_SILENT_MS). A slow start says
+  * silent. A quick one says nothing, so the chip is asked: radioRead( )
+  * answers 0 for the wedge and an error for the silent chip whose sends
+  * still fail fast (bench, 2026-10-17). A read it answers ends a silent
+  * streak, as a scan that comes back does. The ctx counts the streak
+  * the record belongs to: misses toward the blind join, or silent scans
+  * toward the planned restart. */
+ bool silent = (_scanStartTookMs >= WIFI_SCAN_START_SILENT_MS);
+ String note = String(" (start took ") + _scanStartTookMs + " ms";
+ if (!silent) {
+ const int rc = radioRead( );
+ note += String(", read ") + rc;
+ silent = (rc != 0);
+ if (!silent) _silentScans = 0;
+ }
+ /* The duration and the read ride on the console text only (the TRL
+  * literal and its pack entries are untouched): they are the numbers
+  * that say which of the two radios this was. */
  LOG_CODE(LOG_WARN, "NET", SYS_WIFI_SCAN,
  (int)((silent ? _silentScans : _blindScans) + 1),
- String(TRL("Scan never finished — abandoning it")) +
- " (start took " + _scanStartTookMs + " ms)");
+ String(TRL("Scan never finished — abandoning it")) + note + ")");
  WiFi.scanDelete( );
  if (silent) afterSilentScan( );
  else afterFruitlessScan( );
@@ -456,8 +490,9 @@ void NetworkManager::updateLinkStates( ) {
  static uint8_t _rssiImplausible = 0;
  if (timeSince(_rssiSampleAt, 60000)) {
  _rssiSampleAt = millis( );
- const int32_t rssi = WiFi.RSSI( );
- MetricsManager::instance( ).observeRssi(rssi);
+ int32_t rssi = 0;
+ const bool answered = readRssi(rssi);
+ if (answered) MetricsManager::instance( ).observeRssi(rssi);
 
  /* Second liveness signal, because WiFi.status( ) above is not one.
   *
@@ -478,10 +513,16 @@ void NetworkManager::updateLinkStates( ) {
   * read, and a needless reconnect costs more than a minute of waiting.
   * Detection lands within ~2 minutes instead of never. Sampling stays at
   * once a minute on purpose — RSSI is a live ioctl and hammering it is
-  * its own hazard. */
- if (rssi >= RSSI_IMPLAUSIBLE_HIGH || rssi < RSSI_IMPLAUSIBLE_LOW) {
+  * its own hazard.
+  *
+  * A read the chip does not answer is a bad sample too, by its return
+  * code (readRssi( )), not by whatever the variable held: on the bench on
+  * 2026-10-17 the chip was silenced with the link up, and the 0 a failed
+  * read happened to leave was all that brought the unit down, in
+  * 1 min 44 s. Its record carries RSSI_READ_FAILED_CTX instead of a level. */
+ if (!answered || rssi >= RSSI_IMPLAUSIBLE_HIGH || rssi < RSSI_IMPLAUSIBLE_LOW) {
  if (++_rssiImplausible >= 2) {
- LOG_CODE(LOG_WARN, "NET", SYS_WIFI_DISCONNECT, (int)rssi,
+ LOG_CODE(LOG_WARN, "NET", SYS_WIFI_DISCONNECT, answered ? (int)rssi : (int)RSSI_READ_FAILED_CTX,
  TRL("Implausible RSSI twice — link presumed dead, reconnecting"));
  _rssiImplausible = 0;
  WiFi.disconnect(false);
@@ -561,12 +602,13 @@ void NetworkManager::afterFruitlessScan( ) {
  *
  * Kept apart from afterFruitlessScan( ) on purpose. A miss is a radio that
  * answered without the SSID, and associating anyway is the right escape. A
- * silent radio is one that did not answer the scan's own ioctl, and
- * WiFi.begin( ) on it holds Core 0 through up to 15 synchronous ioctl timeouts
+ * silent radio is one that did not answer the scan's own ioctl, or the read
+ * made when the scan started quickly, and
+ * WiFi.begin( ) on it holds Core 0 through up to 14 synchronous ioctl timeouts
  * of 1 s before any bounded wait: the HW-watchdog reboots of 2026-09-30 and
  * 2026-10-11 09:28 (WIFI_SCAN_START_SILENT_MS has the log and the count). So
  * no join from here, ever. The second silent scan in a row restarts the radio
- * by the planned path — log persisted, Core 1 parked — under the same
+ * by the planned path — logged, the open history block written — under the same
  * half-hour guard as the refused joins (takeJoinAnswer); inside the guard the
  * ladder keeps scanning, one bounded ioctl per attempt, the streak keeps
  * counting, and the restart comes on the first silent scan past the guard.
@@ -706,8 +748,9 @@ int32_t NetworkManager::getRssi( ) {
  /* An implausible reading means the radio is not answering with real data, so
   * report it as a dead link rather than letting a positive dBm pass the
   * RSSI_MIN_THRESHOLD gate in isNetworkHealthy( ) and isLinkHealthy( ). See
-  * the NET_READY case. */
- const int32_t rssi = WiFi.RSSI( );
+  * the NET_READY case. A read the chip did not answer is no reading at all. */
+ int32_t rssi = 0;
+ if (!readRssi(rssi)) return -100;
  if (rssi >= RSSI_IMPLAUSIBLE_HIGH || rssi < RSSI_IMPLAUSIBLE_LOW) return -100;
  return rssi;
 }

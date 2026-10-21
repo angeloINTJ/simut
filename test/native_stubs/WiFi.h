@@ -18,7 +18,7 @@
  *     (1 s here, the response timeout and the credit stall alike). This is the
  *     2026-10-11 field failure: two scans that never completed, the first of
  *     them measured starting 1 s late, and the blind join that followed sat
- *     through up to 15 more such timeouts and reset the device by the watchdog. Set together with scanNeverCompletes
+ *     through up to 14 more such timeouts and reset the device by the watchdog. Set together with scanNeverCompletes
  *     it is a silent radio; alone, scanNeverCompletes is the 2026-09-08 wedge.
  *
  *   - `visible` — whether the access point is listed by a scan, kept separate
