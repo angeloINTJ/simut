@@ -115,8 +115,8 @@ bool DisplayManager::uaMontarIdentidade( UaQuadro &q ) {
   switch ( _uiMode ) {
     case MODE_AUTH_USER:
     case MODE_SETTINGS_USERS: {
-      if ( !_sysConfigPtr ) return false;        // drawUserList( ) does the same (:933)
-      /* The page the old draw clamped (:936-938). Rows to a page: "who is at the panel" keeps the old
+      if ( !_sysConfigPtr ) return false;        // drawUserList( ) does the same
+      /* The page the old draw clamped (drawUserList( )). Rows to a page: "who is at the panel" keeps the old
        * four; the list of accounts has rows of two lines, three to a page (ident::LINHAS_2). */
       const int porPagina = _uiMode == MODE_AUTH_USER ? ident::LINHAS : ident::LINHAS_2;
       int paginas = ( _usersCount + porPagina - 1 ) / porPagina;
@@ -131,7 +131,7 @@ bool DisplayManager::uaMontarIdentidade( UaQuadro &q ) {
         for ( int i = 0; i < ident::LINHAS && ini + i < _usersCount; i++ ) {
           const int slot = _usersMap[ini + i];
           copiarNome( vm.linhas[i].nome, sizeof vm.linhas[i].nome, _sysConfigPtr->users[slot].username );
-          vm.linhas[i].travada = ( _slotLocked & ( 1u << (unsigned)slot ) ) != 0;   // drawUserRowInto( ) :894
+          vm.linhas[i].travada = ( _slotLocked & ( 1u << (unsigned)slot ) ) != 0;   // drawUserRowInto( )
           vm.nLinhas++;
         }
         uaUsar<VmQuem, desenharQuem, alvosQuem>( q, vm );
@@ -139,12 +139,12 @@ bool DisplayManager::uaMontarIdentidade( UaQuadro &q ) {
         VmUsuarios &vm = uaVm<VmUsuarios>( );
         vm.total = (uint8_t)_usersCount;
         vm.pagina = (uint8_t)_usersPage;
-        vm.podeCriar = ( _panelPerms & PERM_USER_MGR ) != 0;                       // the old NOVO's check (:1551)
+        vm.podeCriar = ( _panelPerms & PERM_USER_MGR ) != 0;                       // actUserNew( )'s check
         for ( int i = 0; i < ident::LINHAS_2 && ini + i < _usersCount; i++ ) {
           const UserAccount &u = _sysConfigPtr->users[_usersMap[ini + i]];
           copiarNome( vm.linhas[i].nome, sizeof vm.linhas[i].nome, u.username );
-          vm.linhas[i].perms = permsDe( u.permissions );                           // the L, B, M letters (:860-874)
-          vm.linhas[i].temPin = StorageManager::userHasPin( u );                   // the dot after the name (:920)
+          vm.linhas[i].perms = permsDe( u.permissions );                           // the L, B, M letters (drawPermLetters( ))
+          vm.linhas[i].temPin = StorageManager::userHasPin( u );                   // the dot after the name (drawUserRowInto( ))
           vm.nLinhas++;
         }
         uaUsar<VmUsuarios, desenharUsuarios, alvosUsuarios>( q, vm );
@@ -153,12 +153,12 @@ bool DisplayManager::uaMontarIdentidade( UaQuadro &q ) {
     }
 
     case MODE_SETTINGS_USER_EDIT: {
-      if ( !_sysConfigPtr ) return false;        // drawUserEdit( ) does the same (:1022)
+      if ( !_sysConfigPtr ) return false;        // drawUserEdit( ) does the same
       VmConta &vm = uaVm<VmConta>( );
       vm.nova = _userEditNew;
-      vm.perms = permsDe( _userEditPerms );      // the copy being edited, not the stored bits (:1005)
+      vm.perms = permsDe( _userEditPerms );      // the copy being edited, not the stored bits (showUserEdit( ))
       if ( _userEditNew ) {
-        copiarNome( vm.nome, sizeof vm.nome, _newUserName );                       // the title (:1030-1032)
+        copiarNome( vm.nome, sizeof vm.nome, _newUserName );                       // the title (drawUserEdit( ))
       } else if ( _userEditSlot >= 0 && _userEditSlot < MAX_USERS ) {
         const UserAccount &u = _sysConfigPtr->users[_userEditSlot];
         copiarNome( vm.nome, sizeof vm.nome, u.username );
@@ -176,17 +176,17 @@ bool DisplayManager::uaMontarIdentidade( UaQuadro &q ) {
       const bool ordenado = pinOrderedNow( );
       const PinKb::Grid g = pinGrid( );
       vm.alfanumerico = alnum;
-      /* The layout on the glass: the old draw picks it the same way (:565-572). */
+      /* The layout on the glass: the old draw picks it the same way (drawPinScreen( )). */
       vm.teclado = ua::pinTecladoDe( ordenado, alnum, g );
       if ( !ordenado ) {
-        // The deal, glyph for glyph (drawPinCardInto( ) :378-405); the screen draws decoys and digits alike.
+        // The deal, glyph for glyph (drawPinCardInto( )); the screen draws decoys and digits alike.
         for ( int k = 0; k < (int)g.keys && k < PIN_CARTOES_MAX; k++ )
           for ( int s = 0; s < (int)g.slots && s < PIN_GLIFOS_MAX; s++ ) vm.cartoes[k][s] = _pinKeyChars[k][s];
       }
-      vm.fase = _pinPurpose == PIN_FOR_AUTH ? PinFase::IDENTIFICAR : ( _pinPhase == 0 ? PinFase::DEFINIR : PinFase::CONFIRMAR );   // :545-546
+      vm.fase = _pinPurpose == PIN_FOR_AUTH ? PinFase::IDENTIFICAR : ( _pinPhase == 0 ? PinFase::DEFINIR : PinFase::CONFIRMAR );   // drawPinScreen( )'s title
       vm.digitados = _pinLen;
-      vm.minimo = pinEntryMinLen( );             // the floor of the places (:512)
-      vm.teto = (uint8_t)( PinKb::maxLenFor( kb ) < PIN_MAX_LEN ? PinKb::maxLenFor( kb ) : PIN_MAX_LEN );   // pinAppendChar( ) :118
+      vm.minimo = pinEntryMinLen( );             // the floor of the places (drawPinDotsInto( ))
+      vm.teto = (uint8_t)( PinKb::maxLenFor( kb ) < PIN_MAX_LEN ? PinKb::maxLenFor( kb ) : PIN_MAX_LEN );   // pinAppendChar( )
       vm.pressionada = -1;                       // the old keypad shows no pressed key
       vm.popup = ( ordenado && alnum ) ? _pinPopup : (int8_t)-1;
       // Whose PIN: the account the picker chose, the one being edited, or the new name.
@@ -195,18 +195,18 @@ bool DisplayManager::uaMontarIdentidade( UaQuadro &q ) {
         copiarNome( vm.conta, sizeof vm.conta, _sysConfigPtr->users[_pinTarget].username );
 
       /* The state, in the order the old screen gives them weight: a panel out of tries until
-       * the restart, an account out of tries (the picker refuses it, :1210), the wait, Core 0
-       * answering (:489-493), a refusal (:489-500). */
+       * the restart, an account out of tries (the picker refuses it: enterPinFor( )), the wait, Core 0
+       * answering, a refusal (drawPinDotsInto( )). */
       const bool acontaTravada = _pinPurpose == PIN_FOR_AUTH && _pinTarget >= 0 && _pinTarget < MAX_USERS &&
                                  ( _slotLocked & ( 1u << (unsigned)_pinTarget ) ) != 0;
-      const bool espera = _lockoutUntil > 0 && !timeReached( _lockoutUntil );     // :539
+      const bool espera = _lockoutUntil > 0 && !timeReached( _lockoutUntil );     // drawPinScreen( )'s wait
       if ( _permanentLockout ) {
         vm.estado = PinEstado::BLOQUEIO_PAINEL;
       } else if ( acontaTravada ) {
         vm.estado = PinEstado::BLOQUEIO_CONTA;
       } else if ( espera ) {
         vm.estado = PinEstado::ESPERA;
-        vm.esperaS = (uint16_t)( timeRemaining( _lockoutUntil ) / 1000 + 1 );   // :604
+        vm.esperaS = (uint16_t)( timeRemaining( _lockoutUntil ) / 1000 + 1 );   // drawPinScreen( )'s countdown
       } else if ( _pinWaiting ) {
         vm.estado = PinEstado::AGUARDANDO;
       } else if ( _pinMsg != TR_KEYS_COUNT ) {
@@ -233,7 +233,7 @@ bool DisplayManager::uaMontarIdentidade( UaQuadro &q ) {
       const bool nome = _kbPurpose == 1;
       vm.camada = s_camada;
       vm.shift = s_shift;
-      vm.secreto = !nome;                        // a name is shown, the legacy PIN is dots (Settings.cpp:641-680)
+      vm.secreto = !nome;                        // a name is shown, the legacy PIN is dots (drawSettingsPassword( ))
       vm.ver = !nome && _kbShowRaw;
       vm.maximo = (uint8_t)kbMaxLen( );
       vm.pressionada = -1;
@@ -341,16 +341,16 @@ UaToque DisplayManager::uaToqueIdentidade( const ua::Alvo *a, int16_t &x, int16_
           actUserOpen( true );                   // the account's PIN entry; a locked account only beeps
           break;
         }
-        case QUEM_VOLTAR:                        // the old SAIR (:1541-1543)
+        case QUEM_VOLTAR:                        // the original's SAIR: back to the dashboard
           if ( !acceptTouch( Z_QUEM_VOLTAR ) ) break;
           forceDashboard( );
           break;
-        case QUEM_PAG_ANTERIOR:                  // the old up arrow, held (:1531-1535), by page and without wrapping
+        case QUEM_PAG_ANTERIOR:                  // the original's up arrow, held; here by page and without wrapping
           if ( !acceptHoldTouch( Z_QUEM_ANTERIOR ) ) break;
           if ( _usersPage > 0 ) { _usersPage--; _usersSel = _usersPage * 4; }
           _repaintSettings = true;
           break;
-        case QUEM_PAG_PROXIMA:                   // the old down arrow (:1536-1540)
+        case QUEM_PAG_PROXIMA:                   // the original's down arrow, held; by page, without wrapping
           if ( !acceptHoldTouch( Z_QUEM_PROXIMA ) ) break;
           if ( ( _usersPage + 1 ) * 4 < _usersCount ) { _usersPage++; _usersSel = _usersPage * 4; }
           _repaintSettings = true;
@@ -372,20 +372,20 @@ UaToque DisplayManager::uaToqueIdentidade( const ua::Alvo *a, int16_t &x, int16_
           actUserOpen( false );                  // the account's editor
           break;
         }
-        case USR_NOVA:                           // the old NOVO (:1546-1556)
+        case USR_NOVA:                           // the original's NOVO
           if ( !acceptTouch( Z_USR_NOVA ) ) break;
           actUserNew( );                         // behind PERM_USER_MGR, name first on the text keyboard
           break;
-        case USR_VOLTAR:                         // the old SAIR (:1541-1544)
+        case USR_VOLTAR:                         // the original's SAIR: back to the settings menu
           if ( !acceptTouch( Z_USR_VOLTAR ) ) break;
           showSettingsMain( );
           break;
-        case USR_PAG_ANTERIOR:                   // :1531-1535, three rows to a page
+        case USR_PAG_ANTERIOR:                   // the original's up arrow, held; three rows to a page
           if ( !acceptHoldTouch( Z_USR_ANTERIOR ) ) break;
           if ( _usersPage > 0 ) { _usersPage--; _usersSel = _usersPage * ident::LINHAS_2; }
           _repaintSettings = true;
           break;
-        case USR_PAG_PROXIMA:                    // :1536-1540, three rows to a page
+        case USR_PAG_PROXIMA:                    // the original's down arrow, held; three rows to a page
           if ( !acceptHoldTouch( Z_USR_PROXIMA ) ) break;
           if ( ( _usersPage + 1 ) * ident::LINHAS_2 < _usersCount ) { _usersPage++; _usersSel = _usersPage * ident::LINHAS_2; }
           _repaintSettings = true;
@@ -422,7 +422,7 @@ UaToque DisplayManager::uaToqueIdentidade( const ua::Alvo *a, int16_t &x, int16_
           if ( !acceptTouch( Z_CTA_SALVAR ) ) break;
           actUserEditSave( lockedBits );
           break;
-        case CTA_CANCELAR:                       // the old BACK: back to the list, the bits dropped (:1666-1668)
+        case CTA_CANCELAR:                       // the original's BACK: back to the list, the bits dropped
         case CTA_VOLTAR:
           if ( !acceptTouch( a->tipo == CTA_VOLTAR ? Z_CTA_VOLTAR : Z_CTA_CANCELAR ) ) break;
           showSettingsUsers( );
