@@ -2,10 +2,10 @@
 // The PIN keypad of the identity group (MODE_AUTH, ESPEC_UI_A.md §6.4): the
 // plan's P1, P2 and P3 dressed with today's model (inventario/pin_usuarios_alarmes.md
 // §3): six layouts, a popup for the alphanumeric groups, and the states of the
-// lockout ladder. Touch is Translation (T): key k of this screen is key k of
-// today's layout (PinKb::keyAt( )'s order: left to right, top to bottom), so
-// the glue maps a target to the centre of the old key and the old handler runs
-// unchanged (long touch, the shuffle after each tap, the lockout).
+// lockout ladder. Key k of this screen is key k of today's layout (PinKb::keyAt( )'s
+// order: left to right, top to bottom), and since S9 C2 (2026-10-21) each target runs
+// the core's keypad action (DisplayManager_Actions.h) under the original's zone: the
+// shuffle after each tap and the lockout stay the core's.
 #include "IdentidadeComum.h"
 
 namespace ua {
