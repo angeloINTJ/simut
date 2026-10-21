@@ -930,9 +930,11 @@ void DisplayManager::beginTouch( ) {
 
 /* Inject simulated touch for automation (screenshot capture).
  * Set flag + coords; Core 1 sees it on the next handleTouch iteration.
- * Auto-clears after holdMs (mapTouchPoint): 100 ms is a tap ('touch sim');
- * a larger holdMs ('touch hold') keeps the press down long enough for the
- * long-press gestures, then releases so the release edge still fires. */
+ * Auto-clears after holdMs, in loopCore1( ) right after handleTouch( ) (not in
+ * mapTouchPoint( ): two screens never call it for an injection, 2026-10-16):
+ * 100 ms is a tap ('touch sim'); a larger holdMs ('touch hold') keeps the
+ * press down long enough for the long-press gestures, then releases so the
+ * release edge still fires, on every screen. */
 void DisplayManager::injectTouch(int16_t x, int16_t y, uint32_t holdMs) {
 	__atomic_store_n(&_simTouchX, x, __ATOMIC_RELEASE);
 	__atomic_store_n(&_simTouchY, y, __ATOMIC_RELEASE);
@@ -1404,6 +1406,24 @@ __attribute__((optimize("no-reorder-blocks"))) void DisplayManager::loopCore1( )
 		/* Process touch BEFORE rendering for same-frame response */
 		C1_PHASE(C1P_TOUCH_HANDLE);
 		handleTouch( );
+		/* The injected touch ENDS here, on its own clock, once per pass and AFTER
+		 * handleTouch( ), on every screen. After, so the pass that first sees the flag
+		 * has processed the tap by then even when that pass comes later than the hold
+		 * (a Core 1 pause, such as a flash save): the flag clears on that pass or a
+		 * later one once it has expired, and _rawTouchState goes false on the next, so
+		 * the release edge comes one pass after the clear, as it always did.
+		 * mapTouchPoint( ) used to end it, and two screens never call that for an
+		 * injection (the touch sensitivity screen and the calibration's measuring
+		 * phase): the flag stayed up for good, _rawTouchState with it, and the 30 s
+		 * idle return never came. Bench, 2026-10-16, on the UI-branch image (the same
+		 * handleTouch logic as main): an injected Cancelar on the sensitivity screen
+		 * was ignored and the board stayed there for 42 s and beyond, until a web
+		 * reboot. */
+		if (__atomic_load_n(&_simTouchActive, __ATOMIC_ACQUIRE) &&
+		    simTouchExpired(millis( ), __atomic_load_n(&_simTouchSetMs, __ATOMIC_ACQUIRE),
+		                    __atomic_load_n(&_simTouchHoldMs, __ATOMIC_ACQUIRE))) {
+			__atomic_store_n(&_simTouchActive, false, __ATOMIC_RELEASE);
+		}
 		/* A firmware update takes the panel from any screen (DisplayManager_Ota.cpp);
 		 * with no phase published this only notices that there is none. */
 		otaTick( );

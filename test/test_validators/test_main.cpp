@@ -564,6 +564,30 @@ void test_timeSince_basic(void) {
     TEST_ASSERT_FALSE(timeSince(4500, 1000));    /* só 500ms decorreu */
 }
 
+/* An injected touch ends on its own clock: simTouchExpired( ), which loopCore1( ) calls on
+ * every pass (mapTouchPoint( ) used to, and two screens never reach it for an injection;
+ * 2026-10-16). Strictly greater than the hold: a 100 ms tap is still down AT 100 ms and
+ * released at 101. */
+void test_simTouchExpired_tap_and_hold(void) {
+    TEST_ASSERT_FALSE(simTouchExpired(5000, 5000, 100));    /* the pass that first sees it */
+    TEST_ASSERT_FALSE(simTouchExpired(5100, 5000, 100));    /* exactly the hold: still down */
+    TEST_ASSERT_TRUE(simTouchExpired(5101, 5000, 100));     /* one past it: released */
+    TEST_ASSERT_FALSE(simTouchExpired(8000, 5000, 3000));   /* 'touch hold 3000': down at 3 s */
+    TEST_ASSERT_TRUE(simTouchExpired(8001, 5000, 3000));
+}
+
+/* The same test across the millis( ) wrap (~49.7 days of uptime): a touch set 256 ms before
+ * it ends on time before the wrap and after it, and one set 50 ms before it ends 50 ms after. */
+void test_simTouchExpired_wrap_safe(void) {
+    const uint32_t set = 0xFFFFFF00u;                           /* 256 ms before the wrap */
+    TEST_ASSERT_FALSE(simTouchExpired(0xFFFFFF64u, set, 100));  /* before it: exactly the hold */
+    TEST_ASSERT_TRUE(simTouchExpired(0xFFFFFF65u, set, 100));   /* before it: one past */
+    TEST_ASSERT_TRUE(simTouchExpired(5, set, 100));             /* after it: 261 ms in */
+    const uint32_t straddle = 0xFFFFFFCEu;                      /* 50 ms before the wrap */
+    TEST_ASSERT_FALSE(simTouchExpired(50, straddle, 100));      /* exactly the hold, across it */
+    TEST_ASSERT_TRUE(simTouchExpired(51, straddle, 100));
+}
+
 
 /* =========================================================================== */
 /*  dallasCrc8                                                                 */
@@ -5593,6 +5617,8 @@ int main(int /*argc*/, char** /*argv*/) {
     RUN_TEST(test_timeReached_basic);
     RUN_TEST(test_timeReached_wrap_safe);
     RUN_TEST(test_timeSince_basic);
+    RUN_TEST(test_simTouchExpired_tap_and_hold);
+    RUN_TEST(test_simTouchExpired_wrap_safe);
 
     /* dallasCrc8 */
     RUN_TEST(test_dallasCrc8_known_vectors);

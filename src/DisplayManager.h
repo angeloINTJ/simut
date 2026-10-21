@@ -857,9 +857,11 @@ private:
 	/* Simulated touch injection via CLI 'touch sim X Y'.
 	 * Enables automated screenshot capture for all screens via
 	 * /api/screenshot — Core 0 sets x/y/active flag, Core 1 (handleTouch
-	 * via _ts->getPoint) checks the override. After processing, _simActive
-	 * returns to false. Coordinates in screen-space (320x240, same as
-	 * mapTouchPoint output). */
+	 * via _ts->getPoint) checks the override. loopCore1( ) returns the flag
+	 * to false right after handleTouch( ), once _simTouchHoldMs has passed since
+	 * _simTouchSetMs, on every screen: clearing it inside mapTouchPoint( ) left it
+	 * up for good wherever no handler reached that call (2026-10-16). Coordinates
+	 * in screen-space (320x240, same as mapTouchPoint output). */
 	volatile int16_t _simTouchX = 0;
 	volatile int16_t _simTouchY = 0;
 	volatile bool _simTouchActive = false;

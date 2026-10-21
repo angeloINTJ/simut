@@ -96,6 +96,14 @@ fi
 echo "[patch] aplicando patched lwipopts.h"
 cp -v "$OVR/patched_headers/lwipopts.h" "$FW/include/"
 
+# Do 2b em diante, cada passo é guardado por um grep numa MARCA que o PRÓPRIO
+# patch acrescenta ao arquivo: uma linha "SIMUT override — ..." entre as linhas
+# `+` dele. Marca que o patch não acrescenta não quebra a primeira execução, só
+# a segunda: o grep não acha, o `patch` reencontra o patch já aplicado (pergunta
+# "Assume -R?" e rejeita) e, com `set -e`, o script morre ali, sem chegar nos
+# passos seguintes nem na invalidação do cache. Foi o caso do 2b-ter (#274),
+# achado em 16/10/2026. tools/check_patch_sentinels.py (job `gates`) confere cada guarda.
+
 # 2b. Patch cirúrgico no handshake TLS (WiFiClientSecureBearSSL.cpp)
 #
 #   O upstream só tem prazo dentro de _run_until(), que reinicia o próprio
@@ -135,7 +143,7 @@ fi
 WSSECURE="$FW/libraries/WiFi/src/WiFiServerSecureBearSSL.cpp"
 WSSECURE_PATCH="$OVR/patches/wifiserversecure_drop_plaintext.patch"
 save_original "$WSSECURE" "WiFiServerSecureBearSSL.cpp"
-if grep -q "SIMUT override — drop a non-TLS client" "$WSSECURE"; then
+if grep -q "SIMUT override — tell a non-TLS client from a TLS one by its FIRST BYTE" "$WSSECURE"; then
     echo "[patch] recusa não-TLS na porta TLS já aplicada — nada a fazer"
 else
     echo "[patch] aplicando recusa não-TLS na porta TLS (#274)"
