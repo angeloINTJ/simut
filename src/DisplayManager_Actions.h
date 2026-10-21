@@ -4,10 +4,11 @@
  *        confirmation dialogs), of the Menus group (the settings list, the alarms list and the licence's pages), of the Gráficos
  *        group (the graph, its detail, the calendar and the update screen's tap) and of the Ajustes 1 group (the themes, the language,
  *        the clock entry, the display alignment and the sounds with their melody picker) and of the Ajustes 2 group (the limits editor, the maintenance
- *        window, the PIN policy, the touch sensitivity's Cancelar and the calibration's result button): what a touch on one of their zones does to the
- *        state, defined once, inline, so that the original's handleTouch( ) and a driver's own touch glue (the Ângulo's
- *        uaToquePainel( ), uaToqueBase( ), uaToqueMenus( ), uaToqueGraficos( ) and uaToqueAjustes( )) run the same code and not a copy (stages S5, S6,
- *        S7, S8a and S8b of docs/analysis/UI_DRIVERS.md).
+ *        window, the PIN policy, the touch sensitivity's Cancelar and the calibration's result button) and of the Identidade group (the
+ *        account picker and list, the account editor, the sensor menu and the text keyboard; the PIN keypad's are in DisplayManager_PinActions.h):
+ *        what a touch on one of their zones does to the state, defined once, inline, so that the original's handleTouch( ) and
+ *        handleTouchPanelV24( ) and a driver's own touch glue (the Ângulo's uaToquePainel( ), uaToqueBase( ), uaToqueMenus( ), uaToqueGraficos( ),
+ *        uaToqueAjustes( ) and uaToqueIdentidade( )) run the same code and not a copy (stages S5 to S9 of docs/analysis/UI_DRIVERS.md).
  *
  * Each action is declared in class DisplayManager as `inline __attribute__((always_inline))`, next to the core's
  * ticks, and called where its code used to sit, so the compiled image keeps the code it had. The zone decides which
@@ -16,8 +17,8 @@
  * by name.
  *
  * Included LAST, after ui/UiDriverHooks.h, by DisplayManager_Touch.cpp and DisplayManager_Users.cpp, and by the Ângulo's
- * DisplayManager_UiA_Painel.cpp, DisplayManager_UiA.cpp, DisplayManager_UiA_Menus.cpp, DisplayManager_UiA_Graficos.cpp and
- * DisplayManager_UiA_Ajustes.cpp (none
+ * DisplayManager_UiA_Painel.cpp, DisplayManager_UiA.cpp, DisplayManager_UiA_Menus.cpp, DisplayManager_UiA_Graficos.cpp,
+ * DisplayManager_UiA_Ajustes.cpp and DisplayManager_UiA_Identidade.cpp (none
  * includes a hooks header: the Ângulo's hooks are ordinary functions): an action leans on the hook definitions the original inlines,
  * so a unit that takes the actions takes the hooks first.
  */
@@ -854,82 +855,8 @@ inline __attribute__((always_inline)) void DisplayManager::actCalVerdictTap( ) {
 	}
 }
 
-/* The Identidade group (S9). First the PIN keypad: the touch side of the entry, which both drivers run. What makes the keypad safe is not
- * here and does not move: the lockout ladder (pinFailLadder( ), authResult( )), the deal (scramblePinKeys( )), Core 0's digest comparison
- * (panelIdentify( ) and StorageManager::pinSetMatches( )) and what is logged. The keypad exists only where a panel proves a PIN. */
-#if SIMUT_PANEL_PIN
-
-/* Every control of the keypad but Cancelar waits while a lockout runs (a timed rung or the permanent one) or while Core 0 reads the entry
- * (_pinWaiting): Cancelar is the way out of the screen and the only control that has to work there, so each driver tests it first. */
-inline __attribute__((always_inline)) bool DisplayManager::pinInputBlocked( ) const {
-	return _permanentLockout || !timeReached(_lockoutUntil) || _pinWaiting;
-}
-
-/* A touch on the footer, which lies outside the group popup, means the popup was abandoned: close it before acting, or the next full redraw
- * would bring it back over the keyboard. The caller has passed pinInputBlocked( ). */
-inline __attribute__((always_inline)) void DisplayManager::actPinPopupDrop( ) {
-	if (_pinPopup >= 0) { _pinPopup = -1; _forceSettingsRedraw = true; }
-}
-
-/* Apagar (the caller holds acceptTouch( 1 )): one tap, or one character, less. On a dealt keypad the deal is rolled again, so the cards left on
- * the glass say nothing about the tap taken back; an ordered keyboard has nothing to re-deal and no cards to blit. */
-inline __attribute__((always_inline)) void DisplayManager::actPinBackspace( ) {
-	if (_pinLen > 0) {
-		_pinLen--;
-		if (pinIsIdentifying( )) {
-			_pinTaps[_pinLen][0] = '\0';
-			if (!pinOrderedNow( )) { scramblePinKeys( ); _pinCardsDirty = true; }
-		}
-		else _pinBuf[_pinLen] = '\0';
-	}
-	_pinMsg = TR_KEYS_COUNT;
-	_repaintSettings = true;
-}
-
-/* Entrar (the caller holds acceptTouch( 2 )): pinSubmit( ) hands the entry to Core 0, or asks for the second pass of a new PIN. */
-inline __attribute__((always_inline)) void DisplayManager::actPinOk( ) {
-	pinSubmit( );
-	_repaintSettings = true;
-}
-
-/* A touch while the group popup of the alphanumeric keyboard is up (the caller holds acceptTouch( 40 + i + 1 ), or 40 for no key): key i of
- * the popup's n characters yields its character, any other touch (i < 0) only closes it. The popup owns every touch, so a fat finger on the
- * edge of the card cannot type a character from the group behind it. mem and n are the caller's reads of PinKb::GROUP_CHARS[_pinPopup]. */
-inline __attribute__((always_inline)) void DisplayManager::actPinPopupKey( const char *mem, int n, int i ) {
-	if (i >= 0 && i < n) pinAppendChar(mem[i]);
-	_pinPopup = -1;
-	_forceSettingsRedraw = true;
-	_repaintSettings = true;
-}
-
-/* Key k of the ordered keyboard (the caller holds acceptTouch( 20 + k ) and has refused an empty face, one of the numeric pad's two blank
- * cells): on the alphanumeric alphabet a key is a group, and the first tap opens its popup; otherwise the key's character is typed. */
-inline __attribute__((always_inline)) void DisplayManager::actPinOrderedKey( int k, uint8_t alphabet ) {
-	if (alphabet == PinKb::ALPHA_ALNUM) {
-		_pinPopup = (int8_t)k;          /* first tap: pick the group */
-		_forceSettingsRedraw = true;
-	} else {
-		pinAppendChar(_pinKeyChars[k][0]);
-	}
-	_repaintSettings = true;
-}
-
-/* Card k of a dealt keypad (the caller holds acceptTouch( 10 + k )). The whole card is one target: the tap says "one of these glyphs", and
- * which one is never asked. What the tap keeps is the glyphs themselves, because the deal is rolled right after and the card's index would
- * stop meaning anything; Core 0 resolves the sequence (StorageManager::pinSetMatches( )). The ceiling is the KEYPAD's, not the buffer's:
- * resolving the tap tree costs S^n hashes, and maxLenFor( ) is where that budget is written down, so past it the tap is not taken. Every tap
- * gets its own deal: two taps on the same card are not the same glyphs, so a watcher cannot even tell whether two digits of the PIN are equal. */
-inline __attribute__((always_inline)) void DisplayManager::actPinCard( const PinKb::Grid &g, int k ) {
-	if (_pinLen < PinKb::maxLenFor(pinKeypadMode( ))) {
-		memcpy(_pinTaps[_pinLen], _pinKeyChars[k], (size_t)g.slots + 1);
-		_pinLen++;
-		_pinMsg = TR_KEYS_COUNT;
-	}
-	scramblePinKeys( );
-	_pinCardsDirty = true;
-	_repaintSettings = true;
-}
-#endif /* SIMUT_PANEL_PIN */
+/* The Identidade group (S9): the account picker and list, the account editor, the sensor menu and the text keyboard. The PIN keypad's
+ * actions are in DisplayManager_PinActions.h: they exist only where a panel proves a PIN, and only the units that have one include them. */
 
 /* The account picker's and the users list's row, opened (the caller holds acceptTouch( 4 + row ) on the original, its own zone on the Angulo,
  * and has selected the row: _usersSel). On the picker the account's PIN entry, which refuses a locked account (enterPinFor( )); on the list,

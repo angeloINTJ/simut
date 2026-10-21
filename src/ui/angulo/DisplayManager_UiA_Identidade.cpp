@@ -39,6 +39,7 @@
 #include "telas/IdentidadePin.h"
 #include "telas/IdentidadeTexto.h"
 #include "../../DisplayManager_Actions.h"   /* the core's touch actions, which the PIN keypad runs; last, as in the other glue */
+#include "../../DisplayManager_PinActions.h"   /* the PIN keypad's: the Ângulo is a TFT image, so a panel proves a PIN */
 
 namespace {
 

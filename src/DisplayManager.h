@@ -1195,6 +1195,16 @@ private:
 	char _pinTaps[PIN_MAX_LEN][PinKb::SLOTS_MAX + 1] = {{0}};
 	bool _pinCardsDirty = false;    /**< the deal moved; the cards owe a blit */
 	volatile bool _pinWaiting = false; /**< handed to Core 0, no verdict yet */
+	/* The keypad's touch actions (S9), which both drivers run: the predicate that holds every key but Cancelar, and six controls. They
+	 * are declared here, with the state they move, and defined in DisplayManager_PinActions.h, which only the units with a panel PIN
+	 * include: a section of their own would be one more SIMUT_PANEL_PIN site (tools/check_feature_sprawl.py). */
+	inline __attribute__((always_inline)) bool pinInputBlocked( ) const;
+	inline __attribute__((always_inline)) void actPinPopupDrop( );
+	inline __attribute__((always_inline)) void actPinBackspace( );
+	inline __attribute__((always_inline)) void actPinOk( );
+	inline __attribute__((always_inline)) void actPinPopupKey( const char *mem, int n, int i );
+	inline __attribute__((always_inline)) void actPinOrderedKey( int k, uint8_t alphabet );
+	inline __attribute__((always_inline)) void actPinCard( const PinKb::Grid &g, int k );
 #endif /* SIMUT_PANEL_PIN */
 
 	int8_t _panelUser = -1;
@@ -1637,15 +1647,7 @@ private:
 	inline __attribute__((always_inline)) void actPolicySave( );
 	inline __attribute__((always_inline)) void actSensCancel( );
 	inline __attribute__((always_inline)) void actCalVerdictTap( );
-#if SIMUT_PANEL_PIN   /* the keypad's state and PinKb:: exist only where a panel proves a PIN, as the fields below */
-	inline __attribute__((always_inline)) bool pinInputBlocked( ) const;
-	inline __attribute__((always_inline)) void actPinPopupDrop( );
-	inline __attribute__((always_inline)) void actPinBackspace( );
-	inline __attribute__((always_inline)) void actPinOk( );
-	inline __attribute__((always_inline)) void actPinPopupKey( const char *mem, int n, int i );
-	inline __attribute__((always_inline)) void actPinOrderedKey( int k, uint8_t alphabet );
-	inline __attribute__((always_inline)) void actPinCard( const PinKb::Grid &g, int k );
-#endif
+	/* the PIN keypad's seven, pinInputBlocked( ) and actPin*( ), are declared with its state, in the SIMUT_PANEL_PIN section above */
 	inline __attribute__((always_inline)) void actUserOpen( bool picking );
 	inline __attribute__((always_inline)) void actUserNew( );
 	inline __attribute__((always_inline)) void actUserEditActivate( int idx, bool lockedBits );
