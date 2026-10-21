@@ -215,8 +215,8 @@ bool DisplayManager::loadLangFile(const char* path) {
  }
  for (int k = dictIdx; k < TR_KEYS_COUNT; k++) _activeLang.strings[k] = nullptr;
  if (dictIdx != TR_KEYS_COUNT) {
- LOG_CODE(LOG_WARN, "I18N", SYS_OK, dictIdx,
- TRL("Language pack is older than the firmware — missing strings show in English"));
+ LOG_CODE(LOG_WARN, "I18N", I18N_PACK_OUTDATED, dictIdx,
+ TRL("missing strings show in English"));
  }
 
  /* @HELP: byte range into the file, lazy-read on demand. */
@@ -286,19 +286,22 @@ bool DisplayManager::findAndLoadLangFile( ) {
 
  if (count == 0) return false;
  if (count > 1) {
- LOG_CODE(LOG_WARN, "I18N", SYS_OK, count,
- TRL("Multiple .lng files in /lang/ — loading first alphabetically"));
+ LOG_CODE(LOG_WARN, "I18N", I18N_PACK_MULTIPLE, count,
+ TRL("loading the first alphabetically"));
  }
 
  char path[64];
  snprintf(path, sizeof(path), "/lang/%s", firstName);
  bool ok = loadLangFile(path);
+ /* The console line is "<code's text>: <this>", so the detail is all these
+  * carry. The codes are the pack's own (#283): a pack loaded at boot used to
+  * be APP_UI_LANG_CHANGED, the record of a person changing the language, and
+  * a pack refused was SYS_STORAGE_FAIL, which LogPolicy counts as a history
+  * fault, so it armed that family's latch. */
  if (ok) {
- LOG_CODE(LOG_INFO, "I18N", APP_UI_LANG_CHANGED, 0,
- String(TRL("Language pack loaded: ")) + _activeLang.name);
+ LOG_CODE(LOG_INFO, "I18N", I18N_PACK_LOADED, 0, _activeLang.name);
  } else {
- LOG_CODE(LOG_ERROR, "I18N", SYS_STORAGE_FAIL, 0,
- String(TRL("Failed to parse language pack: ")) + path);
+ LOG_CODE(LOG_ERROR, "I18N", I18N_PACK_FAILED, 0, path);
  }
  return ok;
 }

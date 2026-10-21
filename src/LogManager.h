@@ -359,11 +359,18 @@ private:
 };
 
 
-#define LOG_DBG(tag, msg) LogManager::instance( ).debug(tag, msg)
-#define LOG_INF(tag, msg) LogManager::instance( ).info(tag, msg)
-#define LOG_WRN(tag, msg) LogManager::instance( ).warn(tag, msg)
-#define LOG_ERR(tag, msg) LogManager::instance( ).error(tag, msg)
-#define LOG_CODE(lvl, tag, code, ctx, msg) LogManager::instance( ).logCode(lvl, tag, code, ctx, msg)
+/* Every tag is a string literal that names its LogTagId (logTagIsKnown( ) in
+ * SystemDefs_Logging.h). The record on flash keeps only the id, so a tag the
+ * table lacks was persisted as "?" and nothing said so (#283); now it does not
+ * build. */
+#define LOG_TAG_CHECK(tag) static_assert(logTagIsKnown(tag), \
+ "log tag " tag " is not the name of a LogTagId (LOG_TAG_NAMES, SystemDefs_Logging.h)")
+#define LOG_DBG(tag, msg) do { LOG_TAG_CHECK(tag); LogManager::instance( ).debug(tag, msg); } while (0)
+#define LOG_INF(tag, msg) do { LOG_TAG_CHECK(tag); LogManager::instance( ).info(tag, msg); } while (0)
+#define LOG_WRN(tag, msg) do { LOG_TAG_CHECK(tag); LogManager::instance( ).warn(tag, msg); } while (0)
+#define LOG_ERR(tag, msg) do { LOG_TAG_CHECK(tag); LogManager::instance( ).error(tag, msg); } while (0)
+#define LOG_CODE(lvl, tag, code, ctx, msg) \
+ do { LOG_TAG_CHECK(tag); LogManager::instance( ).logCode(lvl, tag, code, ctx, msg); } while (0)
 
 /** Select EN inline or translation from .lng (via hash). */
 #define TRL(en) (LogManager::instance( ).tr(en))

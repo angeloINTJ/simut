@@ -447,9 +447,11 @@ static void test_unrouted_warnings_are_still_unconditional(void) {
  *  device nobody is watching, and only these two notice.
  * ============================================================================ */
 
-/* The measured signature of a wake, in the order the rig emitted it. */
+/* The measured signature of a wake, in the order the rig emitted it. The
+ * language pack's record was measured as APP_UI_LANG_CHANGED, the code it was
+ * logged under until #283. */
 static const uint16_t WAKE_PREAMBLE[] = {
-    NET_PROVISIONAL_TIME, APP_UI_LANG_CHANGED, SENSOR_RUNTIME_LOADED,
+    NET_PROVISIONAL_TIME, I18N_PACK_LOADED, SENSOR_RUNTIME_LOADED,
     APP_SENSORS_CALIBRATED, TEL_ALARM_LINE_ON, TEL_HTTP_INIT,
     STO_H5_WIP, APP_READY,
 };
@@ -494,17 +496,40 @@ static void test_reset_disarms_the_preamble(void) {
 }
 
 static void test_closing_the_window_makes_operator_actions_visible_again(void) {
-    /* Two of the preamble codes are also raised by a person: the language
-     * change from the CLI and the calibration from /api/calib. Silencing those
-     * would be a real loss, and the only thing standing between them and the
-     * filter is endBootPreamble( ) being called at the end of setup( ). */
+    /* One of the preamble codes is also raised by a person: the calibration
+     * from `calib` and /api/calib. Silencing it would be a real loss, and the
+     * only thing standing between it and the filter is endBootPreamble( )
+     * being called at the end of setup( ). */
     pol.setQuietPreamble(true);
-    TEST_ASSERT_FALSE(pol.shouldPersist(APP_UI_LANG_CHANGED, LVL_INFO, 1000));
     TEST_ASSERT_FALSE(pol.shouldPersist(APP_SENSORS_CALIBRATED, LVL_INFO, 1100));
 
     pol.setQuietPreamble(false);
-    TEST_ASSERT_TRUE(pol.shouldPersist(APP_UI_LANG_CHANGED, LVL_INFO, 60000));
     TEST_ASSERT_TRUE(pol.shouldPersist(APP_SENSORS_CALIBRATED, LVL_INFO, 60100));
+}
+
+static void test_a_language_change_is_never_part_of_the_preamble(void) {
+    /* APP_UI_LANG_CHANGED is a person changing the language on the panel or at
+     * the CLI. It sat in the list only because the pack loaded at boot was
+     * logged under it (#283); that record is I18N_PACK_LOADED now, and the
+     * change is written even inside the window. */
+    pol.setQuietPreamble(true);
+    TEST_ASSERT_FALSE(pol.shouldPersist(I18N_PACK_LOADED, LVL_INFO, 1000));
+    TEST_ASSERT_TRUE(pol.shouldPersist(APP_UI_LANG_CHANGED, LVL_INFO, 1100));
+}
+
+static void test_a_language_pack_refused_is_not_a_history_fault(void) {
+    /* Until #283 a pack that failed to load was logged as SYS_STORAGE_FAIL,
+     * a history fault: it marked LOGGRP_HIST as failing, and a real write
+     * failure after it was the second fault of a failing family, kept off
+     * flash until a history success cleared the latch or the hour was up. */
+    TEST_ASSERT_TRUE(pol.shouldPersist(SYS_STORAGE_FAIL, LVL_ERROR, 1000));
+    TEST_ASSERT_FALSE(pol.shouldPersist(STO_WRITE_FAILED, LVL_ERROR, 2000));
+
+    /* The pack's own code is not routed, so the family stays healthy and the
+     * real fault is its transition. */
+    pol.reset( );
+    TEST_ASSERT_TRUE(pol.shouldPersist(I18N_PACK_FAILED, LVL_ERROR, 1000));
+    TEST_ASSERT_TRUE(pol.shouldPersist(STO_WRITE_FAILED, LVL_ERROR, 2000));
 }
 
 static void test_a_failing_preamble_step_still_writes(void) {
@@ -803,6 +828,8 @@ int main(int, char**) {
     RUN_TEST(test_suppressed_preamble_is_counted);
     RUN_TEST(test_reset_disarms_the_preamble);
     RUN_TEST(test_closing_the_window_makes_operator_actions_visible_again);
+    RUN_TEST(test_a_language_change_is_never_part_of_the_preamble);
+    RUN_TEST(test_a_language_pack_refused_is_not_a_history_fault);
     RUN_TEST(test_a_failing_preamble_step_still_writes);
     RUN_TEST(test_a_silenced_preamble_does_not_open_its_family);
     RUN_TEST(test_the_cold_boot_notice_is_never_filtered);

@@ -1075,11 +1075,11 @@ Cada registro, em *little-endian*:
 | 10 | byte | Nível nos bits 7 a 5 (0 depuração, 1 informação, 2 aviso, 3 erro, 4 fatal), núcleo no bit 4 e subsistema nos bits 3 a 0 |
 | 11 | byte | Tempo desde o boot: os 8 bits altos |
 
-Os subsistemas, de 0 a 12: `APP`, `NET`, `TEL`, `STO`, `WEB`, `CFG`, `CLI`, `SENSOR`, `HIST`, `SYS`, `DSP`, `SEC`, `OTA`; 15 é desconhecido. O registro binário não traz o texto do evento: a página o busca pelo código em `GET /api/logcodes`, descrito abaixo.
+Os subsistemas, de 0 a 13: `APP`, `NET`, `TEL`, `STO`, `WEB`, `CFG`, `CLI`, `SENSOR`, `HIST`, `SYS`, `DSP`, `SEC`, `OTA`, `I18N`; 15 é desconhecido. O registro binário não traz o texto do evento: a página o busca pelo código em `GET /api/logcodes`, descrito abaixo.
 
 ```python
 import struct
-TAGS = ["APP","NET","TEL","STO","WEB","CFG","CLI","SENSOR","HIST","SYS","DSP","SEC","OTA"]
+TAGS = ["APP","NET","TEL","STO","WEB","CFG","CLI","SENSOR","HIST","SYS","DSP","SEC","OTA","I18N"]
 with open("eventos.bin", "rb") as f:
     dados = f.read()
 for i in range(0, len(dados) - 11, 12):

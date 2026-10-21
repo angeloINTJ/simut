@@ -9,7 +9,9 @@ Todas as mudanças notáveis do firmware SIMUT.
 **O SPI do painel roda a 66,5 MHz no Pico W. Na imagem medida antes da mudança (arduino-pico 5.6.1, 15/10/2026)
 rodava a 24 MHz, fosse qual fosse o `SIMUT_TFT_SPI_HZ`; as imagens 5.4.x anteriores, a v2.1.6 entre elas, têm o mesmo
 código de clock e não foram medidas. Um rádio que para de responder não é mais associado às cegas, o que segurava o
-Core 0 além do watchdog de hardware: ele é reiniciado pelo caminho planejado (#266).**
+Core 0 além do watchdog de hardware: ele é reiniciado pelo caminho planejado (#266). Os registros de log do pacote de
+idioma têm tag e códigos próprios: eram gravados como `?`, dois avisos como "OK" e o pacote carregado no boot como um
+idioma trocado pela interface (#283).**
 
 ### O barramento do painel
 
@@ -93,6 +95,40 @@ Core 0 além do watchdog de hardware: ele é reiniciado pelo caminho planejado (
 - Dois comentários descreviam o `safeReboot( )` armando um watchdog de 500 ms. Ele dispara o reset com o ENABLE do
   watchdog desligado, como faz desde a v1.0.0, que já trazia o conserto do `reload confirm` que travava a placa; os
   comentários dizem isso agora.
+
+### Os registros de log do pacote de idioma (#283)
+
+- **Têm tag própria.** O leitor do pacote registra com a tag `I18N`, que a tabela de tags não tinha, e os seus quatro
+  registros eram gravados com a tag desconhecida: todo leitor do log mostrava `?`, o `show system log`, o CSV
+  exportado e o visualizador web. Um export de campo de 13/10/2026 tem um deles, `Boot +00:00:08 INF ? 441`. `I18N`
+  agora é a tag 13, na tabela do firmware e na cópia do visualizador web. Os registros que já estão na flash seguem
+  com `?`: a tag é gravada.
+- **E códigos próprios.** Os dois avisos eram gravados com o código 0, que diz "OK", e o pacote carregado no boot como
+  441, "Idioma alterado via UI", em todo boot que carrega um pacote, menos o despertar do Air. Quatro códigos tomam o
+  lugar deles: 620 `I18N_PACK_LOADED`, 621 `I18N_PACK_OUTDATED` (ctx: as linhas de `@DICT` que o pacote tem), 622
+  `I18N_PACK_MULTIPLE` (ctx: os pacotes em `/lang`) e 623 `I18N_PACK_FAILED`. Um pacote que não carregava era
+  `SYS_STORAGE_FAIL`, que o filtro do log conta como falha do histórico: um pacote ruim marcava o histórico como em
+  falha até o próximo sucesso dele, uma falha de gravação de verdade nesse meio-tempo ficava fora da flash como
+  segunda falha de uma família já em falha, e o registro seguinte do histórico era gravado como recuperação. O 441
+  fica para a troca que uma pessoa faz no painel ou na CLI.
+- **O despertar do SIMUT Air** silencia o registro do pacote no boot onde silenciava o 441, e o despertar continua
+  gravando um registro em vez de oito. A troca de idioma saiu dessa lista e é gravada mesmo durante um boot. Testado
+  no host; não medido de novo num Air.
+- **Uma tag que a tabela não tem não compila mais.** As macros `LOG_` conferem, na compilação, que cada tag é o nome
+  do id em que ela cai (`logTagIsKnown( )`). Aplicada sozinha ao `main`, a checagem acha exatamente os cinco registros
+  acima: os quatro do pacote de idioma e o `"AIR"` do Air, que era gravado como `APP` e agora diz `APP`. O
+  `tools/gen_logcodes.py --check`, que roda em todo build, também prende os nomes de tag do visualizador web aos do
+  firmware.
+- **O console** não repete mais o nome do registro no texto: `Language pack loaded: Portugues`, onde imprimia
+  `Language changed via UI: Language pack loaded: Portugues`. Duas linhas de `@TRL` em cada pacote tomam o lugar de
+  quatro.
+- **O apêndice B do manual voltou a ser em português.** O `tools/build_manual.py` pegava a coluna em português da
+  tabela de códigos pela posição, e a tabela perdeu uma coluna em 24/09/2026: desde então o manual em português
+  listava os nomes dos eventos em espanhol. Ele lê as colunas pelo nome agora. Dois capítulos ainda diziam 157 códigos
+  de evento; são 170.
+- **Testes no host:** 711 casos em 11 suítes, eram 706. Três no `native` prendem a tag `I18N`, uma volta pela tabela
+  inteira de nomes e os nomes que a checagem recusa; dois no `native_logpolicy` prendem a troca de idioma fora da
+  lista do despertar e o pacote que falhou fora da família do histórico.
 
 ## v2.11.1 (2026-10-12)
 

@@ -51,12 +51,14 @@ import subprocess
 import sys
 from datetime import date
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import gen_logcodes  # noqa: E402 — tools/logcodes.tsv's own reader, by column name
+
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SRC = os.path.join(ROOT, "docs", "_manual")
 IMG = os.path.join(ROOT, "docs", "images", "manual")
 OUT = os.path.join(ROOT, "docs", "MANUAL.pt-BR.html")
 CAPTURAR = os.path.join(IMG, "CAPTURAR.md")
-LOGCODES = os.path.join(ROOT, "tools", "logcodes.tsv")
 FONT = os.path.join(ROOT, "docs", "assets", "fonts", "angulo-display-600.woff2")
 
 # Read from the firmware, not typed here: typed, it stayed "v2.7.1" through the
@@ -247,13 +249,14 @@ def capturar_md(figures: list) -> str:
 
 
 def appendix_codes() -> str:
+    # The columns by name, through the TSV's own reader. This took cols[4] by
+    # position: the pt column when the manual was born (2026-09-23), the es
+    # column from the next day, when logcodes.tsv dropped js_pt, so the
+    # Portuguese manual listed every event in Spanish until 2026-10-21.
     rows = []
-    for line in open(LOGCODES, encoding="utf-8"):
-        if not line.strip() or line.startswith("#"):
-            continue
-        cols = line.rstrip("\n").split("\t")
-        code, enum, pt = cols[0], cols[1], cols[4]
-        rows.append(f'<tr><td class="num">{html.escape(code)}</td><td><code>{html.escape(enum)}</code></td><td>{html.escape(pt)}</td></tr>')
+    for r in gen_logcodes.load_tsv():
+        rows.append(f'<tr><td class="num">{r["code"]}</td><td><code>{html.escape(r["enum"])}</code></td>'
+                    f'<td>{html.escape(r["pt"])}</td></tr>')
     return ('<section class="capitulo apendice" id="ap-b"><p class="rotulo-cap">Apêndice B</p>'
             '<h2>Códigos de evento</h2>'
             f'<p class="lede">Os {len(rows)} códigos que o log de eventos pode registrar, com o texto que o aparelho mostra em português. '
