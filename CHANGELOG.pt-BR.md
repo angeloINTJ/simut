@@ -35,6 +35,23 @@ código de clock e não foram medidas.**
 - Se um painel mostrar pontos soltos em áreas lisas a 66,5 MHz, o degrau seguinte é `-DSIMUT_TFT_SPI_HZ=33250000u`. O
   `31250000u` do manual antigo não é degrau desse clock e roda a 22,17 MHz.
 
+### O log de um reinício planejado
+
+- **Um reinício planejado guarda os registros que ia perder.** Por 5 s depois de um toque no painel
+  (`TOUCH_PRIORITY_MS`), enquanto o armazenamento segura a trava de tarefa pesada e enquanto roda a atualização do
+  console Bluetooth, um registro de log espera na RAM (`writeCompactToFlash( )`), e só uma gravação seguinte ou o fim
+  do toque o leva à flash. Um reinício planejado nessa
+  janela o perdia, e a marca de reinício limpo ainda escondia o reinício da autópsia do boot seguinte: um reboot sem
+  registro nenhum. A console espera o painel, mas a máquina de estados da rede roda a toda passada, então os
+  reinícios planejados do rádio (`SYS_WIFI_CONNECT` ctx 3 e 4) e o fim do ponto de acesso de configuração estavam
+  expostos. O `safeReboot( )` agora grava esses registros primeiro, antes do bloco aberto do histórico. Medido na
+  bancada em 18/10/2026 (`pico_w_test`, rádio emudecido, um toque no painel 3 s antes do reinício, a guarda do
+  reinício baixada para 60 s só na bancada): o `main` perdeu os dois registros do reinício nas duas rodadas; com a
+  mudança eles chegaram à flash nas duas, e na rodada sem toque de cada imagem também.
+- Dois comentários descreviam o `safeReboot( )` armando um watchdog de 500 ms. Ele dispara o reset com o ENABLE do
+  watchdog desligado, como faz desde a v1.0.0, que já trazia o conserto do `reload confirm` que travava a placa; os
+  comentários dizem isso agora.
+
 ## v2.11.1 (2026-10-12)
 
 **Quatro defeitos de severidade alta da revisão do manual estão consertados: a

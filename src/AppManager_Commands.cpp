@@ -1047,7 +1047,7 @@ void AppManager::executeCommand(CliDemand cmd) {
  LOG_CODE(LOG_WARN, "SYS", SYS_REBOOT_USER, 0, TRL("Reboot via CLI"));
  _storageMgr->flushHistoryBatch( ); /* T2.1: don't lose buffered samples */
  _storageMgr->sealHourV5( );        /* V5: the open block is RAM-only */
- delay(100); /* Ensures log is flushed to flash */
+ delay(100); /* the console line out; the record itself is written by safeReboot( ) if it is still in RAM */
  LogManager::instance( ).safeReboot( );
  break;
 

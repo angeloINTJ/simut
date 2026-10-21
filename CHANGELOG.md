@@ -35,6 +35,23 @@ carry the same clock code and were not measured.**
 - If a panel shows stray pixels in flat regions at 66.5 MHz, the next rung down is `-DSIMUT_TFT_SPI_HZ=33250000u`.
   The manual's old `31250000u` is no rung of this clock and runs at 22.17 MHz.
 
+### The log of a planned restart
+
+- **A planned restart keeps the records it was about to lose.** For 5 s after a touch on the panel
+  (`TOUCH_PRIORITY_MS`), while the storage holds its heavy-task lock, and while the Bluetooth console's update runs,
+  a log record waits in RAM (`writeCompactToFlash( )`), and only a later write or the end of the touch puts it on
+  flash. A planned restart in
+  that window dropped it, and the clean-reboot mark then hid the restart from the next boot's autopsy too: a reboot
+  with no record at all. The console waits for the panel, but the network's state machine runs on every pass, so
+  the radio's planned restarts (`SYS_WIFI_CONNECT` ctx 3 and 4) and the setup access point's timeout were exposed.
+  `safeReboot( )` now writes those records first, before the open history block. Measured on the bench on
+  2026-10-18 (`pico_w_test`, the radio silenced, a tap on the panel 3 s before the restart, the restart's guard
+  lowered to 60 s for the bench only): `main` lost the restart's two records in both runs; with the change they
+  reached flash in both, and in the run without the tap on each image.
+- Two comments described `safeReboot( )` as arming a 500 ms watchdog. It triggers the reset with the watchdog's
+  ENABLE cleared, as it has since v1.0.0, which already carried the fix for `reload confirm` hanging the board; the
+  comments say so now.
+
 ## v2.11.1 (2026-10-12)
 
 **Four high-severity defects of the manual's review are fixed: the panel's
