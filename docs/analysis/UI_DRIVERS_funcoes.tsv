@@ -277,9 +277,9 @@ DisplayManager_CalibrationCore.cpp	90	98	DisplayManager::resetTouchCalibration	c
 DisplayManager_CalibrationCore.cpp	104	113	DisplayManager::showTouchSensitivity	core			Mode entry: clears the sensitivity working state, sets _uiMode=MODE_SETTINGS_TOUCH_SENS and the repaint flags (no mutex, unlike showTouchCalibration); no drawing.
 DisplayManager_CalibrationCore.cpp	115	141	DisplayManager::mapTouchPoint	core			Calibration math: raw XPT2046 reading to screen coordinates (swap, map to 0..319 and 0..239, panel size hard-coded) or the simulated CLI touch; no drawing.
 DisplayManager_Calendar.cpp	16	154	DisplayManager::drawCalendarScreen	original			paints the month grid in 45-row strips plus the bottom bar; writes no member; month names, weekday letters and button labels are hard-coded Portuguese, not tr( )
-DisplayManager_CalendarCore.cpp	11	20	DisplayManager::showCalendar	core			entry point: stores year, month and day mask, sets MODE_CALENDAR and raises _repaintCalendar under the mutex (a stub with the same name is in DisplayManager.cpp:863 for SIMUT_TFT_GRAPH=0)
+DisplayManager_CalendarCore.cpp	11	20	DisplayManager::showCalendar	core			entry point: stores year, month and day mask, sets MODE_CALENDAR and raises _repaintCalendar under the mutex (a stub with the same name is in DisplayManager.cpp, compiled when SIMUT_TFT_GRAPH=0)
 DisplayManager_CalendarCore.cpp	22	27	DisplayManager::setCalendarDays	core			state setter for the day mask plus _repaintCalendar
-DisplayManager_CalendarCore.cpp	29	33	DisplayManager::setGraphNavOffset	core			state setter for _graphNavOffset (a stub with the same name is in DisplayManager.cpp:861 for SIMUT_TFT_GRAPH=0)
+DisplayManager_CalendarCore.cpp	29	33	DisplayManager::setGraphNavOffset	core			state setter for _graphNavOffset (a stub with the same name is in DisplayManager.cpp, compiled when SIMUT_TFT_GRAPH=0)
 DisplayManager_Alarm.cpp	19	22	DisplayManager::setAlarmState	core			Core 0 setter for the limit-alarm slot mask and a pending navigation slot; state only.
 DisplayManager_Alarm.cpp	24	26	DisplayManager::setAlarmErrState	core			Core 0 setter for the sensor-error alarm mask; state only.
 DisplayManager_Alarm.cpp	28	30	DisplayManager::isSlotErrAlarming	core			query of the error bit of a slot in _alarmErrMask, used by handleTouch and the draws.

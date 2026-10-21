@@ -55,7 +55,7 @@ private:
   GFXcanvas16 &c_;
 };
 
-// The firmware's canvas: 320 x 45, the two strips in its first 40 rows (strip k in the half k % 2) and the record's list in the other 5 (DisplayManager.cpp:1272).
+// The firmware's canvas: 320 x 45, the two strips in its first 40 rows (strip k in the half k % 2) and the record's list in the other 5 (`_driver.canvas`, made at the top of DisplayManager::loopCore1( ) in DisplayManager.cpp).
 // The host lays its buffer out the same way, so that a strip that wrote into the list's rows would corrupt a record and show as a frame that differs.
 alignas( 8 ) uint16_t g_canvas[ua::LARGURA_PAINEL * ( ua::LINHAS_DAS_FAIXAS + ua::LINHAS_DA_LISTA )];
 

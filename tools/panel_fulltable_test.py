@@ -359,10 +359,10 @@ def main():
         al = rig.get('/api/alarms').json()
         sensors = al.get('sensors', al) if isinstance(al, dict) else al
         # The list IS the panel's list, so element k is row k: /api/alarms emits the
-        # CONFIGURED sensors in index order (WebManager_Api.cpp:368) and so does
-        # _activeSensorsMap (DisplayManager_Settings.cpp:86). Do NOT filter on
+        # CONFIGURED sensors in index order (WebManager::handleApiAlarms( )) and so does
+        # _activeSensorsMap (showSettingsAlarms( ), DisplayManager_SettingsCore.cpp). Do NOT filter on
         # "active" here — in this JSON that key is alarmsActive, the alarm ENABLE
-        # bit (WebManager_Api.cpp:393), not "the sensor exists". On 2026-09-20 the
+        # bit (handleApiAlarms( ) again), not "the sensor exists". On 2026-09-20 the
         # filter left only sensor 4 (the one rig sensor with alarms on) while the
         # run tapped row 0, which is sensor 0, and the firmware's correct ctx=500
         # was read as a row-vs-index defect.
