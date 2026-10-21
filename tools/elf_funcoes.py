@@ -34,8 +34,8 @@ addresses would hide:
     measured 2026-10-21: the Latin-1 fold tables of 64 bytes, a table of 20, a label of 5 and the
     first pointer of a table, each a text in one image and another or none in the other). The
     addresses that literal words point at are not cuts here, as they are for the window of an
-    unnamed constant: 193 of the 3699 texts of pico_w_release have one inside (a compiler's tail-merged
-    suffix), and cut at it they became two, the short ones none;
+    unnamed constant: 192 of the 3713 texts of pico_w_release have one strictly inside (measured 2026-10-21 on S10a's C0 and
+    C11e alike; 195 of 3699 before the cut at the symbol edges; a compiler's tail-merged suffix), and cut at it they became two, the short ones none;
 
 It prints how much it read (functions, instructions), how many functions are equal, changed,
 only in A and only in B, and the names of the changed ones (the first N with their first
@@ -68,7 +68,8 @@ What "equal" does not cover:
     is not seen, whether a function loads it or a table points at it (the same review, old tool and
     new alike);
   - the zero bytes between two objects, the padding the linker adds for alignment, belong to no
-    symbol and are not read: a byte changed there is not seen (the same review);
+    symbol and are not read: a byte changed there is not seen (the same review: of five such bytes changed, the tool before S10a
+    saw each through a 64-byte window that ran past the object, by accident, and this one sees none);
   - .data and .bss objects are not compared (only the text inside .data is), nor are weak objects
     in a writable section;
   - two symbols of one name with the same content have one colour (equal instructions, equal
