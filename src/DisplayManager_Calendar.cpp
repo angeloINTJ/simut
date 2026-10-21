@@ -1,6 +1,6 @@
 /**
  * @file DisplayManager_Calendar.cpp
- * @brief Calendar screen: state setters + drawCalendarScreen.
+ * @brief Calendar screen: drawCalendarScreen; the state setters (showCalendar, setCalendarDays, setGraphNavOffset) are in DisplayManager_CalendarCore.cpp.
  * @details Sub-file of DisplayManager.cpp.
  *
  * @project SIMUT — Integrated Universal Monitoring and Telemetry System
@@ -12,31 +12,6 @@
 #include "DisplayManager_Fonts.h"
 #include "LogManager.h"
 #include "UiWidgets.h"
-
-void DisplayManager::showCalendar(int year, int month, uint32_t daysMask) {
- mutex_enter_blocking(&_stateMutex);
- _calYear = year;
- _calMonth = month;
- _calDaysMask = daysMask;
- _uiMode = MODE_CALENDAR;
- __dmb( );
- _repaintCalendar = true;
- mutex_exit(&_stateMutex);
-}
-
-void DisplayManager::setCalendarDays(uint32_t daysMask) {
- mutex_enter_blocking(&_stateMutex);
- _calDaysMask = daysMask;
- _repaintCalendar = true;
- mutex_exit(&_stateMutex);
-}
-
-void DisplayManager::setGraphNavOffset(int offset) {
- mutex_enter_blocking(&_stateMutex);
- _graphNavOffset = offset;
- mutex_exit(&_stateMutex);
-}
-
 
 void DisplayManager::drawCalendarScreen( ) {
  if (!_driver.canvas) return;

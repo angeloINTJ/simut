@@ -87,7 +87,7 @@ de recebê-la pelo ar: o aparelho a recusa no stage, na validação e no aplicad
 | `pico_w_release` | 1.035.213 | 5.171 |
 | `pico_w_air` | 1.035.581 | 4.803 |
 | `pico_w_alpha` | 990.621 | 49.763 |
-| `pico2_w_release` | 999.225 | 569.543 |
+| `pico2_w_release` | 999.233 | 569.535 |
 | `pico_w_test` | 1.039.661 | 723 |
 | `pico_w_asserts` | 1.037.517 | 2.867 |
 | `pico_wire` | 604.401 | 435.983 |
