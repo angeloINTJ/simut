@@ -49,26 +49,6 @@ uint32_t minutosRestantes( const SystemConfig *cfg, int slot ) {
   return ( until - now + 59u ) / 60u;
 }
 
-/* MIN >= MAX of a channel is not representable and would arm an alarm that can
- * never clear: the old draw pulled every channel apart before painting
- * (DisplayManager_Settings.cpp:238-250). That draw no longer runs here, so the
- * frame's builder does the same to the working copy. */
-void separarLimites( SensorRecord &rec ) {
-  const SensorType st = (SensorType)rec.sensorType;
-  const uint8_t n = sensorLimitCount( st );
-  for ( uint8_t i = 0; i < n; i += 2 ) {
-    const uint8_t c = sensorLimitChannel( st, i );
-    if ( !channelValid( c ) ) continue;
-    if ( rec.chMin[c] < rec.chMax[c] ) continue;
-    const ChannelInfo &ci = channelInfo( c );
-    rec.chMax[c] = round( ( rec.chMin[c] + 0.1f ) * 10.0f ) / 10.0f;
-    if ( rec.chMax[c] > ci.saneMax ) {
-      rec.chMax[c] = ci.saneMax;
-      rec.chMin[c] = ci.saneMax - 0.1f;
-    }
-  }
-}
-
 }  // namespace
 
 /* ------------------------------------------------------------------ */
@@ -106,13 +86,13 @@ bool DisplayManager::uaMontarAjustes( UaQuadro &q ) {
        * into the limit list (2n MIN and 2n + 1 MAX of the n-th channel the sensor
        * reports). The new screen pages by channel and focuses a row of it, so
        * both come out of that one index: it needs no state of its own, and it is
-       * zeroed by showAlarmEdit( ) on every entry. */
+       * zeroed by showAlarmEdit( ) on every entry. The builder only reads. The pass repairs the copy (MIN under MAX) and keeps the focus inside the list on a
+       * repaint request (DisplayManager_UiA.cpp), as the old draw did before it painted; a frame built outside a request, such as one between a Save's push and
+       * Core 0's compare of the copy, writes nothing into it. */
       const SensorType st = (SensorType)_tempAlarmConfig.sensorType;
       const int nLim = sensorLimitCount( st ) > 0 ? sensorLimitCount( st ) : 2;
-      separarLimites( _tempAlarmConfig );
-      if ( _editFieldFocus >= nLim ) _editFieldFocus = nLim - 1;
-      if ( _editFieldFocus < 0 ) _editFieldFocus = 0;
-      const int pagina = _editFieldFocus / 2;
+      const int foco = _editFieldFocus >= nLim ? nLim - 1 : _editFieldFocus < 0 ? 0 : _editFieldFocus;
+      const int pagina = foco / 2;
       const uint8_t ch = sensorLimitCount( st ) > 0 ? sensorLimitChannel( st, (uint8_t)( pagina * 2 ) ) : (uint8_t)CH_TEMP;
       const ChannelInfo &ci = channelInfo( ch );
       /* Read by value: the record is packed. */
@@ -124,7 +104,7 @@ bool DisplayManager::uaMontarAjustes( UaQuadro &q ) {
       vm.grandeza = ch == CH_HUM ? GLIM_UMIDADE : ch == CH_PRESS ? GLIM_PRESSAO : GLIM_TEMPERATURA;
       vm.pagina = (uint8_t)pagina;
       vm.total = (uint8_t)( nLim / 2 );
-      vm.foco = (uint8_t)( _editFieldFocus % 2 );
+      vm.foco = (uint8_t)( foco % 2 );
       vm.minimo = lroundf( lo * 10.0f );
       vm.maximo = lroundf( hi * 10.0f );
       vm.piso = lroundf( ci.saneMin * 10.0f );
