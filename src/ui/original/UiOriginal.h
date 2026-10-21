@@ -68,7 +68,7 @@ UI_HOOK bool DisplayManager::uiBootSkipHit( int16_t x, int16_t y ) {
 	return y > 190 && x > 80 && x < 240;
 }
 
-/* A touch on the sensitivity screen, with enough pressure: did it land on Cancelar? The rectangle handleTouch( ) tested inline, moved here as it was. */
+/* A touch on the sensitivity screen, with enough pressure or injected (p.z >= 50 || simNow, main's #280): did it land on Cancelar? The rectangle handleTouch( ) tested inline, moved here as it was. */
 UI_HOOK bool DisplayManager::uiSensCancelHit( int16_t x, int16_t y ) {
 	return y > 195 && x < 125;
 }

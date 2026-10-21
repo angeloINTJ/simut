@@ -517,7 +517,7 @@ bool DisplayManager::uiBootSkipHit( int16_t x, int16_t y ) {
   return a && a->tipo == ua::tela::BOOT_PULAR;
 }
 
-/* A touch on the sensitivity screen with enough pressure (handleTouch( ) asks inside its own block): did it land on Cancelar? As the boot's button, the frame says where it is, by its
+/* A touch on the sensitivity screen with enough pressure, or an injected one (handleTouch( ) asks inside its gate, p.z >= 50 || simNow): did it land on Cancelar? As the boot's button, the frame says where it is, by its
  * target; the frame on the glass has to be the sensitivity's (the types are numbered per screen: SENSIB_CANCELAR is 1, and so are BOOT_PULAR and RELOG_MAIS), which s_modo says. A tap
  * in the band of the old zone beside the button is a sample like any other touch. */
 bool DisplayManager::uiSensCancelHit( int16_t x, int16_t y ) {
