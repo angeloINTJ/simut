@@ -74,7 +74,7 @@ exclude = [
   "DisplayManager_Dashboard.cpp", "DisplayManager_Panel.cpp", "DisplayManager_Calibration.cpp", "DisplayManager_Auth.cpp",
   "DisplayManager_Alarm.cpp", "DisplayManager_Calendar.cpp", "DisplayManager_Fonts.cpp",
   "DisplayManager_i18n.cpp", "DisplayManager_LangParser.cpp", "AppManager_Graph.cpp",
-  "DisplayManager_Ota.cpp",
+  "DisplayManager_Ota.cpp", "DisplayManager_Render.cpp",
 ]
 include             = ["DisplayManager_Alpha.cpp"]
 ignore_display_libs = true    # o LCD nao usa ILI9341/GFX/XPT2046
@@ -87,7 +87,7 @@ exclude = [
   "DisplayManager_Touch.cpp", "DisplayManager_Settings.cpp", "DisplayManager_Graph.cpp",
   "DisplayManager_Dashboard.cpp", "DisplayManager_Panel.cpp", "DisplayManager_Calibration.cpp", "DisplayManager_Auth.cpp",
   "DisplayManager_Alarm.cpp", "DisplayManager_Calendar.cpp", "DisplayManager_Fonts.cpp",
-  "AppManager_Graph.cpp", "DisplayManager.cpp", "DisplayManager_Alpha.cpp",
+  "AppManager_Graph.cpp", "DisplayManager.cpp", "DisplayManager_Render.cpp", "DisplayManager_Alpha.cpp",
   "DisplayManager_Ota.cpp",
 ]
 include             = ["DisplayManager_None.cpp"]

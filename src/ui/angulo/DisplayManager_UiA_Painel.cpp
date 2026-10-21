@@ -86,7 +86,7 @@ bool DisplayManager::uaMontarPainel( UaQuadro &q ) {
   if ( _lastRenderedState.isBooting && _uiMode == MODE_DASHBOARD ) {
     VmBoot &vm = uaVm<VmBoot>( );
     /* The ring, oldest first: setBootStatusKey( ) shifts it toward 0 and writes
-     * bootLogs[4] (DisplayManager.cpp:751-756). An entry nobody wrote still holds
+     * bootLogs[4] (DisplayManager.cpp). An entry nobody wrote still holds
      * the constructor's key == TR_KEYS_COUNT and an empty suffix
      * (DisplayManager.cpp:135-138): it has no text and is left out. The text is
      * composed as the old box did (DisplayManager.cpp:1914-1921), in Latin-1
@@ -207,7 +207,7 @@ bool DisplayManager::uaMontarPainel( UaQuadro &q ) {
         s.umid = decimos( d.h, VmPainel::SEM_VALOR );
         /* Whole hPa, truncated as the BME280 driver prints it (BME280Driver.h:393, "%d" of (int)p). */
         s.pres = ( isfinite( d.p ) && d.p >= 1.0f ) ? (uint16_t)( d.p > 65535.0f ? 65535.0f : d.p ) : 0;
-        /* The day's extremes the panel keeps (setSlotMinMax( ), DisplayManager.cpp:970-987); NAN is no record yet. */
+        /* The day's extremes the panel keeps (setSlotMinMax( ), DisplayManager.cpp); NAN is no record yet. */
         s.tMin = decimos( painel.minTemp, VmPainel::SEM_VALOR );
         s.tMax = decimos( painel.maxTemp, VmPainel::SEM_VALOR );
         s.uMin = decimos( painel.minHum, VmPainel::SEM_VALOR );

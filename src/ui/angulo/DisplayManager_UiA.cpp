@@ -184,7 +184,7 @@ bool DisplayManager::uaPintar( const UaQuadro &q, UiMode modo, uint32_t hash ) {
   const ua::Tema &tema = uaTema( );
   ua::Faixa faixa( cv->getBuffer( ) );
   ua::Pintor p( faixa, tema, faixa );
-  /* The record of the frame (Pintor::gravar( )) lives in the canvas's rows under the strips: the canvas is 320 x 45 (DisplayManager.cpp:1272), the two
+  /* The record of the frame (Pintor::gravar( )) lives in the canvas's rows under the strips: the canvas is 320 x 45 (allocated in DisplayManager.cpp), the two
    * strips take 40 rows and the other 5, 3,200 B, are idle during a paint. A static list cost 14,856 B of RAM (P1); this costs none. Nothing writes those
    * rows while a frame is painted: the strip class clips to its own 20 rows (Faixa.h), the hash and the push read the strip's 20, and the old screens'
    * draw functions that also use the canvas are not linked in this image (V-NM) or push nothing outside uaPintar( ) (blitCanvas( ) returns
