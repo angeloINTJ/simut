@@ -382,7 +382,7 @@ UaToque DisplayManager::uaToqueMenus( const ua::Alvo *a, int16_t &, int16_t & ) 
         if ( acceptTouch( ZONA_VOLTAR ) ) showSettingsAlarms( _sysConfigPtr );
       } else if ( a->tipo == SA_LIMITES || a->tipo == SA_ALARMES || a->tipo == SA_MANUTENCAO ) {
         if ( !acceptTouch( ZONA_LINHA ) ) break;
-        /* The Angulo's own guard (S9_PLANO.md D3): the slot the menu belongs to, in range. Then the core's row, behind its permission bit
+        /* The Angulo's own guard (UI_DRIVERS.md 2.13, D3): the slot the menu belongs to, in range. Then the core's row, behind its permission bit
          * (this screen leaves out the rows the session cannot use, so the bit only guards a frame that was on the glass a moment ago). */
         const int row = a->tipo - SA_LIMITES;
         if ( !_sysConfigPtr || _sensorMenuIdx < 0 || _sensorMenuIdx >= MAX_SENSORS ) break;

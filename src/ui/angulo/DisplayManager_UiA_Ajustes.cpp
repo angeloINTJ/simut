@@ -60,7 +60,7 @@ bool DisplayManager::uaMontarAjustes( UaQuadro &q ) {
   switch ( _uiMode ) {
     case MODE_SET_CLOCK: {
       /* The fields drawClockValues( ) prints (DisplayManager_Settings.cpp)
-       * and the boot flag drawClockEntry( ) reads (Settings.cpp:934). */
+       * and the boot flag drawClockEntry( ) reads (_clockAtBoot). */
       VmRelogio &vm = uaVm<VmRelogio>( );
       vm.boot = _clockAtBoot;
       vm.dia = (uint8_t)_clockEntry.day;
@@ -132,7 +132,7 @@ bool DisplayManager::uaMontarAjustes( UaQuadro &q ) {
     }
     case MODE_SETTINGS_SOUNDS: {
       /* The melody's choice is the same mode with _inMelodySelect set
-       * (DisplayManager.cpp:1659-1665); here it is a screen of its own. */
+       * (uiPass( ) in ui/original/UiOriginal.h); here it is a screen of its own. */
       if ( _inMelodySelect ) {
         VmMelodia &vm = uaVm<VmMelodia>( );
         vm.som = _melSelectType < SOM_COM_MELODIA ? _melSelectType : 0;

@@ -18,7 +18,7 @@
  *    keyboard's result button, X, OK and boxes run the core's password actions since S9 C5
  *    (actPwdResult( ), actPwdLeave( ), actPwdNameAccept( ), actPwdLegacyOk( ), actPwdToggleShow( )),
  *    and its keys, space and backspace since S9 C6 (actPwdAppend( ), actPwdBackspace( )); its layers,
- *    Shift, error line and the new name's check (S9_PLANO.md D2) stay here.
+ *    Shift, error line and the new name's check (UI_DRIVERS.md 2.13, D2) stay here.
  */
 
 #include "../../DisplayManager.h"
@@ -414,7 +414,7 @@ UaToque DisplayManager::uaToqueIdentidade( const ua::Alvo *a, int16_t &x, int16_
         case CTA_EXCLUIR:                        // row 4: confirm first
           if ( !acceptTouch( Z_CTA_EXCLUIR ) ) break;
           /* The original's editor has no delete row for the admin (userEditRowCount( ) gives 4); the Angulo lists Excluir on every account
-           * that is not new, so its own guard keeps slot 0 out (S9_PLANO.md D3). */
+           * that is not new, so its own guard keeps slot 0 out (UI_DRIVERS.md 2.13, D3). */
           if ( lockedBits ) { _errorSoundPending = true; break; }
           actUserEditActivate( 4, lockedBits );
           break;

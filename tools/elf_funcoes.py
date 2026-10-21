@@ -61,7 +61,14 @@ What "equal" does not cover:
     points at, is still joined with what the layout puts behind it in the text census (the known limit
     x2 of the test; no such table was met in the 90 pairs of S10a);
   - an entry of an unnamed table of pointers made to point at another string that exists in both
-    images changes no pointer text and no census;
+    images changes no pointer text and no census, and two entries swapped read equal for the same
+    reason: both strings are still in the image, once each (measured in the review of the S10a
+    splits, 2026-10-21, on the old tool and the new alike);
+  - a string of one character (the character and its NUL) is not a text to the census: changing it
+    is not seen, whether a function loads it or a table points at it (the same review, old tool and
+    new alike);
+  - the zero bytes between two objects, the padding the linker adds for alignment, belong to no
+    symbol and are not read: a byte changed there is not seen (the same review);
   - .data and .bss objects are not compared (only the text inside .data is), nor are weak objects
     in a writable section;
   - two symbols of one name with the same content have one colour (equal instructions, equal

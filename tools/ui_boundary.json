@@ -24,11 +24,11 @@
   },
   "src/DisplayManager_Dashboard.cpp": {
    "count": 4,
-   "reason": "transitional hook of the Ângulo driver (S2a); removed in S4–S10b: UA_DESVIO( ) at the top of the draw functions of this file and the `_uaPintando` guards of the pixel primitives; ends in S10b (the Ângulo image stops linking the original)"
+   "reason": "transitional hook of the Ângulo driver (S2a); removed in S4–S10b: UA_DESVIO( ) at the top of the draw functions of this file; ends in S10b (the Ângulo image stops linking the original)"
   },
   "src/DisplayManager_Panel.cpp": {
    "count": 3,
-   "reason": "transitional hook of the Ângulo driver (S2a); removed in S4–S10b: UA_DESVIO( ) at the top of the draw functions of this file and the `_uaPintando` guards of the pixel primitives; ends in S10b (the Ângulo image stops linking the original)"
+   "reason": "transitional hook of the Ângulo driver (S2a); removed in S4–S10b: the `_uaPintando` guards of the pixel primitives (fastFillRect, fastClearScreen and blitCanvas), so that only the Ângulo's renderer pushes pixels; ends in S10b (the Ângulo image stops linking the original)"
   },
   "src/DisplayManager_Touch.cpp": {
    "count": 1,

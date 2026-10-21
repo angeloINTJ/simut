@@ -118,11 +118,11 @@ void DisplayManager::showSettingsSounds(const SoundSettingsState& state) {
  * opened by itself there: with no network there is no NTP, and records stamped
  * by the provisional clock are not to be trusted. The Settings menu opens
  * the same screen at any time. The calendar arithmetic is
- * display/ClockEntry.h, tested on the host; this file only draws it.
+ * display/ClockEntry.h, tested on the host; DisplayManager_Settings.cpp draws it.
  *
  * Strings: the title is TR_MENU_CLOCK, the menu row's own string, stripped of
  * the number a pack installed before 2026-10-02 still bakes in. The hint is
- * hardcoded EN/PT, the rule this file follows for confirmations.
+ * hardcoded EN/PT, the rule DisplayManager_Settings.cpp follows for confirmations.
  *
  * Nobody answering is the 30 s idle guard in handleTouch( ): back to the
  * dashboard, which is what SKIP does. A unit back from a power cut with nobody

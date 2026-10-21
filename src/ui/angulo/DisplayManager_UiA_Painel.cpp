@@ -42,7 +42,7 @@ int16_t decimos( float v, int16_t ou ) {
  * param 120). */
 constexpr uint16_t SILENCIO_SEG = 120;
 
-/* One card's data as the old drawSlotPanel( ) takes it (DisplayManager.cpp:1960-1961). */
+/* One card's data as the old drawSlotPanel( ) takes it (render( ), in DisplayManager_Render.cpp). */
 struct Dados {
   float t, h, p;
   bool valido;
@@ -88,8 +88,8 @@ bool DisplayManager::uaMontarPainel( UaQuadro &q ) {
     /* The ring, oldest first: setBootStatusKey( ) shifts it toward 0 and writes
      * bootLogs[4] (DisplayManager.cpp). An entry nobody wrote still holds
      * the constructor's key == TR_KEYS_COUNT and an empty suffix
-     * (DisplayManager.cpp:135-138): it has no text and is left out. The text is
-     * composed as the old box did (DisplayManager.cpp:1914-1921), in Latin-1
+     * (the constructor, in DisplayManager.cpp): it has no text and is left out. The text is
+     * composed as the old box did (render( ), in DisplayManager_Render.cpp), in Latin-1
      * from tr( ), and goes to the kit in UTF-8. */
     int n = 0;
     for ( int i = 0; i < 5; i++ ) {
@@ -101,7 +101,7 @@ bool DisplayManager::uaMontarPainel( UaQuadro &q ) {
       uaLatin1ParaUtf8( cru, vm.passos[n++], sizeof vm.passos[0] );
     }
     vm.nPassos = (uint8_t)n;
-    /* The version the old screen printed under the brand (DisplayManager.cpp:1877). */
+    /* The version the old screen printed under the brand (render( ), in DisplayManager_Render.cpp). */
     ua::copiar( vm.versao, SIMUT_VERSION, sizeof vm.versao );
 #if SIMUT_NET_LAN
     /* The old screen has no MAC. The one the web and the telemetry report
@@ -130,7 +130,7 @@ bool DisplayManager::uaMontarPainel( UaQuadro &q ) {
        * the configuration. The old header printed the LOWER card's name whatever the slot
        * (DisplayManager_Alarm.cpp:76-84): opened from the upper card it named the wrong sensor. */
       if ( rec && rec->friendlyName[0] ) ua::copiar( vm.nome, rec->friendlyName, sizeof vm.nome );
-      else snprintf( vm.nome, sizeof vm.nome, "Sensor %d", slot );   // the cards' fallback (Dashboard.cpp:836, 897)
+      else snprintf( vm.nome, sizeof vm.nome, "Sensor %d", slot );   // the cards' fallback (drawSlotPanel( ))
 
       /* The reading: only the two cards' slots have a live one in the display (setSlotsSnapshot( ) is
        * the Alpha build's). The state is read as Core 0 keeps it, not as the last render saw it:
@@ -177,9 +177,9 @@ bool DisplayManager::uaMontarPainel( UaQuadro &q ) {
       Dados baixo = dadosDe( st.slotTemp, st.slotHum, st.slotPres, st.slotValid, st.slotType, st.selectedSlotIdx, st.slotName );
       Dados cima = dadosDe( st.topSlotTemp, st.topSlotHum, st.topSlotPres, st.topSlotValid, st.topSlotType, st.topSlotIdx, st.topSlotName );
       /* 1. A card that follows the selection and has no valid data shows the lower one
-       *    (DisplayManager.cpp:1819-1824); a PINNED card keeps its own, invalid or not. */
+       *    (render( ), DisplayManager_Render.cpp); a PINNED card keeps its own, invalid or not. */
       if ( !_topPanel.fixed && !cima.valido ) cima = baixo;
-      /* 2. Both on the same sensor: the same data (DisplayManager.cpp:1981-1986). */
+      /* 2. Both on the same sensor: the same data (render( ), DisplayManager_Render.cpp). */
       if ( cima.idx == baixo.idx ) cima = baixo;
 
       /* One card. A slot with no running sensor comes as TYPE_NONE and "Empty / Inactive"
@@ -199,7 +199,7 @@ bool DisplayManager::uaMontarPainel( UaQuadro &q ) {
           nome[0] = 0;
           if ( rec->friendlyName[0] ) ua::copiar( nome, rec->friendlyName, sizeof nome );
         }
-        if ( !nome[0] ) snprintf( nome, sizeof nome, "Sensor %d", d.idx );   // the old fallback (Dashboard.cpp:836, 897)
+        if ( !nome[0] ) snprintf( nome, sizeof nome, "Sensor %d", d.idx );   // the old fallback (drawSlotPanel( ))
         ua::copiar( s.nome, nome, sizeof s.nome );
         s.tipo = tipoDe( tipo );
         s.erro = erro || !isfinite( d.t );
@@ -217,7 +217,7 @@ bool DisplayManager::uaMontarPainel( UaQuadro &q ) {
           s.lo = decimos( rec->chMin[CH_TEMP], 0 );
           s.hi = decimos( rec->chMax[CH_TEMP], 0 );
         }
-        s.alarme = isSlotAlarming( d.idx ) || isSlotErrAlarming( d.idx );   // what makes the old card flash (Dashboard.cpp:773-776)
+        s.alarme = isSlotAlarming( d.idx ) || isSlotErrAlarming( d.idx );   // what makes the old card flash (drawSlotPanel( ))
         s.minmax = painel.showMinMax;
       };
       preencher( vm.cima, cima, _topPanel );
@@ -225,11 +225,11 @@ bool DisplayManager::uaMontarPainel( UaQuadro &q ) {
       /* The old card shows no sign of a pin (§16.8 of the survey): the icon is for a card PINNED to a sensor. */
       vm.cimaFixada = _topPanel.fixed && _topPanel.fixedIdx >= 0;
 
-      /* The alarm's flash and the 120 s silence (DisplayManager.cpp:1547-1554; _alarmSilenced). */
+      /* The alarm's flash and the 120 s silence (slotAlarmBg( ); _alarmSilenced). */
       vm.faseAcesa = _alarmFlashPhase;
       vm.silenciado = _alarmSilenced;
 
-      /* The bottom row, as drawBottomButtons( ) builds it (Dashboard.cpp:1104-1123): buildDashLayout( )
+      /* The bottom row, as drawBottomButtons( ) builds it (DisplayManager_Dashboard.cpp): buildDashLayout( )
        * says what each of the five positions is, and the page button turns when an active slot in alarm
        * has no button on this page (the pinned slot, which has none on any, counts). */
       DashBtn btns[5];

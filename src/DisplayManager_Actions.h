@@ -768,9 +768,9 @@ inline __attribute__((always_inline)) void DisplayManager::actLimitsSave( ) {
 	ev.id = _editSensorIdx; ev.param = 0; pushUiEvent(ev);
 }
 
-/* The limits editor's step (S9B_PLANO.md, form Fb): the three lambdas of handleTouch( )'s limits branch, moved word for word into a function
+/* The limits editor's step (UI_DRIVERS.md 2.14, form Fb): the three lambdas of handleTouch( )'s limits branch, moved word for word into a function
  * of their own with internal linkage, so that their closures stay local and called once, as they were there; _tempAlarmConfig is `cfg`. */
-/* Recorded deviation (S10A_PLANO.md, note 2): a static inline helper called from an inline member with external linkage is ill-formed, no diagnostic required ([basic.def.odr]);
+/* Recorded deviation (UI_DRIVERS.md 2.14): a static inline helper called from an inline member with external linkage is ill-formed, no diagnostic required ([basic.def.odr]);
  * harmless here, because actLimitStep( ) is always_inline and the branch has no LTO, and the internal linkage is what keeps the closures local. */
 static inline void limitStepOn( SensorRecord &cfg, SensorType sType, uint8_t nLimits, int at, float by ) {
 	auto adjustVal = [](float val, float step, float minV, float maxV) -> float {
@@ -955,7 +955,7 @@ inline __attribute__((always_inline)) void DisplayManager::actSensorMenuActivate
 /* A row of the account editor, run (the caller holds acceptTouch( 4 + row ) on the original, its own zone on the Angulo). Rows 0-2 flip a
  * panel bit of the copy being edited, refused on the admin's account, whose bits are locked (lockedBits: slot 0, not new); row 3 opens the
  * account's PIN entry; row 4 asks before the delete, the mode stored under _stateMutex. The original has no row 4 for the admin (4 rows) nor
- * rows 3-4 for a new account (3 rows); the Angulo guards its Excluir on the admin itself (S9_PLANO.md D3). */
+ * rows 3-4 for a new account (3 rows); the Angulo guards its Excluir on the admin itself (UI_DRIVERS.md 2.13, D3). */
 inline __attribute__((always_inline)) void DisplayManager::actUserEditActivate( int idx, bool lockedBits ) {
 	const uint16_t bits[3] = { PERM_ALARM_LIMITS, PERM_ALARM_BLOCK, PERM_MAINT };
 	if (idx < 3) {
@@ -1006,7 +1006,7 @@ inline __attribute__((always_inline)) void DisplayManager::actPwdLeave( ) {
 }
 
 /* OK on the password keyboard when it asks for a new account's name (_kbPurpose == 1; the caller holds acceptTouch( 54 ) on the original, Z_TXT_SALVAR on the
- * Angulo, and has checked that there is a name: the original one character, the Angulo S9_PLANO.md D2's rules). The name goes into _newUserName and the
+ * Angulo, and has checked that there is a name: the original one character, the Angulo UI_DRIVERS.md 2.13, D2's rules). The name goes into _newUserName and the
  * editor of the new account opens; Core 0 applies the real rule (isValidName, no duplicate, not "admin") after both PIN passes. */
 inline __attribute__((always_inline)) void DisplayManager::actPwdNameAccept( const char *name ) {
 	strncpy(_newUserName, name, sizeof(_newUserName) - 1);
@@ -1016,7 +1016,7 @@ inline __attribute__((always_inline)) void DisplayManager::actPwdNameAccept( con
 
 /* OK on the legacy password keyboard (`screen pwd`, a purpose other than 1; the caller holds acceptTouch( 54 ) on the original, Z_TXT_SALVAR on the Angulo): two
  * passes of at least 4 characters, the second equal to the first. A refusal goes to the result screen (_kbPhase 2); a match goes to it too (_kbPhase 3) and asks
- * Core 0 to set the SESSION user's PIN (EVT_SAVE_PASSWORD, id and param 0; S9_PLANO.md D6). */
+ * Core 0 to set the SESSION user's PIN (EVT_SAVE_PASSWORD, id and param 0; UI_DRIVERS.md 2.13, D6). */
 inline __attribute__((always_inline)) void DisplayManager::actPwdLegacyOk( ) {
 	if (_kbPhase == 0) {
 		if (_kbCursor < 4) {
