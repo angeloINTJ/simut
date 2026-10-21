@@ -30,8 +30,8 @@ struct UaQuadro {
 // What a group's touch handler did with a touch.
 enum class UaToque : uint8_t {
   NAO_E_MEU,   // the mode is not this group's
-  TRATADO,     // done here: the old per-mode branch must not run
-  TRADUZIDO,   // the point now sits where the old layout has the same element: the old branch runs
+  TRATADO,             // done here, and the frame may have changed: the pass repaints
+  TRATADO_SEM_QUADRO,  // done here, the frame is unchanged: nothing to repaint (the update screen's touch)
 };
 
 // The view model of the frame being built. The largest one is the chart's

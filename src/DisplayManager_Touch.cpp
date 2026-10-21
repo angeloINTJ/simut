@@ -399,9 +399,9 @@ void DisplayManager::handleTouch( ) {
 
 #if SIMUT_UI_ANGULO
  /* The Ângulo build (src/ui/angulo/): the touch lands on the frame it
-  * painted. Its screens either act on it themselves (true: nothing below
-  * runs) or move the point to where the old layout has the same element, for
-  * the branch below to do what it always did. */
+  * painted, and every screen acts on it itself: uaToque( ) answers true for
+  * every mode, so the chain below never runs in this build (it is the
+  * original's). */
  if (uaToque(x, y)) return;
 #endif
 

@@ -499,8 +499,10 @@ bool DisplayManager::uaToque( int16_t &x, int16_t &y ) {
   if ( r == UaToque::NAO_E_MEU ) r = uaToqueIdentidade( a, x, y );
   if ( r == UaToque::NAO_E_MEU ) r = uaToqueGraficos( a, x, y );
   if ( r == UaToque::NAO_E_MEU ) r = uaToquePendente( a );
+  /* By here every mode has an answer (uaToquePendente( ) takes the ones no group has), and none leaves the touch to the old chain: the touch is
+   * taken. The frame is marked dirty only when the touch may have changed it (TRATADO); the update screen's does not (TRATADO_SEM_QUADRO). */
   if ( r == UaToque::TRATADO ) uaSujo( );
-  return r == UaToque::TRATADO;
+  return true;
 }
 
 /* A touch while the device boots with the skip button showing (handleTouch( ) asks before the intercept above): did it land on
