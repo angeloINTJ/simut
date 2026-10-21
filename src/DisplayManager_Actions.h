@@ -1080,3 +1080,17 @@ inline __attribute__((always_inline)) void DisplayManager::actPwdToggleShow( ) {
 	_kbShowRaw = !_kbShowRaw;
 	_repaintSettings = true;
 }
+
+/* One typed character into the password keyboard's active buffer, at the cursor, and the terminator after it (the popup's key and the space on the original; the keys and the
+ * space on the Angulo). The caller holds the zone (0x60 + the key for a popup key, 20 for the space on the original) and the room test, `_kbCursor < kbMaxLen( )`, which stays with
+ * it: the original puts it after `hit >= 0` in one condition and reads the character (popupChar( )) only once it passed. */
+inline __attribute__((always_inline)) void DisplayManager::actPwdAppend( char *buf, char c ) {
+	buf[_kbCursor++] = c;
+	buf[_kbCursor] = '\0';
+}
+
+/* The backspace of the password keyboard's grid (zone 21 on the original, the held TXT_APAGAR on the Angulo): the last character of the active buffer goes. The caller holds the
+ * test that there is one, `_kbCursor > 0`. */
+inline __attribute__((always_inline)) void DisplayManager::actPwdBackspace( char *buf ) {
+	buf[--_kbCursor] = '\0';
+}

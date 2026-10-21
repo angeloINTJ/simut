@@ -1575,7 +1575,7 @@ private:
 	 * key but Cancelar while a lockout runs or Core 0 reads the entry, the popup's drop, the backspace with its re-deal, Entrar, a key of the
 	 * group popup, a key of the ordered keyboard and a dealt card with its re-deal), the account picker's and the users list's row and Nova conta,
 	 * the user editor (a row, and Salvar; slot 0's bits stay locked), the sensor menu's three rows (each behind its permission bit, which Core 0
-	 * checks again) and the password keyboard (its result, leaving it, a new account's name, the legacy PIN change and the eye). */
+	 * checks again) and the password keyboard (its result, leaving it, a new account's name, the legacy PIN change, the eye, and the stores of a typed character and of the backspace). */
 	inline __attribute__((always_inline)) void actAlarmSilence( );
 	inline __attribute__((always_inline)) void actAlarmDeactivate( );
 	inline __attribute__((always_inline)) void actAlarmShowMinMax( );
@@ -1656,6 +1656,8 @@ private:
 	inline __attribute__((always_inline)) void actPwdNameAccept( const char *name );
 	inline __attribute__((always_inline)) void actPwdLegacyOk( );
 	inline __attribute__((always_inline)) void actPwdToggleShow( );
+	inline __attribute__((always_inline)) void actPwdAppend( char *buf, char c );
+	inline __attribute__((always_inline)) void actPwdBackspace( char *buf );
 
 	struct ActiveLang {
 		char name[16];

@@ -16,8 +16,9 @@
  *    The lockout ladder, the deal and Core 0's comparison are the core's and do not move.
  *  - The other four are Controllers: the same functions, fields and permission checks. The text
  *    keyboard's result button, X, OK and boxes run the core's password actions since S9 C5
- *    (actPwdResult( ), actPwdLeave( ), actPwdNameAccept( ), actPwdLegacyOk( ), actPwdToggleShow( ));
- *    its typing, its layers and the new name's check (S9_PLANO.md D2) stay here.
+ *    (actPwdResult( ), actPwdLeave( ), actPwdNameAccept( ), actPwdLegacyOk( ), actPwdToggleShow( )),
+ *    and its keys, space and backspace since S9 C6 (actPwdAppend( ), actPwdBackspace( )); its layers,
+ *    Shift, error line and the new name's check (S9_PLANO.md D2) stay here.
  */
 
 #include "../../DisplayManager.h"
@@ -439,12 +440,11 @@ UaToque DisplayManager::uaToqueIdentidade( const ua::Alvo *a, int16_t &x, int16_
       }
       if ( !a ) return UaToque::TRATADO;
       char *ativo = _kbPhase == 0 ? _kbBuffer : _kbConfirmBuf;
-      /* One character into the buffer, as the old popup's key did (Touch.cpp:1171-1174); the limit
+      /* One character into the buffer: the room test is this keyboard's own and the store is actPwdAppend( ), the original's popup key and space; the limit
        * is in BYTES, which is what the 15 of a name counts (every key types one ASCII byte). */
       auto digitar = [&]( char c ) {
         if ( !c || _kbCursor >= kbMaxLen( ) ) return;
-        ativo[_kbCursor++] = c;
-        ativo[_kbCursor] = '\0';
+        actPwdAppend( ativo, c );
         s_erro[0] = 0;
         if ( s_shift == TextoShift::ON ) s_shift = TextoShift::OFF;       // Shift types one capital
         _repaintSettings = true;
@@ -454,13 +454,13 @@ UaToque DisplayManager::uaToqueIdentidade( const ua::Alvo *a, int16_t &x, int16_
           if ( !acceptTouch( Z_TXT_TECLA ) ) break;
           digitar( teclaCaractere( s_camada, s_shift, a->indice ) );
           break;
-        case TXT_ESPACO:                         // Touch.cpp:1265-1270
+        case TXT_ESPACO:                         // the space, typed as a key
           if ( !acceptTouch( Z_TXT_ESPACO ) ) break;
           digitar( ' ' );
           break;
-        case TXT_APAGAR:                         // Touch.cpp:1271-1275, held to repeat
+        case TXT_APAGAR:                         // the backspace, held to repeat
           if ( !acceptHoldTouch( Z_TXT_APAGAR ) ) break;
-          if ( _kbCursor > 0 ) { ativo[--_kbCursor] = '\0'; s_erro[0] = 0; }
+          if ( _kbCursor > 0 ) { actPwdBackspace( ativo ); s_erro[0] = 0; }
           _repaintSettings = true;
           break;
         case TXT_SHIFT:                          // OFF -> ON -> LOCK -> OFF

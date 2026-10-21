@@ -939,8 +939,7 @@ void DisplayManager::handleTouch( ) {
  if (hit == -1) return;
  if (!acceptTouch((uint8_t)(hit >= 0 ? 0x60 + hit : 0x5F))) return;
  if (hit >= 0 && _kbCursor < kbMaxLen( )) {
- activeBuf[_kbCursor++] = popupChar(_kbPopup, hit);
- activeBuf[_kbCursor] = '\0';
+ actPwdAppend(activeBuf, popupChar(_kbPopup, hit));
  }
  _kbPopup = POPUP_NONE;
  _repaintSettings = true;
@@ -992,13 +991,12 @@ void DisplayManager::handleTouch( ) {
  else if (col == 1) _kbPopup = POPUP_SYMBOLS;
  else if (col == 2) {
  if (_kbCursor < kbMaxLen( )) {
- activeBuf[_kbCursor++] = ' ';
- activeBuf[_kbCursor] = '\0';
+ actPwdAppend(activeBuf, ' ');
  }
  }
  else {
  if (_kbCursor > 0) {
- activeBuf[--_kbCursor] = '\0';
+ actPwdBackspace(activeBuf);
  }
  }
  _repaintSettings = true;
