@@ -59,6 +59,15 @@ product (the image then moves to `all_images`, WIRED and PANEL here). The
 compiled outputs are checked unchanged by hashing WebUI.h and
 src/HelpLicenseEN.h before and after a change to the list.
 
+AN ELEVENTH IMAGE (2026-10-21)
+------------------------------
+pico2_w_angulo, the Angulo touch panel on the Pico 2 W, is the second image outside the nine:
+[bench_images.pico2_angulo] in the TOML names it and pico2_w_release, the image it extends (the
+group's name only: this image trusts the production root alone, like the one it extends).
+It carries the Angulo kit's typefaces and icons as pico_wiretft_angulo does, so those components
+name both, and THIRD_PARTY_NOTICES.md adds it to every component pico2_w_release carries. The
+License page and the panel's License screen leave it out, for the reason above.
+
 USAGE
 -----
     python3 tools/gen_notices.py            # rewrite the outputs
@@ -86,7 +95,7 @@ PANEL = {"release", "test", "test_https", "asserts", "pico2_release", "wiretft"}
 ENV = {"release": "pico_w_release", "test": "pico_w_test", "test_https": "pico_w_test_https",
        "asserts": "pico_w_asserts", "alpha": "pico_w_alpha", "air": "pico_w_air",
        "pico2_release": "pico2_w_release", "wire": "pico_wire", "wiretft": "pico_wiretft",
-       "wiretft_angulo": "pico_wiretft_angulo"}
+       "wiretft_angulo": "pico_wiretft_angulo", "pico2_angulo": "pico2_w_angulo"}
 WIRED = ["wire", "wiretft"]
 WORDS = {2: "two", 3: "three", 4: "four", 5: "five", 6: "six", 7: "seven", 8: "eight", 9: "nine"}
 

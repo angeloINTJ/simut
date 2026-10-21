@@ -821,6 +821,54 @@
         "syslog": true,
         "tft_graph": true
       }
+    },
+    {
+      "id": "pico2_w_angulo",
+      "order": 11,
+      "bench": true,
+      "publish": false,
+      "chip": "rp2350",
+      "refused": {
+        "net=enc28j60": {
+          "en": "The ENC28J60 exists only for the plain Pico (RP2040) so far: the Pico 2 W (RP2350) has no board for it.",
+          "pt": "O ENC28J60 só existe, por enquanto, para o Pico comum (RP2040): o Pico 2 W (RP2350) não tem placa para ele."
+        }
+      },
+      "ceilings": {
+        "flash_region": 1568768,
+        "ota_bin": 1568527
+      },
+      "label": {
+        "en": "SIMUT Pico 2 W Ângulo",
+        "pt": "SIMUT Pico 2 W Ângulo"
+      },
+      "desc": {
+        "en": "The touch display product on the Pico 2 W (RP2350) in the Ângulo look, a study that is not approved for products. Not published.",
+        "pt": "O produto com tela touch no Pico 2 W (RP2350) no visual Ângulo, um estudo ainda não aprovado para produtos. Não publicada."
+      },
+      "config": {
+        "display": "tft",
+        "net": "cyw43",
+        "ui": "angulo",
+        "cli_full": false,
+        "web_https": true,
+        "license_stub": false,
+        "mdns": true,
+        "concurrency_asserts": false,
+        "bluetooth": false,
+        "air": false,
+        "sound_buzzer": true,
+        "sensor_ds18b20": true,
+        "sensor_dht22": true,
+        "sensor_bme280": true,
+        "tel_tls": true,
+        "tel_mqtt": true,
+        "web_history": true,
+        "web_export_api": true,
+        "web_metrics": true,
+        "syslog": true,
+        "tft_graph": true
+      }
     }
   ],
   "rules": [

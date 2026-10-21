@@ -93,6 +93,7 @@ de recebê-la pelo ar: o aparelho a recusa no stage, na validação e no aplicad
 | `pico_wire` | 604.585 | 435.799 |
 | `pico_wiretft` | 786.913 | 253.471 |
 | `pico_wiretft_angulo` | 833.673 | 206.711 |
+| `pico2_w_angulo` | 1.041.537 | 527.231 |
 | `pico_w_test_https` | isenta | — |
 <!-- ota-headroom:end -->
 
@@ -112,7 +113,8 @@ de recebê-la pelo ar: o aparelho a recusa no stage, na validação e no aplicad
   Desde o passo 4 do [OTA_AB_RP2350.md](OTA_AB_RP2350.md) ela atualiza pelo ar
   no outro slot de uma tabela de partições, e o teto dela é esse slot,
   1.568.768 B (`"slot"` no `flash_budget.json`; `OTA_IMAGE_MAX` no stage). Entre
-  os passos 2 e 4 (03/10) ela foi isenta, porque recusava todo OTA.
+  os passos 2 e 4 (03/10) ela foi isenta, porque recusava todo OTA. A `pico2_w_angulo`
+  (21/10) tem o mesmo slot e a mesma conta.
 
 ---
 

@@ -5,8 +5,8 @@
 # The exit status is 0 either way: read sha256.txt (a failed build is a line, not a status).
 #
 # Default list, the first nine environments of CLAUDE.md: pico_w_release pico_w_test pico_w_test_https
-# pico_w_asserts pico_w_alpha pico_w_air pico2_w_release pico_wire pico_wiretft. The tenth, the bench
-# image pico_wiretft_angulo, is not among them: name it to build it.
+# pico_w_asserts pico_w_alpha pico_w_air pico2_w_release pico_wire pico_wiretft. The tenth and the eleventh,
+# the unpublished images pico_wiretft_angulo and pico2_w_angulo, are not among them: name them to build them.
 #
 # What it is for (V-SHA, docs/analysis/UI_DRIVERS.md): a change that promises the product images
 # unchanged builds the base and the branch with this script, and

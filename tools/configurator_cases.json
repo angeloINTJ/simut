@@ -49,6 +49,8 @@
     {"name": "Pico 2 W on the cable, with Bluetooth", "base": "pico2_w_release", "set": {"net": "enc28j60", "bluetooth": true},          "violates": ["bluetooth-needs-cyw43"], "blocks": ["bluetooth-needs-cyw43", "unsupported-net"]},
     {"name": "SIMUT with the Ângulo look",     "base": "pico_w_release", "set": {"ui": "angulo"},                                         "violates": [], "blocks": []},
     {"name": "Pico 2 W with the Ângulo look",  "base": "pico2_w_release", "set": {"ui": "angulo"},                                        "violates": [], "blocks": []},
+    {"name": "Pico 2 W Ângulo as shipped",    "base": "pico2_w_angulo", "set": {},                                                      "violates": [], "blocks": []},
+    {"name": "Pico 2 W Ângulo on the cable",   "base": "pico2_w_angulo", "set": {"net": "enc28j60"},                                     "violates": [], "blocks": ["unsupported-net"]},
     {"name": "SIMUT Wire TFT with the Ângulo look", "base": "pico_wiretft", "set": {"ui": "angulo"},                                    "violates": [], "blocks": []},
     {"name": "SIMUT Wire TFT Ângulo as shipped", "base": "pico_wiretft_angulo", "set": {},                                              "violates": [], "blocks": []},
     {"name": "SIMUT Wire TFT Ângulo with the original look back", "base": "pico_wiretft_angulo", "set": {"ui": "original"},         "violates": [], "blocks": []},

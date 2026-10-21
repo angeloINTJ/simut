@@ -35,6 +35,12 @@ all_images = ["release", "test", "test_https", "asserts", "alpha", "air", "pico2
 extends = "wiretft"
 what = "the bench image of the Angulo touch panel (`ui = \"angulo\"` in tools/features.toml), not published"
 
+# The second one (2026-10-21): the Angulo on the Pico 2 W, the board it ships on first. The group's name is the
+# only bench about it: the image trusts the production root alone, like pico2_w_release, and nobody installs it yet.
+[bench_images.pico2_angulo]
+extends = "pico2_release"
+what = "the Angulo touch panel on the Pico 2 W (`ui = \"angulo\"` in tools/features.toml), the image it ships on first, not published yet"
+
 [[component]]
 name = "Arduino-Pico core"
 holder = "Earle F. Philhower, III"
@@ -261,12 +267,12 @@ also = ["GPL-3.0.txt"]
 
 # The Angulo panel's kit (src/ui/angulo/kit/, 2026-10-14): fonts rasterized by the plan's renderer from
 # the typefaces named here (the headers of kit/fontes/*.h say which, and tools/tft_ui/ESPEC_UI_A.md),
-# and icons rasterized from Lucide 0.468.0. Only the bench image pico_wiretft_angulo carries them.
+# and icons rasterized from Lucide 0.468.0. Only the two images pico_wiretft_angulo and pico2_w_angulo carry them.
 [[component]]
 name = "Bricolage Grotesque"
 holder = "The Bricolage Grotesque Project Authors"
 license = "SIL Open Font License 1.1"
-images = ["wiretft_angulo"]
+images = ["wiretft_angulo", "pico2_angulo"]
 url = "https://github.com/ateliertriay/bricolage"
 what = "The display face (weight 600) of the Angulo touch panel, converted to bitmaps at 9, 12, 18, 24 and 32 pt and cut down to the glyphs SIMUT draws."
 text = "bricolage-grotesque-OFL-1.1.txt"
@@ -275,7 +281,7 @@ text = "bricolage-grotesque-OFL-1.1.txt"
 name = "GNU FreeFont (FreeSans, FreeMono Bold)"
 holder = "GNU FreeFont contributors"
 license = "GPL-3.0-or-later with the font exception"
-images = ["wiretft_angulo"]
+images = ["wiretft_angulo", "pico2_angulo"]
 url = "https://www.gnu.org/software/freefont/"
 what = "The FreeSans and FreeSans Bold faces at 7 and 9 pt and the FreeMono Bold face at 9 and 12 pt of the Angulo touch panel, converted to bitmaps and cut down to the glyphs SIMUT draws."
 text = "freefont-GPL-3.0-font-exception.txt"
@@ -285,7 +291,7 @@ also = ["GPL-3.0.txt"]
 name = "Lucide"
 holder = "Lucide Contributors (portions: Cole Bemis, as part of Feather)"
 license = "ISC"
-images = ["wiretft_angulo"]
+images = ["wiretft_angulo", "pico2_angulo"]
 url = "https://lucide.dev"
 what = "The icons of the Angulo touch panel (status bar, buttons, result and update screens), rasterized to 1-bit bitmaps at 16, 20 and 24 px from Lucide 0.468.0."
 note = "Its LICENSE says portions are held by Cole Bemis 2013-2022 as part of Feather (MIT). The file is reproduced as the lucide-static 0.468.0 package ships it."

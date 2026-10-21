@@ -26,7 +26,7 @@ pio run -e pico_w_air          # the hibernating build; least flash headroom
 pio test -e native_logpolicy   # one suite; eleven exist
 ```
 
-**Ten** firmware environments and eleven native suites, all of them built and
+**Eleven** firmware environments and eleven native suites, all of them built and
 run by CI — `pico_w_asserts` is the one that is easy to forget, because it is
 not in the table above and nothing local reminds you of it. This line said
 "five" until 2026-09-20, and a change that raised the other five budgets went
@@ -45,7 +45,13 @@ on the `feat/ui-drivers` branch, is `pico_wiretft_angulo`: the Ângulo UI
 driver's bench image, `pico_wiretft` with the touch panel drawn by
 `src/ui/angulo/` (`ui = "angulo"` in the manifest). It is transitional, not
 approved for products and not published; CI builds it and holds it to its own
-flash budget, and it is not a required check. Name the ten.
+flash budget, and it is not a required check. The eleventh, since 2026-10-21 on
+the same branch, is `pico2_w_angulo`: the Ângulo on the Pico 2 W, `pico2_w_release`
+with the touch panel drawn by `src/ui/angulo/` (the maintainer decided that day
+that the Ângulo ships first on that board). Not approved for products and not
+published either; CI builds it and holds it to its own flash and static-RAM
+budgets, it is not a required check, and nothing runs it on a board yet. Name the
+eleven.
 There is no debug environment — see the note in `platformio.ini` for why.
 
 ## What will fail your build before CI does
@@ -89,7 +95,7 @@ locally. When one fires, it is usually right:
 
 - `main` is protected. Every change goes through a pull request, and the nine
   required checks must pass: every CI job except the `pico_w_test_https`,
-  `pico_wire`, `pico_wiretft` and `pico_wiretft_angulo` images
+  `pico_wire`, `pico_wiretft`, `pico_wiretft_angulo` and `pico2_w_angulo` images
   (`firmware (pico2_w_release)` joined on 2026-10-01).
 - Commit messages and pull requests are written in English; conversation with
   the maintainer is in Portuguese.

@@ -301,6 +301,12 @@ check(not any(re.match(r"-DSIMUT_UI_(ORIGINAL|CUSTOM_THEMES)\b", f) for f in bui
 # compõe o mesmo ambiente que não escolher.
 check(gf.compose(bc.resolve("pico_wiretft_angulo", {}, M), M) == gf.compose(bc.resolve("pico_wiretft", {"ui": "angulo"}, M), M),
       "o pico_wiretft_angulo não é o pico_wiretft com ui = angulo")
+# O pico2_w_angulo (2026-10-21) é o pico2_w_release com a UI trocada, e mais nada: o configurador compõe os dois iguais, e o ambiente que o
+# gerador escreve, o de verdade, também, sem a raiz de bancada (ela é de imagem de bancada, e esta chega ao produto como o pai).
+_b = gf.compose(bc.resolve("pico2_w_release", {"ui": "angulo"}, M), M)
+check(gf.compose(bc.resolve("pico2_w_angulo", {}, M), M) == _b, "o pico2_w_angulo não é o pico2_w_release com ui = angulo")
+check(gf.compose(gf.resolve_profile("pico2_w_angulo", M["profiles"]), M) == _b,
+      "o ambiente pico2_w_angulo não é o pico2_w_release com ui = angulo, e mais nada (nem a raiz de bancada)")
 for prof in M["profiles"]:
     own = gf.resolve_profile(prof, M["profiles"]).get("ui", gf.DEFAULT_UI)
     check(gf.compose(bc.resolve(prof, {"ui": own}, M), M) == gf.compose(bc.resolve(prof, {}, M), M),

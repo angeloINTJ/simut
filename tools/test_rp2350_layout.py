@@ -18,7 +18,8 @@ to a different reader:
 A number changed in one and not the others is a board that boots one layout
 and reads another. This test holds the four to each other. What only a build
 can show (the image's first block, the stub gone, the framework's template)
-is tools/check_rp2350_image.py's, after every pico2_w_release link.
+is tools/check_rp2350_image.py's, after every link of a slot image (pico2_w_release,
+pico2_w_angulo).
 
 Run: python3 tools/test_rp2350_layout.py
 Exit status is 0 on pass, 1 on failure.
@@ -174,26 +175,31 @@ def test_ldscript():
           "memmap_slot.ld: has template placeholders; PlatformIO does not fill a custom script")
 
 
+# The images that boot from a slot of the table: the release, and since 2026-10-21 the Angulo on the Pico 2 W.
+SLOT_ENVS = ("pico2_w_release", "pico2_w_angulo")
+
+
 def test_profile():
     text = PROFILES.read_text(encoding="utf-8")
-    m = re.search(r"\[env:pico2_w_release\]\n(.*?)(?=\n\[|\Z)", text, re.S)
-    if not check(m is not None, "profiles.ini: no [env:pico2_w_release]"):
-        return
-    env = m.group(1)
-    ld = re.search(r"^board_build\.ldscript\s*=\s*(\S+)", env, re.M)
-    fs = re.search(r"^board_build\.filesystem_size\s*=\s*(\S+)", env, re.M)
-    check(ld and ld.group(1) == "tools/rp2350/memmap_slot.ld",
-          f"profiles.ini: pico2_w_release's ldscript is {ld.group(1) if ld else None}, want tools/rp2350/memmap_slot.ld")
-    if check(fs is not None, "profiles.ini: pico2_w_release sets no board_build.filesystem_size"):
-        size = kb(fs.group(1))
-        # The builder's own formula (platform-raspberrypi builder/main.py, fetch_fs_size):
-        # FS_START = 0x10000000 + flash - 4096 - filesystem_size.
-        check(size is not None and XIP + FLASH - EEPROM - size == XIP + EXPECT["LittleFS"][0],
-              f"profiles.ini: filesystem_size {fs.group(1)} puts the builder's FS_START at "
-              f"{(XIP + FLASH - EEPROM - (size or 0)):#x}, the table at {XIP + EXPECT['LittleFS'][0]:#x}")
+    for name in SLOT_ENVS:
+        m = re.search(rf"\[env:{name}\]\n(.*?)(?=\n\[|\Z)", text, re.S)
+        if not check(m is not None, f"profiles.ini: no [env:{name}]"):
+            continue
+        env = m.group(1)
+        ld = re.search(r"^board_build\.ldscript\s*=\s*(\S+)", env, re.M)
+        fs = re.search(r"^board_build\.filesystem_size\s*=\s*(\S+)", env, re.M)
+        check(ld and ld.group(1) == "tools/rp2350/memmap_slot.ld",
+              f"profiles.ini: {name}'s ldscript is {ld.group(1) if ld else None}, want tools/rp2350/memmap_slot.ld")
+        if check(fs is not None, f"profiles.ini: {name} sets no board_build.filesystem_size"):
+            size = kb(fs.group(1))
+            # The builder's own formula (platform-raspberrypi builder/main.py, fetch_fs_size):
+            # FS_START = 0x10000000 + flash - 4096 - filesystem_size.
+            check(size is not None and XIP + FLASH - EEPROM - size == XIP + EXPECT["LittleFS"][0],
+                  f"profiles.ini: {name}: filesystem_size {fs.group(1)} puts the builder's FS_START at "
+                  f"{(XIP + FLASH - EEPROM - (size or 0)):#x}, the table at {XIP + EXPECT['LittleFS'][0]:#x}")
     # Every other image stays on the framework's own script.
     for other in re.finditer(r"\[env:(\w+)\]\n(.*?)(?=\n\[|\Z)", text, re.S):
-        if other.group(1) != "pico2_w_release":
+        if other.group(1) not in SLOT_ENVS:
             check("board_build.ldscript" not in other.group(2),
                   f"profiles.ini: {other.group(1)} sets board_build.ldscript; only the RP2350 boots from a slot")
 

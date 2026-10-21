@@ -376,8 +376,10 @@ check(two["lock"] == "unsupported-net", f"pico2_w_release/net=enc28j60: a págin
 check(two["why"] == cable_texts, f"pico2_w_release/net=enc28j60: o motivo da trava {two['why']} != o do manifesto {cable_texts}")
 check(all(cable_texts.values()), "o manifesto não dá os dois textos da recusa do cabo")
 for p in PRODUCTS:
-    if p != "pico2_w_release":
+    if gf.resolve_profile(p, M["profiles"]).get("chip", "rp2040") != "rp2350":
         check(net_locks[(p, "enc28j60")]["lock"] != "unsupported-net", f"{p}/net=enc28j60: travada pela recusa do gerador, que é do RP2350")
+    else:   # o Pico 2 W e o Angulo nele (2026-10-21): o gerador recusa o cabo, e a página o trava
+        check(net_locks[(p, "enc28j60")]["lock"] == "unsupported-net", f"{p}/net=enc28j60: a página não trava o driver que o gerador recusa")
     own = gf.config_of(gf.resolve_profile(p, M["profiles"]))["net"]
     check(net_locks[(p, own)]["lock"] is None, f"{p}/net={own}: o driver do próprio produto está travado: {net_locks[(p, own)]}")
 # Sem regra que a proíba, o cabo no SIMUT trava pelo orçamento de PIO: com o DS18B20 e o DHT22 ligados, o
