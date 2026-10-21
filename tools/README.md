@@ -1,6 +1,6 @@
 # tools/
 
-185 scripts. This file exists because until 2026-09-08 there was no way
+187 scripts. This file exists because until 2026-09-08 there was no way
 to tell a live bench tool from a leftover, and one of them —
 `compressor.py` — had been superseded for three months while still looking
 usable: it regenerated `WebUI_GZ.h` into the repository root, where nothing
@@ -16,7 +16,7 @@ wrong, the description is the bug.
 
 ---
 
-## Called by CI (49)
+## Called by CI (51)
 
 Invoked from `.github/workflows/build.yml` — or, for the release manifest, from
 `release-ota.yml` when a tag is pushed. Breaking one of these fails a pull request
