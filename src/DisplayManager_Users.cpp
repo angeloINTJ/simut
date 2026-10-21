@@ -1319,34 +1319,19 @@ bool DisplayManager::handleTouchPanelV24(int16_t x, int16_t y) {
 				if (!acceptTouch(0)) return true;
 				pinCancel( ); return true;
 			}
-			if (_permanentLockout || !timeReached(_lockoutUntil) || _pinWaiting) return true;
-			/* The footer is outside the popup card, so reaching it means the
-			 * popup was abandoned: close it before acting, or the next full
-			 * redraw would bring it back over the keyboard. */
-			if (_pinPopup >= 0) { _pinPopup = -1; _forceSettingsRedraw = true; }
+			if (pinInputBlocked( )) return true;
+			actPinPopupDrop( );
 			if (x < FOOT_BACK_X + FOOT_BACK_W) {
 				if (!acceptTouch(1)) return true;
-				if (_pinLen > 0) {
-					_pinLen--;
-					if (pinIsIdentifying( )) {
-						_pinTaps[_pinLen][0] = '\0';
-						/* Nothing to re-deal on an ordered keyboard, and no
-						 * cards to blit over it. */
-						if (!pinOrderedNow( )) { scramblePinKeys( ); _pinCardsDirty = true; }
-					}
-					else _pinBuf[_pinLen] = '\0';
-				}
-				_pinMsg = TR_KEYS_COUNT;
-				_repaintSettings = true; return true;
+				actPinBackspace( ); return true;
 			}
 			if (x >= FOOT_OK_X) {
 				if (!acceptTouch(2)) return true;
-				pinSubmit( );
-				_repaintSettings = true; return true;
+				actPinOk( ); return true;
 			}
 			return true;
 		}
-		if (_permanentLockout || !timeReached(_lockoutUntil) || _pinWaiting) return true;
+		if (pinInputBlocked( )) return true;
 
 		/* The ORDERED keyboard answers first: it is what is on the glass both
 		 * when a PIN is being CHOSEN and when one is being proved under
@@ -1364,10 +1349,7 @@ bool DisplayManager::handleTouchPanelV24(int16_t x, int16_t y) {
 				const int n = (int)strlen(mem);
 				const int i = popupKeyAt(n, x, y);
 				if (!acceptTouch((uint8_t)(40 + (i < 0 ? 0 : i + 1)))) return true;
-				if (i >= 0 && i < n) pinAppendChar(mem[i]);
-				_pinPopup = -1;
-				_forceSettingsRedraw = true;
-				_repaintSettings = true;
+				actPinPopupKey(mem, n, i);
 				return true;
 			}
 
@@ -1375,40 +1357,17 @@ bool DisplayManager::handleTouchPanelV24(int16_t x, int16_t y) {
 			/* An empty face is one of the numeric pad's two blank cells. */
 			if (k < 0 || !_pinKeyChars[k][0]) return true;
 			if (!acceptTouch((uint8_t)(20 + k))) return true;
-			if (alphabet == ALPHA_ALNUM) {
-				_pinPopup = (int8_t)k;          /* first tap: pick the group */
-				_forceSettingsRedraw = true;
-			} else {
-				pinAppendChar(_pinKeyChars[k][0]);
-			}
-			_repaintSettings = true;
+			actPinOrderedKey(k, alphabet);
 			return true;
 		}
 
 		{
-			/* The whole card is one target: the tap says "one of these three",
-			 * and which one is never asked. What the tap keeps is the three
-			 * glyphs themselves, because the deal is rolled right after and
-			 * the card index would stop meaning anything. Core 0 resolves the
-			 * sequence (StorageManager::pinSetMatches). */
+			/* A dealt keypad: the whole card is one target (actPinCard( )). */
 			const Grid g = pinGrid( );
 			const int k = keyAt(g, x, y);
 			if (k < 0) return true;
 			if (!acceptTouch((uint8_t)(10 + k))) return true;
-			/* The ceiling is the KEYPAD's, not the buffer's: resolving the tap
-			 * tree costs S^n hashes and maxLenFor( ) is where that budget is
-			 * written down. Past it the tap is simply not taken. */
-			if (_pinLen < maxLenFor(pinKeypadMode( ))) {
-				memcpy(_pinTaps[_pinLen], _pinKeyChars[k], (size_t)g.slots + 1);
-				_pinLen++;
-				_pinMsg = TR_KEYS_COUNT;
-			}
-			/* Every tap gets its own deal: two taps on the same card are not
-			 * the same three digits, so a watcher cannot even tell whether two
-			 * digits of the PIN are equal. */
-			scramblePinKeys( );
-			_pinCardsDirty = true;
-			_repaintSettings = true;
+			actPinCard(g, k);
 			return true;
 		}
 	}

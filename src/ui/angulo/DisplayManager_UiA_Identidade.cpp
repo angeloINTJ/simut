@@ -10,9 +10,10 @@
  * reproduces (file:line of 2026-10-14, DisplayManager_Users.cpp unless said otherwise).
  *
  * Touch, per mode (ESPEC §4):
- *  - MODE_AUTH is a Translation: the target becomes the centre of the same element of
- *    the old layout and handleTouchPanelV24( ) runs unchanged, so the shuffle after each
- *    tap, the lockout ladder and "Cancelar answers under a lockout" stay the old code's.
+ *  - MODE_AUTH runs the core's keypad actions (DisplayManager_Actions.h, S9 C2): the
+ *    predicate that holds every control but Cancelar under a lockout, the popup's drop, the
+ *    backspace and the card with their re-deal, Entrar, the popup and the ordered keys.
+ *    The lockout ladder, the deal and Core 0's comparison are the core's and do not move.
  *  - The other four are Controllers: the same functions, fields and permission checks.
  */
 
@@ -33,6 +34,7 @@
 #include "telas/IdentidadeContas.h"
 #include "telas/IdentidadePin.h"
 #include "telas/IdentidadeTexto.h"
+#include "../../DisplayManager_Actions.h"   /* the core's touch actions, which the PIN keypad runs; last, as in the other glue */
 
 namespace {
 
@@ -259,22 +261,67 @@ bool DisplayManager::uaMontarIdentidade( UaQuadro &q ) {
 UaToque DisplayManager::uaToqueIdentidade( const ua::Alvo *a, int16_t &x, int16_t &y ) {
   using namespace ua::tela;
   switch ( _uiMode ) {
-    /* ---- the PIN keypad: Translation ---- */
+    /* ---- the PIN keypad: Controller (S9 C2). Each target runs the core's keypad action under the original's zone (0, 1, 2, 10 + k,
+     * 20 + k, 40 + the popup key + 1), in the original's order: Cancelar answers under a lockout, every other control waits for
+     * pinInputBlocked( ), Apagar and Entrar close the popup before acting. ---- */
     case MODE_AUTH: {
+      /* With the alphanumeric keyboard's group popup up, the popup owns every touch: one of its keys types its character, anything else, a
+       * key of the keyboard behind it or no target at all, only closes it (the original's rule). */
+      const bool popupAberto = _pinPopup >= 0 && pinOrderedNow( ) && pinAlphabet( ) == PinKb::ALPHA_ALNUM;
+      const char *mem = popupAberto ? PinKb::GROUP_CHARS[_pinPopup] : "";
+      const int n = (int)strlen( mem );
       if ( !a ) {
-        /* Farther than FOLGA_TOQUE from every target, or on an inert one. With a popup open the old handler closes it on any point that is
-         * not one of its keys (:1363-1373): the neutral point does that and nothing else. Without
-         * one, a dead zone. */
-        if ( _pinPopup >= 0 && pinOrderedNow( ) && pinAlphabet( ) == PinKb::ALPHA_ALNUM ) {
-          x = ua::PIN_NEUTRO_X; y = ua::PIN_NEUTRO_Y;
-          return UaToque::TRADUZIDO;
-        }
+        if ( popupAberto && !pinInputBlocked( ) && acceptTouch( 40 ) ) actPinPopupKey( mem, n, -1 );
         return UaToque::TRATADO;
       }
-      /* Key k, popup key j, Apagar, Entrar and Cancelar become the centre of the same element of
-       * the old layout (IdentidadeToque.h): the old footer (:1318-1349), the popup (:1363-1373),
-       * the ordered keys (:1375-1386) and the cards (:1395-1413) then run as they always did. */
-      return ua::pinPontoAntigo( pinGrid( ), _pinPopup, *a, x, y ) ? UaToque::TRADUZIDO : UaToque::TRATADO;
+      switch ( a->tipo ) {
+        /* Cancelar: the way out of the screen, and the only control that has to work under a lockout. */
+        case PIN_CANCELAR:
+          if ( !acceptTouch( 0 ) ) break;
+          pinCancel( );
+          break;
+        case PIN_APAGAR:
+          if ( pinInputBlocked( ) ) break;
+          actPinPopupDrop( );
+          if ( !acceptTouch( 1 ) ) break;
+          actPinBackspace( );
+          break;
+        case PIN_ENTRAR:
+          if ( pinInputBlocked( ) ) break;
+          actPinPopupDrop( );
+          if ( !acceptTouch( 2 ) ) break;
+          actPinOk( );
+          break;
+        case PIN_POPUP:
+        case PIN_TECLA: {
+          if ( pinInputBlocked( ) ) break;
+          if ( popupAberto ) {
+            const int j = ( a->tipo == PIN_POPUP && a->indice >= 0 && a->indice < n ) ? a->indice : -1;
+            if ( !acceptTouch( (uint8_t)( 40 + ( j < 0 ? 0 : j + 1 ) ) ) ) break;
+            actPinPopupKey( mem, n, j );
+            break;
+          }
+          if ( a->tipo != PIN_TECLA ) break;
+          const PinKb::Grid g = pinGrid( );
+          const int k = a->indice;
+          /* An index the grid does not have is no key, as the old translation said; on the ordered keyboard neither is an empty face, one
+           * of the numeric pad's two blank cells. */
+          if ( pinOrderedNow( ) ) {
+            if ( k >= g.keys ) break;
+            if ( k < 0 || !_pinKeyChars[k][0] ) break;
+            if ( !acceptTouch( (uint8_t)( 20 + k ) ) ) break;
+            actPinOrderedKey( k, pinAlphabet( ) );
+          } else {
+            if ( k < 0 || k >= g.keys ) break;
+            if ( !acceptTouch( (uint8_t)( 10 + k ) ) ) break;
+            actPinCard( g, k );
+          }
+          break;
+        }
+        default:
+          break;
+      }
+      return UaToque::TRATADO;
     }
 
     /* ---- who is at the panel: Controller ---- */
