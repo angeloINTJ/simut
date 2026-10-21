@@ -9,7 +9,9 @@ All notable changes to SIMUT firmware.
 **The panel's SPI runs at 66.5 MHz on the Pico W. On the build measured before the change (arduino-pico 5.6.1,
 2026-10-15) it ran at 24 MHz, whatever `SIMUT_TFT_SPI_HZ` asked for; the 5.4.x builds before it, v2.1.6 among them,
 carry the same clock code and were not measured. A radio that stops answering is no longer joined blind, which held
-Core 0 past the hardware watchdog: it is restarted by the planned path (#266).**
+Core 0 past the hardware watchdog: it is restarted by the planned path (#266). The language pack's log records carry
+their own tag and codes: they were persisted as `?`, two warnings as "OK" and the pack loaded at boot as a language
+changed through the UI (#283).**
 
 ### The panel's bus
 
@@ -89,6 +91,35 @@ Core 0 past the hardware watchdog: it is restarted by the planned path (#266).**
 - Two comments described `safeReboot( )` as arming a 500 ms watchdog. It triggers the reset with the watchdog's
   ENABLE cleared, as it has since v1.0.0, which already carried the fix for `reload confirm` hanging the board; the
   comments say so now.
+
+### The language pack's log records (#283)
+
+- **They carry their own tag.** The loader logs under `I18N`, which the tag table did not have, so its four records
+  were persisted with the unknown tag and every reader of the log showed `?`: `show system log`, the CSV export and
+  the web viewer. A field export of 2026-10-13 has one, `Boot +00:00:08 INF ? 441`. `I18N` is tag 13 now, in the
+  firmware's table and in the web viewer's copy. Records already on flash keep their `?`: the tag is persisted.
+- **And their own codes.** The two warnings were persisted as code 0, which reads "OK", and the pack loaded at boot as
+  441, "Language changed via UI", on every boot that loads one but an Air wake. Four codes replace them: 620
+  `I18N_PACK_LOADED`, 621 `I18N_PACK_OUTDATED` (ctx: the `@DICT` lines the pack has), 622 `I18N_PACK_MULTIPLE` (ctx:
+  the packs in `/lang`) and 623 `I18N_PACK_FAILED`. A pack that failed to load was `SYS_STORAGE_FAIL`, which the log's
+  filter counts as a history fault: a bad pack marked the history as failing until its next success, a real write
+  failure in between stayed off flash as the second fault of a failing family, and the next history record was written
+  as a recovery. 441 stays for the change a person makes on the panel or at the CLI.
+- **The SIMUT Air's wake** silences the pack's boot record where it silenced 441, so a wake still writes one record
+  instead of eight. The language change is out of that list, so it is written even during a boot. Host-tested; not
+  measured again on an Air.
+- **A tag the table lacks no longer builds.** The `LOG_` macros assert at compile time that each tag is the name of
+  the id it maps to (`logTagIsKnown( )`). Added to `main` alone, the check finds exactly the five records above: the
+  language pack's four and the Air's `"AIR"`, which was persisted as `APP` and now says `APP`.
+  `tools/gen_logcodes.py --check`, which runs on every build, also holds the web viewer's tag names to the firmware's.
+- **The console** no longer repeats a record's name in its text: `Language pack loaded: Portugues`, where it printed
+  `Language changed via UI: Language pack loaded: Portugues`. Two `@TRL` lines in each pack replace four.
+- **The manual's Appendix B is in Portuguese again.** `tools/build_manual.py` took the Portuguese column of the code
+  table by position, and the table lost a column on 2026-09-24: from then on the Portuguese manual listed the event
+  names in Spanish. It reads the columns by name now. Two chapters still said 157 event codes; there are 170.
+- **Host tests:** 711 cases in 11 suites, up from 706. Three in `native` pin the `I18N` tag, a walk of the whole name
+  table and the names the check refuses; two in `native_logpolicy` pin the language change outside the wake's list and
+  the failed pack outside the history family.
 
 ## v2.11.1 (2026-10-12)
 

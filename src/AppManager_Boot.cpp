@@ -1491,8 +1491,8 @@ void AppManager::setup( ) {
 
  /* The preamble window closes here. setup( ) has no early return, so this is
   * the single exit and both the normal and the AP branch reach it. From this
-  * point on APP_UI_LANG_CHANGED and APP_SENSORS_CALIBRATED mean an operator
-  * did something, and they are logged like anything else. */
+  * point on APP_SENSORS_CALIBRATED means an operator did something, and it is
+  * logged like anything else. */
  LogManager::instance( ).endBootPreamble( );
 
  /* A unit with no network configured asks for the date and time, and says why

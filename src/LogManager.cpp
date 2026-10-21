@@ -1381,6 +1381,11 @@ static const char* translateCodeEn(uint16_t code) {
  case OTA_TRIAL_REVERTED: return "Update reverted";
  case OTA_TRIAL_BUY_FAILED: return "Update confirmation failed";
 
+ case I18N_PACK_LOADED: return "Language pack loaded";
+ case I18N_PACK_OUTDATED: return "Language pack older than the firmware";
+ case I18N_PACK_MULTIPLE: return "More than one language pack in /lang";
+ case I18N_PACK_FAILED: return "Language pack failed to load";
+
  case ERR_UNKNOWN: return "Unknown error";
  default: return "?";
  }

@@ -310,6 +310,18 @@ enum LogCode {
  OTA_TRIAL_REVERTED = 613,
  OTA_TRIAL_BUY_FAILED = 614,
 
+ /* ── Language pack (620–624) ──
+  * The loader's records, DisplayManager_LangParser.cpp (#283). Until then they
+  * borrowed other subsystems' codes: both warnings were SYS_OK ("OK"), the
+  * pack loaded at boot was APP_UI_LANG_CHANGED, a change a person makes, and
+  * a pack refused was SYS_STORAGE_FAIL, which LogPolicy routes as a history
+  * fault. The context: for OUTDATED the @DICT lines the pack has, against the
+  * firmware's TR_KEYS_COUNT; for MULTIPLE the packs found in /lang. */
+ I18N_PACK_LOADED = 620,
+ I18N_PACK_OUTDATED = 621,
+ I18N_PACK_MULTIPLE = 622,
+ I18N_PACK_FAILED = 623,
+
  ERR_UNKNOWN = 999
 };
 
@@ -337,11 +349,12 @@ enum LogTagId : uint8_t {
  TAG_DSP = 10,
  TAG_SEC = 11,
  TAG_OTA = 12,   /* OTA records used to land on TAG_UNKNOWN: tagStringToId had no 'O' case */
+ TAG_I18N = 13,  /* the language pack's: on TAG_UNKNOWN until #283, for want of an 'I' case */
  TAG_UNKNOWN= 15
 };
 
 /** @brief Convert tag string to LogTagId. */
-inline LogTagId tagStringToId(const char* tag) {
+constexpr LogTagId tagStringToId(const char* tag) {
  if (!tag) return TAG_UNKNOWN;
  switch (tag[0]) {
  case 'A': return TAG_APP;
@@ -349,6 +362,7 @@ inline LogTagId tagStringToId(const char* tag) {
  case 'T': return TAG_TEL;
  case 'W': return TAG_WEB;
  case 'O': return TAG_OTA;
+ case 'I': return TAG_I18N;
  case 'C': return (tag[1] == 'F') ? TAG_CFG : TAG_CLI;
  case 'S':
  /* 'S' is the crowded prefix: STO, SYS, SEC, SENSOR. "SEC" and "SENSOR"
@@ -366,14 +380,35 @@ inline LogTagId tagStringToId(const char* tag) {
  }
 }
 
-/** @brief Convert LogTagId back to string (for display). */
-inline const char* tagIdToString(uint8_t id) {
- static const char* const TAG_NAMES[] = {
+/** @brief Each LogTagId's name, by id: what every reader of the binary log
+ *  shows. The web log viewer keeps a copy (TAG_NAMES in WebUI.h), and
+ *  tools/gen_logcodes.py --check holds the two together. */
+inline constexpr const char* LOG_TAG_NAMES[16] = {
  "APP", "NET", "TEL", "STO", "WEB", "CFG", "CLI",
  "SENSOR", "HIST", "SYS", "DSP", "SEC",
- "OTA", "?", "?", "?"
- };
- return (id < 16) ? TAG_NAMES[id] : "?";
+ "OTA", "I18N", "?", "?"
+};
+
+/** @brief Convert LogTagId back to string (for display). */
+constexpr const char* tagIdToString(uint8_t id) {
+ return (id < 16) ? LOG_TAG_NAMES[id] : "?";
+}
+
+constexpr bool logTagNameEq(const char* a, const char* b) {
+ return *a == *b && (*a == '\0' || logTagNameEq(a + 1, b + 1));
+}
+
+/** @brief Whether `tag` is the name of the LogTagId it maps to.
+ *
+ *  The persisted record keeps only the id, and tagStringToId( ) reads no more
+ *  than the first three characters. A name the table lacks lands on
+ *  TAG_UNKNOWN, which every reader shows as "?": the language pack's "I18N"
+ *  did until #283. Or on the tag that shares its first letter: "AIR" was
+ *  persisted as APP. The LOG_ macros in LogManager.h assert this at compile
+ *  time on every tag they are given, which costs no byte. */
+constexpr bool logTagIsKnown(const char* tag) {
+ return tag && tagStringToId(tag) != TAG_UNKNOWN
+     && logTagNameEq(tag, LOG_TAG_NAMES[tagStringToId(tag)]);
 }
 
 /**
