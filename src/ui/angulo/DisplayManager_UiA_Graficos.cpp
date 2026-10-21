@@ -328,8 +328,8 @@ UaToque DisplayManager::uaToqueGraficos( const ua::Alvo *a, int16_t &x, int16_t 
      * dirty on every touch sample, and the pass would build the screen's view model and hash it on each one while Core 1 runs the update
      * screen (the READY phase and the two endings; in RECEIVING Core 1 is parked and takes no sample). The plan kept this case TRADUZIDO only if RECEIVING built a frame per pass;
      * it does not (stages/s7_c5/ota_r3.txt, read from the source), and the decision rests on READY and the two endings, where TRATADO would rebuild and
-     * hash the view model on every touched pass. The plan's grep ends at TRADUZIDO = 1, not 0 (docs/analysis/UI_DRIVERS.md section 2.10). S10a retires
-     * the old chain and flips the case: the action is already the code that chain runs. */
+     * hash the view model on every touched pass. The plan's grep ends at TRADUZIDO = 1, not 0 (docs/analysis/UI_DRIVERS.md section 2.10). S10b retires
+     * the old chain and flips the case (S10a deferred it, D6: section 2.14): the action is already the code that chain runs. */
     case MODE_OTA_UPDATE:
       return UaToque::TRADUZIDO;
     /* Nothing to touch while the history is read: no branch of handleTouch

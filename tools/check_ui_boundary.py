@@ -32,7 +32,8 @@ six rules over src/**/*.{c,cc,cpp,cxx,h,hh,hpp,hxx,inl,ipp,tpp}:
                      unit [ui.original] of the manifest lists in `units` or `include` (S10b fills
                      them): Themes.h, UiWidgets.h, DisplayManager_Fonts.h, and a DisplayManager_Alarm.h
                      or any other the day a unit is split, with no edit here. A unit with one original
-                     row makes its header the original's until S10a splits the unit;
+                     row makes its header the original's until a split takes that row out (S10a split eight
+                     units; UI_DRIVERS.md section 2.14 names the ones that stay whole);
                   3. the files the "Original driver." item of docs/analysis/UI_DRIVERS.md section 2.5
                      names in backticks, which is where the header-only files are (PasswordKeyboard.h,
                      sensors/SensorDrawing.h): they have no unit, so nothing else knows them.

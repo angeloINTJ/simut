@@ -95,7 +95,7 @@ column is where the original's body comes from on `192e1ad`.
 | `uiThemeChanged( )` | `_themeChanged` was raised | `:1400-1449`. The `_uiMode = MODE_DASHBOARD` at `:1439` is a mode change **(S0)**; **S4 (C4) kept it inside the hook**, in the branch that draws, so the block moved as it was (duty 12). The Ângulo's is its old `uaTemaAplicado`  |
 | `uiPass( snap )` | once per loop pass, after the touch read and the OTA tick | the dispatch `:1451-1555` and `:1559-1700`, calling the core ticks where the old code had logic (section 2.4, duty 9) **S4 (C8):** the dispatch from the dashboard branch to `SET_CLOCK` (149 lines) is the body, calling the ticks where the old code had logic. The Ângulo's runs the ticks of the mode, takes the six repaint requests and calls `uaQuadro( )` (section 2.7) |
 | `uiPaintOta( )` | the update screen must be on the glass, from either core | `drawOtaScreen`, `DisplayManager_Ota.cpp:150-226` **S4 (C2):** the body is the one call `drawOtaScreen( )`, which stays out of line. The Ângulo's is its old `uaOta` |
-| `uiTouch( x, y )` | a touch passed the core's gates | the mode chain of `handleTouch`, `Touch.cpp:398-1682`, and `handleTouchPanelV24`, `Users.cpp:1304-1686` |
+| `uiTouch( x, y )` | a touch passed the core's gates | the mode chain of `handleTouch`, `Touch.cpp:398-1682`, and `handleTouchPanelV24`, `Users.cpp:1304-1686` **S10a (D6):** not taken; the chain stays in `handleTouch( )` until S10b, where it becomes this hook with the Ângulo's own `uiTouch( )` (section 2.14) |
 | `uiTouchUp( )` | the finger left the glass | `Touch.cpp:38-51` (the dashboard's short tap) |
 | `uiChanged( kind, arg )` | a core action changed what is on screen | a `switch` over the `UiChange` kinds of section 3.5; for the original a constant `kind` folds it into the old call **S4 (C6):** begun with `ALARM_FLASH` and `ALARM_RESTORE`; the switch folds, and the Ângulo marks its frame. The other kinds come with S5 to S10a |
 | `uiTopPanel( snap )` | the top card is to be shown (`redrawTopPanel( )`, after it synced the slot and mirrored the data) | **S5 (C2):** the two calls `redrawTopPanel( )` ended with, `drawSlotPanel` of the top card and `drawBottomButtons`; the Ângulo's is `uaSujo( )` |
@@ -612,7 +612,7 @@ The panel message needs no action: `leavePanelMessage( )` is core code already, 
 the gate the translation reached. Left as they were: the selection, the wrap and the arrows of the settings and alarms lists and
 of the status pages, `showSettingsMain( )` and `forceDashboard( )`. The drivers differ there on purpose: the approved look has no
 selection (a row is entered with one tap) and its pager stops at the ends where the original's wraps. There is no shared code to
-extract, so each driver keeps its navigation, and the original's moves into `uiTouch` in S10a. No hook and no `UiChange` came with
+extract, so each driver keeps its navigation, and the original's moves into `uiTouch` in S10a (deferred to S10b by D6, section 2.14). No hook and no `UiChange` came with
 S6: nothing in the group draws immediately.
 
 **The pure part, `src/display/ListPager.h`** (C8, `c078ef4`): `listPages( )`, `listClampPage( )` and `listPageStep( )` are the page
@@ -731,7 +731,7 @@ check for its single call site (`stages/s6_c3/userdel_check.txt`, three mutants 
 check was weighed and not made: a pure mapping in `src/display/` ("no target is nothing, the confirm target confirms, any other target
 cancels") would pin the mapping, but each of the three mutants would then be a change in the arguments the glue passes to it or in the
 arms of the `switch` that uses its answer, and the native suite cannot see either; the mapping would guard nothing the three mutants
-touch. They stay on the bench list below until the dialogs' touch moves into `uiTouch` (S10a), where one test can cover both drivers.
+touch. They stay on the bench list below until the dialogs' touch moves into `uiTouch` (S10a; deferred to S10b by D6, section 2.14), where one test can cover both drivers.
 
 **Before the merge to main.** The message of `77e89aa` records the 24 B but not the deviation (this section does), and the message of
 `5da8888` says the verifier holds all ten ELFs byte-equal to C6's: the nine product images are, and the Ângulo's differs in one data word
@@ -780,7 +780,7 @@ The four actions that read the graph's package take it as `const GraphDataPackag
 3. The grep criterion catches only the update screen (1 -> 0 in the plan, 1 -> 1 in the code, above). The graph screens already returned `TRATADO`; their problem was copied logic, which the three counts at the top of this section measure.
 4. `_graphData` is conditional, which is why four actions take the package as an argument.
 5. The drivers differ by design: the Ângulo's detail screen has a pager, no requests and a "Voltar" that goes to the chart, where the original's X goes to the dashboard. Recorded, not changed here: the Ângulo's page set requires `count >= 2`, while the original's touch and draw do not.
-6. The header-name state belongs to the original alone; `actGraphShowName( )` may move into the original's `uiTouch` in S10a.
+6. The header-name state belongs to the original alone; `actGraphShowName( )` may move into the original's `uiTouch` in S10a (deferred to S10b by D6, section 2.14).
 7. Plan section 3, item 2 did not hold (above), and its R5 did (the veneers moved at C6, with no instruction changed). Its section 5.8 held: the precondition was 0.
 8. Defects near this code, recorded and not planned: `_graphAnchorEnd` is never cleared (F1), and going back in time and then forward shows the same window marked "fim" (F3, the arrow defect). The plan's two questions run on their defaults until the maintainer answers: the arrow defect stays recorded, and the Ângulo keeps its busy line on the month arrows.
 
