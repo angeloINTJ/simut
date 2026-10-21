@@ -26,7 +26,7 @@
  * offset pushes off (25.6 ms with 40-row strips). Here the part of the strip on the glass is sent by DMA at any offset (ua::recortar( ), ua::compactar( ), Recorte.h: the
  * part's rows packed in place, a memmove of the strip and not a pixel loop).
  *
- * The open and close of the bus repeat dmaTftOpen( ) and dmaTftClose( ) of DisplayManager_Dashboard.cpp, which are static there; tools/check_ui_boundary.py keeps this
+ * The open and close of the bus repeat dmaTftOpen( ) and dmaTftClose( ) of DisplayManager_Panel.cpp, which are static there; tools/check_ui_boundary.py keeps this
  * driver's names out of that file. A change to the panel's RAM-write sequence is made in both, and the two are kept the same. That includes g_tftSpiBaud: dmaTftOpen( )
  * writes the baud SPI0 was programmed to (spi_get_baudrate( spi0 ), from the PL022 registers; GET /api/status, sys.tft_hz) right after SPI.beginTransaction( ), and so does
  * uaEmpurrar( ) below. Every push of the Ângulo image goes through this copy, so without the write sys.tft_hz would read 0 on it (PR #278 put the write in dmaTftOpen( ) alone).

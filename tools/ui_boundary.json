@@ -4,7 +4,7 @@
    "count": 4,
    "reason": "transitional: it ends when main takes the same functions without the `#if` (docs/analysis/UI_DRIVERS.md 4.5). Product defects of Core 0's history navigation, fixed for the Ângulo's bench image only (fix/ui-angulo-historico, 2026-10-15), so that the nine product images stay byte for byte as they are. The four `#if` in AppManager_Events.cpp: the live base, declared with core0Yield( )'s other statics; graphAnchorStep( ) in flushGraphNav( ); graphAnchorDay( ) in EVT_CALENDAR_DAY; graphAnchorOpen( ) in EVT_OPEN_GRAPH. No stage of the plan ends it: `ends in S12` is only the format that the gate's test (tools/test_ui_boundary.py) requires, not a date"
   },
-  "src/DisplayManager_Dashboard.cpp": {
+  "src/DisplayManager_Panel.cpp": {
    "count": 3,
    "reason": "transitional hook of the Ângulo driver (S2a); removed in S4–S10b: the `#if` around the `_uaPintando` guard of fastFillRect, fastClearScreen and blitCanvas, so that only the Ângulo's renderer pushes pixels; ends in S10b (the Ângulo image stops linking the original)"
   },
@@ -23,7 +23,11 @@
    "reason": "transitional hook of the Ângulo driver (S2a); removed in S4–S10b: UA_DESVIO( ) at the top of the draw functions of this file, which turns the original's drawing into a request for the Ângulo to repaint; ends in S10b (the Ângulo image stops linking the original)"
   },
   "src/DisplayManager_Dashboard.cpp": {
-   "count": 7,
+   "count": 4,
+   "reason": "transitional hook of the Ângulo driver (S2a); removed in S4–S10b: UA_DESVIO( ) at the top of the draw functions of this file and the `_uaPintando` guards of the pixel primitives; ends in S10b (the Ângulo image stops linking the original)"
+  },
+  "src/DisplayManager_Panel.cpp": {
+   "count": 3,
    "reason": "transitional hook of the Ângulo driver (S2a); removed in S4–S10b: UA_DESVIO( ) at the top of the draw functions of this file and the `_uaPintando` guards of the pixel primitives; ends in S10b (the Ângulo image stops linking the original)"
   },
   "src/DisplayManager_Touch.cpp": {

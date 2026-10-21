@@ -232,7 +232,7 @@
  },
  "SIMUT_UI_ANGULO": {
   "AppManager_Events.cpp": 4,
-  "DisplayManager_Dashboard.cpp": 3,
+  "DisplayManager_Panel.cpp": 3,
   "DisplayManager_Touch.cpp": 1,
   "Themes.cpp": 2
  },
