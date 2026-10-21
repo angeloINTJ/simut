@@ -59,7 +59,7 @@ bool DisplayManager::uaMontarAjustes( UaQuadro &q ) {
   using namespace ua::tela;
   switch ( _uiMode ) {
     case MODE_SET_CLOCK: {
-      /* The fields drawClockValues( ) prints (DisplayManager_Settings.cpp:889-918)
+      /* The fields drawClockValues( ) prints (DisplayManager_Settings.cpp)
        * and the boot flag drawClockEntry( ) reads (Settings.cpp:934). */
       VmRelogio &vm = uaVm<VmRelogio>( );
       vm.boot = _clockAtBoot;

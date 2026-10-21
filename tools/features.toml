@@ -70,7 +70,7 @@ exclude = ["DisplayManager_Alpha.cpp"]   # a implementacao alpha nao entra
 [display.alpha_paralelo]
 flags   = ["-DSIMUT_DISPLAY_TFT=0", "-DSIMUT_DISPLAY_ALPHA=1", "-DHD44780_MODE_PARALLEL=1"]
 exclude = [
-  "DisplayManager_Touch.cpp", "DisplayManager_Settings.cpp", "DisplayManager_Graph.cpp",
+  "DisplayManager_Touch.cpp", "DisplayManager_Settings.cpp", "DisplayManager_SettingsCore.cpp", "DisplayManager_Graph.cpp",
   "DisplayManager_Dashboard.cpp", "DisplayManager_Panel.cpp", "DisplayManager_Calibration.cpp", "DisplayManager_Auth.cpp",
   "DisplayManager_Alarm.cpp", "DisplayManager_Calendar.cpp", "DisplayManager_Fonts.cpp",
   "DisplayManager_i18n.cpp", "DisplayManager_LangParser.cpp", "AppManager_Graph.cpp",
@@ -84,7 +84,7 @@ web_omit            = "tft"   # a pagina recorta o bloco @IF tft
 # O mostrador headless do Air. Mantem i18n e LangParser (web e CLI os usam).
 flags   = ["-DSIMUT_DISPLAY_TFT=0", "-DSIMUT_DISPLAY_ALPHA=0"]
 exclude = [
-  "DisplayManager_Touch.cpp", "DisplayManager_Settings.cpp", "DisplayManager_Graph.cpp",
+  "DisplayManager_Touch.cpp", "DisplayManager_Settings.cpp", "DisplayManager_SettingsCore.cpp", "DisplayManager_Graph.cpp",
   "DisplayManager_Dashboard.cpp", "DisplayManager_Panel.cpp", "DisplayManager_Calibration.cpp", "DisplayManager_Auth.cpp",
   "DisplayManager_Alarm.cpp", "DisplayManager_Calendar.cpp", "DisplayManager_Fonts.cpp",
   "AppManager_Graph.cpp", "DisplayManager.cpp", "DisplayManager_Render.cpp", "DisplayManager_Alpha.cpp",
