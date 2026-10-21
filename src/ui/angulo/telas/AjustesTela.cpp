@@ -71,7 +71,7 @@ void comSinal( int v, char *dst, int cap ) {
 
 // The stability bar: 24 wide, 12 from the right edge, as tall as the content
 // (the plan's bar). It fills from the bottom and turns positive from 85 %, where
-// the old screen turned it green (DisplayManager_Calibration.cpp:362-370).
+// the old screen turned it green (drawTouchSensitivity( ) in DisplayManager_Calibration.cpp).
 constexpr int16_t L_ESTAB = 24, X_ESTAB = L_TELA - ESP3 - L_ESTAB, H_ESTAB = Y_RODAPE - ESP2 - Y0;
 constexpr int PCT_MAX = 100, ESTAVEL_PCT = 85;
 

@@ -178,7 +178,7 @@ bool DisplayManager::uaMontarAjustes( UaQuadro &q ) {
       return true;
     }
     case MODE_SETTINGS_TOUCH_SENS: {
-      /* What drawTouchSensitivity( ) shows (DisplayManager_Calibration.cpp:306-388):
+      /* What drawTouchSensitivity( ) shows (DisplayManager_Calibration.cpp):
        * the stability bar from 0.0..1.0, the threshold and the done flag; the
        * count is _sensCount, which counts readings 15 ms apart and not taps,
        * so the screen says "Leituras". */
@@ -192,7 +192,7 @@ bool DisplayManager::uaMontarAjustes( UaQuadro &q ) {
       return true;
     }
     case MODE_SETTINGS_TOUCH_CAL: {
-      /* drawTouchCalibration( ) (DisplayManager_Calibration.cpp:497-610): the
+      /* drawTouchCalibration( ) (DisplayManager_Calibration.cpp): the
        * point is _calStep % 4 and the lap _calStep / 4 + 1; the sight is green
        * once the hold passed CAL_HOLD_MS (_calHoldReady). From _calPhase 1 on
        * it draws the verdict drawCalibrationMessage( ) draws (Calibration.cpp:
