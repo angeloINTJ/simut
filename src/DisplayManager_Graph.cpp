@@ -1,6 +1,6 @@
 /**
  * @file DisplayManager_Graph.cpp
- * @brief Graph rendering: showGraphPlot + draw* screens.
+ * @brief Graph rendering: the draw* screens; showGraphPlot and requestLoadingScreen are in DisplayManager_GraphCore.cpp.
  * @details Sub-file of DisplayManager.cpp.
  * Includes: dual Y-axis plot, decimation, peak markers, alternating header
  * bar (name/date), detailed numeric screen, loading screen
@@ -18,17 +18,6 @@
 #include "UiWidgets.h"
 #include "sensors/SensorChannels.h" /* CH_TEMP/CH_HUM/CH_PRESS for card units */
 
-
-void DisplayManager::showGraphPlot(const GraphDataPackage& data, float minHum, float maxHum) {
- mutex_enter_blocking(&_stateMutex);
- _graphData = data; _currentMinHum = minHum; _currentMaxHum = maxHum;
- _uiMode = MODE_GRAPH_VIEW;
- _headerShowName = false;
- _headerNameTimer = 0;
- __dmb( );
- _repaintGraph = true;
- mutex_exit(&_stateMutex);
-}
 
 void DisplayManager::drawLoadingScreen( ) {
  fastClearScreen(C_BG_MAIN);
@@ -66,12 +55,6 @@ void DisplayManager::drawGraphBusyHint( ) {
 }
 
 
-
-void DisplayManager::requestLoadingScreen( ) {
- _loadingDrawn = false;
- _repaintLoading = true;
- _uiMode = MODE_GRAPH_LOADING;
-}
 
 void DisplayManager::drawPeriodButtons( ) {
  if (!_driver.canvas) return;
