@@ -49,9 +49,10 @@ and, beside them, a value changed in a switch table (exit 1, "CONTEÚDO DIFERENT
 vtable (a weak read-only object, nm type V) retargeted to another existing function, with the
 vtables alone to show it (exit 1 naming both), and the same vtables with the layout moved (exit 0,
 the weak objects counted among the read-only ones), and one known
-limit, held as an expected failure: an unnamed constant is read as the 64 bytes from its address,
-so a layout move that puts other bytes behind it reports the function that loads it (a false
-alarm, never a false "equal"). If that stops happening the test says so and asks for the mark to
+limit, held as an expected failure: an unnamed constant is read up to the next boundary the image knows
+(a symbol start, or an address a literal word of the code points at), 64 bytes at most, so a layout move
+that puts behind it something that neither marks, such as the strings only its own pointers name, reports the
+function that loads it (a false alarm, never a false "equal"). If that stops happening the test says so and asks for the mark to
 come off, as for any xfail.
 
 Then the instrument is bitten: each of the mutants below is elf_funcoes.py with one change (an
@@ -80,7 +81,10 @@ function that only moved, CYW43lwIP::encryptionType in pico_w_test_https, came o
 table and a moved pointer was called a changed table, and a table word moved by exactly the shift of the layout was excused as a relocated pointer; the table is now the N + 1 entries
 that the `cmp` before the call announces, compared as bytes with no second chance, and the words behind it go back to the pointer rules. And one on 2026-10-16 (case 7x, the review of S8b's
 batch 2): objdump prints an immediate of 33 or more with its value in hex as a comment (`cmp r0, #87 @ 0x57`), which the regex of the compare did not read, so a table announced by such a compare
-had no exact extent (535 of the 649 case-helper calls in the ten images of S8b C10 had one, 576 have it now); the case is the table word of 7w behind a compare of 87.
+had no exact extent (535 of the 649 case-helper calls in the ten images of S8b C10 had one, 576 have it now); the case is the table word of 7w behind a compare of 87. And two on 2026-10-21 (S10a, the unit
+splits of P3): a text longer than 64 bytes was no text (the 64 bytes behind its address stood for it, at another alignment after a move: case 2x), and an unnamed constant was read for 64 bytes whatever
+lay behind it, which a split changes (the window now ends at the next symbol start or the next address a literal word points at: cases 2y and 2z); and the table behind a Cortex-M33 `tbb`/`tbh`, which objdump prints as
+.word, .short and .byte by the address's alignment, was compared line by line (cases 2u, 7y and 7z: the RP2350 image of the c9 split read clockEntryStep as changed). And the text census, which joined a table of printable bytes with no NUL of its own to what the layout put behind it (the Latin-1 fold tables, a label of 5 bytes, the first pointer of a table): cases 3x and 3z, and the known limit x2.
 
 Needs arm-none-eabi-gcc from the PlatformIO toolchain package (tools/elf_funcoes.py says where it
 looks). Without it the test skips with a message, and exits 1 instead when SIMUT_ELF_TOOLCHAIN is
@@ -361,7 +365,78 @@ const char g_note[] = "just data, no code";
 '''
 
 
-ASSEMBLY = {'m', 'ct', 'ct87'}          # the sources that are assembly, not C
+# ls.c and lp.c, compiled with -Os (GCC word-aligns a string otherwise, and the address mod 4 is what a layout move changes): a function that returns a string of 120 bytes, no NUL in its first 64, and one that returns
+# a short string that moves the long one by 5 bytes when it comes first. A text read for 64 bytes only made the long string "no text": the 64 bytes behind its address stood for it, `@n` and all.
+LONG_MSG = 'The language pack is older than the firmware, so the strings that it lacks are shown in English until the pack is updated, and the user is told so.'
+assert 70 < len(LONG_MSG) and '"' not in LONG_MSG
+LS_C = f'const char *long_msg( void ) {{ return "{LONG_MSG}"; }}\n'
+LP_C = 'const char *pad_msg( void ) { return "padd"; }\n'
+OS_ONLY = {'ls', 'lp'}
+
+# fa.c, fb.c and fz.c, for the text census (S10a, P3: the Latin-1 fold tables are 64 printable bytes with no NUL of their own): two named const tables that nothing references, each an array filled by a string of exactly its
+# size, so that it has no terminator, and a table that begins with a zero byte. Linked in one order the first table's run goes on into the second and ends at the zero; in the other order the same bytes make another text.
+# fp.c and fq.c: the same with a local table each, which has no symbol, only a literal word that points at it (a known limit: the census cuts at symbols only).
+FA_C = 'const char k_fa[8] = "ABCDEFGH";\n'
+FB_C = 'const char k_fb[8] = "abcdefgh";\n'
+FZ_C = 'const unsigned char k_fz[4] = { 0, 1, 2, 3 };\n'
+FP_C = 'unsigned fp_cal( int i ) {\n  const unsigned short t[8] = { 0x4241, 0x4443, 0x4645, 0x4847, 0x4a49, 0x4c4b, 0x4e4d, 0x504f };\n  return t[i & 7];\n}\n'
+FQ_C = 'unsigned fq_cal( int i ) {\n  const unsigned short t[8] = { 0x6261, 0x6463, 0x6665, 0x6867, 0x6a69, 0x6c6b, 0x6e6d, 0x706f };\n  return t[i & 7];\n}\n'
+
+# wu.c and wv.c: a named const table each that nothing references (it stays: the link has no --gc-sections). Linked behind e.c they are what its unnamed tables have behind them, and they swap places in the other image: the window of
+# 64 bytes read through the end of a table into them (S10a, P3: the table of five period names, 20 bytes, and the NAME table behind it, which a unit split replaced by other bytes).
+WU_C = 'const unsigned g_u[16] = { 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26 };\n'
+WV_C = 'const unsigned g_v[16] = { 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46 };\n'
+# wt.c and wt2.c: a function each with a local table of numbers, which has no symbol (the window of the first, behind wu.c's table or wt2.c's, is what 2y and 2z move).
+WT_C = 'unsigned wt_cal( int i ) {\n  const unsigned short t[8] = { 401, 402, 403, 404, 405, 406, 407, 408 };\n  return t[i & 7];\n}\n'
+WT2_C = 'unsigned wt_cal2( int i ) {\n  const unsigned short t[8] = { 501, 502, 503, 504, 505, 506, 507, 508 };\n  return t[i & 7];\n}\n'
+
+# tb.s and tp.s: `tbb [pc, r1]` behind `cmp r1, #4` and `bhi`, as GCC emits it for the Cortex-M33 (the RP2350 images), the five bytes of its table right behind the instruction, the cases jumping to a common return (a table
+# that prints with one more line shifts the lines behind it, and chamada_mudou( ) pairs the lines by position: that is how the real function was called changed, and the second chance alone would have excused it). objdump prints them as one .word and two
+# .byte when the table sits on a word boundary and as two .short and two .byte two bytes further (S10a P3, c9_settingscore, clockEntryStep). tp.s is a function of two bytes: linked first, it moves tb_f by two. The
+# .cpu directive overrides the Cortex-M0+ of the flags, and the link accepts the mixture.
+TB_S = '''    .syntax unified
+    .cpu cortex-m33
+    .thumb
+    .section .text.tb, "ax"
+    .balign 2
+    .global tb_f
+    .thumb_func
+    .type tb_f, %function
+tb_f:
+    cmp r1, #4
+    bhi 1f
+    tbb [pc, r1]
+.Lt:
+    .byte (.L0-.Lt)/2, (.L1-.Lt)/2, (.L2-.Lt)/2, (.L3-.Lt)/2, (.L4-.Lt)/2
+    .balign 2
+.L0: movs r0, #10
+    b 2f
+.L1: movs r0, #20
+    b 2f
+.L2: movs r0, #30
+    b 2f
+.L3: movs r0, #40
+    b 2f
+.L4: movs r0, #50
+2:  bx lr
+1:  movs r0, #0
+    bx lr
+    .size tb_f, . - tb_f
+'''
+TP_S = '''    .syntax unified
+    .cpu cortex-m33
+    .thumb
+    .section .text.tp, "ax"
+    .balign 2
+    .global tp_f
+    .thumb_func
+    .type tp_f, %function
+tp_f:
+    bx lr
+    .size tp_f, . - tp_f
+'''
+
+ASSEMBLY = {'m', 'ct', 'ct87', 'tb', 'tp'}          # the sources that are assembly, not C
 CPLUSPLUS = {'vt'}       # and C++, compiled without RTTI or devirtualization
 CXXFLAGS = CFLAGS + ['-fno-rtti', '-fno-exceptions', '-fno-devirtualize', '-fno-devirtualize-speculatively']
 
@@ -376,6 +451,7 @@ def fontes(moved=False, ram=True):
         'm': M_S, 'n': N_C, 'vt': VT_CPP.replace('@BA@', 'Base1').replace('@BB@', 'Base2'), 'k': K_C,
         'h1': H1_C.replace('@CALLER@', 'F'), 'h2': H2_C.replace('@CALLER@', 'G'),
         'w1': W1_C.replace('@CALLER@', 'F'), 'w2': W2_C.replace('@CALLER@', 'G'),
+        'ls': LS_C, 'lp': LP_C, 'tb': TB_S, 'tp': TP_S, 'wu': WU_C, 'wv': WV_C, 'wt': WT_C, 'wt2': WT2_C, 'fa': FA_C, 'fb': FB_C, 'fz': FZ_C, 'fp': FP_C, 'fq': FQ_C,
     }
 
 
@@ -405,7 +481,7 @@ class Oficina:
         if not o.exists():
             c = self.tmp / f'{nome}_{h}.{"s" if nome in ASSEMBLY else "cpp" if nome in CPLUSPLUS else "c"}'
             c.write_text(texto)
-            rodar([GCC, *(CXXFLAGS if nome in CPLUSPLUS else CFLAGS), '-c', c, '-o', o])
+            rodar([GCC, *(CXXFLAGS if nome in CPLUSPLUS else CFLAGS), *(['-Os'] if nome in OS_ONLY else []), '-c', c, '-o', o])
         return o
 
     def elf(self, rotulo, src, ordem):
@@ -541,6 +617,22 @@ def montar(tmp):
     e['ct87_movida'] = of.elf('ct87_movida', sc87, ['ctp', 'ct87'])
     d_ct87 = simbolos(e['ct87_movida'])['ct_f'] - simbolos(e['ct87'])['ct_f']
     e['ct87_movida_shift'] = of.elf('ct87_movida_shift', dict(sc87, ct87=CT87_S.replace('@TAB@', f'{0x10000080 + d_ct87:#x}')), ['ctp', 'ct87'])
+    e['ls'] = of.elf('ls', s, ['ls', 'lp'])
+    e['ls_movida'] = of.elf('ls_movida', s, ['lp', 'ls'])
+    e['tb'] = of.elf('tb', s, ['tb', 'tp'])
+    e['tb_movida'] = of.elf('tb_movida', s, ['tp', 'tb'])
+    st = editar(s, 'tb', '(.L4-.Lt)/2', '(.L3-.Lt)/2')
+    e['tb_edit'] = of.elf('tb_edit', st, ['tb', 'tp'])
+    e['tb_edit_movida'] = of.elf('tb_edit_movida', st, ['tp', 'tb'])
+    e['win'] = of.elf('win', s, ['wt', 'wu', 'wv'])
+    e['win_b'] = of.elf('win_b', s, ['wt', 'wv', 'wu'])
+    e['wlit'] = of.elf('wlit', s, ['wt', 'wt2'])
+    e['wlit_b'] = of.elf('wlit_b', s, ['wt2', 'wt'])
+    e['cen'] = of.elf('cen', s, ['fa', 'fb', 'fz', 'k'])
+    e['cen_b'] = of.elf('cen_b', s, ['fb', 'fa', 'fz', 'k'])
+    e['cen_edit'] = of.elf('cen_edit', editar(s, 'fa', '"ABCDEFGH"', '"ABCDEFGX"'), ['fa', 'fb', 'fz', 'k'])
+    e['cenp'] = of.elf('cenp', s, ['fp', 'fq', 'fz', 'k'])
+    e['cenp_b'] = of.elf('cenp_b', s, ['fq', 'fp', 'fz', 'k'])
     strip = tmp / 'strip.elf'
     shutil.copy(e['base'], strip)
     rodar([BIN / 'arm-none-eabi-strip', '-s', strip])
@@ -769,6 +861,59 @@ def cx(r):
         f'xfail, as recorded: exit {r.code}, {r.nomes()}'
 
 
+def pre_ls_movida(e):
+    pa, pb = binario(e['ls']).find(LONG_MSG.encode()), binario(e['ls_movida']).find(LONG_MSG.encode())
+    return pa >= 0 and pb >= 0 and pa % 4 != pb % 4, f'the {len(LONG_MSG)}-byte string at offset {pa} then {pb} of the image'
+
+
+def pre_tb_movida(e):
+    corpo = lambda elf: re.search(r'<tb_f>:(.*?)movs\s+r0, #10', rodar([BIN / 'arm-none-eabi-objdump', '-d', '--no-show-raw-insn', elf]), re.S).group(1)
+    ta, tb = corpo(e['tb']), corpo(e['tb_movida'])
+    sa, sb = simbolos(e['tb']), simbolos(e['tb_movida'])
+    return ('.word' in ta and '.short' not in ta and '.short' in tb and '.word' not in tb and sa['tb_f'] % 4 != sb['tb_f'] % 4,
+            f'tb_f at {sa["tb_f"]:#x} then {sb["tb_f"]:#x}: the five bytes of the table print as .word and .byte in A, as .short and .byte in B')
+
+
+def pre_win(e):
+    sa, sb = simbolos(e['win']), simbolos(e['win_b'])
+    return (sa['g_u'] != sb['g_u'] and sa['g_v'] != sb['g_v'] and binario(e['win']) != binario(e['win_b']),
+            f'g_u at {sa["g_u"]:#x} then {sb["g_u"]:#x}, g_v at {sa["g_v"]:#x} then {sb["g_v"]:#x}: the two tables behind the unnamed ones swapped places')
+
+
+def pre_wlit(e):
+    sa, sb = simbolos(e['wlit']), simbolos(e['wlit_b'])
+    return (sa['wt_cal'] != sb['wt_cal'] and sa['wt_cal2'] != sb['wt_cal2'],
+            f'wt_cal at {sa["wt_cal"]:#x} then {sb["wt_cal"]:#x}: the two functions, and the two unnamed tables they load, swapped places')
+
+
+def pre_cen(e):
+    a, b = binario(e['cen']), binario(e['cen_b'])
+    return b'ABCDEFGHabcdefgh\x00' in a and b'abcdefghABCDEFGH\x00' in b, 'the two tables of printable bytes run on into each other and end at the zero of the third, in the order of the link'
+
+
+def pre_cenp(e):
+    a, b = binario(e['cenp']), binario(e['cenp_b'])
+    return (b'ABCDEFGHIJKLMNOPabcdefghijklmnop\x00' in a and b'abcdefghijklmnopABCDEFGHIJKLMNOP\x00' in b,
+            'the two local tables of printable bytes run on into each other and end at the zero of the named table')
+
+
+def c3z(r):
+    return r.code == 1 and r.so(dado_mudou=['k_fa'], texto_a=['ABCDEFGH'], texto_b=['ABCDEFGX']) and r.tabelas_iguais, f'exit {r.code}: {r.nomes()}'
+
+
+def cx2(r):
+    # The known limit: two unnamed tables of printable bytes with no NUL of their own, joined by the census. XPASS (exit 0) is a failure.
+    if r.code == 0:
+        return False, 'XPASS: the unnamed tables are no longer joined by the text census; take the mark off this case and the note off elf_funcoes.py'
+    # the census and the two functions that load the tables read the joined bytes: texto_em( ) stops at the NUL, whatever lies behind
+    return (r.code == 1 and len(r.texto_a) == 1 and len(r.texto_b) == 1 and r.mudou and set(r.mudou) <= {'fp_cal', 'fq_cal'} and r.so(mudou=r.mudou, texto_a=r.texto_a, texto_b=r.texto_b),
+            f'xfail, as recorded: exit {r.code}, {r.nomes()}')
+
+
+def c7y(r):
+    return r.code == 1 and r.so(mudou=['tb_f']), f'exit {r.code}: {r.nomes()}'
+
+
 CASOS = [
     # id, title, A, B, check, precondition
     ('1', 'the same ELF twice', 'base', 'base', c1, None),
@@ -814,7 +959,16 @@ CASOS = [
     ('7u', 'the same, and the function moved too', 'ct', 'ct_movida_byte', c7t, None),
     ('7w', 'the first word of the table moved by exactly the shift of the layout (a relocated pointer would be excused; a table word is no pointer)', 'ct', 'ct_movida_shift', c7t, None),
     ('7x', 'a compare of 87, which objdump prints with a hex comment (cmp r0, #87 @ 0x57): the first word of its 88 table bytes moved by exactly the shift of the layout is a changed table, not a relocated pointer', 'ct87', 'ct87_movida_shift', c7t, pre_ct87),
+    ('2x', 'a string of 150 bytes, no NUL in its first 64, at another alignment after a layout move (a long message is a text)', 'ls', 'ls_movida', c2v, pre_ls_movida),
+    ('2u', 'a tbb table that objdump prints as one .word and two .byte at a word boundary and as two .short and two .byte two bytes further (the function moved)', 'tb', 'tb_movida', c2v, pre_tb_movida),
+    ('7y', 'the last entry of that table changed, the function moved to the other alignment too', 'tb', 'tb_edit_movida', c7y, None),
+    ('7z', 'the same edit, the layout unchanged', 'tb', 'tb_edit', c7y, None),
+    ('2y', 'an unnamed table of numbers with named tables behind it that nothing references, the two swapped (the window ends at the next symbol start)', 'win', 'win_b', c2v, pre_win),
+    ('2z', 'an unnamed table with another unnamed table behind it, which only a literal word points at, the two functions swapped (the window ends at the next address a literal points at)', 'wlit', 'wlit_b', c2v, pre_wlit),
+    ('3x', 'two named tables of printable bytes with no NUL of their own, that nothing references, swapped (the census ends a run at a symbol)', 'cen', 'cen_b', c2v, pre_cen),
+    ('3z', 'one byte of the first of those tables changed (it must still read as changed: the table by name, and its text)', 'cen', 'cen_edit', c3z, None),
     ('x', 'known limit: an unnamed constant, the layout moved', 'anon', 'anon_ord', cx, pre_anon_ord),
+    ('x2', 'known limit: two unnamed tables of printable bytes with no NUL of their own, swapped with their functions (no symbol to end a run at: the census and the functions that load them read the joined bytes)', 'cenp', 'cenp_b', cx2, pre_cenp),
 ]
 
 # Each mutant is the tool with one change: (id, what it does, text in the tool, replacement, the
@@ -832,15 +986,15 @@ MUTANTES = [
      "m = re.match(r'^\\s*[0-9a-f]+:\\t(.*)$', linha)", "m = re.match(r'^\\s+[0-9a-f]+:\\t(.*)$', linha)",
      None),
     ('m2', 'the text census skips every section',
-     "if nome not in ('.rodata', '.data'):", 'if True:', {'1', '3', '3b', '3c', '3d'}),
+     "if nome not in ('.rodata', '.data'):", 'if True:', {'1', '3', '3b', '3c', '3d', '3z', 'x2'}),
     ('m3', 'the text census skips .data', "if nome not in ('.rodata', '.data'):", "if nome not in ('.rodata',):", {'1', '3c'}),
     ('m4', 'read-only objects are never compared', "d_iguais, dmud, dso_a, dso_b = comparar_dados(da, db, ctx_a, ctx_b)",
-     "d_iguais, dmud, dso_a, dso_b = len(da), [], [], []", {'5', '5b', '5d', '5e', '5f', '5g', '5i', '7v', '5j', '5k'}),
+     "d_iguais, dmud, dso_a, dso_b = len(da), [], [], []", {'5', '5b', '5d', '5e', '5f', '5g', '5i', '7v', '5j', '5k', '3z'}),
     ('m5', 'same-named objects are matched by position of the first only',
      "la, lb = da[nome], db[nome]", "la, lb = da[nome][-1:], db[nome][-1:]", {'5d', '5f', '5j', '5k'}),
     ('m6', 'every function the text normalization sees as changed is excused',
      "mudaram = [n for n in diferem if mudou_de_fato(n, fa, fb, xa, xb, cfa, cfb)]",
-     "mudaram = []", {'7t', '7u', '7w', '7x', '4', '4b', '4c', '4d', '4e', '4f', '4g', '4h', '4i', '4j', '5c', '5h', '7', 'x', '5j', '5k'}),
+     "mudaram = []", {'7t', '7u', '7w', '7x', '7y', '7z', '4', '4b', '4c', '4d', '4e', '4f', '4g', '4h', '4i', '4j', '5c', '5h', '7', 'x', 'x2', '5j', '5k'}),
     ('m7', 'a changed unnamed constant is excused (the fix of 2026-10-14 taken out)',
      "constante_mudou(fa[n], fb[n]) or ", "", {'4j', '5c', '5h', '7'}),
     ('m8', 'switch tables are never different', "tabelas_iguais = ta == tb", "tabelas_iguais = True", {'7'}),
@@ -886,6 +1040,18 @@ MUTANTES = [
      {'4b', '4c', '4d', '4e', '4f', '4g', '4h', '4i', '5g'}),
     ('m27', 'a change in the number of copies always says "conteúdo igual" (the review of S8a C1 to C6, 2026-10-15)',
      'conteúdo {"igual" if igual else "diferente"}', 'conteúdo igual', {'5k'}),
+    ('m34', 'the window of an unnamed constant ignores the next symbol start (only the addresses that literal words point at end it)',
+     "for lista in (inicios, getattr(img, 'alvos', ())):", "for lista in (getattr(img, 'alvos', ()),):", {'2y'}),
+    ('m35', 'the window ignores the next address that a literal word points at (only symbol starts end it)',
+     "for lista in (inicios, getattr(img, 'alvos', ())):", "for lista in (inicios,):", {'2z'}),
+    ('m36', 'the window is always the 64 bytes behind the address (the reading before S10a)',
+     "for lista in (inicios, getattr(img, 'alvos', ())):", "for lista in ():", {'2y', '2z'}),
+    ('m37', 'the text census has no cuts: a table of printable bytes with no NUL of its own runs on into what follows it',
+     "return sorted(set(E.inicios) | {ini + tam for ini, tam, _, _ in E.tab if tam})", "return []", {'3x', '3z'}),
+    ('m32', 'a Thumb-2 table (tbb, tbh) is not collected: the same bytes print as .word at one alignment and as .short at the other, and the two texts differ',
+     "elif TABELA_T2.match(ins):", "elif False:", {'2u'}),
+    ('m33', 'a text is read for 64 bytes only: a message longer than that is no text, and the bytes behind its address stand for it',
+     "TETO_TEXTO = 4096", "TETO_TEXTO = 64", {'2x'}),
     ('m14', 'a changed string in an unnamed table blames the functions that load it',
      "and TEXTOS_ENTRE_ASPAS.sub('\"\"', p) != TEXTOS_ENTRE_ASPAS.sub('\"\"', q)", "", {'3d'}),
 ]

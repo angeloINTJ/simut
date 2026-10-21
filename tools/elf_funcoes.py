@@ -29,6 +29,13 @@ addresses would hide:
   - the switch tables the compiler numbers per translation unit (CSWTCH.<n>), by content;
   - the text of the data sections: every NUL-terminated printable run of 2 or more bytes in
     .rodata and .data, with its count, so an edited message shows even where no code names it.
+    A run ends where a symbol starts or ends, too (start + size): a table of bytes with no NUL of its
+    own that happens to be printable is not joined with what the layout puts behind it (S10a P3,
+    measured 2026-10-21: the Latin-1 fold tables of 64 bytes, a table of 20, a label of 5 and the
+    first pointer of a table, each a text in one image and another or none in the other). The
+    addresses that literal words point at are not cuts here, as they are for the window of an
+    unnamed constant: 193 of the 3699 texts of pico_w_release have one inside (a compiler's tail-merged
+    suffix), and cut at it they became two, the short ones none;
 
 It prints how much it read (functions, instructions), how many functions are equal, changed,
 only in A and only in B, and the names of the changed ones (the first N with their first
@@ -38,9 +45,21 @@ present in both is equal and none is missing, 1 otherwise, 2 when it read no ins
 no code symbol in one of the two (an instrument that read nothing says "equal" about anything).
 
 What "equal" does not cover:
-  - an unnamed constant (a local initializer, no symbol) is read as the 64 bytes from its address:
-    a layout move that puts other bytes behind it reports the function that loads it (a false
-    alarm, held as an expected failure by the test), and a change past the 64th byte is missed;
+  - an unnamed constant (a local initializer, no symbol) is read from its word-aligned address up to the next
+    boundary the image knows, the next symbol start or the next address that a literal word of the code points
+    at, and never past 64 bytes: bytes behind it that are neither (an object nobody points at, padding that
+    follows the next object's alignment) still follow the layout and report the function that loads it, and a
+    change past the 64th byte is missed. A NUL-terminated text is read to its NUL, 4 KB at most (S10a P3,
+    measured 2026-10-21: a message of 76 bytes was "no text" and the 64 bytes behind its address stood for it;
+    a table of five pointers, 20 bytes, was read for 64, into the neighbour a unit split had moved: three
+    functions reported for a layout, none for code);
+  - a run made of the bytes of two adjacent pointers, the top byte of a RAM pointer and the low byte of a function
+    pointer with the NUL of its second byte, is a text of two bytes to the census and changes when the function
+    moves (S10a, 2026-10-21: ' !' in C0, ' }' in C2 and ' %' in the c11a split, all in the `crypto` object of
+    ota_check_staged_signature( ) in pico_w_release; the moved-words rule of tft6_check explains them);
+  - an object with no symbol and no NUL of its own, a table of printable bytes that only a literal word
+    points at, is still joined with what the layout puts behind it in the text census (the known limit
+    x2 of the test; no such table was met in the 90 pairs of S10a);
   - an entry of an unnamed table of pointers made to point at another string that exists in both
     images changes no pointer text and no census;
   - .data and .bss objects are not compared (only the text inside .data is), nor are weak objects
@@ -164,6 +183,7 @@ class Imagem:
                 mf = re.search(r'\s[0-9a-f]{2}\s+([A-Za-z]*)\s+\d+\s+\d+\s+\d+\s*$', linha)
                 self.flags.append(mf.group(1) if mf else '')       # readelf's Flg column: W write, X exec
         self.bruto = Path(elf).read_bytes()
+        self.alvos = []          # the addresses that literal words of the code point at, sorted (Elf fills it in): janela( ) stops at them
 
     def ler(self, endereco, n):
         for va, off, sz in self.mapas:
@@ -177,8 +197,14 @@ def eh_endereco(v):
     return 0x10000000 <= v < 0x10400000 or 0x20000000 <= v < 0x20082000
 
 
+TETO_TEXTO = 4096      # a string with no NUL in this many bytes is no text
+JANELA = 64            # the most that is read of an unnamed object that is no text
+
+
 def texto_em(img, v):
-    b = img.ler(v, 64)
+    """The NUL-terminated printable text at the address, of any length up to TETO_TEXTO. It read 64 bytes, and a message of 77
+    was no text: the 64 bytes behind its word-aligned address stood for it, and a layout move changed them (S10a P3, 2026-10-21)."""
+    b = img.ler(v, TETO_TEXTO)
     fim = b.find(b'\0')
     texto = b[:fim] if fim >= 0 else b''
     if fim > 0 and all(32 <= c < 127 or c >= 0x80 for c in texto):
@@ -186,16 +212,30 @@ def texto_em(img, v):
     return None
 
 
+def janela(img, v, inicios):
+    """(base, bytes) of an unnamed object that is no text: from the word that holds the address to the next boundary the image
+    knows, the next symbol start (inicios) or the next address that a literal word of the code points at (img.alvos), whichever
+    comes first, and never past JANELA bytes. Read to a fixed 64, the window of a table of 20 bytes ran into the object behind
+    it, and what lies there follows the layout (S10a P3, 2026-10-21: drawPeriodButtons and drawGraphHeaderBar, after a unit split)."""
+    base = v & ~3                                  # pointers in data sit on word boundaries
+    fim = base + JANELA
+    for lista in (inicios, getattr(img, 'alvos', ())):
+        k = bisect.bisect_right(lista, v)
+        if k < len(lista):
+            fim = min(fim, lista[k])
+    return base, img.ler(base, fim - base)
+
+
 def conteudo(img, v, inicios, tab):
     """An unnamed address (a string literal, a constant initializer): what is there, not where.
     A table of pointers (a local `const char *x[] = {...}` is copied from one) is rendered word
     by word, each pointer by the symbol or the text it points at: an edited string of the same
-    length moves no address, and only its bytes tell."""
+    length moves no address, and only its bytes tell. What is read is a text to its NUL, or the
+    window of janela( ): the object up to the next boundary the image knows."""
     t = texto_em(img, v)
     if t:
         return '<' + t + '>'
-    base = v & ~3                                  # pointers in data sit on word boundaries
-    b = img.ler(base, 64)
+    base, b = janela(img, v, inicios)
     if not b:
         # Nothing to read: the value is all there is. "<?>" for every such address made a constant
         # that looks like one (0x10120000 past the end of the image, 0x20030000 in SRAM) equal to
@@ -264,21 +304,33 @@ def normalizar(texto, inicios, tab, img, faixa=None, grosso=False):
     return HEX.sub(troca, texto)
 
 
-def textos(img):
+def fronteiras(E):
+    """Where a symbol of the image starts or ends (start + size), sorted: the exact edges of the objects that have a name."""
+    return sorted(set(E.inicios) | {ini + tam for ini, tam, _, _ in E.tab if tam})
+
+
+def textos(img, cortes=()):
     """Every NUL-terminated printable run of 2+ bytes in the image's flash sections, with its
-    count: an edited message shows here even when no code names it."""
+    count: an edited message shows here even when no code names it. A run ends at a cut too (cortes: sorted
+    addresses, fronteiras( )): an object with no NUL of its own, a table of bytes that happens to be printable, was
+    joined with what the layout put behind it, or with the tail of what lay before it, and its text followed the layout (S10a P3, 2026-10-21:
+    the Latin-1 fold tables, a table of 20 bytes, a label of 5, the first pointer of a table). The end of a section is not a cut."""
     from collections import Counter
     c = Counter()
     # Data sections only: machine code has printable runs too, and its bytes follow the layout.
     for nome, (va, off, sz) in zip(img.nomes, img.mapas):
         if nome not in ('.rodata', '.data'):
             continue
-        for m in re.finditer(rb'[\x20-\x7e\x80-\xff]{2,}(?=\x00)', img.bruto[off:off + sz]):
-            try:
-                m.group(0).decode('utf-8')
-            except UnicodeDecodeError:
-                continue
-            c[m.group(0)] += 1
+        dados = img.bruto[off:off + sz]
+        limites = [0] + [x - va for x in cortes[bisect.bisect_right(cortes, va):bisect.bisect_left(cortes, va + sz)]] + [sz]
+        for p, q in zip(limites, limites[1:]):
+            fim = rb'(?=\x00|\Z)' if q < sz else rb'(?=\x00)'
+            for m in re.finditer(rb'[\x20-\x7e\x80-\xff]{2,}' + fim, dados[p:q]):
+                try:
+                    m.group(0).decode('utf-8')
+                except UnicodeDecodeError:
+                    continue
+                c[m.group(0)] += 1
     return c
 
 
@@ -296,6 +348,13 @@ def textos(img):
 CASO = re.compile(r'^bl [0-9a-f]+ <_*gnu_thumb1_case_([a-z]+?)(?:_veneer)?>')
 CMP_N = re.compile(r'^cmp r\d+, #(\d+)(?: @ 0x[0-9a-f]+)?$')
 LARGURA_CASO = {'uqi': 1, 'sqi': 1, 'uhi': 2, 'shi': 2, 'si': 4}
+# The Cortex-M33 (the RP2350 images) has no case helper: `tbb [pc, rX]` and `tbh [pc, rX, lsl #1]` read their table from the bytes right behind the instruction, and objdump
+# prints those as .word, .short and .byte by the ADDRESS's alignment: the same five bytes were one .word and two .byte at a word boundary and two .short and two .byte two bytes
+# further (S10a P3, c9_settingscore, pico2_w_release, 2026-10-21: clockEntryStep, `cmp r1, #4`, `tbb`, 68 instructions in one image and 69 in the other, one function reported for a
+# layout). The table is collected like the Thumb-1 one, to the extent the compare announces: N + 1 entries of 1 (tbb) or 2 (tbh) bytes, padded to a halfword, as one byte string. Not the
+# whole run of directives behind the instruction: the literal pool follows a table, and a pool pointer that moves with the layout is not a changed table.
+TABELA_T2 = re.compile(r'^tb([bh]) \[pc, r\d+(?:, lsl #1)?\]$')
+CMP_T2 = re.compile(r'^cmp(?:\.w)? r\d+, #(\d+)(?: @ 0x[0-9a-f]+)?$')          # a high register, or an immediate over 255, is compared with the 32-bit cmp.w
 DADO = re.compile(r'^\.(word|short|hword|byte|2byte|4byte) (0x[0-9a-f]+)\b')
 TAM_DADO = {'word': 4, '4byte': 4, 'short': 2, 'hword': 2, '2byte': 2, 'byte': 1}
 
@@ -366,6 +425,12 @@ def ler_objdump(elf, tab):
                 if n is not None:
                     w = LARGURA_CASO[c.group(1)]
                     atual['_tab'], atual['_len'], atual['_alinha'] = bytearray(), ((n + 1) * w + 1) & ~1, w == 4
+            elif TABELA_T2.match(ins):
+                # GCC: `cmp rX, #N`, `bhi default`, `tbb [pc, rX]` (or tbh), then N + 1 bytes (halfwords) and a pad byte when the count is odd.
+                n = next((int(k.group(1)) for k in map(CMP_T2.match, reversed(atual['ins'][-4:-1])) if k), None)
+                if n is not None:
+                    nbytes = (n + 1) * (1 if ins.startswith('tbb') else 2)
+                    atual['_tab'], atual['_len'] = bytearray(), nbytes + nbytes % 2
     for f in fns:
         fechar_tabela(f)
     return fns
@@ -443,6 +508,21 @@ def renomear(tab, cores, dup_nomes):
              tipo) for ini, tam, nome, tipo in tab]
 
 
+LITERAL = re.compile(r'^\.word (0x[0-9a-f]+)$')
+
+
+def alvos_literais(fns):
+    """The sorted addresses that a literal word of the code (a `.word` of a pool) points at: where an object with no symbol
+    starts or ends, as far as the image says (janela( ) stops at the next one)."""
+    alvos = set()
+    for f in fns:
+        for i in f['ins']:
+            m = LITERAL.match(i)
+            if m and eh_endereco(int(m.group(1), 16)):
+                alvos.add(int(m.group(1), 16))
+    return sorted(alvos)
+
+
 class Elf:
     """What is read from one ELF, once: the symbols as nm lists them, the bytes by address, the
     functions as objdump lists them and the colours of the shared names. ctx is what the naming
@@ -451,6 +531,7 @@ class Elf:
         self.inicios, self.tab = simbolos(caminho)
         self.img = Imagem(caminho)
         self.fns = ler_objdump(caminho, self.tab)
+        self.img.alvos = alvos_literais(self.fns)
         self.cores, dup_nomes = colorir(self.fns, self.inicios, self.tab, self.img)
         self.tab_ref = renomear(self.tab, self.cores, dup_nomes)
         self.ctx = (self.inicios, self.tab_ref, self.img)
@@ -758,7 +839,7 @@ def main():
     db = {n: v for n, v in db.items() if not anon.match(n)}
     d_iguais, dmud, dso_a, dso_b = comparar_dados(da, db, ctx_a, ctx_b)
     tabelas_iguais = ta == tb
-    ca, cb = textos(Ea.img), textos(Eb.img)
+    ca, cb = textos(Ea.img, fronteiras(Ea)), textos(Eb.img, fronteiras(Eb))
     txt_a = sorted((ca - cb).items())
     txt_b = sorted((cb - ca).items())
     lidas_a, lidas_b = sum(len(v) for v in fa.values()), sum(len(v) for v in fb.values())
