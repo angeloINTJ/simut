@@ -136,7 +136,7 @@ bool DisplayManager::uaMontarMenus( UaQuadro &q ) {
       return true;
     }
     case MODE_SETTINGS_LANG: {
-      /* drawSettingsLang( ) (DisplayManager_i18n.cpp): English, and the pack when one is loaded. */
+      /* drawSettingsLang( ) (DisplayManager_i18nUi.cpp): English, and the pack when one is loaded. */
       VmIdioma &vm = uaVm<VmIdioma>( );
       if ( _activeLangLoaded ) {
         nomeDoPacote( _activeLang.name, _activeLang.code, vm.pacote, sizeof vm.pacote );
