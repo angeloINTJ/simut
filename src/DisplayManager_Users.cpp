@@ -1550,20 +1550,8 @@ bool DisplayManager::handleTouchPanelV24(int16_t x, int16_t y) {
 	if (_uiMode == MODE_SETTINGS_USER_EDIT) {
 		const int rows = userEditRowCount( );
 		const bool lockedBits = (!_userEditNew && _userEditSlot == 0);
-		const uint16_t bits[3] = { PERM_ALARM_LIMITS, PERM_ALARM_BLOCK, PERM_MAINT };
 		auto activate = [&](int idx) {
-			if (idx < 3) {
-				if (lockedBits) { _errorSoundPending = true; return; }
-				_userEditPerms ^= bits[idx];
-				_repaintSettings = true;
-				return;
-			}
-			if (idx == 3) { showPinEntry(PIN_FOR_USER, _userEditSlot); return; }
-			/* delete: confirm first */
-			mutex_enter_blocking(&_stateMutex);
-			_uiMode = MODE_SETTINGS_USER_CONFIRM_DEL;
-			_forceSettingsRedraw = true; _repaintSettings = true;
-			mutex_exit(&_stateMutex);
+			actUserEditActivate(idx, lockedBits);
 		};
 		if (y >= 40 && y <= 185) {
 			int clicked = 0;
@@ -1591,11 +1579,7 @@ bool DisplayManager::handleTouchPanelV24(int16_t x, int16_t y) {
 				showSettingsUsers( );
 			} else {
 				if (!acceptTouch(13)) return true;
-				if (_userEditNew) { showPinEntry(PIN_FOR_NEW_ACCOUNT); return true; }
-				if (lockedBits) { showSettingsUsers( ); return true; }
-				UiEvent ev; ev.type = UiEvent::EVT_USER_PERMS; ev.id = _userEditSlot;
-				ev.param = (int)(_userEditPerms & PERM_PANEL_ALARM_ANY);
-				pushUiEvent(ev);
+				actUserEditSave(lockedBits);
 			}
 		}
 		return true;

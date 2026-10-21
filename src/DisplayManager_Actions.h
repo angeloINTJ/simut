@@ -966,3 +966,34 @@ inline __attribute__((always_inline)) void DisplayManager::actSensorMenuActivate
 	}
 	showMaintEntry(slot);
 }
+
+/* A row of the account editor, run (the caller holds acceptTouch( 4 + row ) on the original, its own zone on the Angulo). Rows 0-2 flip a
+ * panel bit of the copy being edited, refused on the admin's account, whose bits are locked (lockedBits: slot 0, not new); row 3 opens the
+ * account's PIN entry; row 4 asks before the delete, the mode stored under _stateMutex. The original has no row 4 for the admin (4 rows) nor
+ * rows 3-4 for a new account (3 rows); the Angulo guards its Excluir on the admin itself (S9_PLANO.md D3). */
+inline __attribute__((always_inline)) void DisplayManager::actUserEditActivate( int idx, bool lockedBits ) {
+	const uint16_t bits[3] = { PERM_ALARM_LIMITS, PERM_ALARM_BLOCK, PERM_MAINT };
+	if (idx < 3) {
+		if (lockedBits) { _errorSoundPending = true; return; }
+		_userEditPerms ^= bits[idx];
+		_repaintSettings = true;
+		return;
+	}
+	if (idx == 3) { showPinEntry(PIN_FOR_USER, _userEditSlot); return; }
+	/* delete: confirm first */
+	mutex_enter_blocking(&_stateMutex);
+	_uiMode = MODE_SETTINGS_USER_CONFIRM_DEL;
+	_forceSettingsRedraw = true; _repaintSettings = true;
+	mutex_exit(&_stateMutex);
+}
+
+/* Salvar on the account editor (the caller holds acceptTouch( 13 ) on the original, its own zone on the Angulo). A new account goes on to
+ * its PIN entry; the admin's account, whose bits are locked, only goes back to the list; any other asks Core 0 to store its panel bits
+ * (EVT_USER_PERMS: id = the slot, param = the bits; Core 0 checks the grant again, and slot 0 is refused there too). */
+inline __attribute__((always_inline)) void DisplayManager::actUserEditSave( bool lockedBits ) {
+	if (_userEditNew) { showPinEntry(PIN_FOR_NEW_ACCOUNT); return; }
+	if (lockedBits) { showSettingsUsers( ); return; }
+	UiEvent ev; ev.type = UiEvent::EVT_USER_PERMS; ev.id = _userEditSlot;
+	ev.param = (int)(_userEditPerms & PERM_PANEL_ALARM_ANY);
+	pushUiEvent(ev);
+}

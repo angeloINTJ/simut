@@ -393,41 +393,29 @@ UaToque DisplayManager::uaToqueIdentidade( const ua::Alvo *a, int16_t &x, int16_
     /* ---- one account: Controller ---- */
     case MODE_SETTINGS_USER_EDIT: {
       if ( !a ) return UaToque::TRATADO;
-      const bool lockedBits = ( !_userEditNew && _userEditSlot == 0 );          // :1629
-      static const uint16_t bits[3] = { PERM_ALARM_LIMITS, PERM_ALARM_BLOCK, PERM_MAINT };
+      const bool lockedBits = ( !_userEditNew && _userEditSlot == 0 );          // the original's: the admin's bits are locked
       switch ( a->tipo ) {
-        case CTA_INTERRUPTOR: {                  // a bit of the copy (:1631-1637)
+        case CTA_INTERRUPTOR: {                  // rows 0-2: a bit of the copy (refused on the admin's account)
           const int idx = a->indice;
           if ( idx < 0 || idx > 2 ) break;
           if ( !acceptTouch( Z_CTA_INTERRUPTOR ) ) break;
-          if ( lockedBits ) { _errorSoundPending = true; break; }
-          _userEditPerms ^= bits[idx];
-          _repaintSettings = true;
+          actUserEditActivate( idx, lockedBits );
           break;
         }
-        case CTA_DEFINIR_PIN:                    // row 3 (:1638)
+        case CTA_DEFINIR_PIN:                    // row 3: the account's PIN entry
           if ( !acceptTouch( Z_CTA_PIN ) ) break;
-          showPinEntry( PIN_FOR_USER, _userEditSlot );
+          actUserEditActivate( 3, lockedBits );
           break;
-        case CTA_EXCLUIR:                        // row 4: confirm first (:1639-1643)
+        case CTA_EXCLUIR:                        // row 4: confirm first
           if ( !acceptTouch( Z_CTA_EXCLUIR ) ) break;
-          /* The old editor had no delete row for the admin (Users.cpp:1014-1018);
-           * no touch reaches slot 0 here, but the guard costs one line. */
+          /* The original's editor has no delete row for the admin (userEditRowCount( ) gives 4); the Angulo lists Excluir on every account
+           * that is not new, so its own guard keeps slot 0 out (S9_PLANO.md D3). */
           if ( lockedBits ) { _errorSoundPending = true; break; }
-          mutex_enter_blocking( &_stateMutex );
-          _uiMode = MODE_SETTINGS_USER_CONFIRM_DEL;
-          _forceSettingsRedraw = true; _repaintSettings = true;
-          mutex_exit( &_stateMutex );
+          actUserEditActivate( 4, lockedBits );
           break;
-        case CTA_SALVAR:                         // the old SAVE / NEXT (:1669-1675)
+        case CTA_SALVAR:                         // the original's Salvar / Avancar
           if ( !acceptTouch( Z_CTA_SALVAR ) ) break;
-          if ( _userEditNew ) { showPinEntry( PIN_FOR_NEW_ACCOUNT ); break; }
-          if ( lockedBits ) { showSettingsUsers( ); break; }
-          {
-            UiEvent ev; ev.type = UiEvent::EVT_USER_PERMS; ev.id = _userEditSlot;
-            ev.param = (int)( _userEditPerms & PERM_PANEL_ALARM_ANY );
-            pushUiEvent( ev );
-          }
+          actUserEditSave( lockedBits );
           break;
         case CTA_CANCELAR:                       // the old BACK: back to the list, the bits dropped (:1666-1668)
         case CTA_VOLTAR:
