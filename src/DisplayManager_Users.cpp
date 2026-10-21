@@ -533,7 +533,6 @@ void DisplayManager::drawPinDotsInto(GFXcanvas16* cv, int16_t oy) {
  * Afterwards only the dots row repaints, once per tap, and it is its own
  * 320x28 blit that no card overlaps. */
 void DisplayManager::drawPinScreen( ) {
-	UA_DESVIO( );
 	using namespace PinKb;
 	if (!_driver.canvas) return;
 	int16_t bx, by; uint16_t bw, bh;
@@ -931,7 +930,6 @@ void DisplayManager::drawUserRowInto(GFXcanvas16* cv, bool picking, int mapIdx,
 }
 
 void DisplayManager::drawUserList(bool picking) {
-	UA_DESVIO( );
 	if (!_driver.canvas || !_sysConfigPtr) return;
 	const bool fullRedraw = _forceSettingsRedraw;
 	const bool pageChanged = (_usersPage != _lastUsersPage);
@@ -1020,7 +1018,6 @@ int DisplayManager::userEditRowCount( ) const {
 }
 
 void DisplayManager::drawUserEdit( ) {
-	UA_DESVIO( );
 	if (!_driver.canvas || !_sysConfigPtr) return;
 	const bool fullRedraw = _forceSettingsRedraw;
 	const int rows = userEditRowCount( );

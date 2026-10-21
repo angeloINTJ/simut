@@ -26,16 +26,12 @@
    "count": 7,
    "reason": "transitional hook of the Ângulo driver (S2a); removed in S4–S10b: UA_DESVIO( ) at the top of the draw functions of this file and the `_uaPintando` guards of the pixel primitives; ends in S10b (the Ângulo image stops linking the original)"
   },
-  "src/DisplayManager_Settings.cpp": {
-   "count": 1,
-   "reason": "transitional hook of the Ângulo driver (S2a); removed in S4–S10b: UA_DESVIO( ) at the top of the draw functions of this file, which turns the original's drawing into a request for the Ângulo to repaint; ends in S10b (the Ângulo image stops linking the original)"
-  },
   "src/DisplayManager_Touch.cpp": {
    "count": 1,
    "reason": "transitional hook of the Ângulo driver (S2a); removed in S4–S10b: uaToque( x, y ) before the original's mode chain in handleTouch( ); ends in S10b (uiTouch)"
   },
   "src/DisplayManager_Users.cpp": {
-   "count": 5,
+   "count": 2,
    "reason": "transitional hook of the Ângulo driver (S2a); removed in S4–S10b: UA_DESVIO( ) at the top of the draw functions of this file, which turns the original's drawing into a request for the Ângulo to repaint; ends in S10b (the Ângulo image stops linking the original)"
   },
   "src/ui/UiDriver.h": {

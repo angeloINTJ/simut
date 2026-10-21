@@ -578,7 +578,6 @@ static void kbDrawPopup(GFXcanvas16* cv, int8_t popup, int16_t yOff) {
  * 6-strip renderer — no partial-blit paths, every repaint is one pass.
  */
 void DisplayManager::drawSettingsPassword( ) {
- UA_DESVIO( );
  if (!_driver.tft) return;
 
  /* Result screens (error/success) keep the message layout. */
