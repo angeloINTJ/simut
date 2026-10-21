@@ -19,6 +19,13 @@ the others is the same class of bug and used to be invisible too. It also keeps
 every code inside 0..999, the range GET /api/logcodes walks for the English
 names — a code past it would be served in no language at all.
 
+--check also holds the tag names together (2026-10-21, #283). A record keeps its
+tag as a 4-bit id; LOG_TAG_NAMES in SystemDefs_Logging.h names each id, and the
+web log viewer, which renders the binary log itself, keeps a copy as TAG_NAMES in
+WebUI.h. Each LogTagId enumerator TAG_<NAME> must sit at its name's index
+(TAG_UNKNOWN at "?"), and the copy must equal the table. The tags passed to
+LOG_CODE are checked by the compiler instead (logTagIsKnown( )).
+
 Columns, tab-separated:
     code    numeric value, 0..999
     enum    LogCode enumerator name
@@ -45,6 +52,7 @@ ROOT = pathlib.Path(__file__).resolve().parents[1]
 TSV = ROOT / "tools" / "logcodes.tsv"
 ENUM_H = ROOT / "src" / "SystemDefs_Logging.h"
 LOGMGR = ROOT / "src" / "LogManager.cpp"
+WEBUI = ROOT / "WebUI.h"
 LANGS = {"pt-BR": "pt", "es-ES": "es"}
 
 FIELDS = ("code", "enum", "en", "pt", "es")
@@ -87,6 +95,48 @@ def parse_cpp():
                      text, re.S).group(1)
     return {m.group(1): unescape_c(m.group(2))
             for m in re.finditer(r'case\s+(\w+)\s*:\s*return\s+"((?:[^"\\]|\\.)*)"', body)}
+
+
+def parse_tag_enum():
+    """{enumerator: id} from the C++ LogTagId enum."""
+    text = ENUM_H.read_text(encoding="utf-8")
+    body = re.search(r"enum LogTagId\s*:\s*uint8_t\s*\{(.*?)\n\};", text, re.S).group(1)
+    body = re.sub(r"//[^\n]*", "", re.sub(r"/\*.*?\*/", "", body, flags=re.S))
+    return {m.group(1): int(m.group(2)) for m in re.finditer(r"(TAG_\w+)\s*=\s*(\d+)", body)}
+
+
+def parse_tag_names():
+    """The firmware's names by id, LOG_TAG_NAMES in SystemDefs_Logging.h."""
+    text = ENUM_H.read_text(encoding="utf-8")
+    body = re.search(r"LOG_TAG_NAMES\[16\]\s*=\s*\{(.*?)\};", text, re.S).group(1)
+    return re.findall(r'"([^"]*)"', body)
+
+
+def parse_web_tag_names():
+    """The log viewer's copy, TAG_NAMES in WebUI.h."""
+    text = WEBUI.read_text(encoding="utf-8")
+    body = re.search(r"const TAG_NAMES\s*=\s*\[(.*?)\];", text, re.S).group(1)
+    return re.findall(r"'([^']*)'", body)
+
+
+def check_tags():
+    problems = []
+    names = parse_tag_names()
+    if len(names) != 16:
+        problems.append(f"LOG_TAG_NAMES has {len(names)} names; the id is 4 bits, 16")
+    for enumerator, tid in parse_tag_enum().items():
+        want = "?" if enumerator == "TAG_UNKNOWN" else enumerator[len("TAG_"):]
+        have = names[tid] if tid < len(names) else None
+        if have != want:
+            problems.append(f"{enumerator} = {tid}, and LOG_TAG_NAMES[{tid}] is {have!r}, not {want!r}")
+    web = parse_web_tag_names()
+    if web != names:
+        if len(web) != len(names):
+            problems.append(f"WebUI.h TAG_NAMES has {len(web)} names, LOG_TAG_NAMES {len(names)}")
+        for i, (a, b) in enumerate(zip(names, web)):
+            if a != b:
+                problems.append(f"tag {i}: LOG_TAG_NAMES says {a!r}, WebUI.h TAG_NAMES says {b!r}")
+    return problems, len(names)
 
 
 def parse_lng(lang):
@@ -185,6 +235,8 @@ def check(rows):
             if code not in by_code:
                 problems.append(f"@LOGCODES {lang} has {code}, TSV does not")
 
+    tag_problems, n_tags = check_tags()
+
     if problems:
         print(f"[logcodes] FATAL: {len(problems)} divergence(s) from tools/logcodes.tsv")
         for p in problems[:40]:
@@ -194,9 +246,16 @@ def check(rows):
         print("[logcodes] Edit tools/logcodes.tsv, then regenerate:")
         print("[logcodes]   python3 tools/gen_logcodes.py --sync-lng")
         print("[logcodes]   python3 tools/gen_logcodes.py --cpp   # paste into LogManager.cpp")
+    if tag_problems:
+        print(f"[logcodes] FATAL: {len(tag_problems)} divergence(s) in the tag names")
+        for p in tag_problems:
+            print(f"[logcodes]   {p}")
+        print("[logcodes] LogTagId and LOG_TAG_NAMES in src/SystemDefs_Logging.h are the source;"
+              " WebUI.h TAG_NAMES copies the names")
+    if problems or tag_problems:
         return False
 
-    print(f"[logcodes] OK {len(rows)} codes, three tables in agreement")
+    print(f"[logcodes] OK {len(rows)} codes, three tables in agreement; {n_tags} tag names, two tables")
     return True
 
 

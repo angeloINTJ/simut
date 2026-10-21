@@ -2741,7 +2741,7 @@ global.Chart = H5G;
             _evtNames = m; _evtLang = lang;
         }
         function evtName(code) { const l = _evtNames && _evtNames[String(code)]; return l || ('#' + code); }
-        const TAG_NAMES = ['APP','NET','TEL','STO','WEB','CFG','CLI','SENSOR','HIST','SYS','DSP','SEC','OTA','?','?','?'];
+        const TAG_NAMES = ['APP','NET','TEL','STO','WEB','CFG','CLI','SENSOR','HIST','SYS','DSP','SEC','OTA','I18N','?','?'];
         const LVL_LABELS = ['DBG','INF','WRN','ERR','FTL']; const LVL_CLASS = ['log-inf','log-inf','log-wrn','log-err','log-err'];
         function fmtUptime(ms) { let s=Math.floor(ms/1000); let d=Math.floor(s/86400); s%=86400; let h=Math.floor(s/3600); s%=3600; let m=Math.floor(s/60); s%=60; let p=v=>v<10?'0'+v:v; return d>0?d+'d '+p(h)+':'+p(m)+':'+p(s):p(h)+':'+p(m)+':'+p(s); }
 

@@ -700,8 +700,11 @@ void test_parseFloat_edge(void) {
  * v1.5.6 answered TAG_SENSOR for "SEC" (both share tag[1] == 'E'), so all 36
  * security/audit call sites were persisted under the sensor tag and TAG_SEC
  * was unreachable; "OTA" had no case at all and landed on TAG_UNKNOWN. Both
- * were invisible because nothing exercised this mapping. Every tag literal
- * actually used by LOG_CODE in the firmware is asserted here. */
+ * were invisible because nothing exercised this mapping. This file then listed
+ * every tag literal LOG_CODE used, by hand, and the list went stale: the
+ * language pack's "I18N" was persisted as "?" and "AIR" as APP (#283). The
+ * build checks every literal now (LOG_TAG_CHECK in LogManager.h); these cases
+ * pin the mapping that check relies on. */
 
 void test_tag_sec_is_not_sensor(void) {
     TEST_ASSERT_EQUAL(TAG_SEC, tagStringToId("SEC"));
@@ -723,6 +726,50 @@ void test_tag_all_literals_used_in_firmware(void) {
     TEST_ASSERT_EQUAL(TAG_HIST,   tagStringToId("HIST"));
     TEST_ASSERT_EQUAL(TAG_SYS,    tagStringToId("SYS"));
     TEST_ASSERT_EQUAL(TAG_DSP,    tagStringToId("DSP"));
+    TEST_ASSERT_EQUAL(TAG_OTA,    tagStringToId("OTA"));
+    TEST_ASSERT_EQUAL(TAG_SEC,    tagStringToId("SEC"));
+    TEST_ASSERT_EQUAL(TAG_SENSOR, tagStringToId("SENSOR"));
+    TEST_ASSERT_EQUAL(TAG_I18N,   tagStringToId("I18N"));
+}
+
+void test_tag_i18n_has_its_own_id(void) {
+    /* The language pack's four records: TAG_UNKNOWN until #283, shown as "?"
+     * by the CLI, the CSV and the web viewer. */
+    TEST_ASSERT_EQUAL(TAG_I18N, tagStringToId("I18N"));
+    TEST_ASSERT_EQUAL_STRING("I18N", tagIdToString(TAG_I18N));
+}
+
+void test_tag_every_name_maps_back_to_its_id(void) {
+    /* A name added to the table without a case in tagStringToId( ) would be
+     * persisted under another id or none; this walks the whole table. */
+    int named = 0;
+    for (uint8_t id = 0; id < 16; id++) {
+        const char* name = tagIdToString(id);
+        if (strcmp(name, "?") == 0) continue;
+        named++;
+        TEST_ASSERT_EQUAL_MESSAGE(id, tagStringToId(name), name);
+        TEST_ASSERT_TRUE_MESSAGE(logTagIsKnown(name), name);
+    }
+    TEST_ASSERT_EQUAL(14, named);
+}
+
+/* What LOG_TAG_CHECK asserts, evaluated by the compiler: if logTagIsKnown( )
+ * stopped being a constant expression, this file would not build either. */
+static_assert(logTagIsKnown("I18N"), "I18N is a tag");
+static_assert(!logTagIsKnown("AIR"), "AIR maps to APP and is not its name");
+
+void test_tag_check_refuses_a_name_the_table_lacks(void) {
+    /* "AIR" maps to TAG_APP through its first letter: persisted as APP, which
+     * is what AppManager_Air.cpp did until #283. "I18" and "SE" map to a tag
+     * whose name is longer; "?" is the unknown tag's display, not a name. */
+    TEST_ASSERT_FALSE(logTagIsKnown("AIR"));
+    TEST_ASSERT_FALSE(logTagIsKnown("I18"));
+    TEST_ASSERT_FALSE(logTagIsKnown("SE"));
+    TEST_ASSERT_FALSE(logTagIsKnown("SPI"));
+    TEST_ASSERT_FALSE(logTagIsKnown("ZZZ"));
+    TEST_ASSERT_FALSE(logTagIsKnown("?"));
+    TEST_ASSERT_FALSE(logTagIsKnown(""));
+    TEST_ASSERT_FALSE(logTagIsKnown(nullptr));
 }
 
 void test_tag_unknown_inputs(void) {
@@ -739,6 +786,8 @@ void test_tag_id_to_string_roundtrip(void) {
     TEST_ASSERT_EQUAL_STRING("SEC", tagIdToString(TAG_SEC));
     TEST_ASSERT_EQUAL_STRING("OTA", tagIdToString(TAG_OTA));
     TEST_ASSERT_EQUAL_STRING("SENSOR", tagIdToString(TAG_SENSOR));
+    TEST_ASSERT_EQUAL_STRING("I18N", tagIdToString(TAG_I18N));
+    TEST_ASSERT_EQUAL_STRING("?", tagIdToString(TAG_UNKNOWN));
 }
 
 /* ===========================================================================
@@ -5649,6 +5698,9 @@ int main(int /*argc*/, char** /*argv*/) {
     RUN_TEST(test_tag_all_literals_used_in_firmware);
     RUN_TEST(test_tag_unknown_inputs);
     RUN_TEST(test_tag_id_to_string_roundtrip);
+    RUN_TEST(test_tag_i18n_has_its_own_id);
+    RUN_TEST(test_tag_every_name_maps_back_to_its_id);
+    RUN_TEST(test_tag_check_refuses_a_name_the_table_lacks);
 
     /* calibration curves — the engine every corrected reading passes through */
     RUN_TEST(test_calibcurve_build_sorts_input);

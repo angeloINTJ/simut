@@ -712,10 +712,12 @@ ficar na fila e executar vários inputs depois.
   armado em `LogManager::begin( )` só quando `_airActive && _airSleptSec != 0`,
   desarmado no fim do `setup( )`). Os oito códigos da lista `BOOT_PREAMBLE` em
   INFO somem; medido: 8,38 → 1,25 registros por wake. A janela fecha no fim do
-  `setup( )` porque dois desses códigos também são ação de operador (`441`
-  idioma, `407` calibração). **`412 APP_AIR_COLD_BOOT`** é a linha que um wake
-  nunca escreve: `ctx=1` boot limpo, `ctx=0` watchdog. **T16 é o portão** (teto 1
-  — o segundo `STO_H5_WIP` do flush do ciclo é legítimo).
+  `setup( )` porque um desses códigos também é ação de operador (`407`
+  calibração). O pacote de idioma carregado no boot, medido ali como `441`, é
+  o `620` desde o #283; o `441` é a troca de idioma de uma pessoa e saiu da
+  lista. **`412 APP_AIR_COLD_BOOT`** é a linha que um wake nunca escreve:
+  `ctx=1` boot limpo, `ctx=0` watchdog. **T16 é o portão** (teto 1 — o segundo
+  `STO_H5_WIP` do flush do ciclo é legítimo).
 - A contabilidade horária de `SYS_LOG_SUPPRESSED` **não vale num Air**: o
   `millis( )` reinicia a cada wake e o relatório de 1 h nunca sai. Limitação
   conhecida, e barata — a lista suprimida é fixa.

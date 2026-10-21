@@ -344,18 +344,19 @@ Actualización instalada
 612 Actualización no confirmada a tiempo
 613 Actualización revertida
 614 Fallo al confirmar la actualización
+620 Paquete de idioma cargado
+621 Paquete de idioma más antiguo que el firmware
+622 Más de un paquete de idioma en /lang
+623 Fallo al cargar el paquete de idioma
 999 Error desconocido
 @TRL
 016eef1e DS18B20 emparejado a su número de serie
 018a9730 Valores de fábrica activos; contraseña admin por USB/serial.
 05939b2f Iniciando la red cableada...
 08676d6a Fallo de MQTT: 
-0bd7e96f Fallo al interpretar el paquete de idioma: 
 0f3af34a Contraseña restablecida con éxito: 
 127a9a1b Tiempo agotado en el quiesce — recurriendo a reset forzado
-24cc6557 Paquete de idioma más antiguo que el firmware — cadenas ausentes aparecen en inglés
 271b51a1 Historial omitido: sin referencia de hora (NTP apagado y sin hora provisional)
-2886fa7b Paquete de idioma cargado: 
 2a5674b6 Reset de fábrica
 2b134751 Fuga de modo silencioso >15s. Forzando liberación.
 2d0aad45 Historial omitido: el esquema no coincide con ningún sensor activo
@@ -387,7 +388,6 @@ Actualización instalada
 728bf426 Core 1 colgado >10s. Reiniciando.
 74df218f Punto de acceso: 
 7599a637 RSSI inverosímil dos veces — enlace dado por muerto, reconectando
-798468cf Varios archivos .lng en /lang/ — cargando el primero en orden alfabético
 79d951e9 Contraseña BT admin rechazada
 7b990491 Contraseña restablecida por la CLI: 
 80a25b25 Comando de recuperación rechazado por Bluetooth
@@ -430,6 +430,7 @@ c1def48a INVARIANTE-3 VIOLADA: _stateMutex retenido durante FLASH_OP
 c1efa9ef Formateando el FS del flash...
 c58f1416 Admin aplicó cambios sin reiniciar
 c8d42c3f Inicio de sesión rechazado: límite de sesiones
+c944031f cargando el primero en orden alfabético
 c98bcdab Buscando SSID (backoff=
 cc0a0d40 PIN predeterminado detectado; forzando cambio.
 cf2eb821 SSID ausente del escaneo — se asocia igualmente
@@ -451,6 +452,7 @@ f914ca06 Sistema listo (modo AP).
 f99bdf81 Ventana de descubrimiento Bluetooth cerrada
 fa87bdae Falló la subida (#
 fd0933a1 Calibración táctil restablecida vía web
+fecfb1ad cadenas ausentes aparecen en inglés
 ff5e139d Error HTTP: 
 @HELP
 ===========================================
