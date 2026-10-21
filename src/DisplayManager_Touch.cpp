@@ -924,17 +924,7 @@ void DisplayManager::handleTouch( ) {
  if (_kbPhase >= 2) {
  if (y >= 185) {
  if (!acceptTouch(0)) return;
- if (_kbPhase == 3) {
- showSettingsMain( );
- } else {
- _kbPhase = 0;
- _kbCursor = 0;
- _kbShowRaw = false;
- memset(_kbBuffer, 0, sizeof(_kbBuffer));
- memset(_kbConfirmBuf, 0, sizeof(_kbConfirmBuf));
- _forceSettingsRedraw = true;
- _repaintSettings = true;
- }
+ actPwdResult( );
  }
  return;
  }
@@ -960,7 +950,7 @@ void DisplayManager::handleTouch( ) {
  /* X on the title bar: leave the screen. */
  if (y < 28 && x > 280) {
  if (!acceptTouch(1)) return;
- if (_kbPurpose == 1) showSettingsUsers( ); else showSettingsMain( );
+ actPwdLeave( );
  return;
  }
 
@@ -972,59 +962,17 @@ void DisplayManager::handleTouch( ) {
   * keyboard; Core 0 applies the real rule (isValidName, no duplicate,
   * not "admin") and answers on the result screen. */
  if (_kbCursor < 1) { _errorSoundPending = true; return; }
- strncpy(_newUserName, _kbBuffer, sizeof(_newUserName) - 1);
- _newUserName[sizeof(_newUserName) - 1] = '\0';
- showUserEdit(-1, true);
+ actPwdNameAccept(_kbBuffer);
  return;
  }
- if (_kbPhase == 0) {
- if (_kbCursor < 4) {
- _kbPhase = 2;
- _kbMsgKey = TR_PWD_TOO_SHORT;
- _forceSettingsRedraw = true;
- _repaintSettings = true;
- } else {
- _kbPhase = 1;
- _kbCursor = 0;
- _kbShowRaw = false;
- memset(_kbConfirmBuf, 0, sizeof(_kbConfirmBuf));
- _repaintSettings = true;
- }
- }
- else if (_kbPhase == 1) {
- if (_kbCursor < 4) {
- _kbPhase = 2;
- _kbMsgKey = TR_PWD_TOO_SHORT;
- _forceSettingsRedraw = true;
- _repaintSettings = true;
- }
- else if (strcmp(_kbBuffer, _kbConfirmBuf) != 0) {
- _kbPhase = 2;
- _kbMsgKey = TR_PWD_MISMATCH;
- _forceSettingsRedraw = true;
- _repaintSettings = true;
- }
- else {
- _kbPhase = 3;
- _kbMsgKey = TR_PWD_SAVED;
- _forceSettingsRedraw = true;
- _repaintSettings = true;
-
- UiEvent ev;
- ev.type = UiEvent::EVT_SAVE_PASSWORD;
- ev.id = 0;
- ev.param = 0;
- pushUiEvent(ev);
- }
- }
+ actPwdLegacyOk( );
  return;
  }
 
  /* Password boxes: toggle mask/plain. */
  if (y >= BOX_Y && y < GRID_Y0 && x < OK_X - 4) {
  if (!acceptTouch(2)) return;
- _kbShowRaw = !_kbShowRaw;
- _repaintSettings = true;
+ actPwdToggleShow( );
  return;
  }
 

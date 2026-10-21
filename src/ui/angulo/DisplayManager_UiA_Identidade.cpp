@@ -14,7 +14,10 @@
  *    predicate that holds every control but Cancelar under a lockout, the popup's drop, the
  *    backspace and the card with their re-deal, Entrar, the popup and the ordered keys.
  *    The lockout ladder, the deal and Core 0's comparison are the core's and do not move.
- *  - The other four are Controllers: the same functions, fields and permission checks.
+ *  - The other four are Controllers: the same functions, fields and permission checks. The text
+ *    keyboard's result button, X, OK and boxes run the core's password actions since S9 C5
+ *    (actPwdResult( ), actPwdLeave( ), actPwdNameAccept( ), actPwdLegacyOk( ), actPwdToggleShow( ));
+ *    its typing, its layers and the new name's check (S9_PLANO.md D2) stay here.
  */
 
 #include "../../DisplayManager.h"
@@ -429,18 +432,9 @@ UaToque DisplayManager::uaToqueIdentidade( const ua::Alvo *a, int16_t &x, int16_
 
     /* ---- the text keyboard: Controller ---- */
     case MODE_SETTINGS_PASSWORD: {
-      /* The verdict of the legacy PIN: the old branch (DisplayManager_Touch.cpp:1143-1160). */
+      /* The verdict of the legacy PIN: its one button runs actPwdResult( ) (a saved password goes back to the menu, a refusal starts again). */
       if ( _kbPhase >= 2 ) {
-        if ( a && a->tipo == MSG_BOTAO && acceptTouch( Z_TXT_RESULTADO ) ) {
-          if ( _kbPhase == 3 ) {
-            showSettingsMain( );
-          } else {
-            _kbPhase = 0; _kbCursor = 0; _kbShowRaw = false;
-            memset( _kbBuffer, 0, sizeof( _kbBuffer ) );
-            memset( _kbConfirmBuf, 0, sizeof( _kbConfirmBuf ) );
-            _forceSettingsRedraw = true; _repaintSettings = true;
-          }
-        }
+        if ( a && a->tipo == MSG_BOTAO && acceptTouch( Z_TXT_RESULTADO ) ) actPwdResult( );
         return UaToque::TRATADO;
       }
       if ( !a ) return UaToque::TRATADO;
@@ -477,17 +471,16 @@ UaToque DisplayManager::uaToqueIdentidade( const ua::Alvo *a, int16_t &x, int16_
           if ( !acceptTouch( Z_TXT_CAMADA ) ) break;
           if ( a->indice >= 0 && a->indice <= (int)TextoCamada::SIMB ) s_camada = (TextoCamada)a->indice;
           break;
-        case TXT_VER:                            // the boxes toggle mask/plain (Touch.cpp:1243-1249)
+        case TXT_VER:                            // the boxes toggle mask/plain
           if ( !acceptTouch( Z_TXT_VER ) ) break;
-          _kbShowRaw = !_kbShowRaw;
-          _repaintSettings = true;
+          actPwdToggleShow( );
           break;
-        case TXT_CANCELAR:                       // the old X (Touch.cpp:1181-1185)
+        case TXT_CANCELAR:                       // the X: back to the accounts (a new name) or to the menu
           if ( !acceptTouch( Z_TXT_CANCELAR ) ) break;
           zerarTeclado( );
-          if ( _kbPurpose == 1 ) showSettingsUsers( ); else showSettingsMain( );
+          actPwdLeave( );
           break;
-        case TXT_SALVAR:                         // the old OK (Touch.cpp:1187-1241)
+        case TXT_SALVAR:                         // the OK: a new account's name, or the legacy PIN's two passes
           if ( !acceptTouch( Z_TXT_SALVAR ) ) break;
           if ( _kbPurpose == 1 ) {
             /* The name of a new account. The old OK took one character and left Core 0 to refuse
@@ -505,36 +498,12 @@ UaToque DisplayManager::uaToqueIdentidade( const ua::Alvo *a, int16_t &x, int16_
                   erro = TXT_ERRO_REPETIDO;
             }
             if ( erro ) { ua::copiar( s_erro, erro, sizeof s_erro ); _errorSoundPending = true; break; }
-            strncpy( _newUserName, nome, sizeof( _newUserName ) - 1 );
-            _newUserName[sizeof( _newUserName ) - 1] = '\0';
             zerarTeclado( );
-            showUserEdit( -1, true );             // Touch.cpp:1195-1197
+            actPwdNameAccept( nome );             // the name goes on to the editor of the new account
             break;
           }
           /* The legacy PIN (`screen pwd`, not in this build): the old two passes, as they were. */
-          if ( _kbPhase == 0 ) {
-            if ( _kbCursor < 4 ) {
-              _kbPhase = 2; _kbMsgKey = TR_PWD_TOO_SHORT;
-              _forceSettingsRedraw = true; _repaintSettings = true;
-            } else {
-              _kbPhase = 1; _kbCursor = 0; _kbShowRaw = false;
-              memset( _kbConfirmBuf, 0, sizeof( _kbConfirmBuf ) );
-              _repaintSettings = true;
-            }
-          } else if ( _kbPhase == 1 ) {
-            if ( _kbCursor < 4 ) {
-              _kbPhase = 2; _kbMsgKey = TR_PWD_TOO_SHORT;
-              _forceSettingsRedraw = true; _repaintSettings = true;
-            } else if ( strcmp( _kbBuffer, _kbConfirmBuf ) != 0 ) {
-              _kbPhase = 2; _kbMsgKey = TR_PWD_MISMATCH;
-              _forceSettingsRedraw = true; _repaintSettings = true;
-            } else {
-              _kbPhase = 3; _kbMsgKey = TR_PWD_SAVED;
-              _forceSettingsRedraw = true; _repaintSettings = true;
-              UiEvent ev; ev.type = UiEvent::EVT_SAVE_PASSWORD; ev.id = 0; ev.param = 0;
-              pushUiEvent( ev );
-            }
-          }
+          actPwdLegacyOk( );
           break;
         default: break;
       }

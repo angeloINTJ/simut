@@ -997,3 +997,86 @@ inline __attribute__((always_inline)) void DisplayManager::actUserEditSave( bool
 	ev.param = (int)(_userEditPerms & PERM_PANEL_ALARM_ANY);
 	pushUiEvent(ev);
 }
+
+/* The result screen's one button on the password keyboard (the caller holds acceptTouch( 0 ) on the original, Z_TXT_RESULTADO on the Angulo). A saved password
+ * goes back to the settings menu; a refusal (too short, mismatch) empties both buffers and starts the first pass again. */
+inline __attribute__((always_inline)) void DisplayManager::actPwdResult( ) {
+	if (_kbPhase == 3) {
+		showSettingsMain( );
+	} else {
+		_kbPhase = 0;
+		_kbCursor = 0;
+		_kbShowRaw = false;
+		memset(_kbBuffer, 0, sizeof(_kbBuffer));
+		memset(_kbConfirmBuf, 0, sizeof(_kbConfirmBuf));
+		_forceSettingsRedraw = true;
+		_repaintSettings = true;
+	}
+}
+
+/* The X of the password keyboard (the caller holds acceptTouch( 1 ) on the original, Z_TXT_CANCELAR on the Angulo, which resets its own layer first): back to the
+ * accounts when the keyboard was asking for a new account's name (_kbPurpose == 1), to the settings menu otherwise. */
+inline __attribute__((always_inline)) void DisplayManager::actPwdLeave( ) {
+	if (_kbPurpose == 1) showSettingsUsers( ); else showSettingsMain( );
+}
+
+/* OK on the password keyboard when it asks for a new account's name (_kbPurpose == 1; the caller holds acceptTouch( 54 ) on the original, Z_TXT_SALVAR on the
+ * Angulo, and has checked that there is a name: the original one character, the Angulo S9_PLANO.md D2's rules). The name goes into _newUserName and the
+ * editor of the new account opens; Core 0 applies the real rule (isValidName, no duplicate, not "admin") after both PIN passes. */
+inline __attribute__((always_inline)) void DisplayManager::actPwdNameAccept( const char *name ) {
+	strncpy(_newUserName, name, sizeof(_newUserName) - 1);
+	_newUserName[sizeof(_newUserName) - 1] = '\0';
+	showUserEdit(-1, true);
+}
+
+/* OK on the legacy password keyboard (`screen pwd`, a purpose other than 1; the caller holds acceptTouch( 54 ) on the original, Z_TXT_SALVAR on the Angulo): two
+ * passes of at least 4 characters, the second equal to the first. A refusal goes to the result screen (_kbPhase 2); a match goes to it too (_kbPhase 3) and asks
+ * Core 0 to set the SESSION user's PIN (EVT_SAVE_PASSWORD, id and param 0; S9_PLANO.md D6). */
+inline __attribute__((always_inline)) void DisplayManager::actPwdLegacyOk( ) {
+	if (_kbPhase == 0) {
+		if (_kbCursor < 4) {
+			_kbPhase = 2;
+			_kbMsgKey = TR_PWD_TOO_SHORT;
+			_forceSettingsRedraw = true;
+			_repaintSettings = true;
+		} else {
+			_kbPhase = 1;
+			_kbCursor = 0;
+			_kbShowRaw = false;
+			memset(_kbConfirmBuf, 0, sizeof(_kbConfirmBuf));
+			_repaintSettings = true;
+		}
+	}
+	else if (_kbPhase == 1) {
+		if (_kbCursor < 4) {
+			_kbPhase = 2;
+			_kbMsgKey = TR_PWD_TOO_SHORT;
+			_forceSettingsRedraw = true;
+			_repaintSettings = true;
+		}
+		else if (strcmp(_kbBuffer, _kbConfirmBuf) != 0) {
+			_kbPhase = 2;
+			_kbMsgKey = TR_PWD_MISMATCH;
+			_forceSettingsRedraw = true;
+			_repaintSettings = true;
+		}
+		else {
+			_kbPhase = 3;
+			_kbMsgKey = TR_PWD_SAVED;
+			_forceSettingsRedraw = true;
+			_repaintSettings = true;
+
+			UiEvent ev;
+			ev.type = UiEvent::EVT_SAVE_PASSWORD;
+			ev.id = 0;
+			ev.param = 0;
+			pushUiEvent(ev);
+		}
+	}
+}
+
+/* The password boxes (the caller holds acceptTouch( 2 ) on the original, Z_TXT_VER on the Angulo): show the typed text or hide it again. */
+inline __attribute__((always_inline)) void DisplayManager::actPwdToggleShow( ) {
+	_kbShowRaw = !_kbShowRaw;
+	_repaintSettings = true;
+}
