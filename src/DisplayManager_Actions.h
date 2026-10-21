@@ -8,7 +8,7 @@
  *        account picker and list, the account editor, the sensor menu and the text keyboard; the PIN keypad's are in DisplayManager_PinActions.h):
  *        what a touch on one of their zones does to the state, defined once, inline, so that the original's handleTouch( ) and
  *        handleTouchPanelV24( ) and a driver's own touch glue (the Ângulo's uaToquePainel( ), uaToqueBase( ), uaToqueMenus( ), uaToqueGraficos( ),
- *        uaToqueAjustes( ) and uaToqueIdentidade( )) run the same code and not a copy (stages S5 to S9 of docs/analysis/UI_DRIVERS.md).
+ *        uaToqueAjustes( ) and uaToqueIdentidade( )) run the same code and not a copy (stages S5 to S10a of docs/analysis/UI_DRIVERS.md).
  *
  * Each action is declared in class DisplayManager as `inline __attribute__((always_inline))`, next to the core's
  * ticks, and called where its code used to sit, so the compiled image keeps the code it had. The zone decides which
@@ -27,7 +27,8 @@
 #include "DisplayManager.h"
 #include "simut_config.h"   /* SIMUT_TFT_GRAPH is tested below: included here, not left to the includer */
 #include "display/DashHold.h"   /* dashHoldStep( ), dashNextPage( ): the hold's clock and the page's turn, without hardware */
-#include "display/SettingsSteps.h"   /* volumeStep( ), offsetStep( ): the settings screens' steps, without hardware */
+#include "display/SettingsSteps.h"   /* volumeStep( ), offsetStep( ), limitStepMag( ): the settings screens' steps and the limits' ramp, without hardware */
+#include "sensors/SensorHelpers.h"   /* sensorLimitChannel( ), channelInfo( ): the limits step (S9b) */
 
 /* Repaint the top card: the core's half. It syncs topSlotIdx, moves the bottom card to another slot when the top is pinned
  * on the selected one (with the EVT_SLOT_SELECT that tells the web), mirrors the bottom card's data into the top's, and
@@ -765,6 +766,63 @@ inline __attribute__((always_inline)) void DisplayManager::actLimitsSave( ) {
 	_lastPressedBtn = -1;
 	UiEvent ev; ev.type = UiEvent::EVT_SAVE_ALARMS;
 	ev.id = _editSensorIdx; ev.param = 0; pushUiEvent(ev);
+}
+
+/* The limits editor's step (S9B_PLANO.md, form Fb): the three lambdas of handleTouch( )'s limits branch, moved word for word into a function
+ * of their own with internal linkage, so that their closures stay local and called once, as they were there; _tempAlarmConfig is `cfg`. */
+/* Recorded deviation (S10A_PLANO.md, note 2): a static inline helper called from an inline member with external linkage is ill-formed, no diagnostic required ([basic.def.odr]);
+ * harmless here, because actLimitStep( ) is always_inline and the branch has no LTO, and the internal linkage is what keeps the closures local. */
+static inline void limitStepOn( SensorRecord &cfg, SensorType sType, uint8_t nLimits, int at, float by ) {
+	auto adjustVal = [](float val, float step, float minV, float maxV) -> float {
+		val += step; val = round(val * 10.0f) / 10.0f;
+		if (val < minV) val = minV;
+		if (val > maxV) val = maxV;
+		return val;
+	};
+
+	/* MIN and MAX of one channel may not cross. Push the one the user is NOT
+	 * holding, so the digit under their finger keeps moving the way they
+	 * pressed. Runs over every channel, not the first two. */
+	auto enforceInterlock = [&](int heldIdx) {
+		for (uint8_t i = 0; i < nLimits; i += 2) {
+			const uint8_t c = sensorLimitChannel(sType, i);
+			if (!channelValid(c)) continue;
+			const ChannelInfo& ci = channelInfo(c);
+			if (cfg.chMin[c] >= cfg.chMax[c]) {
+				if (heldIdx == (int)i) /* holding this channel's MIN */
+					cfg.chMax[c] = round((cfg.chMin[c] + 0.1f) * 10.0f) / 10.0f;
+				else
+					cfg.chMin[c] = round((cfg.chMax[c] - 0.1f) * 10.0f) / 10.0f;
+			}
+			if (cfg.chMax[c] > ci.saneMax) cfg.chMax[c] = ci.saneMax;
+			if (cfg.chMin[c] < ci.saneMin) cfg.chMin[c] = ci.saneMin;
+		}
+	};
+
+	auto stepLimit = [&](int idx, float step) {
+		const uint8_t c = sensorLimitChannel(sType, (uint8_t)idx);
+		if (!channelValid(c)) return;
+		const ChannelInfo& ci = channelInfo(c);
+		const bool isMax = sensorLimitIsMax((uint8_t)idx);
+		/* Read-modify-write rather than a reference: chMin/chMax live in a packed
+		 * struct, whose fields have no alignment guarantee to bind a float& to. */
+		float v = isMax ? cfg.chMax[c] : cfg.chMin[c];
+		v = adjustVal(v, step, ci.saneMin, ci.saneMax);
+		if (isMax) cfg.chMax[c] = v; else cfg.chMin[c] = v;
+		enforceInterlock(idx);
+	};
+	stepLimit(at, by);
+}
+
+/* An arrow on a limit's bar, held (the caller holds acceptHoldTouch( zone ), the zone of the bar's row and the direction): the hold's ramp,
+ * the focus, one step of the limit with the interlock, and the repaint request, which runs on every path, as it did. */
+inline __attribute__((always_inline)) void DisplayManager::actLimitStep( SensorType sType, uint8_t nLimits, int idx, uint8_t zone, bool inc ) {
+	if (_lastPressedBtn != (int)zone) { _btnHoldStartTime = millis( ); _lastPressedBtn = (int)zone; }
+	uint32_t holdTime = millis( ) - _btnHoldStartTime;
+	float mag = limitStepMag( holdTime );
+	_editFieldFocus = idx;
+	limitStepOn(_tempAlarmConfig, sType, nLimits, idx, inc ? mag : -mag);
+	_repaintSettings = true;
 }
 
 /* The maintenance window's bar gets the focus: a tap on the other bar in the original (behind acceptSlideTouch( 20 + row )), a press of an arrow in the Ângulo (behind the

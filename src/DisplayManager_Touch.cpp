@@ -686,45 +686,6 @@ void DisplayManager::handleTouch( ) {
  if (_editFieldFocus >= (int)nLimits) _editFieldFocus = (int)nLimits - 1;
  if (_editFieldFocus < 0) _editFieldFocus = 0;
 
- auto adjustVal = [](float val, float step, float minV, float maxV) -> float {
- val += step; val = round(val * 10.0f) / 10.0f;
- if (val < minV) val = minV;
- if (val > maxV) val = maxV;
- return val;
- };
-
- /* MIN and MAX of one channel may not cross. Push the one the user is NOT
-  * holding, so the digit under their finger keeps moving the way they
-  * pressed. Runs over every channel, not the first two. */
- auto enforceInterlock = [&](int heldIdx) {
- for (uint8_t i = 0; i < nLimits; i += 2) {
- const uint8_t c = sensorLimitChannel(sType, i);
- if (!channelValid(c)) continue;
- const ChannelInfo& ci = channelInfo(c);
- if (_tempAlarmConfig.chMin[c] >= _tempAlarmConfig.chMax[c]) {
- if (heldIdx == (int)i) /* holding this channel's MIN */
- _tempAlarmConfig.chMax[c] = round((_tempAlarmConfig.chMin[c] + 0.1f) * 10.0f) / 10.0f;
- else
- _tempAlarmConfig.chMin[c] = round((_tempAlarmConfig.chMax[c] - 0.1f) * 10.0f) / 10.0f;
- }
- if (_tempAlarmConfig.chMax[c] > ci.saneMax) _tempAlarmConfig.chMax[c] = ci.saneMax;
- if (_tempAlarmConfig.chMin[c] < ci.saneMin) _tempAlarmConfig.chMin[c] = ci.saneMin;
- }
- };
-
- auto stepLimit = [&](int idx, float step) {
- const uint8_t c = sensorLimitChannel(sType, (uint8_t)idx);
- if (!channelValid(c)) return;
- const ChannelInfo& ci = channelInfo(c);
- const bool isMax = sensorLimitIsMax((uint8_t)idx);
- /* Read-modify-write rather than a reference: chMin/chMax live in a packed
-  * struct, whose fields have no alignment guarantee to bind a float& to. */
- float v = isMax ? _tempAlarmConfig.chMax[c] : _tempAlarmConfig.chMin[c];
- v = adjustVal(v, step, ci.saneMin, ci.saneMax);
- if (isMax) _tempAlarmConfig.chMax[c] = v; else _tempAlarmConfig.chMin[c] = v;
- enforceInterlock(idx);
- };
-
  const int page = _editFieldFocus / ALARM_EDIT_ROWS;
 
  if (y >= ALARM_EDIT_Y0 && y <= 188) {
@@ -739,12 +700,7 @@ void DisplayManager::handleTouch( ) {
   * repeat instead of silently retargeting it at another limit. */
  const uint8_t zone = (uint8_t)(30 + row * 2 + (inc ? 1 : 0));
  if (!acceptHoldTouch(zone)) return;
- if (_lastPressedBtn != (int)zone) { _btnHoldStartTime = millis( ); _lastPressedBtn = (int)zone; }
- uint32_t holdTime = millis( ) - _btnHoldStartTime;
- float mag = limitStepMag( holdTime );
- _editFieldFocus = idx;
- stepLimit(idx, inc ? mag : -mag);
- _repaintSettings = true;
+ actLimitStep(sType, nLimits, idx, zone, inc);
  }
  else {
  if (!acceptSlideTouch((uint8_t)row)) return;

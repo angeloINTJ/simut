@@ -8,11 +8,11 @@
  *  - Controller (C): the clock, the display alignment, the limits, the
  *    maintenance window, the sounds with their melody and the PIN policy do
  *    what the old branch does, with the old state, events and filters. The
- *    clock, the alignment, the limits (their focus, Back and Save), the maintenance
+ *    clock, the alignment, the limits (their step, focus, Back and Save), the maintenance
  *    window, the PIN policy, the melody picker and the sounds list run the core's
  *    actions (DisplayManager_Actions.h), each named in its case, behind the zones
- *    the old branch used, so a held arrow repeats as it did; the step of a limit
- *    still reproduces its branch here and cites the old lines it copies.
+ *    the old branch used, so a held arrow repeats as it did; the limits' step is
+ *    actLimitStep( ), whose ramp and interlock the original's arrow runs too.
  *  - Raw (B): the touch sensitivity and the calibration are read by the core's
  *    own blocks of handleTouch( ), before any hook, and those end in return, so a
  *    touch on them never gets here; only the frame is built. Their two buttons
@@ -66,42 +66,6 @@ void separarLimites( SensorRecord &rec ) {
       rec.chMax[c] = ci.saneMax;
       rec.chMin[c] = ci.saneMax - 0.1f;
     }
-  }
-}
-
-/* One step of limit `idx` (2n is the n-th channel's MIN, 2n + 1 its MAX), as
- * the old editor's adjustVal( ) / enforceInterlock( ) / stepLimit( ) lambdas
- * did it (DisplayManager_Touch.cpp:884-922): a tenth-rounded value held inside
- * the channel's sane range, then MIN and MAX pulled apart by moving the one the
- * user is NOT holding, so the digit under the finger keeps going the way it
- * was pressed. Read-modify-write: chMin/chMax live in a packed struct.
- * Kept as a copy on purpose (S8b, B1): the core's actLimitStep( ) could not take this step without moving the product images outside handleTouch( ) or the Angulo's
- * functions outside the step's list (docs/analysis/UI_DRIVERS.md 4.4). It stays, with the copy of the hold's ramp in uaToqueAjustes( ), until the original's limits
- * code is restructured. */
-void passoLimite( SensorRecord &rec, int idx, float step ) {
-  const SensorType st = (SensorType)rec.sensorType;
-  const uint8_t n = sensorLimitCount( st );
-  const uint8_t c = sensorLimitChannel( st, (uint8_t)idx );
-  if ( !channelValid( c ) ) return;
-  const ChannelInfo &ci = channelInfo( c );
-  const bool isMax = sensorLimitIsMax( (uint8_t)idx );
-  float v = isMax ? rec.chMax[c] : rec.chMin[c];
-  v += step;
-  v = round( v * 10.0f ) / 10.0f;
-  if ( v < ci.saneMin ) v = ci.saneMin;
-  if ( v > ci.saneMax ) v = ci.saneMax;
-  if ( isMax ) rec.chMax[c] = v; else rec.chMin[c] = v;
-  /* enforceInterlock( idx ), over every channel as the old one did. */
-  for ( uint8_t i = 0; i < n; i += 2 ) {
-    const uint8_t ch = sensorLimitChannel( st, i );
-    if ( !channelValid( ch ) ) continue;
-    const ChannelInfo &info = channelInfo( ch );
-    if ( rec.chMin[ch] >= rec.chMax[ch] ) {
-      if ( idx == (int)i ) rec.chMax[ch] = round( ( rec.chMin[ch] + 0.1f ) * 10.0f ) / 10.0f;
-      else rec.chMin[ch] = round( ( rec.chMax[ch] - 0.1f ) * 10.0f ) / 10.0f;
-    }
-    if ( rec.chMax[ch] > info.saneMax ) rec.chMax[ch] = info.saneMax;
-    if ( rec.chMin[ch] < info.saneMin ) rec.chMin[ch] = info.saneMin;
   }
 }
 
@@ -360,8 +324,8 @@ UaToque DisplayManager::uaToqueAjustes( const ua::Alvo *a, int16_t &x, int16_t &
           /* The arrows on a bar: -/+ with hold-repeat in a zone of their own per
            * (row, direction), so sliding off one ends the repeat; the focus goes to
            * the row, and the step grows with how long the same arrow has been held:
-           * 0.1, then 0.5 after 2 s, 1.0 after 4 s and 10 after 6 s (the ramp of the original's
-           * arrows in handleTouch( )). */
+           * 0.1, then 0.5 after 2 s, 1.0 after 4 s and 10 after 6 s (the ramp is
+           * actLimitStep( )'s, the one the original's arrow runs in handleTouch( )). */
           const int row = a->indice;
           if ( row < 0 || row > 1 ) return UaToque::TRATADO;
           const int idx = ( _editFieldFocus / 2 ) * 2 + row;
@@ -369,11 +333,8 @@ UaToque DisplayManager::uaToqueAjustes( const ua::Alvo *a, int16_t &x, int16_t &
           const bool inc = a->tipo == LIMITES_MAIS;
           const uint8_t zone = (uint8_t)( 30 + row * 2 + ( inc ? 1 : 0 ) );
           if ( !acceptHoldTouch( zone ) ) return UaToque::TRATADO;
-          if ( _lastPressedBtn != (int)zone ) { _btnHoldStartTime = millis( ); _lastPressedBtn = (int)zone; }
-          const uint32_t holdTime = millis( ) - _btnHoldStartTime;
-          float mag = limitStepMag( holdTime );
-          _editFieldFocus = idx;
-          passoLimite( _tempAlarmConfig, idx, inc ? mag : -mag );
+          const SensorType st = (SensorType)_tempAlarmConfig.sensorType;
+          actLimitStep( st, sensorLimitCount( st ), idx, zone, inc );
           return UaToque::TRATADO;
         }
         case LIMITES_PAG_ANTERIOR:
