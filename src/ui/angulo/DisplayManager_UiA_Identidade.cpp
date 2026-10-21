@@ -333,7 +333,7 @@ UaToque DisplayManager::uaToqueIdentidade( const ua::Alvo *a, int16_t &x, int16_
           if ( idx < 0 || idx >= _usersCount ) break;
           if ( !acceptTouch( Z_QUEM_LINHA ) ) break;
           _usersSel = idx; _usersPage = idx / 4;
-          enterPinFor( _usersMap[idx] );         // :1520; a locked account only beeps (:1210-1213)
+          actUserOpen( true );                   // the account's PIN entry; a locked account only beeps
           break;
         }
         case QUEM_VOLTAR:                        // the old SAIR (:1541-1543)
@@ -364,16 +364,12 @@ UaToque DisplayManager::uaToqueIdentidade( const ua::Alvo *a, int16_t &x, int16_
           if ( idx < 0 || idx >= _usersCount ) break;
           if ( !acceptTouch( Z_USR_LINHA ) ) break;
           _usersSel = idx; _usersPage = idx / ident::LINHAS_2;       /* three rows to a page, not the old four */
-          showUserEdit( _usersMap[idx], false );  // :1521
+          actUserOpen( false );                  // the account's editor
           break;
         }
         case USR_NOVA:                           // the old NOVO (:1546-1556)
           if ( !acceptTouch( Z_USR_NOVA ) ) break;
-          if ( !( _panelPerms & PERM_USER_MGR ) ) { _errorSoundPending = true; break; }
-          /* new account: name first, on the text keyboard */
-          _userEditPerms = 0;
-          _newUserName[0] = '\0';
-          showSettingsPassword( 1 );
+          actUserNew( );                         // behind PERM_USER_MGR, name first on the text keyboard
           break;
         case USR_VOLTAR:                         // the old SAIR (:1541-1544)
           if ( !acceptTouch( Z_USR_VOLTAR ) ) break;

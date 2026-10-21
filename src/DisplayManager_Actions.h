@@ -930,3 +930,39 @@ inline __attribute__((always_inline)) void DisplayManager::actPinCard( const Pin
 	_repaintSettings = true;
 }
 #endif /* SIMUT_PANEL_PIN */
+
+/* The account picker's and the users list's row, opened (the caller holds acceptTouch( 4 + row ) on the original, its own zone on the Angulo,
+ * and has selected the row: _usersSel). On the picker the account's PIN entry, which refuses a locked account (enterPinFor( )); on the list,
+ * the account's editor. */
+inline __attribute__((always_inline)) void DisplayManager::actUserOpen( bool picking ) {
+	if (picking) enterPinFor(_usersMap[_usersSel]);
+	else         showUserEdit(_usersMap[_usersSel], false);
+}
+
+/* Nova conta on the users list (the caller holds acceptTouch( 13 ), or the Angulo's zone): only a session that may manage accounts
+ * (PERM_USER_MGR; Core 0 checks again when the account is saved). A new account is named first, on the text keyboard, with no panel bits. */
+inline __attribute__((always_inline)) void DisplayManager::actUserNew( ) {
+	if (!(_panelPerms & PERM_USER_MGR)) { _errorSoundPending = true; return; }
+	/* new account: name first, on the text keyboard */
+	_userEditPerms = 0;
+	_newUserName[0] = '\0';
+	showSettingsPassword(1);
+}
+
+/* A row of the sensor menu, run (the caller holds its zone): each row behind its permission bit, which Core 0 checks again. Row 0 opens the
+ * limits editor, row 2 the maintenance window, row 1 asks Core 0 to flip the sensor's alarms. */
+inline __attribute__((always_inline)) void DisplayManager::actSensorMenuActivate( int row ) {
+	const uint16_t need[3] = { PERM_ALARM_LIMITS, PERM_ALARM_BLOCK, PERM_MAINT };
+	if (!(_panelPerms & need[row])) { _errorSoundPending = true; return; }
+	const int slot = _sensorMenuIdx;
+	if (row == 0) { showAlarmEdit(slot); return; }
+	if (row == 1) {
+		/* the flip is Core 0's: it checks the bit again, saves, logs
+		 * and puts the record on the alarm line, then repaints us */
+		UiEvent ev; ev.type = UiEvent::EVT_ALARM_BLOCK; ev.id = slot;
+		ev.param = _sysConfigPtr->sensors[slot].alarmsActive ? 0 : 1;
+		pushUiEvent(ev);
+		return;
+	}
+	showMaintEntry(slot);
+}

@@ -1378,20 +1378,8 @@ bool DisplayManager::handleTouchPanelV24(int16_t x, int16_t y) {
 	}
 
 	if (_uiMode == MODE_SETTINGS_ALARM_SENSOR) {
-		const uint16_t need[3] = { PERM_ALARM_LIMITS, PERM_ALARM_BLOCK, PERM_MAINT };
 		auto activate = [&](int row) {
-			if (!(_panelPerms & need[row])) { _errorSoundPending = true; return; }
-			const int slot = _sensorMenuIdx;
-			if (row == 0) { showAlarmEdit(slot); return; }
-			if (row == 1) {
-				/* the flip is Core 0's: it checks the bit again, saves, logs
-				 * and puts the record on the alarm line, then repaints us */
-				UiEvent ev; ev.type = UiEvent::EVT_ALARM_BLOCK; ev.id = slot;
-				ev.param = _sysConfigPtr->sensors[slot].alarmsActive ? 0 : 1;
-				pushUiEvent(ev);
-				return;
-			}
-			showMaintEntry(slot);
+			actSensorMenuActivate(row);
 		};
 		if (y >= 40 && y <= 154) {
 			int row = 0;
@@ -1462,8 +1450,7 @@ bool DisplayManager::handleTouchPanelV24(int16_t x, int16_t y) {
 				_usersSel = mapIdx; _usersPage = _usersSel / 4; _repaintSettings = true;
 			} else {
 				if (!acceptTouch((uint8_t)(4 + clicked))) return true;
-				if (picking) enterPinFor(_usersMap[_usersSel]);
-				else         showUserEdit(_usersMap[_usersSel], false);
+				actUserOpen(picking);
 			}
 		} else if (y > 185) {
 			/* The arrows step one row on a short list and one PAGE once the
@@ -1493,11 +1480,7 @@ bool DisplayManager::handleTouchPanelV24(int16_t x, int16_t y) {
 					if (_usersCount > 0) enterPinFor(_usersMap[_usersSel]);
 					else _errorSoundPending = true;
 				} else {
-					if (!(_panelPerms & PERM_USER_MGR)) { _errorSoundPending = true; return true; }
-					/* new account: name first, on the text keyboard */
-					_userEditPerms = 0;
-					_newUserName[0] = '\0';
-					showSettingsPassword(1);
+					actUserNew( );
 				}
 			}
 		}

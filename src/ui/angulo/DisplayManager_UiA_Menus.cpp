@@ -382,26 +382,11 @@ UaToque DisplayManager::uaToqueMenus( const ua::Alvo *a, int16_t &, int16_t & ) 
         if ( acceptTouch( ZONA_VOLTAR ) ) showSettingsAlarms( _sysConfigPtr );
       } else if ( a->tipo == SA_LIMITES || a->tipo == SA_ALARMES || a->tipo == SA_MANUTENCAO ) {
         if ( !acceptTouch( ZONA_LINHA ) ) break;
-        /* handleTouchPanelV24( )'s activate( row ) lambda, the sensor menu: the bit is checked on the screen too (this screen leaves out
-         * the rows the session cannot use, so it only guards a frame that was on the glass a moment ago). */
-        static const uint16_t kPrecisa[3] = { PERM_ALARM_LIMITS, PERM_ALARM_BLOCK, PERM_MAINT };
+        /* The Angulo's own guard (S9_PLANO.md D3): the slot the menu belongs to, in range. Then the core's row, behind its permission bit
+         * (this screen leaves out the rows the session cannot use, so the bit only guards a frame that was on the glass a moment ago). */
         const int row = a->tipo - SA_LIMITES;
-        const int slot = _sensorMenuIdx;
-        if ( !( _panelPerms & kPrecisa[row] ) ) { _errorSoundPending = true; break; }
-        if ( !_sysConfigPtr || slot < 0 || slot >= MAX_SENSORS ) break;
-        if ( row == 0 ) {
-          showAlarmEdit( slot );
-        } else if ( row == 1 ) {
-          /* The flip is Core 0's: it checks the bit again, saves, logs and puts the record on the alarm
-           * line, and the screen follows the record. No confirmation, as before. */
-          UiEvent ev{ };
-          ev.type = UiEvent::EVT_ALARM_BLOCK;
-          ev.id = slot;
-          ev.param = _sysConfigPtr->sensors[slot].alarmsActive ? 0 : 1;
-          pushUiEvent( ev );
-        } else {
-          showMaintEntry( slot );
-        }
+        if ( !_sysConfigPtr || _sensorMenuIdx < 0 || _sensorMenuIdx >= MAX_SENSORS ) break;
+        actSensorMenuActivate( row );
       }
       break;
     case MODE_SETTINGS_STATUS:
