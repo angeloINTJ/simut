@@ -57,6 +57,13 @@ constexpr int32_t RSSI_MIN_THRESHOLD = -78;
  * denying it. */
 constexpr int32_t RSSI_IMPLAUSIBLE_HIGH = 0;
 constexpr int32_t RSSI_IMPLAUSIBLE_LOW  = -120;
+/* The ctx of SYS_WIFI_DISCONNECT when the RSSI read itself failed: the driver
+ * answered an error, the chip did not answer. The record's ctx is the reading
+ * otherwise, and wifiLost( ) logs 0, which is what a failed read happened to
+ * leave on the bench on 2026-10-17: one ctx for the three would leave a field
+ * log unable to say which it was, as the one of 2026-10-11 cannot. No reading
+ * is this low. */
+constexpr int16_t RSSI_READ_FAILED_CTX = -999;
 
 #ifdef SIMUT_MDNS
 /** Minimum interval between MDNS.update() calls (ms). */
@@ -153,11 +160,13 @@ constexpr uint32_t WIFI_RADIO_RESTART_MIN_UPTIME_MS = 30UL * 60UL * 1000UL;
  * is the right escape (the 2026-09-08 device, 3 h 41 min dark). The other did
  * not answer the ioctl: the chip is silent on the SDPCM bus, and WiFi.begin( )
  * on it is not a queued join. On the first join of a boot CYW43::begin( )
- * issues 15 synchronous ioctls BEFORE the wait that cyw43_join_budget.patch
+ * issues 14 synchronous ioctls BEFORE the wait that cyw43_join_budget.patch
  * bounds — the allmulti iovar, the two of the multicast filter (one on later
- * joins, which find the address already there; two more with IPv6), then the
- * twelve of cyw43_ll_wifi_join( ) for a WPA2 network (eleven for an open one),
- * which ignores every return value and keeps going — and seven more in
+ * joins, which find the address already there, and on a silent chip, whose
+ * read of the list fails; two more with IPv6), then the eleven of
+ * cyw43_ll_wifi_join( ) for a WPA2 network (ten for an open one; its event-mask
+ * iovar is commented out in cyw43_ll.c, which the count said twelve until
+ * 2026-10-18), which ignores every return value and keeps going — and seven more in
  * noLowPowerMode( ) after it. Each one against a silent chip runs the driver's
  * response timeout or its SDPCM credit stall, and both are 1 s here:
  * CYW43_IOCTL_TIMEOUT_US defaults to 500 ms in the driver, but pico-sdk's
@@ -165,7 +174,9 @@ constexpr uint32_t WIFI_RADIO_RESTART_MIN_UPTIME_MS = 30UL * 60UL * 1000UL;
  * this framework (cyw43_ll.c.o in lib/rp2040/liblwip.a, cyw43-driver dd75682)
  * carries 1,000,000 and no 500,000 (read 2026-10-13). That is about 15 s with
  * no watchdog_update( ) in reach of this firmware: past the 8388 ms ceiling,
- * every time.
+ * every time. The bench of 2026-10-17 counted it: a join on a chip that had
+ * just gone silent failed 12 ioctls fast (allmulti, the filter's read, ten of
+ * the join's) before the first slow one.
  *
  * Field log of 2026-10-11 09:28, on v2.11.0 (the join-wait patch on board):
  * link lost 09:27:18, scans abandoned 09:27:40 and 09:28:01 (SYS_WIFI_SCAN
@@ -181,12 +192,22 @@ constexpr uint32_t WIFI_RADIO_RESTART_MIN_UPTIME_MS = 30UL * 60UL * 1000UL;
  * same 16 plus the ladder's 5). So the start of every scan is timed:
  * - a start that takes WIFI_SCAN_START_SILENT_MS or longer is a silent radio:
  *   a quarter of the driver's 1 s timeouts, and far above the one round trip
- *   of a chip that answers (not yet timed on the bench: only an abandoned scan
- *   logs how long its start took). A scan started on a silent radio that then
+ *   of a chip that answers: 28 to 30 ms over 172 starts on the bench
+ *   (2026-10-17/18, a day of drops). A scan started on a silent radio that then
  *   never finishes does NOT count toward the blind join;
+ * - a quicker start is not an answer. A chip that has just gone silent fails
+ *   its first ~16 sends in milliseconds ("F2 not ready": the driver bumps the
+ *   SDPCM sequence before each write, and the credits the chip last granted run
+ *   out one send at a time); its scans started in 74 to 75 ms on the bench, and
+ *   the blind join they earned survived all eight mutes only because most of
+ *   its ioctls still failed fast. So a scan that started quickly and never finished
+ *   asks the chip one read (radioRead( ), NetworkManager_Cyw43.cpp) and goes by
+ *   its return code: 0 is the wedge, anything else a silent radio. A read the
+ *   chip answers, or a scan that comes back, ends a silent streak;
  * - after WIFI_SILENT_SCANS_BEFORE_RESTART of those in a row, NetworkManager
- *   logs SYS_WIFI_CONNECT ctx 4 and reboots by safeReboot( ) — the log
- *   persisted and Core 1 parked, instead of the watchdog's reboot — under the
+ *   logs SYS_WIFI_CONNECT ctx 4 and reboots by safeReboot( ) — logged, the
+ *   open history block written by its hook, instead of the watchdog's reboot —
+ *   under the
  *   same WIFI_RADIO_RESTART_MIN_UPTIME_MS guard as the refusals. Inside the
  *   guard the ladder keeps scanning and never blind-joins: each attempt costs
  *   at most one ioctl timeout, which the watchdog window absorbs.

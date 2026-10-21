@@ -8,7 +8,8 @@ Todas as mudanças notáveis do firmware SIMUT.
 
 **O SPI do painel roda a 66,5 MHz no Pico W. Na imagem medida antes da mudança (arduino-pico 5.6.1, 15/10/2026)
 rodava a 24 MHz, fosse qual fosse o `SIMUT_TFT_SPI_HZ`; as imagens 5.4.x anteriores, a v2.1.6 entre elas, têm o mesmo
-código de clock e não foram medidas.**
+código de clock e não foram medidas. Um rádio que para de responder não é mais associado às cegas, o que segurava o
+Core 0 além do watchdog de hardware: ele é reiniciado pelo caminho planejado (#266).**
 
 ### O barramento do painel
 
@@ -34,6 +35,47 @@ código de clock e não foram medidas.**
   acréscimos; nada foi renomeado.
 - Se um painel mostrar pontos soltos em áreas lisas a 66,5 MHz, o degrau seguinte é `-DSIMUT_TFT_SPI_HZ=33250000u`. O
   `31250000u` do manual antigo não é degrau desse clock e roda a 22,17 MHz.
+
+### O rádio que para de responder (#266)
+
+- **Um rádio que parou de responder não é mais associado às cegas.** Dois reboots em campo, em 30/09/2026 e em
+  11/10/2026 às 09:28 (o segundo na v2.11.0), seguiram o mesmo caminho: o link caiu, duas varreduras de reconexão foram
+  abandonadas, veio a associação às cegas e depois o watchdog de hardware, com o Core 0 em `MOD_WIFI` (ctx 202). Uma
+  varredura abandonada parece igual vinda de um chip que perdeu o fim da varredura (o travamento de 08/09/2026, que a
+  associação às cegas recupera) e de um chip que emudeceu, no qual o `WiFi.begin( )` faz 14 ioctls síncronos de 1 s
+  cada antes da primeira alimentação do watchdog. O #270 passou a cronometrar o início de cada varredura de reconexão:
+  250 ms ou mais, numa varredura que depois não termina, é um rádio mudo, que nunca é associado. Duas seguidas depois da
+  primeira meia hora ligado registram `SYS_WIFI_CONNECT` ctx 4 e reiniciam a placa pelo caminho planejado; antes disso, o
+  aparelho segue varrendo.
+- **Um início rápido não é uma resposta.** Um chip que acabou de emudecer falha os primeiros ~16 envios em
+  milissegundos ("F2 not ready"), enquanto duram os créditos que ele concedeu por último. Na bancada as varreduras dele
+  começaram em 74 a 75 ms, a regra dos 250 ms as tomou por um chip que respondeu, e a associação às cegas saiu depois de
+  cada um dos oito emudecimentos; ela só sobreviveu porque 12 dos seus ioctls ainda falharam rápido. Uma varredura que
+  começou rápido e não terminou agora pede ao chip uma leitura, a da configuração de antena, e decide pelo código de
+  retorno do driver: 0 é o travamento, que mantém a associação às cegas, e um erro é um rádio mudo. Um início rápido não
+  encerra mais uma sequência muda; uma leitura que o chip responde, sim.
+- **A checagem de sinal de cada minuto também decide pelo código de retorno da leitura.** Quando a leitura falha, o
+  `WiFi.RSSI( )` devolve uma variável que ninguém escreveu. Na bancada essa sobra valia 0, implausível por sorte, e foi
+  só essa sorte que derrubou um link emudecido (em 1 min 44 s, registrado com ctx 0). Uma leitura que o chip não
+  respondeu agora conta como amostra ruim pelo código de retorno, e o registro do link derrubado leva ctx -999 em vez de
+  um nível, para o log distingui-la de uma leitura real e do 0 de um link perdido. O `getRssi( )` informa -100 para
+  ela, como para um nível implausível.
+- **Medido na bancada** (`pico_w_release` com ganchos só de bancada: o pino de energia do chip baixado sem avisar o
+  driver, e as quedas, travamentos e redes escondidas feitos no aparelho, não no roteador):
+  - O roteamento da v2.11.0, 17/10/2026: a segunda associação às cegas, o watchdog de hardware 8,44 s depois e a
+    autópsia do campo, 202/1008/4003/2740.
+  - Com o #270, 17 e 18/10/2026: depois de cada emudecimento, a associação às cegas da fase rápida (o item acima), e
+    então varreduras mudas sem associação: 65 dentro da guarda de meia hora, depois o ctx 4 aos 30 min 19 s e um boot
+    limpo com endereço aos 16 s; depois da guarda, o ctx 4 2 min 4 s após o emudecimento. Em 24 h de falhas injetadas
+    (118 quedas, 3 rajadas de 8, 12 travamentos, 3 redes escondidas, 5 emudecimentos): nenhum watchdog de hardware, e
+    172 inícios de varredura saudáveis de 28 a 30 ms, nenhum de 250 ms.
+  - Com esta mudança, 21/10/2026: o travamento lê 0 e é associado às cegas, com o endereço de volta em 6 s. Um
+    emudecimento dentro da guarda começa as 7 primeiras varreduras em 10 a 76 ms, cada leitura responde -6 e nenhuma
+    associação sai; seguem-se 59 lentas, depois o ctx 4 aos 30 min 7 s e um boot limpo. Um chip emudecido com o link
+    de pé falha duas leituras de sinal com um minuto entre elas, o link é derrubado com ctx -999 1 min 31 s depois do
+    emudecimento, e 71 varreduras mudas sem associação terminam no ctx 4 aos 30 min 6 s.
+- **Testes no host:** 706 casos em 11 suítes, eram 703. Os três novos, no `native_network`, fixam a leitura antes de
+  uma associação às cegas, a leitura na checagem de sinal e o ctx de uma leitura que falhou.
 
 ### O log de um reinício planejado
 

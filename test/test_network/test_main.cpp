@@ -31,6 +31,7 @@
 #include <new>
 #include "NetworkManager.h"
 #include "MetricsManager.h"
+#include "pico/cyw43_arch.h"   /* cyw43_state and the two return codes the radio reads */
 #include <lwip/dns.h>
 #include <vector>
 #include <algorithm>
@@ -45,12 +46,34 @@ FakeSerial Serial;
  * STA interface up BEFORE the sweep, and the ordering is the point. */
 unsigned g_cyw43StaModeEnables = 0;
 
+/* The two return codes the radio's unit reads (pico/cyw43_arch.h stub): what the
+ * chip answers, and how many times it was asked. */
+cyw43_t cyw43_state = { 0 };
+int g_cyw43Rc = 0;
+unsigned g_cyw43Ioctls = 0;
+int cyw43_wifi_get_rssi(cyw43_t*, int32_t* rssi) {
+    g_cyw43Ioctls++;
+    if (g_cyw43Rc == 0) *rssi = WiFi.rssi;   /* a failed read leaves it as it was */
+    return g_cyw43Rc;
+}
+
 namespace simut_native { uint32_t fake_millis_value = 0; }
 
-/* The log is not under test here; these keep the linker happy and record
- * nothing, because asserting on log text would tie the suite to wording. */
+/* The log is not under test here; these keep the linker happy and record no
+ * text, because asserting on log text would tie the suite to wording. The code
+ * and the ctx are recorded: they are what a persisted record holds, the 12 B a
+ * field export carries, and the ctx is how one tells 2026-10-11's
+ * SYS_WIFI_DISCONNECT ctx 0 apart (wifiLost( ), or a failed RSSI read). */
+static std::vector<std::pair<int, int>> g_logRecords;
+static int ctxOfLast(LogCode code) {
+    for (auto it = g_logRecords.rbegin( ); it != g_logRecords.rend( ); ++it)
+        if (it->first == (int)code) return it->second;
+    return -32768;                                   /* no such record */
+}
 LogManager::LogManager( ) {}
-void LogManager::logCode(LogLevel, const char*, LogCode, int, String) {}
+void LogManager::logCode(LogLevel, const char*, LogCode code, int ctx, String) {
+    g_logRecords.emplace_back((int)code, ctx);
+}
 const char* LogManager::tr(const char* en) const { return en; }
 /* Counted: the one reboot NetworkManager plans for itself is a radio that
  * will not take a join (see the refused-join tests).
@@ -139,6 +162,9 @@ void setUp(void) {
     set_native_millis(100000);   /* away from 0, so wrap arithmetic is exercised */
     WiFi.reset( );
     g_cyw43StaModeEnables = 0;
+    g_cyw43Rc = 0;
+    g_cyw43Ioctls = 0;
+    g_logRecords.clear( );
     g_safeReboots = 0;
     g_clockNow = 0;
 }
@@ -323,7 +349,7 @@ static void test_a_failed_scan_is_treated_as_a_fruitless_one(void) {
  * v2.11.0 unit lost its link, abandoned two scans — the first logged 16 s after
  * it started, the deadline plus the driver's 1 s credit stall — and then took
  * the blind join the wedge above earns. WiFi.begin( ) on a silent chip is up to
- * 15 synchronous ioctl timeouts of 1 s before the join-wait patch gets a say, and the
+ * 14 synchronous ioctl timeouts of 1 s before the join-wait patch gets a say, and the
  * HW watchdog rebooted the device with Core 0 in MOD_WIFI (autopsy ctx 202).
  * The same thing happened on 2026-09-30. The two radios are told apart by the
  * only thing that differs: how long the scan's START held the caller. */
@@ -501,6 +527,98 @@ static void test_a_scan_that_finishes_resets_the_silent_count(void) {
     TEST_ASSERT_FALSE_MESSAGE(pumpUntilScanStarts(net, 4, 60000),
         "silent, finished, silent restarted the radio: the finished scan did not end the streak");
     TEST_ASSERT_EQUAL_UINT(0, g_safeReboots);
+}
+
+/* ══ the 2026-10-17 bench: a silent chip fails fast first ═════════════════ */
+
+/* What the bench showed, with the chip powered down under a driver that thinks it
+ * is up (#266, bench A, B and C, 2026-10-17 and -18): a chip that goes silent
+ * does not look silent at once. The driver bumps the SDPCM sequence number before
+ * each write, and the write fails in milliseconds ("F2 not ready") until the
+ * credits the chip last granted are used up, about 16 sends; only then does each
+ * send wait its 1 s. The two scans of that phase started in 74-75 ms, the
+ * 250 ms rule took them for a chip that answered, and the blind join went out on
+ * every one of eight mutes. It survived because 12 of its ioctls still failed fast;
+ * with fewer credits left the same join holds Core 0 past the watchdog. A read
+ * the chip has to answer, made when the start was quick, tells the two apart by
+ * its return code: the stub's g_cyw43Rc. */
+static void test_a_chip_that_fails_fast_is_never_blind_joined(void) {
+    set_native_millis(WIFI_RADIO_RESTART_MIN_UPTIME_MS + 100000UL);   /* past the gate */
+    NetworkManager net;
+    bringUp(net);
+
+    WiFi.scanNeverCompletes = true;
+    WiFi.scanStartTakesMs   = 0;          /* "F2 not ready": the start comes back at once */
+    g_cyw43Rc               = -6;         /* -CYW43_EIO */
+    WiFi.disconnect( );
+    const unsigned joinsBefore = WiFi.joinAttempts;
+
+    const bool restarted = pumpUntilRestart(net, 120000);
+
+    TEST_ASSERT_EQUAL_UINT_MESSAGE(joinsBefore, WiFi.joinAttempts,
+        "a chip that failed fast was handed a join: the start's speed was taken for an answer");
+    TEST_ASSERT_TRUE_MESSAGE(restarted, "two scans the chip never answered and no planned restart");
+    TEST_ASSERT_EQUAL_UINT_MESSAGE(WIFI_SILENT_SCANS_BEFORE_RESTART, WiFi.scanStarts,
+        "a quick start ended the silent streak: the restart should come on the second scan");
+}
+
+/* The other side of the same read: a scanner wedged on a chip that answers
+ * (2026-09-08) still gets its blind join, and it gets it because the chip was
+ * asked and answered, not because the start was quick. */
+static void test_a_wedged_scanner_is_asked_before_its_blind_join(void) {
+    set_native_millis(WIFI_RADIO_RESTART_MIN_UPTIME_MS + 100000UL);
+    NetworkManager net;
+    bringUp(net);
+
+    WiFi.scanNeverCompletes = true;
+    WiFi.scanStartTakesMs   = 0;
+    g_cyw43Rc               = 0;          /* the chip answers */
+    WiFi.disconnect( );
+    const unsigned asked = g_cyw43Ioctls;
+
+    const bool restarted = pumpUntilRestart(net, 120000);
+
+    TEST_ASSERT_FALSE(restarted);
+    TEST_ASSERT_TRUE_MESSAGE(net.isConnected( ), "a wedged scanner on a chip that answers was not joined");
+    TEST_ASSERT_GREATER_THAN_UINT_MESSAGE(asked, g_cyw43Ioctls,
+        "the chip was never asked: the join went out on the start's speed alone");
+}
+
+/* The bench's A2 (2026-10-17): the chip silenced with the link up. status( )
+ * is a cached read and stays WL_CONNECTED; the minute's RSSI sample noticed, in
+ * 1 min 44 s, only because the variable WiFi.RSSI( ) returns when its ioctl
+ * fails, which nobody writes, held 0 on that image (0 is implausible). Any
+ * plausible leftover, -60 here, and the unit stays NET_READY on a dead radio,
+ * every getRssi( ) a 1 s stall. The read's return code says it instead. */
+static void test_a_signal_read_the_chip_does_not_answer_is_a_dead_link(void) {
+    /* Far past any clock an earlier case left behind: the minute's sample keeps
+     * its time in a function-static (NET_READY's _rssiSampleAt), and timeSince( )
+     * is signed, so a case that ran later on the fake clock would hold this one's
+     * sample back for good. Past the half-hour gate too, so the case can follow
+     * the dead radio all the way to the planned restart. The same static now
+     * sits near 0x40000000 for every case after this one: a later case that
+     * needs the minute's sample has to start its clock past that, as this one
+     * does. */
+    set_native_millis(0x40000000UL);
+    NetworkManager net;
+    bringUp(net);
+
+    WiFi.rssi = -60;                      /* what an unwritten variable may well hold */
+    g_cyw43Rc = -2;                       /* -CYW43_ETIMEDOUT: the chip stopped answering */
+    WiFi.scanNeverCompletes = true;       /* nor will it scan */
+    WiFi.scanStartTakesMs   = 1000;
+    const unsigned joinsBefore = WiFi.joinAttempts;
+
+    TEST_ASSERT_EQUAL_INT32_MESSAGE(-100, net.getRssi( ), "a read the chip did not answer was reported as a level");
+    TEST_ASSERT_FALSE(net.isLinkHealthy( ));
+
+    const bool restarted = pumpUntilRestart(net, 300000, 500);
+    TEST_ASSERT_GREATER_THAN_UINT_MESSAGE(0, WiFi.disconnects,
+        "a radio that stopped answering stayed NET_READY: the minute's sample took a leftover for a level");
+    TEST_ASSERT_EQUAL_INT_MESSAGE(RSSI_READ_FAILED_CTX, ctxOfLast(SYS_WIFI_DISCONNECT),
+        "the record of a read the chip did not answer carries a level, or wifiLost( )'s 0");
+    TEST_ASSERT_TRUE_MESSAGE(restarted, "the dead radio was let go of and never restarted");
+    TEST_ASSERT_EQUAL_UINT_MESSAGE(joinsBefore, WiFi.joinAttempts, "the dead radio was handed a join");
 }
 
 /* ══ joinable but invisible ══════════════════════════════════════════════ */
@@ -1238,6 +1356,9 @@ int main(int, char**) {
     RUN_TEST(test_a_slow_but_answered_start_is_not_a_silent_radio);
     RUN_TEST(test_a_start_the_radio_answers_resets_the_silent_count);
     RUN_TEST(test_a_scan_that_finishes_resets_the_silent_count);
+    RUN_TEST(test_a_chip_that_fails_fast_is_never_blind_joined);
+    RUN_TEST(test_a_wedged_scanner_is_asked_before_its_blind_join);
+    RUN_TEST(test_a_signal_read_the_chip_does_not_answer_is_a_dead_link);
 
     RUN_TEST(test_an_ap_that_no_scan_lists_is_still_joined);
     RUN_TEST(test_a_visible_ap_is_joined_off_the_first_scan);
