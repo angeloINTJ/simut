@@ -273,8 +273,11 @@ public:
  /** Defensive reboot that gives USB CDC time to cleanly disconnect
  * on the host. Resolves "ttyACM0 doesn't reappear after reload" on Linux,
  * caused by watchdog_reboot(0,0,10) interrupting USB mid-transmission.
- * Does: markCleanReboot + Serial.flush + Serial.end + delays +
- * watchdog_enable(500ms). Does NOT return. */
+ * Does, unless the pre-reboot hook is suppressed: the log records still in
+ * RAM, then the hook (the open history block and the syslog queue). Then
+ * markCleanReboot, Serial.flush + Serial.end + delays, and a watchdog TRIGGER
+ * with ENABLE cleared (not watchdog_enable( ): see the function). Does NOT
+ * return. */
  [[noreturn]] void safeReboot( );
 #if defined(PICO_RP2350) && PICO_RP2350
  /** safeReboot( ) into the slot an OTA just wrote: the same hook, mark and

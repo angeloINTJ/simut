@@ -337,13 +337,14 @@ private:
  /** Joins in a row the radio refused outright; reset by one it takes. */
  uint8_t _joinRefusals = 0;
  /** How long WiFi.scanNetworks(true) took to return, for the scan in flight
-  *  (ms). Milliseconds when the chip answered the "escan" iovar; the driver's
-  *  own timeout when it did not. Read when that scan never finishes, to tell
-  *  a lost completion from a silent radio — see WIFI_SCAN_START_SILENT_MS. */
+  *  (ms). Milliseconds when the chip answered the "escan" iovar, and for the
+  *  first sends to a chip that just went silent; the driver's own timeout
+  *  after those. Read when that scan never finishes, to tell a lost completion
+  *  from a silent radio — see WIFI_SCAN_START_SILENT_MS. */
  uint32_t _scanStartTookMs = 0;
- /** Scans in a row whose start the radio did not answer; reset by a start it
-  *  answers, by a scan that finishes, and by the ladder. See
-  *  WIFI_SILENT_SCANS_BEFORE_RESTART. */
+ /** Scans in a row the radio did not answer, by a slow start or by the read
+  *  a quick one asks; reset by a read the chip answers, by a scan that
+  *  finishes, and by the ladder. See WIFI_SILENT_SCANS_BEFORE_RESTART. */
  uint8_t _silentScans = 0;
 
  /* ── NTP retry with exponential backoff + fallback ── */

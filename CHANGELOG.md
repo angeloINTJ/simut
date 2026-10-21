@@ -8,7 +8,8 @@ All notable changes to SIMUT firmware.
 
 **The panel's SPI runs at 66.5 MHz on the Pico W. On the build measured before the change (arduino-pico 5.6.1,
 2026-10-15) it ran at 24 MHz, whatever `SIMUT_TFT_SPI_HZ` asked for; the 5.4.x builds before it, v2.1.6 among them,
-carry the same clock code and were not measured.**
+carry the same clock code and were not measured. A radio that stops answering is no longer joined blind, which held
+Core 0 past the hardware watchdog: it is restarted by the planned path (#266).**
 
 ### The panel's bus
 
@@ -34,6 +35,60 @@ carry the same clock code and were not measured.**
   added; nothing is renamed.
 - If a panel shows stray pixels in flat regions at 66.5 MHz, the next rung down is `-DSIMUT_TFT_SPI_HZ=33250000u`.
   The manual's old `31250000u` is no rung of this clock and runs at 22.17 MHz.
+
+### The radio that stops answering (#266)
+
+- **A radio that stopped answering is no longer joined blind.** Two field reboots, on 2026-09-30 and on 2026-10-11 at
+  09:28 (the second on v2.11.0), went the same way: the link lost, two reconnect scans abandoned, the blind join, then
+  the hardware watchdog with Core 0 in `MOD_WIFI` (ctx 202). An abandoned scan looks the same from a chip that lost the
+  scan's completion (the 2026-09-08 wedge, which the blind join gets back) and from a chip that went silent, on which
+  `WiFi.begin( )` makes 14 synchronous ioctls of 1 s each before the first watchdog feed. #270 timed the start of each
+  reconnect scan: 250 ms or more, on a scan that then never finishes, is a silent radio, never joined. Two in a row past
+  the first half hour of uptime log `SYS_WIFI_CONNECT` ctx 4 and restart the board by the planned path; inside it, the
+  device keeps scanning.
+- **A quick start is not an answer.** A chip that has just gone silent fails its first ~16 sends in milliseconds ("F2
+  not ready"), while the credits it last granted last. On the bench its scans started in 74 to 75 ms, the 250 ms rule
+  took them for a chip that answered, and the blind join went out after each of eight mutes; it survived only because
+  12 of its ioctls still failed fast. A scan that started quickly and never finished now asks the chip one read, its
+  antenna setting, and goes by the driver's return code: 0 is the wedge, which keeps its blind join, and an error is a
+  silent radio. A quick start no longer ends a silent streak; a read the chip answers does.
+- **The minute's signal check goes by the read's return code too.** When its read fails, `WiFi.RSSI( )` returns a
+  variable nothing wrote. On the bench that leftover was 0, implausible by luck, and that luck was all that brought a
+  silenced link down (in 1 min 44 s, logged with ctx 0). A read the chip did not answer now counts as a bad sample by
+  its return code, and the record of the dropped link carries ctx -999 instead of a level, so the log tells it from a
+  real reading and from the 0 of a lost link. `getRssi( )` reports -100 for it, as for an implausible level.
+- **Measured on the bench** (`pico_w_release` with bench-only hooks: the chip's power line pulled low without telling the
+  driver, and the drops, wedges and hidden networks made in the device, not at the router):
+  - v2.11.0's routing, 2026-10-17: the second blind join, the hardware watchdog 8.44 s later, and the field's autopsy,
+    202/1008/4003/2740.
+  - With #270, 2026-10-17 and -18: after each mute, the fast phase's blind join (the bullet above), then silent scans
+    and no join: 65 inside the half-hour guard, then ctx 4 at 30 min 19 s and a clean boot with its address at 16 s;
+    past the guard, ctx 4 2 min 4 s after the mute. Over 24 h of injected faults (118 drops, 3 bursts of 8, 12 wedges,
+    3 hidden networks, 5 mutes): no hardware watchdog, and 172 healthy scan starts of 28 to 30 ms, none at 250 ms.
+  - With this change, 2026-10-21: the wedge reads 0 and is joined blind, its address back in 6 s. A mute inside the
+    guard starts its first 7 scans in 10 to 76 ms, each read answers -6 and no join goes out; 59 slow ones follow, then
+    ctx 4 at 30 min 7 s and a clean boot. A chip silenced with the link up fails two signal reads a minute apart, the
+    link is dropped with ctx -999 1 min 31 s after the mute, and 71 silent scans without a join end in ctx 4 at
+    30 min 6 s.
+- **Host tests:** 706 cases in 11 suites, up from 703. The three new ones, in `native_network`, pin the read before a
+  blind join, the read in the signal check, and the ctx of a failed read.
+
+### The log of a planned restart
+
+- **A planned restart keeps the records it was about to lose.** For 5 s after a touch on the panel
+  (`TOUCH_PRIORITY_MS`), while the storage holds its heavy-task lock, and while the Bluetooth console's update runs,
+  a log record waits in RAM (`writeCompactToFlash( )`), and only a later write or the end of the touch puts it on
+  flash. A planned restart in
+  that window dropped it, and the clean-reboot mark then hid the restart from the next boot's autopsy too: a reboot
+  with no record at all. The console waits for the panel, but the network's state machine runs on every pass, so
+  the radio's planned restarts (`SYS_WIFI_CONNECT` ctx 3 and 4) and the setup access point's timeout were exposed.
+  `safeReboot( )` now writes those records first, before the open history block. Measured on the bench on
+  2026-10-18 (`pico_w_test`, the radio silenced, a tap on the panel 3 s before the restart, the restart's guard
+  lowered to 60 s for the bench only): `main` lost the restart's two records in both runs; with the change they
+  reached flash in both, and in the run without the tap on each image.
+- Two comments described `safeReboot( )` as arming a 500 ms watchdog. It triggers the reset with the watchdog's
+  ENABLE cleared, as it has since v1.0.0, which already carried the fix for `reload confirm` hanging the board; the
+  comments say so now.
 
 ## v2.11.1 (2026-10-12)
 
