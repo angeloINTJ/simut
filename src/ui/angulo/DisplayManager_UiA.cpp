@@ -328,7 +328,7 @@ void DisplayManager::uaQuadro( ) {
 }
 
 /* The update screen (the hook uiPaintOta), painted at once by whichever core
- * called it (otaTick( ) and otaPaintFromCore0( ), DisplayManager_Ota.cpp),
+ * called it (otaTick( ) and otaPaintFromCore0( ), DisplayManager_OtaCore.cpp),
  * whatever _uiMode says: Core 0 paints it while Core 1 is parked and has not
  * switched the mode yet. Then the counters Core 0 waits on (showOta( )) say it
  * is on the glass. */

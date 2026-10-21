@@ -16,7 +16,7 @@
  *   exclusion without the IRQ lockout" of DisplayManager.h; the flash pause uses the same park point), which Core 1 reaches after uaPintar( ) has returned. Their DMA
  *   channels are two others (dmaRdChannel, dmaRdTxChannel); this one is the driver's own (canalDma( )). The core's pushes (blitWindowDma( ), fillWindowDma( ), through
  *   blitCanvas( ), fastFillRect( ), fastClearScreen( )) return unless _uaPintando in this image, and uaPintar( ) calls none of them any more.
- * - The update screen: uiPaintOta( ) -> uaPintar( ), on Core 1 from otaTick( ), or on Core 0 while Core 1 is parked (DisplayManager_Ota.cpp). The same function, the same
+ * - The update screen: uiPaintOta( ) -> uaPintar( ), on Core 1 from otaTick( ), or on Core 0 while Core 1 is parked (DisplayManager_OtaCore.cpp). The same function, the same
  *   rule: it returns with the bus free, and while Core 0 paints Core 1 is parked, so the bus has one user.
  * - fillMarginsBlack( ), at the start of a full repaint, is the library's synchronous path and runs before the frame's first burst.
  * While a burst is in flight the SPI transaction stays open and CS stays low: nothing on the composing core touches spi0 in that time.
