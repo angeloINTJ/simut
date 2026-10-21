@@ -38,11 +38,11 @@ six rules over src/**/*.{c,cc,cpp,cxx,h,hh,hpp,hxx,inl,ipp,tpp}:
                      names in backticks, which is where the header-only files are (PasswordKeyboard.h,
                      sensors/SensorDrawing.h): they have no unit, so nothing else knows them.
                 One header is let off, src/DisplayManager.h, the class whose members the driver's hooks
-                are. And four files are let off the other direction, named in SELECTION_HEADERS:
-                src/ui/UiDriver.h, UiDriverMembers.h, UiDriverHooks.h and UiDriverWeb.h are where an
+                are. And five files are let off the other direction, named in SELECTION_HEADERS:
+                src/ui/UiDriver.h, UiDriverMembers.h, UiDriverHooks.h, UiDriverWeb.h and UiDriverTouch.h are where an
                 image's driver is picked, so they include the Angulo's headers by design; the same include
                 in any other file, src/ui/UiDriverFoo.h and src/ui/Other.h included, is one finding. A
-                fifth selection header is an edit here, on purpose.
+                sixth selection header is an edit here, on purpose.
                 If the table or the document cannot be read, or the item names a header that is
                 not in src/, the gate exits 2: the written contract and the code cannot disagree in
                 silence. It stays in step because the table and the document are what every stage
@@ -149,8 +149,8 @@ CLASSIFICATION = "docs/analysis/UI_DRIVERS_funcoes.tsv"     # the S0 classificat
 OWNERSHIP = "docs/analysis/UI_DRIVERS.md"                   # section 2.5: who owns what
 ORIGINAL_DIR = "src/ui/original/"                           # where the original's files go in S11
 SHARED_HEADERS = frozenset({"src/DisplayManager.h"})        # the class: the driver's hooks are its members
-# Where an image's driver is picked (S4): these four, and only these, include the Angulo's headers by design.
-SELECTION_HEADERS = frozenset({"src/ui/UiDriver.h", "src/ui/UiDriverMembers.h", "src/ui/UiDriverHooks.h", "src/ui/UiDriverWeb.h"})
+# Where an image's driver is picked (S4, and S10b's fifth): these five, and only these, include the Angulo's headers by design.
+SELECTION_HEADERS = frozenset({"src/ui/UiDriver.h", "src/ui/UiDriverMembers.h", "src/ui/UiDriverHooks.h", "src/ui/UiDriverWeb.h", "src/ui/UiDriverTouch.h"})
 HEADER_EXTS = (".h", ".hh", ".hpp", ".hxx")
 SOURCE_EXTS = (".c", ".cc", ".cpp", ".cxx")
 OWNER_ITEM = re.compile(r"^- \*\*Original driver\.\*\*")

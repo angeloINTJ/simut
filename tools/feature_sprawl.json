@@ -131,13 +131,13 @@
   "DisplayManager.h": 2,
   "DisplayManager_Alpha.cpp": 2,
   "DisplayManager_Settings.cpp": 1,
-  "DisplayManager_Touch.cpp": 1,
   "WebManager.h": 2,
   "WebManager_Api.cpp": 10,
   "WebManager_Commit.cpp": 1,
   "WebManager_Core.cpp": 3,
   "WebManager_Metrics.cpp": 2,
-  "ui/original/UiOriginal.h": 1
+  "ui/original/UiOriginal.h": 1,
+  "ui/original/UiTouchChain.h": 1
  },
  "SIMUT_PANEL_PIN": {
   "AppManager.h": 1,
@@ -205,9 +205,9 @@
   "DisplayManager.cpp": 1,
   "DisplayManager.h": 1,
   "DisplayManager_Actions.h": 2,
-  "DisplayManager_Touch.cpp": 1,
   "sensors/SensorDrawing.h": 1,
-  "ui/original/UiOriginal.h": 2
+  "ui/original/UiOriginal.h": 2,
+  "ui/original/UiTouchChain.h": 1
  },
  "SIMUT_THEMES_HEALTH": {
   "Themes.cpp": 1
@@ -233,8 +233,8 @@
  "SIMUT_UI_ANGULO": {
   "AppManager_Events.cpp": 4,
   "DisplayManager_Panel.cpp": 3,
-  "DisplayManager_Touch.cpp": 1,
-  "Themes.cpp": 2
+  "Themes.cpp": 2,
+  "ui/UiDriverTouch.h": 1
  },
  "SIMUT_WDT_DISABLED": {
   "main.cpp": 3

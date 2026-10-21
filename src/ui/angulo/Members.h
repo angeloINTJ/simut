@@ -19,7 +19,7 @@ private:
 	bool uaPintar( const UaQuadro &q, UiMode modo, uint32_t hash );
 	bool uaEmpurrar( uint16_t *buf, int16_t x, int16_t y, int16_t w, int16_t h );   // DisplayManager_UiA_Empurrar.cpp
 	void uaEmpurrarEsperar( );
-	bool uaToque( int16_t &x, int16_t &y );
+	void uiTouch( int16_t x, int16_t y );   /**< the touch lands on the frame on the glass; handleTouch( ) calls it where the original runs its mode chain */
 	const ua::Tema &uaTema( );
 	bool uaRelogio( char hora[6], int &h, bool &provisoria );
 	void uaVmStatus( ua::VmStatus &s );

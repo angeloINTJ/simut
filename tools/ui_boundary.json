@@ -8,10 +8,6 @@
    "count": 3,
    "reason": "transitional hook of the Ângulo driver (S2a); removed in S4–S10b: the `#if` around the `_uaPintando` guard of fastFillRect, fastClearScreen and blitCanvas, so that only the Ângulo's renderer pushes pixels; ends in S10b (the Ângulo image stops linking the original)"
   },
-  "src/DisplayManager_Touch.cpp": {
-   "count": 1,
-   "reason": "transitional hook of the Ângulo driver (S2a); removed in S4–S10b: the `#if` around the call that gives a touch to the Ângulo's frame before the original's mode chain; ends in S10b (handleTouch dispatches through uiTouch)"
-  },
   "src/Themes.cpp": {
    "count": 2,
    "reason": "transitional hook of the Ângulo driver (S2a); removed in S4–S10b: the `#if` around the Ângulo's three-row catalogue (claro, escuro, auto) and the one that skips the .thm scan; ends in S10b (the theme catalogue hooks)"
@@ -29,10 +25,6 @@
   "src/DisplayManager_Panel.cpp": {
    "count": 3,
    "reason": "transitional hook of the Ângulo driver (S2a); removed in S4–S10b: the `_uaPintando` guards of the pixel primitives (fastFillRect, fastClearScreen and blitCanvas), so that only the Ângulo's renderer pushes pixels; ends in S10b (the Ângulo image stops linking the original)"
-  },
-  "src/DisplayManager_Touch.cpp": {
-   "count": 1,
-   "reason": "transitional hook of the Ângulo driver (S2a); removed in S4–S10b: uaToque( x, y ) before the original's mode chain in handleTouch( ); ends in S10b (uiTouch)"
   },
   "src/DisplayManager_Users.cpp": {
    "count": 2,

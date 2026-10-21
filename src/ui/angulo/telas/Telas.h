@@ -99,7 +99,7 @@ constexpr int16_t FOLGA_TOQUE = 12;
 // pixel (w or h not above 0) is never an answer: it cannot be hit inside, so it cannot be the nearest either.
 const Alvo *alvoEm( const Alvo *alvos, int n, int16_t x, int16_t y );
 
-// The target a touch means to the glue (DisplayManager::uaToque( )): alvoEm( )'s answer, except that an inert target
+// The target a touch means to the glue (DisplayManager::uiTouch( )): alvoEm( )'s answer, except that an inert target
 // gives nullptr, which is how every handler already reads a touch outside every target: nothing happens, no gate is
 // called (no touch sound, as the original's dead zones), no busy line is raised. One place for all the screens, so a
 // handler cannot forget the inert type. tools/tft_ui/test_alvos.py tests it and bites it.

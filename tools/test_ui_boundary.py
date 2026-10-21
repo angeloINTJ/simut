@@ -384,10 +384,14 @@ def cross_driver_cases():
     # a selection header (the four paths of SELECTION_HEADERS) is where an image's driver is picked: it includes the Angulo's headers
     # by design. The same include in any other file, even the next one in src/ui/, is one finding, and the hook rule
     # is not let off for a selection header.
-    for path in ("src/ui/UiDriver.h", "src/ui/UiDriverMembers.h", "src/ui/UiDriverHooks.h", "src/ui/UiDriverWeb.h"):
+    for path in ("src/ui/UiDriver.h", "src/ui/UiDriverMembers.h", "src/ui/UiDriverHooks.h", "src/ui/UiDriverWeb.h", "src/ui/UiDriverTouch.h"):
         for inc in ('#include "angulo/UiA.h"', '#include "ui/angulo/UiA.h"', "#include <ui/angulo/UiA.h>"):
             expect(f"cross-driver: the selection header {path} includes `{inc}`: let off",
                    {path: surface(inc)}, [])
+    expect("cross-driver: the Angulo's touch fragment included straight from a core unit is one finding",
+           {SURFACE: surface('#include "ui/angulo/UiTouchChain.h"')}, [(SURFACE, 2, "cross-driver")])
+    expect("cross-driver: the same fragment included through the selection header src/ui/UiDriverTouch.h: none",
+           {"src/ui/UiDriverTouch.h": surface('#include "angulo/UiTouchChain.h"')}, [])
     for path in ("src/ui/Other.h", "src/ui/UiDrive.h", "src/ui/UiDriver.cpp", "src/ui/UiDriver.hpp", "src/ui/UiDriverFoo.h",
                  "src/ui/sub/UiDriver.h", "src/UiDriver.h"):
         expect(f"cross-driver: {path} is not a selection header: the same include is one finding",

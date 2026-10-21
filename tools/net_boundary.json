@@ -1,1 +1,8 @@
-{}
+{
+  "class-include": {
+    "src/ui/original/UiTouchChain.h": {
+      "count": 1,
+      "reason": "src/ui/original/UiTouchChain.h is a fragment of DisplayManager::handleTouch( ): src/ui/UiDriverTouch.h includes it inside the function body (the fifth selection header), so it uses the names src/DisplayManager_Touch.cpp includes (SIMUT_NET_WIFI, from simut_config.h) and cannot include a header itself: an include there would sit in the middle of the function"
+    }
+  }
+}
