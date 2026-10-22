@@ -270,7 +270,8 @@ TEXT = {
                     "bool uaRelogio( ) { return false; }",
                     "void (DisplayManager::*p)( ) = &DisplayManager::uaQuadro;",
                     # the review of 2026-10-14 measured these as 0 findings: a member prefix other than `_` and `g_`,
-                    # and a UA_ macro other than UA_DESVIO
+                    # and a UA_ macro other than UA_DESVIO (the macro the driver had then; S10b's C5a removed it, and
+                    # the rule still reads any UA_ name as the driver's)
                     "int m_uaSujo = 0;", "#define UA_FOO 1", "int f = UA_FOO;",
                     # the driver's types and namespaces: names it introduces as much as its functions
                     "UaQuadro q;", "bool b = ( t == UaToque::TRATADO );", "char *p = (char *)&g_uaVm;",

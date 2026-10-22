@@ -443,6 +443,7 @@ outra; as setas do Ângulo são vizinhas (137..176 e 177..216, sem vão) e a lei
 parado na borda comum virava o mês para um lado e para o outro.
 
 **Tocar.** `a` é o alvo do quadro que está no vidro (ou `nullptr`, que `alvoDoToque( )` entrega para o toque a mais de 12 px de todos os alvos e para o toque num alvo inerte). Por modo:
+- (S10b, C2: `TRADUZIDO` saiu do enum `UaToque`, que tem `NAO_E_MEU`, `TRATADO` e `TRATADO_SEM_QUADRO`; nenhum grupo traduz mais. Os modos T e B abaixo são o que o estudo fazia e valem só como história; todo grupo é C.)
 - **Tradução (T):** escreva em `x, y` o centro do elemento equivalente no leiaute antigo e devolva
   `UaToque::TRADUZIDO`; o ramo antigo de `handleTouch` roda com esse ponto. Com `a == nullptr`, devolva
   `TRATADO` (zona morta). O toque longo, a repetição e o deslizar continuam funcionando porque o mesmo alvo

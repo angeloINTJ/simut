@@ -50,6 +50,8 @@ BASELINE = os.path.join(ROOT, "tools", "feature_sprawl.json")
 # escolhe o driver da imagem (um `#if SIMUT_UI_ANGULO` em volta de um include), a funcao do UiCaps.h. Contados,
 # tirar os `#if` do DisplayManager.h e do WebManager.h os poria em quatro arquivos e a marca subiria dois sitios
 # sem que nada tivesse se emaranhado: o que sai do nucleo e o que este gate quer ver.
+# O quinto (ui/UiDriverTouch.h, S10b C3, a cadeia de toque dentro de handleTouch) nao esta na lista: seu `#if SIMUT_UI_ANGULO`
+# conta como um sitio, movido do DisplayManager_Touch.cpp (a marca ficou em 362; feature_sprawl.json: "ui/UiDriverTouch.h": 1).
 SKIP_FILES = {"simut_config.h", "FeatureBits.h", "NetCaps.h", "UiCaps.h",
               "UiDriver.h", "UiDriverMembers.h", "UiDriverHooks.h", "UiDriverWeb.h"}
 EXTS = (".cpp", ".c", ".h", ".hpp", ".ino")

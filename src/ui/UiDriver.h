@@ -4,17 +4,20 @@
  *        a hook, the Ângulo's types, and the enum of what the core tells the driver has changed.
  *
  * An image has ONE UI driver (src/ui/UiCaps.h). Class DisplayManager is the same for every driver except for
- * the part that is the driver's, and four selection headers pick that part, each included at the one place
- * C++ lets its declarations stand:
+ * the part that is the driver's, and five selection headers pick that part, each included at the one place
+ * C++ lets its text stand:
  *   ui/UiDriver.h         before the class (this file)
  *   ui/UiDriverMembers.h  inside the class, as its last lines: the driver's members
- *   ui/UiDriverHooks.h    after the class, from DisplayManager.cpp and DisplayManager_Ota.cpp only: the
- *                         original's hook definitions, which need the complete class
+ *   ui/UiDriverHooks.h    after the class, last in each unit that calls a hook or a core tick (they need the
+ *                         complete class): the original's hook definitions
  *   ui/UiDriverWeb.h      inside class WebManager: the driver's routes
- * Two would not do: the Ângulo's member types must be complete before the class that holds them, and the
- * original's hook bodies need the class complete. tools/check_ui_boundary.py lets these four, and only these,
- * include the Ângulo's headers: picking a driver is what they are for. docs/analysis/UI_DRIVERS.md has the
- * contract and the stages.
+ *   ui/UiDriverTouch.h    inside DisplayManager::handleTouch( ), from DisplayManager_Touch.cpp alone: the
+ *                         original's mode chain (a fragment of that function, so that it keeps its bytes) or
+ *                         the Ângulo's one call, uiTouch( x, y ) (S10b, C3)
+ * One place would not do: the Ângulo's member types must be complete before the class that holds them, the
+ * original's hook bodies need the class complete, and the touch chain has to stand inside the function it is
+ * part of. tools/check_ui_boundary.py lets these five, and only these, include the Ângulo's headers: picking
+ * a driver is what they are for. docs/analysis/UI_DRIVERS.md has the contract and the stages.
  */
 #pragma once
 

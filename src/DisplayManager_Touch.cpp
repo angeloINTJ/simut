@@ -1,11 +1,11 @@
 /**
  * @file DisplayManager_Touch.cpp
- * @brief Touch handling: handleTouch (giant switch on _uiMode) + accept helpers.
+ * @brief Touch handling: handleTouch (the core's gates, then the driver's touch chain) + accept helpers.
  * @details Sub-file of DisplayManager.cpp.
- * handleTouch is called from loopCore1 every frame on Core 1.
- * Dispatches gestures by screen (dashboard / graph / settings /
- * auth / calibration / alarm action). acceptTouch/Hold/Slide
- * are debounce + repeat-on-hold gates used by handleTouch.
+ * handleTouch is called from loopCore1 every frame on Core 1. The gestures by screen (dashboard / graph /
+ * settings / auth / calibration / alarm action) are the driver's: the original's mode chain is the fragment
+ * ui/original/UiTouchChain.h, the Ângulo's is one call, uiTouch( x, y ), each included inside handleTouch( )
+ * by ui/UiDriverTouch.h (S10b, C3). acceptTouch/Hold/Slide are debounce + repeat-on-hold gates.
  *
  * @project SIMUT — Integrated Universal Monitoring and Telemetry System
  * @author Ângelo Moisés Alves
