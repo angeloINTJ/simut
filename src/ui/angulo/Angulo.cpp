@@ -98,8 +98,8 @@ uint16_t desab( const Tema &t, uint16_t cor ) {
   return cor;
 }
 
-// The two encoding functions: the only code that knows how many modes there are, and the only readers of the generated count of the palette. tema( ) and desab( ) also
-// read the palette's size, through kAcentos above: the extent of the generated index array, so the count has one source and no second copy.
+// The two encoding functions: the only code that knows how many modes there are, and the only hand-written code that names the generated count of the palette (ACENTOS_N) outside a static_assert. Other files tie a size to it in
+// static_assert statements (Temas.cpp: the catalogue; MenusConfig.cpp: the Tema screen). tema( ) and desab( ) read the palette's size too, through kAcentos above: the extent of the generated index array, so the count has one source and no second copy.
 Escolha escolhaDoIndice( int8_t t ) {
   static_assert( 3 * entrega::ACENTOS_N <= 127, "themeIndex is an int8_t: every index of the palette must fit" );
   if ( t < 0 || t >= 3 * entrega::ACENTOS_N ) return Escolha{ MODO_CLARO, 0 };

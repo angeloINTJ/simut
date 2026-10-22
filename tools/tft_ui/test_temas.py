@@ -1,25 +1,31 @@
 #!/usr/bin/env python3
-"""test_temas.py -- proves the Angulo's mode and accent on the glass (S10c, A'2) on the host.
+"""test_temas.py -- proves the Angulo's mode and accent on the glass (S10c, A'2 to A'2c) on the host.
 
-In the Angulo a theme is the mode (light, dark, automatic) plus one accent of the palette; cfg.themeIndex holds both
+In the Angulo a theme is the mode (light, dark, automatic) plus one accent of the palette; cfg.themeIndex holds both in one byte
 (ua::escolhaDoIndice / ua::indiceDaEscolha, src/ui/angulo/Angulo.cpp). Builds tools/tft_ui/host/test_temas_main.cpp with the kit
 and Adafruit GFX 1.12.6 (as test_cantos.py does) and runs it: the decode over all 256 int8_t values, ua::tema( ) and ua::desab( )
 against the generated tables (17 roles x every entry x 2 modes), and the frame identity the glue hashes (two frames that differ
-only in the accent hash differently and ask for a full repaint). Then the glue is linked (S10c, A'2b: tools/tft_ui/host/test_temas_glue_main.cpp cuts fnv( ), DisplayManager::uaTema( ) and the two runs of statements that hash
-the view model and the identity out of the glue, verbatim, compiles them against a stand-in for the few members they touch and runs them over every index, preview
-and hour: the review of A'2 found three mutants of the glue that every text check passed), and the glue and the sources are read as text: the glue builds
-the identity only through ua::identidadeDoQuadro( ), from the theme uaTema( ) gives, and ACENTOS_N lives only in the two
-encoding functions.
+only in the accent hash differently and ask for a full repaint).
+
+Then the glue is RUN (S10c, A'2c). Three reviews in a row (A'2, A'3, A'2b) found mutants of DisplayManager_UiA.cpp that passed every
+check of the step, each outside what the test had cut out or read as text; A'2b and A'3b had linked a few pieces of the file. Now six whole
+functions of it (uaTema, uaRelogio, uaPintar, uaEstado, uaQuadro, uiPaintOta) and the file's state are cut out verbatim, without their
+comments, by brace matching, and tools/tft_ui/host/test_temas_glue_main.cpp compiles them against a stand-in for what they call (the
+panel's push, the clock, the saved configuration) and the kit as it is, and runs them: every saved index, clock line and screen on show
+through uaQuadro( ), the preview's scoping, the update screen, and the repaint decisions; what the glass must show is computed from the
+generated tables, and every pixel of it is compared. A static rule over the file complements the run: the glue picks a palette in one
+place, uaTema( ), so a paint site that reads ua::tema( ) or temaClaro( ) itself is refused. The exact-text checks of the earlier steps
+stay as a second layer. ACENTOS_N is named only inside the two encoding functions and in static_assert statements, and the comment
+above those functions names the files of those statements.
 
 Then the instrument is bitten: the same program built with one mutant of the kit each (the decode by a modulo instead of the range
 check, desab( ) and tema( ) stuck on entry 0, the identity or the full-repaint trigger without the accent, the table without its
-accent field) must exit 1, and the text checks must report a glue that drops the theme or the trigger, and so must the glue link for every mutant of GLUE_MUTANTES (the accent, the mode, the hour,
-the preview or part of the hash dropped).
+accent field) must exit 1, so must the glue program for every mutant of GLUE_MUTANTES (the accent, the mode, the hour, the preview, the
+hash, the clear, the margin or the mode on the glass dropped or taken from the wrong place), and so must it when one pixel of every
+pushed strip is wrong; and the text checks must report a glue that drops the theme or the trigger.
 
-The preview's scoping (S10c, A'3b; the review of A'3 found three mutants that every check passed): the preview reaches the glass on the Tema screen's frame alone. The glue link runs uaTema( )
-with the screen on show chosen apart from the frame's mode, the update screen's theme and hash from the statement that gives it its theme, and the one statement of uaQuadro( ) that drops the
-preview; exact-text pins keep every other path from reading or keeping it (in the glue and in the menus glue). The colour names are held in lower case after the colon of the words line and
-after the comma of the catalogue (ANGULO.md section 7).
+The preview's scoping (S10c, A'3b): the preview reaches the glass on the Tema screen's frame alone. The colour names are held in
+lower case after the colon of the words line and after the comma of the catalogue (ANGULO.md section 7).
 
 Usage: python3 tools/tft_ui/test_temas.py   exit 0 when all hold, 1 when not, 2 when it cannot build.
 """
@@ -78,7 +84,7 @@ MUTANTES = [
 RESET = '  if ( _uiMode != MODE_SETTINGS_THEMES ) _uaPrevia = -1;\n'
 OLHAR = '  if ( !_uaSujo && !_uaTudo && agora - _uaVisto < 250 ) return;\n'
 
-# The glue's own statements about the theme (S10c, A'2b): each entry is a change to DisplayManager_UiA.cpp that the glue link must refuse. (name, the glue's text, what replaces it,
+# The glue's own statements about the theme (S10c, A'2b, run whole since A'2c): each entry is a change to DisplayManager_UiA.cpp that the glue program must fail. (name, the glue's text, what replaces it,
 # how many times the text occurs.) The first three are the mutants the review of A'2 found passing every check of A'2; the others were found by mutating the same statements.
 GLUE_MUTANTES = [
     ('the accent never reaches the glass: uaTema( ) asks ua::tema( ) for entry 0', 'return ua::tema( escuro, e.acento );', 'return ua::tema( escuro, 0 );', 1),
@@ -105,7 +111,20 @@ GLUE_MUTANTES = [
     ('the update screen takes the theme of the screen on show', 'const ua::Tema &tema = uaTema( MODE_OTA_UPDATE );', 'const ua::Tema &tema = uaTema( _uiMode );', 1),
     ('the preview is dropped on the Tema screen and kept elsewhere', 'if ( _uiMode != MODE_SETTINGS_THEMES ) _uaPrevia = -1;', 'if ( _uiMode == MODE_SETTINGS_THEMES ) _uaPrevia = -1;', 1),
     ('the preview is reset to 0 and not to none', 'MODE_SETTINGS_THEMES ) _uaPrevia = -1;', 'MODE_SETTINGS_THEMES ) _uaPrevia = 0;', 1),
-    ('the reset of the preview is deleted (refused at the cut)', RESET, '', 1),
+    ('the reset of the preview is deleted', RESET, '', 1),
+    # S10c, A'2c: the paint path. The first six are what the review of A'2b found passing (N1, N3, N4) and two of its other mutants (N5, N6); the others are the step's own
+    ('the accent never reaches the glass at the paint site: the Pintor takes ua::tema( dark, 0 )', 'ua::Pintor p( faixa, tema, faixa );', 'ua::Pintor p( faixa, ua::tema( tema.escuro, 0 ), faixa );', 1),
+    ("the strips are cleared to the light theme's background in every theme", 'faixa.fillScreen( tema.fundo );', 'faixa.fillScreen( ua::temaClaro( ).fundo );', 1),
+    ("the screen's mode on the glass is always light", 's_escuroNaTela = tema.escuro;', 's_escuroNaTela = false;', 1),
+    ('the hour of the real clock is read one hour late', "h = ( hora[0] - '0' ) * 10 + ( hora[1] - '0' );", "h = ( hora[0] - '0' ) * 10 + ( hora[1] - '0' ) + 1;", 1),
+    ("the hash recorded with the frame on the glass is another frame's", 'if ( uaPintar( q, _uiMode, h ) ) {', 'if ( uaPintar( q, _uiMode, h + 1 ) ) {', 1),
+    ('the strips are cleared to the surface colour, not the background', 'faixa.fillScreen( tema.fundo );', 'faixa.fillScreen( tema.superficie );', 1),
+    ("the frame on the glass is recorded for the screen on show, not the frame's mode", 's_modo = modo;', 's_modo = _uiMode;', 1),
+    ('the strip hashes are not kept, so a later paint pushes every strip', '    s_faixa[k] = h;\n', '', 1),
+    ('a full repaint is not taken: the flag stays up after the paint', '  _uaTudo = false;\n  s_seq = s_seq + 1;', '  s_seq = s_seq + 1;', 1),
+    ('the mode on the glass comes from the screen on show, not from the frame painted', 's_escuroNaTela = tema.escuro;', 's_escuroNaTela = uaTema( _uiMode ).escuro;', 1),
+    ('the margin is not blackened after the screen', '    ua::margemPreta( p );\n', '', 1),
+    ('a full repaint leaves the alignment band as it was', '    _driver.tft->fillMarginsBlack( );\n', '', 1),
 ]
 
 
@@ -136,49 +155,134 @@ def corre(exe):
     return r.returncode, r.stdout
 
 
+def apaga_comentarios(t):
+    """`t` with every comment turned into blanks, the newlines kept, so that offsets and lines stay: a string or a character literal is skipped, not read as a comment."""
+    saida, i, n = [], 0, len(t)
+    while i < n:
+        c = t[i]
+        if t.startswith('//', i):
+            j = t.find('\n', i)
+            j = n if j < 0 else j
+            saida.append(' ' * (j - i))
+            i = j
+        elif t.startswith('/*', i):
+            j = t.find('*/', i + 2)
+            j = n if j < 0 else j + 2
+            saida.append(''.join(ch if ch == '\n' else ' ' for ch in t[i:j]))
+            i = j
+        elif c in '"\'':
+            j = i + 1
+            while j < n and t[j] != c:
+                j += 2 if t[j] == '\\' else 1
+            saida.append(t[i:j + 1])
+            i = j + 1
+        else:
+            saida.append(c)
+            i += 1
+    return ''.join(saida)
+
+
+def fim_do_bloco(t, abre):
+    """The index just after the `}` that closes the `{` at t[abre], -1 when none does. `t` has no comments."""
+    d, i, n = 0, abre, len(t)
+    while i < n:
+        c = t[i]
+        if c in '"\'':
+            i += 1
+            while i < n and t[i] != c:
+                i += 2 if t[i] == '\\' else 1
+        elif c == '{':
+            d += 1
+        elif c == '}':
+            d -= 1
+            if d == 0:
+                return i + 1
+        i += 1
+    return -1
+
+
+def declaracoes(t):
+    """The top-level statements of a namespace's body. One ends at a `;` outside every bracket, or at the `}` that closes a function body (a `}` followed by `;` ends a struct or an array)."""
+    saida, ini, d, i, n = [], 0, 0, 0, len(t)
+    while i < n:
+        c = t[i]
+        if c in '"\'':
+            i += 1
+            while i < n and t[i] != c:
+                i += 2 if t[i] == '\\' else 1
+        elif c in '{([':
+            d += 1
+        elif c in '})]':
+            d -= 1
+            if d == 0 and c == '}':
+                j = i + 1
+                while j < n and t[j] in ' \t\r\n':
+                    j += 1
+                if j >= n or t[j] != ';':
+                    saida.append(t[ini:i + 1])
+                    ini = i + 1
+        elif c == ';' and d == 0:
+            saida.append(t[ini:i + 1])
+            ini = i + 1
+        i += 1
+    if t[ini:].strip():
+        saida.append(t[ini:])
+    return saida
+
+
+PECAS_DO_GLUE = ('uaTema', 'uaRelogio', 'uaPintar', 'uaEstado', 'uaQuadro', 'uiPaintOta')   # the theme and paint path; the file name of each is its name in lower case, .inc
+
+
+def estado_do_glue(limpo):
+    """The anonymous namespace(s) of the glue minus the table of Core 0's messages (the one thing in them that needs the language keys): the strip constants, the frame on the glass, the sequence counter and fnv( )."""
+    corpos = []
+    for m in re.finditer(r'^namespace \{', limpo, re.M):
+        f = fim_do_bloco(limpo, m.end() - 1)
+        if f > 0:
+            corpos.append(''.join(s for s in declaracoes(limpo[m.end():f - 1]) if 'TextoMsg' not in s))
+    return '\n'.join(corpos) if corpos else None
+
+
+def funcao_do_glue(limpo, nome):
+    """The definition of DisplayManager::<nome>( ), from the start of its line to its closing brace; None when the glue holds it zero times or several. `limpo` has no comments."""
+    achados = list(re.finditer(r'^[^\n;{}()]*\bDisplayManager::' + re.escape(nome) + r'\s*\(', limpo, re.M))
+    if len(achados) != 1:
+        return None
+    m = achados[0]
+    i, d = m.end() - 1, 0
+    while i < len(limpo):
+        d += (limpo[i] == '(') - (limpo[i] == ')')
+        i += 1
+        if d == 0:
+            break
+    k = limpo.find('{', i)
+    if k < 0 or ';' in limpo[i:k]:   # a declaration, not a definition
+        return None
+    f = fim_do_bloco(limpo, k)
+    return limpo[m.start():f] + '\n' if f > 0 else None
+
+
 def recorta_glue(glue):
-    """The pieces of the glue that the host link compiles, verbatim (S10c, A'2b): {file name: text}, and what could not be found."""
+    """The pieces of the glue that the host program compiles (S10c, A'2c): {file name: text}, and what could not be found. Whole functions, verbatim and without their comments."""
+    limpo = apaga_comentarios(glue)
     pecas, falta = {}, []
-    for arq, padrao in (('fnv.inc', r'^uint32_t fnv\(.*?^\}\n'),
-                        ('uatema.inc', r'^const ua::Tema &DisplayManager::uaTema\( UiMode modo \) \{.*?^\}\n')):
-        m = re.search(padrao, glue, re.S | re.M)
-        if m:
-            pecas[arq] = m.group(0)
-        else:
-            falta.append(f'{arq}: the function was not found in DisplayManager_UiA.cpp')
-    inicios = [m.start() for m in re.finditer(r'^  uint32_t h = fnv\(.*\n', glue, re.M)]
-    if len(inicios) != 2:
-        falta.append(f'hash_*.inc: {len(inicios)} runs of statements start with `uint32_t h = fnv(`, expected 2 (the Angulo frame and the update screen)')
+    estado = estado_do_glue(limpo)
+    if not estado or 'fnv(' not in estado or 's_escuroNaTela' not in estado or 'TextoMsg' in estado:
+        falta.append('estado.inc: the anonymous namespace with fnv( ) and the state of the frame on the glass was not found in DisplayManager_UiA.cpp')
     else:
-        for arq, ini, fim in (('hash_pintar.inc', inicios[0], '  static ua::IdentidadeDoQuadro s_id = {};'),
-                              ('hash_ota.inc', inicios[1], '  if ( _otaRedrawAll ) _uaTudo = true;')):
-            if arq == 'hash_ota.inc':   # S10c, A'3b: from the statement that gives the update screen its theme, so that the mode it asks uaTema( ) for is run and not only read
-                ant = glue.rfind('\n', 0, ini - 1) + 1
-                if not re.fullmatch(r'  const ua::Tema &tema = uaTema\( [^)]*\);\n', glue[ant:ini]):
-                    falta.append(f'{arq}: the statement that gives the update screen its theme, `const ua::Tema &tema = uaTema( ... );`, does not stand just before its hash')
-                    continue
-                ini = ant
-            f = glue.find(fim, ini)
-            if f < 0:
-                falta.append(f'{arq}: the line that ends the run, `{fim.strip()}`, was not found after it')
-            else:
-                pecas[arq] = glue[ini:f]
-    # S10c, A'3b: the one statement of uaQuadro( ) that names the preview. None, or two, is refused at the cut: a deleted reset leaves nothing to link
-    m = re.search(r'^void DisplayManager::uaQuadro\( \) \{.*?^\}\n', glue, re.S | re.M)
-    if not m:
-        falta.append('reset.inc: uaQuadro( ) was not found in DisplayManager_UiA.cpp')
-    else:
-        nomeiam = [l for l in sem_comentarios(m.group(0)).splitlines(True) if '_uaPrevia' in l]
-        if len(nomeiam) != 1:
-            falta.append(f'reset.inc: {len(nomeiam)} statements of uaQuadro( ) name _uaPrevia, expected 1 (the one that drops the preview)')
+        pecas['estado.inc'] = estado
+    for nome in PECAS_DO_GLUE:
+        f = funcao_do_glue(limpo, nome)
+        if f is None:
+            falta.append(f'{nome.lower()}.inc: DisplayManager::{nome}( ) was not found exactly once, as a definition, in DisplayManager_UiA.cpp')
         else:
-            pecas['reset.inc'] = nomeiam[0]
+            pecas[nome.lower() + '.inc'] = f
     return pecas, falta
 
 
-def constroi_glue(tmp, nome, glue, angulo_o, gfx_obj, inc):
-    """The host link of the glue's pieces (S10c, A'2b): cuts them out of `glue`, compiles test_temas_glue_main.cpp around them and links it with the kit's object.
-    Returns (executable, '') or (None, why)."""
+def constroi_glue(tmp, nome, glue, angulo_o, gfx_obj, inc, extra=()):
+    """The host program of the glue's functions (S10c, A'2c): cuts them out of `glue`, compiles test_temas_glue_main.cpp around them (`extra`: more compiler flags) and links it with the kit's object.
+    Returns (executable, '') or (None, why). No -Werror: a mutant that leaves a name unused is judged by what it does, not by the compiler."""
     pecas, falta = recorta_glue(glue)
     if falta:
         return None, 'cut: ' + '; '.join(falta)
@@ -186,7 +290,7 @@ def constroi_glue(tmp, nome, glue, angulo_o, gfx_obj, inc):
     d.mkdir()
     for arq, texto in pecas.items():
         (d / arq).write_text(texto, encoding='utf-8')
-    rc, err = compila(GLUE_MAIN, d / 'glue_main.o', inc + [f'-I{d}'], True)
+    rc, err = compila(GLUE_MAIN, d / 'glue_main.o', inc + [f'-I{d}', *extra], False)
     if rc:
         return None, err
     exe = d / 'glue'
@@ -250,6 +354,22 @@ def problemas_do_glue_exato(glue):
     return p
 
 
+def problemas_de_leitura_do_tema(glue):
+    """S10c, A'2c, the static half of the paint path's rule: the glue picks a palette in one place, DisplayManager::uaTema( ). A paint site that reads ua::tema( ), temaClaro( ) or temaEscuro( ) itself, or sets a
+    Pintor's theme with p.tema( ), is refused whatever it passes: the run proves the sites the glue has, this keeps a new one from existing."""
+    g = apaga_comentarios(glue)
+    f = funcao_do_glue(g, 'uaTema')
+    if f is None:
+        return ['DisplayManager::uaTema( ) was not found exactly once, as a definition']
+    resto = g.replace(f[:-1], '')
+    p = [f'the glue reads the palette outside uaTema( ): `{m.group(0)}` in `{resto[max(0, m.start() - 24):m.end() + 24].strip()}`'
+         for m in re.finditer(r'\b(?:ua::)?(?:tema|temaClaro|temaEscuro)\s*\(', resto)]
+    n = len(re.findall(r'\bua::tema\s*\(', f))
+    if n != 1:
+        p.append(f'uaTema( ) must read ua::tema( ) once, not {n} times')
+    return p
+
+
 def acentos_n_fora(angulo, outros):
     """ACENTOS_N must appear only inside escolhaDoIndice and indiceDaEscolha, in static_assert statements (S10c, A'3: the catalogue and the Tema screen tie their sizes to the
     palette's) and in the generated header that defines it."""
@@ -265,8 +385,21 @@ def acentos_n_fora(angulo, outros):
     if dentro < 2:
         p.append(f'ACENTOS_N is read {dentro} time(s) inside the two encoding functions')
     for nome, texto in [('Angulo.cpp', angulo)] + outros:
-        if 'ACENTOS_N' in re.sub(r'static_assert\s*\([^;]*;', '', texto):
+        if 'ACENTOS_N' in re.sub(r'static_assert\s*\([^;]*;', '', sem_comentarios(texto)):   # a comment names it, it reads nothing
             p.append(f'ACENTOS_N appears in {nome} outside the two encoding functions')
+    return p
+
+
+def leitores_nomeados(angulo, outros):
+    """S10c, A'2c: the comment above the two encoding functions says who else reads ACENTOS_N, and it is checked against the sources: it names every file that does (the static_assert statements of A'3 in Temas.cpp and
+    MenusConfig.cpp) and no file that does not."""
+    m = re.search(r'^// The two encoding functions:.*?(?=^Escolha escolhaDoIndice)', angulo, re.S | re.M)
+    if not m:
+        return ['the comment above escolhaDoIndice( ), "// The two encoding functions: ...", was not found']
+    comentario = m.group(0)
+    leem = sorted({pathlib.PurePosixPath(n).name for n, t in outros if 'ACENTOS_N' in sem_comentarios(t)})
+    p = [f'{f} reads ACENTOS_N and the comment above the encoding functions does not name it' for f in leem if f not in comentario]
+    p += [f'the comment above the encoding functions names {f}, which does not read ACENTOS_N' for f in sorted(set(re.findall(r'\b\w+\.(?:cpp|h)\b', comentario))) if f not in leem]
     return p
 
 
@@ -429,35 +562,42 @@ def main():
             rc, saida = corre(exe)
             caso(f'control: {nome} must fail the program', rc == 1 and 'FAIL' in saida)
 
-        # the glue's own statements, compiled against a stand-in and run (S10c, A'2b): the real text first, then one program per mutant of it
+        # the glue's own functions, cut out whole, compiled against a stand-in and run (S10c, A'2c): the real text first, the same with one wrong pixel in every pushed strip (the instrument's
+        # control), then one program per mutant of it
         glue0 = GLUE.read_text(encoding='utf-8')
         angulo_o = tmp / 'real' / 'Angulo.o'
         aplicaveis = [(i, m) for i, m in enumerate(GLUE_MUTANTES) if glue0.count(m[1]) == m[3]]
-        jobs_g = [('glue_real', glue0)] + [(f'g{i}', glue0.replace(m[1], m[2])) for i, m in aplicaveis]
+        jobs_g = [('glue_real', glue0, ()), ('glue_pixel', glue0, ('-DPROVA_PIXEL',))] + [(f'g{i}', glue0.replace(m[1], m[2]), ()) for i, m in aplicaveis]
         with concurrent.futures.ThreadPoolExecutor(4) as ex:
-            ligados = list(ex.map(lambda j: constroi_glue(tmp, j[0], j[1], angulo_o, gfx_obj, inc), jobs_g))
+            ligados = list(ex.map(lambda j: constroi_glue(tmp, j[0], j[1], angulo_o, gfx_obj, inc, j[2]), jobs_g))
         exe, err = ligados[0]
         if exe is None:
-            caso("glue link: the glue's own uaTema( ) and hashes build against the stand-in", [f'does not build: {err.strip()[:400]}'])
+            caso("glue link: the glue's own functions build against the stand-in", [f'does not build: {err.strip()[:3000]}'])
         else:
             rc, saida = corre(exe)
             falhas = [l for l in saida.splitlines() if l.startswith('FAIL')]
             resumo = saida.strip().splitlines()[-1] if saida.strip() else 'no output'
-            caso(f"glue link: the glue's own uaTema( ) and the two hashes, run against the generated header ({resumo})", not falhas and rc == 0 and resumo.endswith(' 0 failed'))
+            caso(f"glue link: the glue's own theme and paint path, run against the generated header ({resumo})", not falhas and rc == 0 and resumo.endswith(' 0 failed'))
             for l in falhas[:6]:
                 print('       ' + l)
             for l in saida.splitlines():
                 if l.startswith('MEDIDA'):
                     print('       ' + l)
-        feitos_g = dict(zip([i for i, _ in aplicaveis], ligados[1:]))
+        exe_px, err_px = ligados[1]
+        if exe_px is None:
+            caso('control: one wrong pixel in every pushed strip must fail the glue link', [f'the program does not build: {err_px.strip()[:600]}'])
+        else:
+            rc, saida = corre(exe_px)
+            caso('control: one wrong pixel in every pushed strip must fail the glue link (the instrument sees the glass)', rc == 1 and 'FAIL' in saida)
+        feitos_g = dict(zip([i for i, _ in aplicaveis], ligados[2:]))
         for i, (nome, velho, _, n) in enumerate(GLUE_MUTANTES):
             if i not in feitos_g:
                 caso(f'control: {nome} must fail the glue link', [f'its text is not in DisplayManager_UiA.cpp {n} time(s)'])
                 continue
             exe, err = feitos_g[i]
             if exe is None:
-                # a piece the glue no longer holds is refused at the cut (A'3b): the link fails before it is built; any other failure to build is not a kill
-                caso(f'control: {nome} must fail the glue link', True if err.startswith('cut: ') else [f'the mutant does not build: {err.strip()[:200]}'])
+                # a mutant that leaves nothing to cut is refused at the cut; any other failure to build is not a kill
+                caso(f'control: {nome} must fail the glue link', True if err.startswith('cut: ') else [f'the mutant does not build: {err.strip()[:600]}'])
                 continue
             rc, saida = corre(exe)
             caso(f'control: {nome} must fail the glue link', rc == 1 and 'FAIL' in saida)
@@ -488,6 +628,20 @@ def main():
          bool(problemas_do_glue(glue.replace('ua::identidadeDoQuadro( (uint8_t)MODE_OTA_UPDATE, tema,', 'ua::identidadeDoQuadro( (uint8_t)MODE_OTA_UPDATE, ua::temaClaro( ),'))))
     caso('control: a glue without the full-repaint trigger is reported', bool(problemas_do_glue(glue.replace('.repintaTudo( s_id )', '.pronto( )'))))
     caso('control: a glue with its own extra[ ] array is reported', bool(problemas_do_glue(glue + '\nconst uint8_t extra[2] = { 0, 0 };\n')))
+    caso('glue: the palette is picked in uaTema( ) alone (no paint site reads ua::tema( ), temaClaro( ) or temaEscuro( ) itself)', problemas_de_leitura_do_tema(glue))
+    caso('control: a paint site that reads ua::tema( ) itself is reported',
+         bool(problemas_de_leitura_do_tema(glue.replace('ua::Pintor p( faixa, tema, faixa );', 'ua::Pintor p( faixa, ua::tema( tema.escuro, 0 ), faixa );'))))
+    caso('control: a paint site that reads temaClaro( ) itself is reported', bool(problemas_de_leitura_do_tema(glue.replace('faixa.fillScreen( tema.fundo );', 'faixa.fillScreen( ua::temaClaro( ).fundo );'))))
+    caso("control: a paint site that sets the Pintor's theme itself is reported", bool(problemas_de_leitura_do_tema(glue.replace('  p.gravar( );\n', '  p.gravar( );\n  p.tema( ua::temaEscuro( ) );\n'))))
+    caso('control: a comment that names ua::tema( ) is not a read',
+         not problemas_de_leitura_do_tema(glue.replace('  const ua::Tema &tema = uaTema( modo );\n', '  const ua::Tema &tema = uaTema( modo );  // not ua::tema( x, 0 )\n')))
+    pecas, falta = recorta_glue(glue)
+    caso('glue cut: the file-level state and the six functions of the theme and paint path are found', falta + ([] if len(pecas) == 1 + len(PECAS_DO_GLUE) else [f'{len(pecas)} pieces']))
+    caso('control: a glue without DisplayManager::uaPintar( ) is refused at the cut', bool(recorta_glue(glue.replace('bool DisplayManager::uaPintar(', 'bool DisplayManager::uaPintarX('))[1]))
+    caso('control: a glue that defines uaQuadro( ) twice is refused at the cut', bool(recorta_glue(glue + '\nvoid DisplayManager::uaQuadro( ) {}\n')[1]))
+    caso('control: a reformatted signature and CRLF line ends are still cut',
+         not recorta_glue(glue.replace('DisplayManager::uaTema( UiMode modo )', 'DisplayManager::uaTema(UiMode modo)').replace('\n', '\r\n'))[1])
+    caso('control: a comment that names a function is not cut in its place', recorta_glue('// bool DisplayManager::uaQuadro( ) { }\n' + glue)[0].get('uaquadro.inc') == pecas.get('uaquadro.inc'))
     outros = []
     for f in sorted(KIT.rglob('*')):
         if f.suffix in ('.cpp', '.h') and f.name not in ('Angulo.cpp', 'angulo_tokens.h'):
@@ -495,6 +649,9 @@ def main():
     caso('sources: ACENTOS_N appears only inside the two encoding functions', acentos_n_fora(texto, outros))
     caso('control: an ACENTOS_N in a screen file is reported', bool(acentos_n_fora(texto, outros + [('telas/X.cpp', 'int n = ACENTOS_N;')])))
     caso('control: an ACENTOS_N in tema( ) is reported', bool(acentos_n_fora(texto.replace('acento < kAcentos ? acento : 0', 'acento < ACENTOS_N ? acento : 0'), outros)))
+    caso('sources: the comment above the encoding functions names every other file that reads ACENTOS_N, and only those', leitores_nomeados(texto, outros))
+    caso('control: a file that reads ACENTOS_N and the comment does not name is reported', bool(leitores_nomeados(texto, outros + [('telas/X.cpp', 'static_assert( X == ACENTOS_N, "x" );')])))
+    caso('control: a comment that names a file that does not read it is reported', bool(leitores_nomeados(texto.replace('MenusConfig.cpp', 'MenusConfig.cpp, Fantasma.cpp'), outros)))
 
     cat, mh, mc = TEMAS_CPP.read_text(encoding='utf-8'), MENUS_H.read_text(encoding='utf-8'), MENUS_CPP.read_text(encoding='utf-8')
     menus = MENUS_GLUE.read_text(encoding='utf-8')

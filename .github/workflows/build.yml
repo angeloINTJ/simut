@@ -252,6 +252,26 @@ jobs:
       - name: Angulo accent palette (golden table, floors, rules, controls)
         run: python3 tools/tft_ui/test_acentos.py
 
+      # The Angulo's host tests (S10c, A'2c). They build the kit, and the glue's theme and paint path, with g++ against Adafruit GFX and
+      # run them. No workflow ran them until now, because the gates job had no GFX; three reviews in a row (A'2, A'3, A'2b) then found
+      # mutants of the glue that a local run would have caught. The library is fetched at the version platformio.ini pins for the firmware
+      # jobs, read from it here and not copied; the tools read it from .pio/libdeps and refuse any version but 1.12.6 (tools/tft_ui/
+      # host_ui.py, find_gfx( )), so a new pin makes the test steps exit 2 until the kit is checked against that version and find_gfx( )
+      # says so. `-l` with `-e` installs that library alone, not the platform: 5 s on 2026-10-22. host_telas.py's frames are not compared
+      # here, since no record of them is committed.
+      - name: Adafruit GFX for the Angulo's host tests (the version platformio.ini pins, the library alone)
+        run: |
+          lib=$(grep -m1 -o 'adafruit/Adafruit GFX Library@[0-9.]*' platformio.ini)
+          test -n "$lib"
+          pio pkg install -e pico_wiretft_angulo --library "$lib" --no-save
+      # The mode and the accent through the kit and through the glue's own functions, run; the mutants of the kit and of the glue must fail it.
+      - name: Angulo theme and glue on the host (test_temas.py)
+        run: python3 tools/tft_ui/test_temas.py
+      - name: Angulo corners on the host (test_cantos.py)
+        run: python3 tools/tft_ui/test_cantos.py
+      - name: Angulo touch targets on the host (test_alvos.py)
+        run: python3 tools/tft_ui/test_alvos.py
+
       # patch.sh runs again and again: after every override that merges, and in the
       # firmware jobs on a warm ~/.platformio cache that already carries them (see
       # "Apply framework overrides" below). Each step skips itself when a grep finds
