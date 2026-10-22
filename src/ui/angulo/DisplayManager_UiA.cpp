@@ -637,7 +637,9 @@ bool DisplayManager::uaMontarBase( UaQuadro &q ) {
         memcpy( nome, u, n );
         nome[n] = 0;
       }
-      /* The name closes the question: the words are a text of their own (a pack may open the question with its own mark) and the "?" belongs to the literal format. */
+      /* The name closes the question, so a pack's text for "Delete the account" is the words before the name and no "?": the literal format
+       * adds it after the name (a translation "¿Eliminar la cuenta?" draws "¿Eliminar la cuenta? maria?"). A language that opens a question
+       * writes its mark at the start of the text, as es-ES does: "¿Eliminar la cuenta". */
       snprintf( vm.titulo, sizeof vm.titulo, "%s %s?", UA_TXT( "Delete the account" ), nome );
       ua::copiar( vm.texto, UA_TXT( "The account loses access from the panel and the web. Its PIN and password are erased." ),
                   sizeof vm.texto );

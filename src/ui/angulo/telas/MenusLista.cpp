@@ -72,14 +72,11 @@ int alvosPaginador( const Paginas &g, Alvo *out, int n ) {
 /* ------------------------------------------------------------------ */
 
 Caixa16 alvoVoltar( ) {
-  // The action barraTituloVoltar( ) draws: the width depends only on its label
+  // The action barraTituloVoltar( ) draws (the kit's acaoVoltar( )): the width depends only on its label
   // and icon. The box starts ESP2 before the button, goes on to the edge of the
   // glass, and covers the bar and the 8 px under its line (down to Y0, where the
   // content starts), the 20 px button being small for a finger.
-  Acao a;
-  a.rotulo = "Voltar";
-  a.icone = IconeNome::ARROW_LEFT;
-  const int16_t x = W_TELA - PAD - larguraAcao( a ) - ESP2;
+  const int16_t x = W_TELA - PAD - larguraAcao( acaoVoltar( ) ) - ESP2;
   return Caixa16{ x, 0, (int16_t)( W_TELA - x ), Y0 };
 }
 

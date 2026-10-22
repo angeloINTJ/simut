@@ -292,7 +292,8 @@
    "texts": {
     "src/ui/angulo/Angulo.cpp": [
      "more than %d controls in one sample\n",
-     "more than %d surfaces in one sample\n"
+     "more than %d surfaces in one sample\n",
+     "more than %d texts in one sample\n"
     ],
     "src/ui/angulo/telas/GraficosComum.cpp": [
      "%s: action %d is at %d,%d %dx%d in the kit's title bar, and its target was made for %d,%d %dx%d\n"

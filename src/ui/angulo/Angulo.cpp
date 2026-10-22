@@ -799,14 +799,23 @@ void Pintor::bitmapBruto( int16_t x, int16_t y, const uint8_t *bits, int16_t tam
 
 #ifdef UA_HOST
 namespace {
-TextoDesenhado s_textos[256];
+constexpr int MAX_TEXTOS = 256;   // 42 in the fullest sample (2026-10-22); a sample over this stops the harness, it is never cut
+TextoDesenhado s_textos[MAX_TEXTOS];
 int s_nTextos = 0;
 void hostAnotarTexto( const char *s, int16_t x0, int16_t x1, int16_t y0, int16_t y1, bool selo = false ) {
-  if ( s_nTextos >= (int)( sizeof s_textos / sizeof s_textos[0] ) ) return;
+  if ( s_nTextos >= MAX_TEXTOS ) {
+    fprintf( stderr, "more than %d texts in one sample\n", MAX_TEXTOS );
+    abort( );
+  }
   TextoDesenhado &t = s_textos[s_nTextos++];
   t.x0 = x0; t.x1 = x1; t.y0 = y0; t.y1 = y1; t.selo = selo;
   int i = 0;
   for ( ; i < (int)sizeof t.texto - 1 && s[i]; i++ ) t.texto[i] = s[i];
+  // A cut that falls inside a character backs off to its first byte, as ua::copiar( ) does: host_telas.py reads the record as UTF-8, and a
+  // translation of 84 bytes with "í" at bytes 62 and 63 ended it in a UnicodeDecodeError that named no sample (the review of S10c B3).
+  // The longest text drawn is 43 bytes (2026-10-22, six groups in pt-BR and es-ES); host_telas.py refuses a record that fills the field.
+  if ( s[i] )
+    while ( i > 0 && ( (uint8_t)s[i] & 0xC0 ) == 0x80 ) i--;
   t.texto[i] = 0;
 }
 }  // namespace
@@ -1184,11 +1193,16 @@ void barraTitulo( Pintor &p, const char *titulo, const Acao *acoes, int16_t n, C
   p.hline( 0, h, 320, T.linha );
 }
 
-void barraTituloVoltar( Pintor &p, const char *titulo, Caixa16 *voltar ) {
+Acao acaoVoltar( ) {
   Acao a;
   a.rotulo = UA_TXT( "Back" );
   a.tipo = Botao::DISCRETO;
   a.icone = IconeNome::ARROW_LEFT;
+  return a;
+}
+
+void barraTituloVoltar( Pintor &p, const char *titulo, Caixa16 *voltar ) {
+  const Acao a = acaoVoltar( );
   barraTitulo( p, titulo, &a, 1, voltar );
 }
 

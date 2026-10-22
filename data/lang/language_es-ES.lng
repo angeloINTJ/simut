@@ -553,7 +553,7 @@ time <AAAA-MM-DD> <HH:MM:SS>
 0678b0bb La cuenta pierde el acceso desde el panel y la web. Se borran su PIN y su contraseña.
 07729d47 Pida a quien administra el equipo que habilite esta función en su cuenta.
 1654b71d Cuenta eliminada.
-25ef3135 Espere para tocar la pantalla.
+25ef3135 Espere antes de tocar la pantalla.
 28836604 Mantenga pulsado para configurar
 28b19af7 ahora
 2ef71258 Silenciado
@@ -569,7 +569,7 @@ time <AAAA-MM-DD> <HH:MM:SS>
 4c891c6a Entendido
 50ecb85b Silenciar durante
 51990443 No suena ningún sonido, ni el de la alarma, hasta que alguien los active de nuevo. El silencio solo vale tras pulsar Guardar en la pantalla de sonidos.
-5ad24b8d está guardando en la web.
+5ad24b8d está guardando vía web.
 5ce055c7 Monitor de temperatura y humedad
 5cec6caf Un valor ha superado el límite.
 618e56b3 Cuenta guardada.
@@ -598,7 +598,7 @@ d60c1322 S
 d7a2e319 máx
 d8cececf Esta pantalla
 dee04507 En alarma
-e19e5a06 Compruebe el tamaño mínimo y los caracteres en Seguridad del PIN.
+e19e5a06 Compruebe la longitud mínima y los caracteres en Seguridad del PIN.
 e1d0be1a %HR
 e29483e7 en alarma
 e974ac92 Elija otro PIN.

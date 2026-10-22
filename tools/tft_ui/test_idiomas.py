@@ -2,17 +2,22 @@
 """test_idiomas.py -- the Angulo's screens in the device's three languages, on the host (S10c, B3).
 
 B3 turned the texts of the Painel and Base screens into UA_TXT( "English" ): the device's pack gives the Portuguese or the Spanish, and the source
-gives the English. This runs tools/tft_ui/host_telas.py for those two groups in each language, and holds what no pixel comparison can:
+gives the English. This runs tools/tft_ui/host_telas.py for every group in each language, and holds what no pixel comparison can:
 
-  1. The shipped packs draw clean. `host_telas.py <group> --idioma en|pt|es` exits 0 for base and painel: no glyph the fonts lack (ua::glifosFaltando( )), no
+  1. The shipped packs draw clean. `host_telas.py <group> --idioma en|pt|es` exits 0 for every group: no glyph the fonts lack (ua::glifosFaltando( )), no
      text outside the safe area, over another, across the edge of a touch target or of the card it sits on, and no fixed text cut with "…" (only the
-     long names a sample plants on purpose may be, and tools/tft_ui/cortes_aceitos.txt lists them for every language).
+     long names a sample plants on purpose may be, and tools/tft_ui/cortes_aceitos.txt lists them for every language). Every group, and not only the
+     converted ones, because the kit's texts reach them all: B3 translated the kit's "Voltar", three screens still built its box with the literal, and
+     the charts' detail, in English and in Spanish, stopped the harness on the difference (S10c B3-b).
   2. The checks bite, through the whole chain (a pack file, the loader, UA_TXT( ), the screen, the recorder, the check). A pack is planted with one text changed, and the
      samples that fail must be EXACTLY the samples whose frames differ from the shipped pack's (two instruments that do not read each other: the pixels and the
-     checks): an "ő" (no font has it) in the label of the boot button; a label of 70 characters in the same button; a text of 90 characters in the card that says
-     there is no sensor, which no touch target holds, so that only the surface check can see it. Each plant also must name its check in the failure.
-  3. The surface check's own cases (host_telas.conferir_encaixe( )) on synthetic boxes, edge by edge, and the English of a sample file (host_telas.
-     ingles_das_amostras( )) against the sources: the right English passes and one letter off is named.
+     checks): an "ő" (no font has it) in the label of the boot button; a label of 74 characters in the same button; a text of 102 characters in the card that says
+     there is no sensor, which no touch target holds, so that only the surface check can see it; and the review of B3's reproduction, a text of 84 bytes
+     on the same card whose "í" the recorder's 63-byte field cuts in two (host_telas.py died on it with a UnicodeDecodeError that named no sample). Each
+     plant also must name its check in the failure, and a plant longer than the recorder's field must say that the field was full, the 17-byte one must not.
+  3. The surface check's own cases (host_telas.conferir_encaixe( )) on synthetic boxes, edge by edge; the reader of a sample's texts (host_telas.ler_textos( ))
+     on a file that is not UTF-8, and on records at the recorder's field and under it; and the English of a sample file (host_telas.ingles_das_amostras( ))
+     against the sources: the right English passes and one letter off is named.
 
 Usage: python3 tools/tft_ui/test_idiomas.py   exit 0 when all hold, 1 when not, 2 when it cannot build (no Adafruit GFX 1.12.6 in .pio/libdeps: run pio once).
 """
@@ -33,6 +38,7 @@ import check_lang_packs as gate  # noqa: E402
 import host_telas  # noqa: E402
 
 GRUPOS = ('base', 'painel')                       # the groups whose texts are converted: a group joins here when its step lands (B4, B5)
+TODOS = tuple(sorted(p.stem for p in (HERE / 'amostras').glob('*.cpp')))   # every group the harness draws, read from its samples
 IDIOMAS = ('en', 'pt', 'es')
 PACOTES = {'pt': ROOT / 'data' / 'lang' / 'language_pt-BR.lng', 'es': ROOT / 'data' / 'lang' / 'language_es-ES.lng'}
 CASOS = []                                        # (name, ok, detail)
@@ -96,9 +102,11 @@ def main():
             'glifo': ('Skip the wait', 'Omitir lő espera'),
             'rotulo': ('Skip the wait', 'Omitir la espera de la red y seguir con el arranque del equipo ahora mismo'),
             'cartao': ('No active sensor', 'Ningun sensor esta activo en este momento, ni uno solo, y el equipo no tiene nada que mostrar aqui hoy'),
+            # The review of B3, word for word: 84 bytes, the "í" at bytes 62 and 63, where the recorder's field of 63 cuts.
+            'acento': ('Activate a sensor on the web.', 'Active un sensor desde la interfaz web del equipo para ver aquí todas sus lecturas.'),
         }
         packs = {nome: plantar(PACOTES['es'], en, novo, tmp / f'es_{nome}.lng') for nome, (en, novo) in plantados.items()}
-        trabalhos = {('limpo', g, i): (g, i, None, limpo / i / g) for g in GRUPOS for i in IDIOMAS}
+        trabalhos = {('limpo', g, i): (g, i, None, limpo / i / g) for g in TODOS for i in IDIOMAS}
         for nome, pacote in packs.items():
             trabalhos[(nome, 'painel', 'es')] = ('painel', 'es', pacote, tmp / nome / 'es' / 'painel')
         with concurrent.futures.ThreadPoolExecutor(max_workers=min(len(trabalhos), os.cpu_count() or 4)) as ex:
@@ -106,7 +114,8 @@ def main():
             res = {k: f.result() for k, f in feitos.items()}
 
         # 1. the shipped packs draw clean
-        for g in GRUPOS:
+        caso(f'the harness has groups to draw ({", ".join(TODOS)})', set(GRUPOS) <= set(TODOS) and len(TODOS) >= 6, str(TODOS))
+        for g in TODOS:
             for i in IDIOMAS:
                 rc, saida = res[('limpo', g, i)]
                 caso(f'{g} in {i}: host_telas.py exits 0', rc == 0, '\n'.join(saida.splitlines()[-6:]))
@@ -115,7 +124,13 @@ def main():
 
         # 2. the plants fail exactly where their frames change
         limpo_es = limpo / 'es' / 'painel'
-        esperado_check = {'glifo': 'glyphs or icons missing', 'rotulo': 'target', 'cartao': 'runs past the edge of the surface'}
+        esperado_check = {'glifo': 'glyphs or icons missing', 'rotulo': 'target', 'cartao': 'runs past the edge of the surface',
+                          'acento': 'runs past the edge of the surface'}
+        campo = host_telas.campo_do_registro()
+        caso('the recorder\'s field is read from Angulo.h', campo is not None and campo > 3, str(campo))
+        bruto = plantados['acento'][1].encode('utf-8')
+        caso(f'plant "acento": the recorder\'s cut at byte {campo} falls inside a character (else it tests nothing)',
+             campo is not None and len(bruto) > campo and (bruto[campo] & 0xC0) == 0x80, f'{bruto[campo - 2:campo + 2]!r}' if campo else '')
         for nome in plantados:
             rc, saida = res[(nome, 'painel', 'es')]
             falhou, soltas = falhas(saida)
@@ -125,6 +140,10 @@ def main():
                  mudou and set(falhou) == mudou and not soltas, f'failing {sorted(falhou)}, changed {sorted(mudou)}, loose {soltas[:2]}')
             caso(f'plant "{nome}": the failure names its check ("{esperado_check[nome]}")',
                  any(esperado_check[nome] in ln for v in falhou.values() for ln in v), '\n'.join(next(iter(falhou.values()), [])[:2]))
+            cheio = any('bytes the recorder keeps of a text' in ln for v in falhou.values() for ln in v)
+            longo = campo is not None and len(plantados[nome][1].encode('utf-8')) > campo
+            caso(f'plant "{nome}": ' + ('the run says the recorder\'s field was full' if longo else 'the run does not say the field was full'),
+                 cheio == longo, f'{len(plantados[nome][1].encode("utf-8"))} bytes, field {campo}')
 
     # 3. the surface check's own cases, edge by edge
     conferir = host_telas.conferir_encaixe
@@ -144,6 +163,25 @@ def main():
     caso('surface: the smallest surface is the one that counts', len(achados((50, 160, 112, 128, 't'), [cartao, selo])) == 1)
     caso('surface: returns how many texts sat on a surface',
          conferir('s', 'claro', [(20, 200, 120, 140, 'a'), (0, 40, 10, 20, 'b')], [cartao], []) == 1)
+
+    # the reader of a sample's texts: a file that is not UTF-8 is named, and a record at the recorder's field may have lost its end
+    campo = host_telas.campo_do_registro() or 63
+    with tempfile.TemporaryDirectory(prefix='idiomas_ler_') as t:
+        d = pathlib.Path(t)
+        quebrado = b'10 60 4 20 t Ok\n10 300 30 46 t Active un sensor desde la interfaz web del equipo para ver aqu\xc3\n'
+        (d / 'quebrado_claro.textos').write_bytes(quebrado)
+        e = []
+        caso('reader: a file that is not UTF-8 gives None, and one error that names the sample, the theme and the byte',
+             host_telas.ler_textos('quebrado', 'claro', d, campo, e) is None and len(e) == 1 and e[0].startswith('quebrado_claro: ')
+             and f'byte {quebrado.index(bytes([0xc3]))} ' in e[0], str(e))
+        cheio = 'x' * (campo - 3)
+        (d / 'cheio_claro.textos').write_bytes(f'10 60 4 20 t {cheio}\n10 60 30 46 t {cheio[:-1]}\n70 90 4 20 s web\n'.encode('utf-8'))
+        e = []
+        lidos = host_telas.ler_textos('cheio', 'claro', d, campo, e)
+        caso(f'reader: a record of {campo - 3} bytes is an error, one of {campo - 4} is not',
+             lidos is not None and len(e) == 1 and f'"{cheio}" fills the {campo} bytes' in e[0], str(e))
+        caso('reader: texts and badges come apart, each with its box', lidos is not None and lidos[0] == [(10, 60, 4, 20, cheio), (10, 60, 30, 46, cheio[:-1])]
+             and lidos[1] == [(70, 90, 4, 20, 'web')], str(lidos))
 
     # the English of a sample file against the sources
     with tempfile.TemporaryDirectory(prefix='idiomas_amostra_') as t:

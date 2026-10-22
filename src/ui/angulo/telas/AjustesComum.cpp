@@ -10,17 +10,8 @@ namespace ajustes {
 
 namespace {
 
-// barraTituloVoltar( )'s action, rebuilt: larguraAcao( ) gives its width.
-Acao acaoVoltar( ) {
-  Acao a;
-  a.rotulo = "Voltar";
-  a.tipo = Botao::DISCRETO;
-  a.icone = IconeNome::ARROW_LEFT;
-  return a;
-}
-
 // The most ink the title may have: from the title's inset (PAD) to ESP2 short
-// of the "Voltar" button.
+// of the "Voltar" button (the kit's acaoVoltar( ), the one barraTituloVoltar( ) draws).
 int16_t larguraMaxTitulo( ) { return L_TELA - PAD - larguraAcao( acaoVoltar( ) ) - ESP2 - PAD; }
 
 }  // namespace

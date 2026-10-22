@@ -86,7 +86,7 @@ void leituras( uint16_t n, char *buf, int cap ) {
 // The two things the targets need from the layout, apart from the cards: the back button's box and the pager's state. alvosDetalhe( ) takes only these (the
 // layout also writes the six cards' values and lines: 0.8 ms of the detail's 53.0 on the board, a second time, 2026-10-16).
 Caixa16 caixaVoltar( ) {
-  const Acao voltar{ "Voltar", Botao::DISCRETO, IconeNome::ARROW_LEFT, 0 };
+  const Acao voltar = acaoVoltar( );   // the one barraTituloVoltar( ) draws below
   Caixa16 c;
   caixasDasAcoes( &voltar, 1, &c );
   return c;

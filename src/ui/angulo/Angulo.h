@@ -400,6 +400,10 @@ void barraTitulo( Pintor &p, const char *titulo, const Acao *acoes, int16_t n, C
                   int16_t h = 28 );
 // The common case: the title and "Voltar".
 void barraTituloVoltar( Pintor &p, const char *titulo, Caixa16 *voltar = nullptr );
+// The action barraTituloVoltar( ) draws, for a screen that computes its box or the room of the title before it draws: the label is the
+// pack's, so a copy of it with the literal drifts from the button on the glass (S10c B3-b: three screens rebuilt it with "Voltar", and in
+// English their back targets were made for a button 10 px wider than the "Back" drawn, in Spanish 4 px narrower than "Volver").
+Acao acaoVoltar( );
 int16_t larguraAcao( const Acao &a );
 
 // Card (family A): fill + 1 px line, radius 12.

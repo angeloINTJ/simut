@@ -46,7 +46,7 @@ language_es-ES.lng through ua::textosCarregar( ) (src/ui/angulo/Textos.cpp, the 
 draws through UA_TXT( ) comes from the pack; en loads nothing, the English of the source. The shipped packs carry the section for the Painel and Base
 screens and the kit's two texts (S10c, B3). The other four groups still draw their Portuguese literals, so --idioma pt draws them as they were drawn before (the kit's "Voltar" and "n de m" now
 come from the pack, and the pt-BR pack gives the same words); en and es draw the English and the Spanish of what is converted. tools/tft_ui/test_idiomas.py runs it in the three languages for
-the converted groups, with planted packs as controls. --lng <file> takes another pack, for the controls. A pack the device
+every group (the kit's texts reach them all: S10c B3-b), with planted packs as controls. --lng <file> takes another pack, for the controls. A pack the device
 would refuse (a malformed line, a repeated hash, a section over UA_TEXTOS_MAX, a section after @WEBDICT) stops the run with exit 2.
 
 Usage: python3 tools/tft_ui/host_telas.py <grupo> [--out <folder>] [--idioma en|pt|es [--lng <pack>]]
@@ -188,6 +188,41 @@ def margem_do_kit():
         print('MARGEM not found in src/ui/angulo/Angulo.h', file=sys.stderr)
         return None
     return int(m.group(1))
+
+
+def campo_do_registro():
+    """How many bytes of a string the recorder keeps (TextoDesenhado::texto in src/ui/angulo/Angulo.h, less its NUL), read from the source of truth."""
+    texto = (ROOT / 'src' / 'ui' / 'angulo' / 'Angulo.h').read_text(encoding='utf-8')
+    m = re.search(r'struct\s+TextoDesenhado\s*\{[^}]*\bchar\s+texto\[(\d+)\]', texto)
+    if not m:
+        print('TextoDesenhado::texto not found in src/ui/angulo/Angulo.h', file=sys.stderr)
+        return None
+    return int(m.group(1)) - 1
+
+
+def ler_textos(nome, tema, dados, campo, erros):
+    """The texts and the badges of <nome>_<tema>.textos, each (x0, x1, y0, y1, text), or None when the file is not UTF-8, which is named with
+    its byte: the review of S10c B3 saw this read die with a traceback that named no sample, on a translation the recorder had cut inside "í".
+    The recorder (hostAnotarTexto( ), Angulo.cpp) keeps `campo` bytes of a string and backs a cut off to the start of a character, so a cut
+    record is 0 to 3 bytes short of `campo`: one that long may have lost its end, where a cut puts "…" and the check of cuts looks, and it is
+    an error, not a pass."""
+    bruto = (dados / f'{nome}_{tema}.textos').read_bytes()
+    try:
+        linhas = bruto.decode('utf-8').splitlines()
+    except UnicodeDecodeError as e:
+        erros.append(f'{nome}_{tema}: the record of its texts is not UTF-8 at byte {e.start} '
+                     f'({bruto[max(0, e.start - 16):e.start + 4]!r}), so none of its texts was checked')
+        return None
+    textos, selos = [], []
+    for linha in linhas:
+        partes = linha.split(' ', 5)
+        x0, x1, y0, y1 = map(int, partes[:4])
+        t = partes[5] if len(partes) > 5 else ''
+        if len(t.encode('utf-8')) >= campo - 3:
+            erros.append(f'{nome}_{tema}: "{t}" fills the {campo} bytes the recorder keeps of a text, so its end, where a cut puts "…", '
+                         f'was not read (raise TextoDesenhado::texto in src/ui/angulo/Angulo.h)')
+        (selos if partes[4] == 's' else textos).append((x0, x1, y0, y1, t))
+    return textos, selos
 
 
 def conferir_margem(nome, tema, dados, m, erros):
@@ -447,6 +482,9 @@ def main():
         margem = margem_do_kit()
         if margem is None:
             return 2
+        campo = campo_do_registro()
+        if campo is None:
+            return 2
         seguro = (margem, W - margem, margem, H - margem)    # x0, x1 (exclusive), y0, y1 (exclusive)
         conferidos = excluidos = cobertos = pretas = encaixados = 0
         maior = (0, '', 0)
@@ -477,15 +515,11 @@ def main():
                 if falta:
                     erros.append(f'{nome}_{tema}: {falta} glyphs or icons missing')
                 pretas += conferir_margem(nome, tema, dados, margem, erros) == 0
-                textos, selos = [], []
-                for linha in (dados / f'{nome}_{tema}.textos').read_text().splitlines():
-                    partes = linha.split(' ', 5)
-                    x0, x1, y0, y1 = map(int, partes[:4])
-                    t = partes[5] if len(partes) > 5 else ''
-                    if partes[4] == 's':
-                        selos.append((x0, x1, y0, y1, t))
-                        continue
-                    textos.append((x0, x1, y0, y1, t))
+                lidos = ler_textos(nome, tema, dados, campo, erros)
+                if lidos is None:
+                    continue
+                textos, selos = lidos
+                for x0, x1, y0, y1, t in textos:
                     if x0 < seguro[0] or x1 > seguro[1] or y0 < seguro[2] or y1 > seguro[3]:
                         erros.append(f'{nome}_{tema}: "{t}" ink {x0}..{x1} x {y0}..{y1} leaves the safe area')
                 superficies = [tuple(map(int, ln.split())) for ln in (dados / f'{nome}_{tema}.superficies').read_text().splitlines()]
