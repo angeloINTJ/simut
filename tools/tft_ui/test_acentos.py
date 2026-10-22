@@ -12,6 +12,7 @@ What is held:
     ones to 2 decimals in all 48 cells;
   * every floor, the 17 distinct roles, the hue rule, both derivations, and entry 0 equal to the guide;
   * the JSON's shape: entry 0 has no hex, no entry has a text, the ids are slugs;
+  * the hue limits at their boundary, in exact arithmetic: a hue exactly at a limit passes, the nearest one under it fails;
   * the controls: each check is run on the real header and again on a copy with one violation put in, and must report it; and the
     generator, run on a spec with one violation, must exit 1, name the pair, and leave the header it would write untouched.
 
@@ -31,6 +32,7 @@ import re
 import subprocess
 import sys
 import tempfile
+from fractions import Fraction
 
 sys.dont_write_bytecode = True   # gen_tokens.py is imported below: no tools/tft_ui/__pycache__
 
@@ -285,6 +287,69 @@ def c_limites(g):
     return p
 
 
+def matiz_exato(w):
+    """The hue of an RGB565 word in degrees, as an exact fraction (None for a grey). colorsys works in floats, and the float noise
+    at a limit is what the boundary case below is about."""
+    r, g, b = tuple(amplia(w))
+    mx, mn = max(r, g, b), min(r, g, b)
+    if mx == mn:
+        return None
+    d = Fraction(mx - mn)
+    if mx == r:
+        h = (Fraction(g - b) / d) % 6
+    elif mx == g:
+        h = Fraction(b - r) / d + 2
+    else:
+        h = Fraction(r - g) / d + 4
+    return h * 60
+
+
+def fronteira(g):
+    """The hue limits at their boundary (review of A'1, 2026-10-22). In exact arithmetic, every accent whose hue is exactly at a
+    limit must pass and the nearest hue under it must fail, through the generator's own rules. The floats the generator computes
+    land a hair under some exact limits (#8c5500 against perigo's light hue is 29.999999999999996 deg), and `>` for `>=` is the
+    other way to be wrong. The limits: perigo, alerta and positivo in both modes, and azul against petroleo."""
+    problemas = []
+    flut = [(w, float(h), h) for w, h in ((w, matiz_exato(w)) for w in range(65536)) if h is not None]
+    T = g.temas(copy.deepcopy(Ctx.spec))
+
+    def reprovadas(modo, w):
+        s = copy.deepcopy(Ctx.spec)
+        s['acentos'][2][modo] = '#%02x%02x%02x' % tuple(amplia(w))
+        t = g.temas(s)
+        return g.reprovados(t, g.acentos(s, t))
+
+    def confere(rotulo, modo, minimo, ref, titulo, marca):
+        fref = float(ref)
+        no_limite, abaixo = [], None
+        for w, f, h in flut:
+            e = abs(f - fref) % 360
+            d = min(e, 360 - e)
+            if abs(d - minimo) < 1e-6 and dmatiz(h, ref) == minimo:
+                no_limite.append(w)
+            elif d < minimo - 1e-6 and (abaixo is None or d > abaixo[0]):
+                abaixo = (d, w)
+        for w in no_limite:
+            if [1 for t, l in reprovadas(modo, w) if t == titulo and re.search(marca, l)]:
+                problemas.append(f'{rotulo}: #%02x%02x%02x at exactly {minimo} deg is refused' % tuple(amplia(w)))
+        if abaixo is None or not [1 for t, l in reprovadas(modo, abaixo[1]) if t == titulo and re.search(marca, l)]:
+            problemas.append(f'{rotulo}: the nearest hue under {minimo} deg is not refused')
+        return len(no_limite)
+
+    ns = nb = 0   # accents exactly at a status limit, and at the limit between entries
+    for modo in MODOS:
+        for papel, minimo in (('perigo', 30), ('alerta', 30), ('positivo', 15)):
+            ref = matiz_exato(hex_565(T[modo][papel]))
+            ns += confere(f'{modo} acento against {papel}', modo, minimo, ref, f'== acento 2 azul {modo}', f'from {papel} hue')
+        ref = matiz_exato(hex_565(Ctx.spec['acentos'][1][modo]))
+        nb += confere(f'{modo} azul against petroleo', modo, 20, ref, f'== acentos among themselves, {modo}', r'petroleo \(\d+\) and azul \(')
+    print(f'       ({ns} accents exactly at a status limit and {nb} at the limit between entries, each one run through the generator)')
+    # a limit with no RGB565 hue exactly on it (positivo, and azul against petroleo in the dark) has nothing to pass; the case must not be empty
+    if not ns or not nb:
+        problemas.append(f'no accent sits exactly at a limit ({ns} status, {nb} between entries): the case would pass for nothing')
+    return problemas
+
+
 def com_controle(nome, confere, dado, mutar):
     """The case on the real data and its negative control: the same check, on a copy with one violation put in, must report it."""
     caso(nome, confere(dado))
@@ -457,6 +522,10 @@ def main():
              rc == 1 and len(d) == 1 and d[0][0] == '== acento 2 azul escuro' and colide(d[0][1]) == {'acento', 'tinta2'})
         rc, saida = gera('--report')
         caso('control 2: the unmutated spec has no distinct-roles failure', rc == 0 and not [1 for t, l in reprovas(saida) if 'distinct' in l])
+        antes = semeia()
+        rc, saida = gera('--spec', p2, '--out', velho)
+        caso('control 2: the write mode refuses the distinct-roles failure, names it, and leaves the header\'s sha256 unchanged',
+             rc == 1 and sha(velho) == antes and 'refusing' in saida and 'roles distinct' in saida)
 
         # 3. a hue of 10 degrees (HSV 10, 0.80, 0.55 = #8c2f1c: it passes every contrast floor, so only the hue rule speaks)
         h10 = '#%02x%02x%02x' % tuple(round(v * 255) for v in colorsys.hsv_to_rgb(10 / 360, 0.80, 0.55))
@@ -466,6 +535,10 @@ def main():
         caso('control 3: a hue of 10 deg fails the hue rule (perigo, alerta) and nothing else',
              rc == 1 and h10 == '#8c2f1c' and len(r) == 2 and all(t == '== acento 4 violeta claro' and ' deg ' in l for t, l in r)
              and any('perigo' in l for t, l in r) and any('alerta' in l for t, l in r))
+        antes = semeia()
+        rc, saida = gera('--spec', p3, '--out', velho)
+        caso('control 3: the write mode refuses the hue failure, names it, and leaves the header\'s sha256 unchanged',
+             rc == 1 and sha(velho) == antes and 'refusing' in saida and ' deg ' in saida and 'from perigo hue' in saida)
 
         # 4. acentoForte equal to acento: the share of tinta mixed over the accent set to 0
         g = carrega_gerador()
@@ -496,6 +569,14 @@ def main():
         r = reprovas(saida)
         caso('control 7: two accents 0 deg apart fail the hue rule between entries, and nothing else',
              rc == 1 and len(r) == 1 and r[0][0] == '== acentos among themselves, claro' and 'petroleo' in r[0][1] and 'azul' in r[0][1])
+        antes = semeia()
+        rc, saida = gera('--spec', p7, '--out', velho)
+        caso('control 7: the write mode refuses the pair between entries, names it, and leaves the header\'s sha256 unchanged',
+             rc == 1 and sha(velho) == antes and 'refusing' in saida and 'petroleo' in saida and 'azul' in saida)
+
+        # 8. the hue limits at their boundary, in exact arithmetic (review of A'1)
+        caso('boundary: a hue exactly at a limit passes and the nearest one under it fails, for every status limit and between entries',
+             fronteira(carrega_gerador()))
 
         # 6. --check still bites: a header edited by hand
         editado = os.path.join(tmp, 'editado.h')

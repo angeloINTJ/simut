@@ -319,7 +319,7 @@ def secoes(T, E):
                 base = {p: hex565(T[nome][p]) for p in PAPEIS}
                 for papel, minimo in (('perigo', MATIZ_DE_PERIGO), ('alerta', MATIZ_DE_ALERTA), ('positivo', MATIZ_DE_POSITIVO)):
                     hp = matiz(base[papel])
-                    d = distancia_de_matiz(h, hp)
+                    d = round(distancia_de_matiz(h, hp), 6)   # a hue exactly at a limit is not refused by float noise
                     ls.append((d >= minimo, f'  {"ok  " if d >= minimo else "FAIL"} {d:5.1f} deg (>= {minimo}) '
                                             f'acento hue {h:.0f} from {papel} hue {hp:.0f}'))
             out.append((f'== acento {k} {e["id"]} {nome}', ls))
@@ -332,7 +332,7 @@ def secoes(T, E):
                 if ha is None or hb is None:
                     ls.append((False, f'  FAIL {ia} and {ib}: no hue to compare'))
                     continue
-                d = distancia_de_matiz(ha, hb)
+                d = round(distancia_de_matiz(ha, hb), 6)
                 ls.append((d >= MATIZ_ENTRE_ACENTOS, f'  {"ok  " if d >= MATIZ_ENTRE_ACENTOS else "FAIL"} {d:5.1f} deg '
                                                      f'(>= {MATIZ_ENTRE_ACENTOS}) {ia} ({ha:.0f}) and {ib} ({hb:.0f})'))
         out.append((f'== acentos among themselves, {nome}', ls))
