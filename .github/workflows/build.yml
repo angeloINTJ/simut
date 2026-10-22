@@ -252,6 +252,22 @@ jobs:
       - name: Angulo accent palette (golden table, floors, rules, controls)
         run: python3 tools/tft_ui/test_acentos.py
 
+      # The Angulo's text lookup (S10c, B2a). UA_TXT( "English" ) gives the language pack's text for that English, found in the pack's @ANGULO
+      # section by a binary search over FNV-1a hashes, or the English itself; ua::textosCarregar( ) builds the table from the section's body and
+      # publishes it through one pointer. Nothing in the firmware calls it yet (B2b wires the boot), so no image can show whether it works: this
+      # builds it with g++ under the address and undefined-behaviour sanitizers and runs it (a hit, a miss, no section, an empty one, 15 shapes
+      # of malformed line, a repeated hash, a section over the bound, UTF-8, 500 entries, 40,000 random sections), compares its hash with the
+      # device's own function cut out of the source and with the gate's, holds the shape of the publication (the host cannot see the order
+      # across cores), and bites itself: 28 mutants of the lookup and the loader, 6 of the publication's shape and 6 of the style rules must each fail it. The standard library only: no Adafruit GFX, so it is here and not behind the fetch below.
+      - name: Angulo text lookup (UA_TXT, the @ANGULO loader, its sanitizers and mutants)
+        run: python3 tools/tft_ui/test_textos.py
+
+      # The language-pack gate's own controls (tools/check_lang_packs.py runs in every firmware build; its cases did not run in any job until
+      # S10c, B2a added the @ANGULO section to it): the ceilings and the order, and for @ANGULO a literal without its entry, an orphan, a hash
+      # shared by two literals, the section after @WEBDICT, over the bound and every malformed line, each beside the case that passes.
+      - name: Language-pack gate (positive controls, the @ANGULO section)
+        run: python3 tools/test_lang_gate.py
+
       # The Angulo's host tests (S10c, A'2c). They build the kit, and the glue's theme and paint path, with g++ against Adafruit GFX and
       # run them. No workflow ran them until now, because the gates job had no GFX; three reviews in a row (A'2, A'3, A'2b) then found
       # mutants of the glue that a local run would have caught. The library is fetched at the version platformio.ini pins for the firmware

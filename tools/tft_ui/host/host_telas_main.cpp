@@ -18,6 +18,7 @@
 #include <string.h>
 
 #include "Amostras.h"
+#include "Textos.h"
 
 // The canvas read back, for the smoothed corners (ua::Leitor).
 class LeitorCanvas : public ua::Leitor {
@@ -43,9 +44,33 @@ static int pixelsVivos( const ua::Alvo *alvos, int n, const ua::ControleDesenhad
   return vivos;
 }
 
+// The pack's @ANGULO section (the body, as host_telas.py cut it out of the pack), through the code the device runs: what a screen draws through UA_TXT( )
+// is then the pack's text. A section the device would refuse stops the harness.
+static int carregarTextos( const char *caminho ) {
+  FILE *f = fopen( caminho, "rb" );
+  if ( !f ) { perror( caminho ); return 2; }
+  fseek( f, 0, SEEK_END );
+  const long n = ftell( f );
+  fseek( f, 0, SEEK_SET );
+  char *corpo = (char *)malloc( n > 0 ? (size_t)n : 1 );
+  const size_t lidos = n > 0 ? fread( corpo, 1, (size_t)n, f ) : 0;
+  fclose( f );
+  if ( n < 0 || lidos != (size_t)n ) { fprintf( stderr, "%s: short read\n", caminho ); free( corpo ); return 2; }
+  const ua::TextosResultado r = ua::textosCarregar( corpo, (size_t)n );
+  free( corpo );
+  static const char *const nomes[] = { "loaded", "empty", "over UA_TEXTOS_MAX", "malformed line", "repeated hash", "out of memory", "already loaded" };
+  printf( "idioma: @ANGULO %s, %zu texts, %zu B in RAM, section of %ld B\n", nomes[r], ua::textosContagem( ), ua::textosBytes( ), n );
+  if ( r != ua::TEXTOS_OK && r != ua::TEXTOS_VAZIO ) { fprintf( stderr, "the device would refuse this section: %s\n", nomes[r] ); return 2; }
+  return 0;
+}
+
 int main( int argc, char **argv ) {
-  if ( argc < 2 ) { fprintf( stderr, "usage: %s <folder> [accent]\n", argv[0] ); return 2; }
+  if ( argc < 2 ) { fprintf( stderr, "usage: %s <folder> [accent [@ANGULO section file]]\n", argv[0] ); return 2; }
   const uint8_t acento = argc > 2 ? (uint8_t)atoi( argv[2] ) : 0;   // the palette entry; 0 is the stock one, the frames V-PIX holds
+  if ( argc > 3 ) {
+    const int rc = carregarTextos( argv[3] );
+    if ( rc ) return rc;
+  }
   GFXcanvas16 canvas( 320, 240 );
   LeitorCanvas leitor( canvas );
   char path[512];

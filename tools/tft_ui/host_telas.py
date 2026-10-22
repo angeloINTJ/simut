@@ -37,7 +37,13 @@ It warns (without failing) on a target smaller than 24 px either way and on
 two targets that overlap. With --out it keeps a PNG per frame, an overlay of
 the targets per sample (and the list it draws, <sample>.alvos: x y w h type index) and a contact sheet of the group (_folha.png).
 
-Usage: python3 tools/tft_ui/host_telas.py <grupo> [--out <folder>]
+With --idioma en|pt|es (S10c, B2a) the frames are drawn in that language: the harness loads the @ANGULO section of data/lang/language_pt-BR.lng or
+language_es-ES.lng through ua::textosCarregar( ) (src/ui/angulo/Textos.cpp, the code the device runs) before it draws, so that a text a screen
+draws through UA_TXT( ) comes from the pack; en loads nothing, the English of the source. The shipped packs have no @ANGULO yet and no screen
+draws through UA_TXT( ), so the three draw what the harness drew before; --lng <file> takes another pack, for the controls. A pack the device
+would refuse (a malformed line, a repeated hash, a section over UA_TEXTOS_MAX, a section after @WEBDICT) stops the run with exit 2.
+
+Usage: python3 tools/tft_ui/host_telas.py <grupo> [--out <folder>] [--idioma en|pt|es [--lng <pack>]]
        python3 tools/tft_ui/host_telas.py --acentos [--out <folder>]
 Exit 0 clean, 1 when a check fails, 2 when it cannot build or run.
 """
@@ -79,6 +85,7 @@ def build(grupo, tmp, opt=('-O1',), host=True, main='host_telas_main.cpp'):
     strict = ['-Wall', '-Wextra', '-Werror']
     units = [(gfx / 'Adafruit_GFX.cpp', ['-w']),
              (ROOT / 'src' / 'ui' / 'angulo' / 'Angulo.cpp', strict),
+             (ROOT / 'src' / 'ui' / 'angulo' / 'Textos.cpp', strict),   # the text lookup (UA_TXT); the harness loads the pack's @ANGULO into it
              (telas / 'Telas.cpp', strict),
              # The result and confirmation screens every group may lean on.
              *([(telas / 'Base.cpp', strict)] if grupo != 'base' else []),
@@ -245,6 +252,29 @@ def conferir_contagem(nome, dados, erros):
     return listados, maximo
 
 
+IDIOMAS = {'en': None, 'pt': 'language_pt-BR.lng', 'es': 'language_es-ES.lng'}   # en: the English of the source, no pack
+
+
+def secao_angulo(pacote):
+    """(body of the pack's @ANGULO section or None when it has none, a problem or None). The section is found by the gate's pack_index( ), the rules of
+    src/LangPackIndex.h restated: the last @ANGULO wins, and a directive after the @WEBDICT marker means the device refuses the whole pack."""
+    import os
+    os.environ.setdefault('LANG_GATE_NO_RUN', '1')   # tools/check_lang_packs.py runs its gate on import otherwise
+    if str(ROOT / 'tools') not in sys.path:
+        sys.path.insert(0, str(ROOT / 'tools'))
+    import check_lang_packs as gate
+    try:
+        dados = pacote.read_bytes()
+    except OSError as e:
+        return None, f'cannot read {pacote}: {e}'
+    idx, cauda = gate.pack_index(dados)
+    if cauda:
+        return None, f'{pacote.name} has {cauda} after @WEBDICT: the device refuses the pack'
+    if 'ANGULO' not in idx:
+        return None, None
+    return dados[idx['ANGULO'][0]:idx['ANGULO'][1]], None
+
+
 # --acentos (S10c, A'2): the three screens the palette is judged on, as (group, sample, what it is)
 ACENTOS_TELAS = (('painel', 'painel_dht22', 'the dashboard'), ('menus', 'menu_admin_p1', 'a menu'), ('graficos', 'grafico_24h', 'a chart'))
 
@@ -325,8 +355,14 @@ def main():
     ap.add_argument('grupo', nargs='?')
     ap.add_argument('--acentos', action='store_true', help='the dashboard, a menu and a chart in every accent and both modes, read against the header')
     ap.add_argument('--out', help='keep the PNGs, the target overlays and the contact sheet here')
+    ap.add_argument('--idioma', choices=sorted(IDIOMAS), help="draw in this language: the pack's @ANGULO is loaded before the screens draw (en: no pack)")
+    ap.add_argument('--lng', help='with --idioma: this pack and not the shipped one (for the controls)')
     args = ap.parse_args()
+    if args.lng and not args.idioma:
+        ap.error('--lng goes with --idioma')
     if args.acentos:
+        if args.idioma:
+            ap.error('--idioma goes with a group')
         return acentos(args.out)
     if not args.grupo:
         ap.error('a group or --acentos')
@@ -337,7 +373,21 @@ def main():
             return 2
         dados = tmp / 'dados'
         dados.mkdir()
-        r = subprocess.run([str(exe), str(dados)], capture_output=True, text=True)
+        comando = [str(exe), str(dados)]
+        if args.idioma:
+            nome = IDIOMAS[args.idioma]
+            pacote = pathlib.Path(args.lng) if args.lng else (ROOT / 'data' / 'lang' / nome if nome else None)
+            secao, problema = secao_angulo(pacote) if pacote else (None, None)
+            if problema:
+                print(problema, file=sys.stderr)
+                return 2
+            if secao is None:
+                print(f'idioma {args.idioma}: ' + (f'{pacote.name} has no @ANGULO' if pacote else 'no pack') + ': every Angulo text draws its English')
+            else:
+                arq = tmp / 'angulo.secao'
+                arq.write_bytes(secao)
+                comando += ['0', str(arq)]   # argv[2] is the palette entry (0, the stock one), argv[3] the section
+        r = subprocess.run(comando, capture_output=True, text=True)
         print(r.stdout.strip())
         if r.returncode:
             print(r.stderr.strip(), file=sys.stderr)
