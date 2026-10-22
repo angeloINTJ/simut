@@ -60,12 +60,12 @@ bool DisplayManager::_activeLangLoaded = false;
 
 /* Defensive limits */
 static constexpr size_t LANG_FILE_MIN = 64;
-/* LANG_DICT_MAX bounds the one allocation a pack keeps for the whole uptime:
- * its @DICT. es-ES is 2,910 B and pt-BR 2,815 B, so a pack can grow by more
- * than its whole dictionary before this bites, while a hostile one — the pack
- * is a file anyone with PERM_FILE_UPLOAD can put here — can no longer hold the
- * 16 KB the old prefix ceiling allowed. LANG_FILE_MAX only bounds the file on
- * flash: everything outside @DICT is read from there, if at all. */
+/* LANG_DICT_MAX bounds the allocation a pack keeps for the whole uptime, its
+ * @DICT (3,393 B in es-ES and 3,292 B in pt-BR on 2026-10-22), so a hostile
+ * pack, a file anyone with PERM_FILE_UPLOAD can put here, cannot pass it. The
+ * Ângulo images keep a second one, the @ANGULO table, at most 16,390 B (its
+ * bound UA_TEXTOS_MAX, src/ui/angulo/Textos.cpp). LANG_FILE_MAX only bounds the
+ * file on flash: everything outside those is read from there, if at all. */
 static constexpr size_t LANG_DICT_MAX = 6144;
 static constexpr size_t LANG_FILE_MAX = 49152;
 

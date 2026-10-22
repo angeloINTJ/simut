@@ -10,8 +10,8 @@
  * allocation the table is, and frees the buffer. A board in English loads no pack, so there is no range and nothing happens: every text shows its English.
  *
  * What it costs at the boot, at the most: the buffer plus the table, both alive while the table is built. The section is refused above
- * UA_TEXTOS_MAX (16,384 B) before anything is opened or allocated, so the worst case is 2 * 16,384 + 5 B = 32,773 B (one line of that size), and the
- * section B2a projected for pt-BR (10,413 B, 408 texts) peaks at 10,413 + 9,197 = 19,610 B; what stays afterwards is the table alone, 9,197 B. Both
+ * UA_TEXTOS_MAX (16,384 B) before anything is opened or allocated, so the worst case is 32,774 B (the review of B2b, measured: 2 * 16,384 + 6 when the section is the file's last and has no final newline; 32,773 with it), and the
+ * section B2a projected for pt-BR (10,413 B, 408 texts) peaks at 10,413 + 9,197 = 19,610 B; what stays afterwards is the table alone, 9,197 B (16,390 B at the most). Both
  * numbers are measured by tools/tft_ui/test_textos.py on the host, not on a board (B7 measures the heap there).
  *
  * What is logged, and by whom. Only a refusal, and not here: this function returns 0, or the ua::TextosResultado of the refusal, and the core's call site

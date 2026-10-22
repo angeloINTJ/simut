@@ -104,8 +104,9 @@ const char *txt( const char *en );
 #define UA_TXT( en ) ( ::ua::txt( "" en ) )
 
 // A looked-up text is never a format, on the compiler (S10c, B2b). With the project's -Wall -Wextra -Werror, from here to the end of the translation unit a
-// printf-family call whose format is not a literal is an error: -Wformat-nonliteral when it has arguments (snprintf( b, n, UA_TXT( "x %d" ), 1 )) and
+// call to a function declared with the format attribute (the printf family of the C library) whose format is not a literal is an error: -Wformat-nonliteral when it has arguments (snprintf( b, n, UA_TXT( "x %d" ), 1 )) and
 // -Wformat-security when it has none (printf( UA_TXT( "x" ) )). The words go in as arguments of a literal format: snprintf( b, n, "%d %s", v, UA_TXT( "min" ) ).
 // tools/tft_ui/test_textos.py plants both calls on g++ and on the cross-compiler and holds that they fail, and that they compile once these two lines are out.
+// A formatter without the attribute (Serial.printf, a variadic of the kit's own) is not seen here: tools/check_ui_texts.py refuses UA_TXT as its format.
 #pragma GCC diagnostic error "-Wformat-nonliteral"
 #pragma GCC diagnostic error "-Wformat-security"
