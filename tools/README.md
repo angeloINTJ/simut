@@ -1,6 +1,6 @@
 # tools/
 
-195 scripts. This file exists because until 2026-09-08 there was no way
+196 scripts. This file exists because until 2026-09-08 there was no way
 to tell a live bench tool from a leftover, and one of them —
 `compressor.py` — had been superseded for three months while still looking
 usable: it regenerated `WebUI_GZ.h` into the repository root, where nothing
@@ -107,7 +107,7 @@ local build before CI ever sees it.
 | `sensor_soak.py` | Sensor soak — protocol item #4 of docs/analysis/SIMUT-Plano-Estabilidade-Concorrencia.md. | 2026-08-14 |
 | `web_test_suite.py` | End-to-end test suite for the SIMUT web interface. | 2026-08-17 |
 
-## Referenced elsewhere (64)
+## Referenced elsewhere (65)
 
 Named by a document, a workflow, or another script — a recipe in `docs/` or a
 step in a bench procedure. Run by hand, but with instructions somewhere.
@@ -125,6 +125,7 @@ step in a bench procedure. Run by hand, but with instructions somewhere.
 | `bytes_original.py` | How many bytes of a `firmware.elf` are the original UI driver: the `nm -S -C` sizes added up by the class (`original`, `mixed`, `core`) of each row of `docs/analysis/UI_DRIVERS_funcoes.tsv`, the mixed rows kept apart and never added in (56,699 B of original rows in `pico_wiretft`, 2026-10-14; `UI_DRIVERS.md` section 3.6). `--src <worktree>` also estimates the original share of each mixed function from the TSV's line ranges, and needs `ui_funcs.py`, the stage S0 scanner, which is not in the repository yet (without it that option stops with exit 2). Needs the PlatformIO ARM toolchain. | 2026-10-14 By unit as well as by name since S10b: a row of a unit that `[ui.original].units` lists counts only in an image whose symbol table holds that unit's file symbol, so the Ângulo's `Temas.cpp`, which defines the same four names, is not counted as the original's; `--selftest` builds two tiny ELFs and holds the rule to them. |
 | `check_air_consistency.py` | Static consistency gate for the SIMUT Air build (no hardware, no PlatformIO). | 2026-10-13 |
 | `check_history_v5_parity.py` | Bit-exact parity gate between the firmware V5 codec and the reference. | 2026-08-22 |
+| `check_ui_texts.py` | Finds the texts the Ângulo draws that do not go through `UA_TXT( "<English>" )` (S10c, stage B1). It reads every string literal with a letter under `src/ui/angulo/**` as the compiler does (comments removed by the lexer of `check_net_boundary.py`, escapes decoded, adjacent literals joined, raw strings verbatim) and reports each one that is not the whole argument of `UA_TXT( )` and is not named in `ui_texts_allow.json`, which lists only what is not panel text (a unit, an icon name, a format string with no word, a bench tag, ...) and why. `--report` counts the findings by file and exits 0 (the inventory B3 to B5 work from); the default mode prints each and exits 1; `--selftest` plants literals in temporary trees, runs the script as a process and breaks six parts of the gate to see that the cases notice. **Not in CI yet**: B6 adds it to the gates job and the row moves to the first group then. | 2026-10-22 |
 | `chunked_probe.py` | Reads `/api/status` in a loop on one keep-alive socket, with its own chunked parser, and says how each reply ended: whole, with a hole (bytes missing mid-stream, #189), cut short honestly, or closed before its first byte. Keeps the raw bytes of every reply that is not whole and reports how far the device's abort counters (`metr.cgd`/`cgg`/`cgx`/`cgw`) moved. Proven against a fake server that serves each of the four endings, then on the bench. Cited by `arduino_pico_overrides/README.md` (overrides 2m and 2n), and the raw client of `route_sweep.py`. | 2026-10-14 |
 | `cleanup_comments.py` | Clean version history references and Portuguese markers from source files. | 2026-06-06 |
 | `cli_gates.py` | Which lines of a C++ source an image compiles, for the gates that read the console's parser as text. `eval_gate( )` evaluates the expression of an `#if` or `#elif` over four macros (`SIMUT_CLI_FULL`, `SIMUT_AIR`, `SIMUT_NET_LAN`, `SIMUT_NET_WIFI`) with and, or, not, parentheses and numbers, and `strip_gated( )` blanks the branches the image does not compile, the line count unchanged. Anything else (another macro, `defined`, a comparison, `#ifdef`) is left as it is, because a gate that keeps a line it cannot judge errs on the side of checking it. Imported by `check_cli_help.py` (the build) and `check_air_consistency.py`; added on 2026-10-13 with the wired build, whose `#if SIMUT_NET_WIFI` the two gates could not read. Tests: `test_cli_gates.py`. | 2026-10-13 |

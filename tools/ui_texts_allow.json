@@ -1,0 +1,362 @@
+{
+ "about": "Read by tools/check_ui_texts.py (S10c, B1). Each group is one reason why a string literal with a letter under src/ui/angulo is NOT text the panel draws. An entry is a file and the decoded literal; it covers every occurrence there. What the panel draws is never listed, even when it reads the same in every language: it goes through UA_TXT( ). An entry that matches nothing is a finding.",
+ "groups": [
+  {
+   "reason": "the brand: SIMUT is the product's name, the same in every language",
+   "texts": {
+    "src/ui/angulo/Angulo.cpp": [
+     "SIMUT"
+    ],
+    "src/ui/angulo/telas/PainelBoot.cpp": [
+     "SIMUT"
+    ],
+    "src/ui/angulo/telas/Telas.cpp": [
+     "SIMUT"
+    ]
+   }
+  },
+  {
+   "reason": "a unit: a symbol that reads the same in every language (the degree Celsius, hPa, h, min)",
+   "texts": {
+    "src/ui/angulo/telas/AjustesAlarmes.cpp": [
+     "h",
+     "hPa",
+     "min",
+     "°C"
+    ],
+    "src/ui/angulo/telas/GraficosDetalhe.cpp": [
+     "hPa",
+     "°C"
+    ],
+    "src/ui/angulo/telas/GraficosGrafico.cpp": [
+     " °C",
+     "hPa"
+    ],
+    "src/ui/angulo/telas/PainelPrincipal.cpp": [
+     "hPa",
+     "°C"
+    ]
+   }
+  },
+  {
+   "reason": "a format string with no word: only conversions, punctuation and the unit symbols kB and dBm; the words it joins are texts of their own",
+   "texts": {
+    "src/ui/angulo/Angulo.cpp": [
+     "%s%ld,%ld"
+    ],
+    "src/ui/angulo/DisplayManager_UiA_Menus.cpp": [
+     "%s (%s)"
+    ],
+    "src/ui/angulo/DisplayManager_UiA_Painel.cpp": [
+     "%02X:%02X:%02X:%02X:%02X:%02X",
+     "%s",
+     "%s%s"
+    ],
+    "src/ui/angulo/telas/AjustesAlarmes.cpp": [
+     "%02lu",
+     "%lu",
+     "%u"
+    ],
+    "src/ui/angulo/telas/AjustesComum.cpp": [
+     "%s%.*s%s%s"
+    ],
+    "src/ui/angulo/telas/AjustesSistema.cpp": [
+     "%02u",
+     "%04u",
+     "%u"
+    ],
+    "src/ui/angulo/telas/AjustesSons.cpp": [
+     "%d %%"
+    ],
+    "src/ui/angulo/telas/AjustesTela.cpp": [
+     "%s%d",
+     "%u",
+     "%u %%"
+    ],
+    "src/ui/angulo/telas/GraficosCalendario.cpp": [
+     "%d",
+     "%s %u"
+    ],
+    "src/ui/angulo/telas/GraficosComum.cpp": [
+     " · %s",
+     "%02u/%02u",
+     "%02u/%02u %02u:%02u",
+     "%02u:%02u",
+     "%s%s",
+     "%s%s%s",
+     "· %s"
+    ],
+    "src/ui/angulo/telas/GraficosDetalhe.cpp": [
+     "+%s"
+    ],
+    "src/ui/angulo/telas/GraficosGrafico.cpp": [
+     "%d",
+     "%ld",
+     "%s%s",
+     "+%s"
+    ],
+    "src/ui/angulo/telas/GraficosOta.cpp": [
+     "%u"
+    ],
+    "src/ui/angulo/telas/IdentidadePin.cpp": [
+     "%d %s.",
+     "%s%s",
+     ": %s"
+    ],
+    "src/ui/angulo/telas/MenusStatus.cpp": [
+     "%lu,%lu",
+     "%s dBm",
+     "%s kB",
+     "%s%d"
+    ],
+    "src/ui/angulo/telas/PainelComum.h": [
+     "%s%s"
+    ],
+    "src/ui/angulo/telas/PainelPrincipal.cpp": [
+     "%d",
+     "%ld",
+     "%s %s",
+     "%u",
+     "%u/%u"
+    ],
+    "src/ui/angulo/telas/Telas.cpp": [
+     "%s%.*s…",
+     "%s%s"
+    ]
+   }
+  },
+  {
+   "reason": "an icon name: a key of the kit's icon table (kit/icones/icones.h), looked up by name and never drawn as text",
+   "texts": {
+    "src/ui/angulo/kit/icones/icones.h": [
+     "arrow-big-up",
+     "arrow-big-up-dash",
+     "arrow-left",
+     "bell",
+     "bell-off",
+     "bluetooth",
+     "calendar",
+     "chart-line",
+     "check",
+     "chevron-down",
+     "chevron-left",
+     "chevron-right",
+     "chevron-up",
+     "crosshair",
+     "delete",
+     "droplets",
+     "eye",
+     "eye-off",
+     "history",
+     "house",
+     "key-round",
+     "languages",
+     "layout-grid",
+     "minus",
+     "moon",
+     "move",
+     "palette",
+     "plus",
+     "pointer",
+     "settings",
+     "sun",
+     "sun-moon",
+     "thermometer",
+     "triangle-alert",
+     "user",
+     "volume-2",
+     "wifi"
+    ]
+   }
+  },
+  {
+   "reason": "an identifier passed to another API: the language tags the settings store (pt-BR, es-ES) and the theme ids that /api/ui and the theme catalogue carry (claro, escuro-azul, ...); never drawn",
+   "texts": {
+    "src/ui/angulo/DisplayManager_UiA_Menus.cpp": [
+     "es-ES",
+     "pt-BR"
+    ],
+    "src/ui/angulo/Temas.cpp": [
+     "auto",
+     "auto-azul",
+     "auto-indigo",
+     "auto-magenta",
+     "auto-petroleo",
+     "auto-violeta",
+     "claro",
+     "claro-azul",
+     "claro-indigo",
+     "claro-magenta",
+     "claro-petroleo",
+     "claro-violeta",
+     "escuro",
+     "escuro-azul",
+     "escuro-indigo",
+     "escuro-magenta",
+     "escuro-petroleo",
+     "escuro-violeta"
+    ]
+   }
+  },
+  {
+   "reason": "a name compared with what the user typed, never drawn: the reserved account name",
+   "texts": {
+    "src/ui/angulo/DisplayManager_UiA_Identidade.cpp": [
+     "admin"
+    ]
+   }
+  },
+  {
+   "reason": "the bench endpoint GET /api/ui (src/ui/angulo/WebManager_UiA.cpp, which no product image compiles): its route, headers, content type, JSON keys and error strings are read by the bench scripts and never drawn",
+   "texts": {
+    "src/ui/angulo/WebManager_UiA.cpp": [
+     "%s[%d,%d,%d,%d,%u,%d]",
+     "/api/ui",
+     "Cache-Control",
+     "Retry-After",
+     "application/json",
+     "claro",
+     "escuro",
+     "false",
+     "no-cache, no-store, must-revalidate",
+     "true",
+     "{\"erro\":\"nenhum quadro na tela ainda\"}",
+     "{\"erro\":\"o painel estava sendo redesenhado; tente de novo\"}",
+     "{\"erro\":\"o quadro não coube na resposta\"}",
+     "{\"modo\":%u,\"modo_atual\":%u,\"tema\":\"%s\",\"hash\":\"%08lx\",\"pinturas\":%lu,\"ms\":%lu,\"ms_max\":%lu,\"faixas\":%u,\"painel\":{\"sel\":%d,\"cima\":%d,\"fixado\":%s,\"minmax\":[%d,%d],\"nav\":[%d,%d,%d,%d,%d]},\"janela\":[%lu,%lu],\"agora\":%lu,\"alvos\":["
+    ]
+   }
+  },
+  {
+   "reason": "a linker section: the attribute that places a function in RAM and the name it is placed under, read by tools/check_ui_ram.py",
+   "texts": {
+    "src/ui/angulo/Faixa.h": [
+     ".time_critical.",
+     "ua_Faixa_fillRect"
+    ]
+   }
+  },
+  {
+   "reason": "a host-harness tag: the kind of control passed to UA_CONTROLE( ) and the name of the screen passed to conferirCaixas( ), which the host tests read and the firmware compiles out",
+   "texts": {
+    "src/ui/angulo/Angulo.cpp": [
+     "botao",
+     "chip",
+     "interruptor",
+     "segmento",
+     "tecla"
+    ],
+    "src/ui/angulo/telas/AjustesComum.cpp": [
+     "segmento"
+    ],
+    "src/ui/angulo/telas/GraficosCalendario.cpp": [
+     "calendario"
+    ],
+    "src/ui/angulo/telas/GraficosDetalhe.cpp": [
+     "detalhe"
+    ],
+    "src/ui/angulo/telas/GraficosGrafico.cpp": [
+     "grafico",
+     "periodo"
+    ],
+    "src/ui/angulo/telas/IdentidadePin.cpp": [
+     "botao"
+    ],
+    "src/ui/angulo/telas/MenusConfig.cpp": [
+     "amostra",
+     "botao",
+     "segmento"
+    ],
+    "src/ui/angulo/telas/PainelPrincipal.cpp": [
+     "grafico",
+     "nav"
+    ]
+   }
+  },
+  {
+   "reason": "a host-harness diagnostic: written to stderr by the host tests (UA_HOST) when a sample is wrong; it is not on the firmware and never drawn",
+   "texts": {
+    "src/ui/angulo/Angulo.cpp": [
+     "more than %d controls in one sample\n"
+    ],
+    "src/ui/angulo/telas/GraficosComum.cpp": [
+     "%s: action %d is at %d,%d %dx%d in the kit's title bar, and its target was made for %d,%d %dx%d\n"
+    ]
+   }
+  },
+  {
+   "reason": "a measurement probe: measured with larguraTinta( ) to get the width of a space, never drawn",
+   "texts": {
+    "src/ui/angulo/telas/IdentidadeTexto.cpp": [
+     "x x",
+     "xx"
+    ]
+   }
+  },
+  {
+   "reason": "a compile-time diagnostic: the message of a static_assert, which stops the build and never reaches the binary",
+   "texts": {
+    "src/ui/angulo/Angulo.cpp": [
+     "Tema must start with its 17 colour roles and nothing else before escuro",
+     "a record is 14 bytes: the list is sized in them",
+     "hashFaixa reads two pixels as one little-endian word",
+     "kCapX follows ua::Fonte",
+     "kFontes follows ua::Fonte",
+     "the delivered Tema is the 17 roles and nothing else",
+     "themeIndex is an int8_t: every index of the palette must fit"
+    ],
+    "src/ui/angulo/Angulo.h": [
+     "the identity is hashed as it is: five bytes and no padding"
+    ],
+    "src/ui/angulo/DisplayManager_UiA.cpp": [
+     "UaAlvoBruto mirrors ua::Alvo",
+     "UaEstado holds every target",
+     "the strips tile the panel's height",
+     "ua::Faixa tiles the panel that DisplayDriver describes"
+    ],
+    "src/ui/angulo/DisplayManager_UiA_Ajustes.cpp": [
+     "the Angulo sight (telas/AjustesTela.h MIRA_X/Y) must stand on the core's calibration targets (CAL_SCR_X/Y)"
+    ],
+    "src/ui/angulo/DisplayManager_UiA_Graficos.cpp": [
+     "FaseOta is numbered as OtaPhase",
+     "MotivoOta is numbered as OtaWhy"
+    ],
+    "src/ui/angulo/DisplayManager_UiA_Menus.cpp": [
+     "EscolhaIdioma must stay the language ids",
+     "ItemMenu must stay SettingsMenuItem (display/SettingsMenu.h)",
+     "the screen has the pages the old one had"
+    ],
+    "src/ui/angulo/Faixa.h": [
+     "a record's offsets into the list are 16 bits",
+     "the strips tile the panel's height"
+    ],
+    "src/ui/angulo/Temas.cpp": [
+     "every mode comes with every accent of the palette: index t is mode t % 3, accent t / 3 (ua::escolhaDoIndice)"
+    ],
+    "src/ui/angulo/UiA.h": [
+     "view model larger than UA_VM_MAX"
+    ],
+    "src/ui/angulo/telas/GraficosCalendario.cpp": [
+     "six weeks fill the card"
+    ],
+    "src/ui/angulo/telas/GraficosCarregando.cpp": [
+     "the segment travels three steps each side of the middle"
+    ],
+    "src/ui/angulo/telas/GraficosGrafico.cpp": [
+     "two arrows and five chips fill the footer between its ESP2 margins"
+    ],
+    "src/ui/angulo/telas/MenusConfig.cpp": [
+     "a disabled button is listed as the inert target",
+     "a segment holds its icon over its label",
+     "the screen names every entry of the palette, and only those",
+     "the segments fill the glass between its margins",
+     "the swatches are one row of 44 px targets, 8 px apart",
+     "the swatches fit the glass in one row"
+    ],
+    "src/ui/angulo/telas/MenusConfig.h": [
+     "the segments are the kit's modes, in the kit's order"
+    ]
+   }
+  }
+ ]
+}
