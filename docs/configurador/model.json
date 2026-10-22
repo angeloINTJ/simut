@@ -1005,8 +1005,8 @@
         "tft_graph": true
       },
       "why": {
-        "en": "The Ângulo look draws its charts on the touch display, so it needs the panel chart. Keep the switch \"Graph and calendar on the touch display\" on.",
-        "pt": "O visual Ângulo desenha os gráficos na tela touch, então precisa do gráfico do painel. Mantenha ligada a chave \"Gráfico e calendário na tela touch\"."
+        "en": "The Ângulo look draws its charts on the touch display, so it needs the switch \"Graph and calendar on the touch display\" on.",
+        "pt": "O visual Ângulo desenha os gráficos na tela touch, então precisa da chave \"Gráfico e calendário na tela touch\" ligada."
       },
       "evidence": "pico2_w_release with ui = angulo and tft_graph = false passed the manifest and did not compile. Run on 2026-10-22 on the tree of a6859ce5, before this rule existed: python3 tools/build_custom.py --profile '{\"v\":1,\"base\":\"pico2_w_release\",\"set\":{\"ui\":\"angulo\",\"tft_graph\":false}}' exits 1 with src/ui/angulo/DisplayManager_UiA.cpp:293:44: error: '_graphData' was not declared in this scope, and five more of the same error in src/ui/angulo/DisplayManager_UiA_Graficos.cpp (its --validate-only exited 0). The Wire TFT (base pico_wiretft, the same two choices) fails the same way. The Ângulo reads the data package of the panel chart, DisplayManager::_graphData (a GraphDataPackage), a member that exists only when SIMUT_TFT_GRAPH is set (src/DisplayManager.h), so the Ângulo needs the chart switch on. The manifest refuses the combination before a build starts; making the Ângulo compile without the chart is a change in src/, not in the manifest."
     }
