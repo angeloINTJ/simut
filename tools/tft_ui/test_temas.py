@@ -754,9 +754,12 @@ def problemas_do_toque_tema(menus):
     # no target is a dead zone the screen takes (TRATADO), not a touch for no one. Its X6 and X7 passed every run: the run starts inside the case.
     norma = ' '.join(f.split())
     posse = re.search(r'switch \( _uiMode \) \{ ((?:case MODE_\w+: )+)break; default: return UaToque::NAO_E_MEU; \} if \( !a \) return UaToque::TRATADO;', norma)
-    if posse is None or norma.find('switch ( _uiMode )') != posse.start():
-        p.append('the first statement of uaToqueMenus( ) is not the switch of the screens it owns, ending `default: return UaToque::NAO_E_MEU;`, '
-                 'followed by `if ( !a ) return UaToque::TRATADO;`')
+    # The body must open with these, nothing before them (S10c, A'2f, the review of C1a-b, A'2e and C1b: its V5, a return put before the switch, passed while the
+    # rule looked for the first switch rather than the first statements).
+    corpo = norma[norma.find('{') + 1:].lstrip()
+    if posse is None or not corpo.startswith('using namespace ua::tela; ' + posse.group(0)):
+        p.append('the first statements of uaToqueMenus( ) are not `using namespace ua::tela;` and the switch of the screens it owns, ending '
+                 '`default: return UaToque::NAO_E_MEU;`, followed by `if ( !a ) return UaToque::TRATADO;`')
     elif 'case MODE_SETTINGS_THEMES:' not in posse.group(1):
         p.append('uaToqueMenus( ) does not own MODE_SETTINGS_THEMES in its first switch: no tap would reach the Tema case')
     return p
@@ -788,6 +791,8 @@ TOQUE_MUTANTES = [
     # (B1, B2: only the run sees them, since A'2e cuts and runs the builder's case).
     ('X6 the menus touch does not own the Tema screen', [('    case MODE_SETTINGS_MAIN:\n    case MODE_SETTINGS_THEMES:\n    case MODE_SETTINGS_LANG:\n', '    case MODE_SETTINGS_MAIN:\n    case MODE_SETTINGS_LANG:\n', 1)], True, False),
     ('X7 a tap on no target is not taken as a dead zone', [('if ( !a ) return UaToque::TRATADO;', 'if ( !a ) return UaToque::NAO_E_MEU;', 1)], True, False),
+    ('V5 a statement before the owned-mode switch drops the Tema screen', [('UaToque DisplayManager::uaToqueMenus( const ua::Alvo *a, int16_t &, int16_t & ) {\n  using namespace ua::tela;\n',
+      'UaToque DisplayManager::uaToqueMenus( const ua::Alvo *a, int16_t &, int16_t & ) {\n  using namespace ua::tela;\n  if ( _uiMode == MODE_SETTINGS_THEMES ) return UaToque::NAO_E_MEU;\n', 1)], True, False),
     ('B1 the builder marks the shown choice as the saved one', [('vm.salvo = ua::indiceDaEscolha( s.modo, s.acento );', 'vm.salvo = ua::indiceDaEscolha( e.modo, e.acento );', 1)], False, True),
     ('B2 the builder shows the stock accent', [('vm.acento = e.acento;', 'vm.acento = 0;', 1)], False, True),
 ]
