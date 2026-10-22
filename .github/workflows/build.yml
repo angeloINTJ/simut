@@ -229,7 +229,8 @@ jobs:
       - name: Angulo RAM-resident functions (the guard and its controls)
         run: python3 tools/test_check_ui_ram.py
 
-      # The Angulo link set's gate, on synthetic nm text: the pattern, the allowance and their negative controls (no ELF, no toolchain).
+      # The Angulo link set's gate, on synthetic nm text and table rows: the table path, the patterns, the allowances and their negative controls, and a read of the real
+      # function table (no ELF, no toolchain).
       - name: Angulo link set (the gate and its controls)
         run: python3 tools/check_ui_link.py --selftest
 
@@ -588,10 +589,10 @@ jobs:
       - name: Check flash budget
         run: python3 tools/check_flash_budget.py ${{ matrix.env }} build.log
 
-      # The two Angulo images link none of the original's draws (DisplayManager::draw*, render, redraw*, simutFont, availableThemes) and none of
-      # its pixel primitives (fastFillRect, fastClearScreen, blitCanvas): S4 to S10b made that so, and nothing else in CI holds it (the flash
-      # budget counts bytes, not names). Reads the ELF this job just built. The images are not required checks (CLAUDE.md names the nine), and
-      # neither is this step.
+      # The two Angulo images link nothing the function table (docs/analysis/UI_DRIVERS_funcoes.tsv) calls original, bar the named allowances of
+      # tools/check_ui_link.py, and no draw, render or blit name or pixel primitive that the table does not know: S4 to S10b made that so, and nothing
+      # else in CI holds it (the flash budget counts bytes, not names). Reads the ELF this job just built. The images are not required checks
+      # (CLAUDE.md names the nine), and neither is this step.
       - name: Angulo link set (no original draws, no pixel primitives)
         if: endsWith(matrix.env, '_angulo')
         run: python3 tools/check_ui_link.py .pio/build/${{ matrix.env }}/firmware.elf

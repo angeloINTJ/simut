@@ -233,8 +233,8 @@ lib_deps = ["https://github.com/angeloINTJ/pico-enc28j60.git#4984e2f55727c81cfd6
 # os widgets (UiWidgets). Medido em 2026-10-21 (S10b, sonda P4, sobre o C5b): as sete juntas linkam nas duas imagens com o mesmo .bin e a
 # mesma folga (o --gc-sections ja as descartava); o que a lista traz e que uma dependencia nova delas vira erro de link, e nao bytes
 # calados. Ainda NAO estao aqui, cada uma com o que a segura (tabela da P4; o S10b-2 as separa): Settings (so na imagem com Wi-Fi:
-# core0Yield( ) chama showApConfirm( )), Dashboard (buildDashLayout( ), de uaMontarPainel e uaToquePainel), Calibration (core0Yield( ) e
-# handleResetTouchCal chamam showTouchCalibration e showSettingsDisplayOffset), Auth (fastRandom, readRect*, convert3to565 e readRow,
+# core0Yield( ) chama showApConfirm( )), Dashboard (buildDashLayout( ), de uaMontarPainel e uaToquePainel), Calibration (core0Yield( ) chama
+# showTouchCalibration e showSettingsDisplayOffset, e handleResetTouchCal so showTouchCalibration), Auth (fastRandom, readRect*, convert3to565 e readRow,
 # que o nucleo chama), Touch (loopCore1 chama handleTouch), Users, Alarm e DisplayManager.cpp (funcoes de estado e de show que o nucleo
 # e o Angulo chamam) e Panel.cpp (sem linha de original na tabela, nao sondada). Uma unidade entra aqui com a prova das duas imagens.
 units = [

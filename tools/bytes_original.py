@@ -161,6 +161,16 @@ def absent_units(original_only, files, rows):
     return {u for u in original_only if u not in files and os.path.basename(u) not in files and any(r["unit"] == u for r in rows)}
 
 
+def row_of(key, table):
+    """The row name a symbol key falls on: the key itself, or a GFX font row by prefix; None when no row accounts for it. One reading for the sums here and for check_ui_link.py (S10b, C6b)."""
+    if key in table:
+        return key
+    for f in FONT_ROWS:
+        if key == f or (key.startswith(f) and key[len(f):] in ("Bitmaps", "Glyphs")):
+            return f
+    return None
+
+
 def original_flash(syms, table, cls_of):
     """Bytes of flash of the symbols that a row of class original accounts for (the selftest's measure; main() prints the full report)."""
     n = 0
@@ -257,14 +267,7 @@ def main():
             per_unit[(unit, bucket)][kind] += size
         for idx, (addr, size, typ, name) in enumerate(syms):
             k = key_of(name)
-            hit = None
-            if k in table:
-                hit = k
-            else:
-                for f in FONT_ROWS:
-                    if k == f or (k.startswith(f) and k[len(f):] in ("Bitmaps", "Glyphs")):
-                        hit = f
-                        break
+            hit = row_of(k, table)
             if hit is None:
                 continue
             mapped_idx.add(idx)
