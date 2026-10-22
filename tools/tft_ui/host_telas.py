@@ -255,9 +255,9 @@ def tabelas_do_cabecalho():
     texto = (ROOT / 'src' / 'ui' / 'angulo' / 'kit' / 'angulo_tokens.h').read_text(encoding='utf-8')
     papeis = re.findall(r'uint16_t (\w+);', re.search(r'struct Tema \{(.*?)\};', texto, re.S).group(1))
     tabelas = {m.group(1): [int(x, 16) for x in re.findall(r'\*/ (0x[0-9A-Fa-f]{4}),', m.group(2))]
-               for m in re.finditer(r'const Tema (\w+) PROGMEM = \{\n(.*?)\n\};', texto, re.S)}
+               for m in re.finditer(r'constexpr Tema (\w+) PROGMEM = \{\n(.*?)\n\};', texto, re.S)}
     indices = {m.group(1): re.findall(r'&(\w+),', m.group(2))
-               for m in re.finditer(r'const Tema \*const (\w+)\[ACENTOS_N\] PROGMEM = \{\n(.*?)\n\};', texto, re.S)}
+               for m in re.finditer(r'constexpr const Tema \*(\w+)\[ACENTOS_N\] PROGMEM = \{\n(.*?)\n\};', texto, re.S)}
     out = {}
     for modo, chave in (('escuro', 'TEMAS_ESCURO'), ('claro', 'TEMAS_CLARO')):
         for k, nome in enumerate(indices[chave]):

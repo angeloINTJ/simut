@@ -175,12 +175,15 @@ def acentos(spec, T):
 
 def bloco_acentos(T, E):
     """The header's accent section: ACENTOS_N, the table and the twin of every entry but 0 (entry 0 is TEMA_CLARO and TEMA_ESCURO,
-    above, unchanged), and the four index arrays."""
+    above, unchanged), and the four index arrays. Every table of the header is emitted constexpr (S10c, A'2b): the Angulo's palette (Angulo.cpp) is then built by
+    the compiler and sits in flash, where as const objects with a constructor it sat in .bss (432 B) and a static initialiser filled it at every boot (static RAM
+    9,603 -> 9,171 B, measured 2026-10-22 with tools/check_ui_ram.py)."""
     hex4 = lambda v: '0x' + format(v, 'X').zfill(4)
     out = (f'// Acentos: o tema e so a cor de destaque, escolhida numa paleta; o resto segue o modo (claro ou escuro).\n'
            f'// A entrada 0 e o acento de hoje (TEMA_CLARO e TEMA_ESCURO, acima, palavra por palavra). Cada outra traz os 17 papeis\n'
            f'// com o acento proprio de cada modo: acentoForte e {round(FORTE * 100)} % da tinta do modo sobre o acento, acentoTinta e o\n'
            f'// do modo, e a versao desabilitada de cada tabela e a de sempre ({round(DESAB * 100)} % sobre o fundo).\n'
+           f'// Todas as tabelas do arquivo sao constexpr: o compilador monta a paleta de Angulo.cpp e ela fica na flash, sem inicializador no boot (RAM estatica 432 B menor).\n'
            f'constexpr uint8_t ACENTOS_N = {len(E)};\n\n')
     nomes = {m: [] for m in MODOS}
     for k, e in enumerate(E):
@@ -194,14 +197,14 @@ def bloco_acentos(T, E):
             tab = f'TEMA_{N}_' + e['id'].upper().replace('-', '_')
             linhas = '\n'.join(f'  /* {p.ljust(13)} {h[p]} */ {hex4(c[p])},' for p in PAPEIS)
             desab = '\n'.join(f'  /* {p.ljust(13)} */ {hex4(blend565(c[p], c["fundo"], DESAB))},' for p in PAPEIS)
-            out += (f'// Acento {k} ({e["id"]}), tema {nome}\nconst Tema {tab} PROGMEM = {{\n{linhas}\n}};\n'
-                    f'// Acento {k} ({e["id"]}), tema {nome}, estado desabilitado\nconst Tema {tab}_DESAB PROGMEM = {{\n{desab}\n}};\n\n')
+            out += (f'// Acento {k} ({e["id"]}), tema {nome}\nconstexpr Tema {tab} PROGMEM = {{\n{linhas}\n}};\n'
+                    f'// Acento {k} ({e["id"]}), tema {nome}, estado desabilitado\nconstexpr Tema {tab}_DESAB PROGMEM = {{\n{desab}\n}};\n\n')
             nomes[nome].append((tab, tab + '_DESAB', e['id']))
     out += '// Por indice do acento (0 = o de hoje): a tabela de cada modo e a sua versao desabilitada\n'
     for nome in MODOS:
         for sufixo, col in (('', 0), ('_DESAB', 1)):
             itens = '\n'.join(f'  &{t[col]},  // {k} {t[2]}' for k, t in enumerate(nomes[nome]))
-            out += f'const Tema *const TEMAS_{nome.upper()}{sufixo}[ACENTOS_N] PROGMEM = {{\n{itens}\n}};\n'
+            out += f'constexpr const Tema *TEMAS_{nome.upper()}{sufixo}[ACENTOS_N] PROGMEM = {{\n{itens}\n}};\n'
     return out + '\n'
 
 
@@ -215,9 +218,9 @@ def header(T, E):
         linhas = '\n'.join(f'  /* {p.ljust(13)} {h[p]} */ {hex4(c[p])},' for p in PAPEIS)
         desab = '\n'.join(f'  /* {p.ljust(13)} */ {hex4(blend565(c[p], c["fundo"], DESAB))},' for p in PAPEIS)
         N = nome.upper()
-        blocos += (f'// Tema {nome}\nconst Tema TEMA_{N} PROGMEM = {{\n{linhas}\n}};\n'
+        blocos += (f'// Tema {nome}\nconstexpr Tema TEMA_{N} PROGMEM = {{\n{linhas}\n}};\n'
                    f'// Tema {nome}, estado desabilitado: cada papel misturado a 45 % sobre o fundo\n'
-                   f'const Tema TEMA_{N}_DESAB PROGMEM = {{\n{desab}\n}};\n\n')
+                   f'constexpr Tema TEMA_{N}_DESAB PROGMEM = {{\n{desab}\n}};\n\n')
     return f'''// Tokens do Angulo para o TFT 320x240 RGB565 (gerado por tools/tft_ui/gen_tokens.py a partir de
 // tools/tft_ui/tokens_tft.json; nao editar a mao).
 // Hex do guia -> RGB565 pela macro ((r & 0xF8) << 8) | ((g & 0xFC) << 3) | (b >> 3).

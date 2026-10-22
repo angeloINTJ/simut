@@ -118,7 +118,7 @@ const TextoMsg kMensagens[] = {
  * (S10c, A'2). The mode is light, dark or automatic (dark from 19:00 to 6:59 by the panel's clock; light while there is no clock),
  * and the accent is the palette entry whose tables the mode takes. The values 0, 1 and 2 are the three modes with the stock
  * accent, as before; a value outside the palette means light with the stock accent. Core 1 reads only this byte and const
- * tables (ua::tema( ) hands out the kit's, built before it started): no copy of a theme is shared between the cores. The one thing that is not the saved
+ * tables (ua::tema( ) hands out the kit's, which the compiler built and flash holds): no copy of a theme is shared between the cores. The one thing that is not the saved
  * theme is the Tema screen's preview (_uaPrevia, set by its taps and Core 1's alone): the frame of MODE_SETTINGS_THEMES is painted with it and the frame of any
  * other mode, the update screen included, with the saved theme. `modo` is the mode of the frame being painted and not _uiMode: Core 0 paints the update
  * screen while _uiMode may still say Tema. */

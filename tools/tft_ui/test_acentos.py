@@ -136,13 +136,13 @@ def le_cabecalho(texto):
         raise SystemExit('test_acentos: the header has no struct Tema or no ACENTOS_N (is it generated from the accent palette?)')
     campos = re.findall(r'uint16_t (\w+);', m.group(1))
     tabelas = {}
-    for t in re.finditer(r'const Tema (\w+) PROGMEM = \{\n(.*?)\n\};', texto, re.S):
+    for t in re.finditer(r'constexpr Tema (\w+) PROGMEM = \{\n(.*?)\n\};', texto, re.S):
         palavras = [int(x, 16) for x in re.findall(r'\*/ 0x([0-9A-Fa-f]{4}),', t.group(2))]
         if len(palavras) != len(campos):
             raise SystemExit(f'test_acentos: {t.group(1)} has {len(palavras)} words, the struct {len(campos)}')
         tabelas[t.group(1)] = dict(zip(campos, palavras))
     indices = {}
-    for t in re.finditer(r'const Tema \*const (\w+)\[ACENTOS_N\] PROGMEM = \{\n(.*?)\n\};', texto, re.S):
+    for t in re.finditer(r'constexpr const Tema \*(\w+)\[ACENTOS_N\] PROGMEM = \{\n(.*?)\n\};', texto, re.S):
         indices[t.group(1)] = re.findall(r'&(\w+),', t.group(2))
     return campos, tabelas, indices, int(n.group(1))
 

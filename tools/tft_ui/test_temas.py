@@ -5,13 +5,16 @@ In the Angulo a theme is the mode (light, dark, automatic) plus one accent of th
 (ua::escolhaDoIndice / ua::indiceDaEscolha, src/ui/angulo/Angulo.cpp). Builds tools/tft_ui/host/test_temas_main.cpp with the kit
 and Adafruit GFX 1.12.6 (as test_cantos.py does) and runs it: the decode over all 256 int8_t values, ua::tema( ) and ua::desab( )
 against the generated tables (17 roles x every entry x 2 modes), and the frame identity the glue hashes (two frames that differ
-only in the accent hash differently and ask for a full repaint). Then the glue and the sources are read as text: the glue builds
+only in the accent hash differently and ask for a full repaint). Then the glue is linked (S10c, A'2b: tools/tft_ui/host/test_temas_glue_main.cpp cuts fnv( ), DisplayManager::uaTema( ) and the two runs of statements that hash
+the view model and the identity out of the glue, verbatim, compiles them against a stand-in for the few members they touch and runs them over every index, preview
+and hour: the review of A'2 found three mutants of the glue that every text check passed), and the glue and the sources are read as text: the glue builds
 the identity only through ua::identidadeDoQuadro( ), from the theme uaTema( ) gives, and ACENTOS_N lives only in the two
 encoding functions.
 
 Then the instrument is bitten: the same program built with one mutant of the kit each (the decode by a modulo instead of the range
 check, desab( ) and tema( ) stuck on entry 0, the identity or the full-repaint trigger without the accent, the table without its
-accent field) must exit 1, and the text checks must report a glue that drops the theme or the trigger.
+accent field) must exit 1, and the text checks must report a glue that drops the theme or the trigger, and so must the glue link for every mutant of GLUE_MUTANTES (the accent, the mode, the hour,
+the preview or part of the hash dropped).
 
 Usage: python3 tools/tft_ui/test_temas.py   exit 0 when all hold, 1 when not, 2 when it cannot build.
 """
@@ -36,6 +39,7 @@ MENUS_H = KIT / 'telas' / 'MenusConfig.h'
 MENUS_CPP = KIT / 'telas' / 'MenusConfig.cpp'
 TEMAS_CPP = KIT / 'Temas.cpp'
 ANGULO = KIT / 'Angulo.cpp'
+GLUE_MAIN = HERE / 'host' / 'test_temas_glue_main.cpp'
 
 CASOS = []
 
@@ -62,6 +66,31 @@ MUTANTES = [
      '(uint8_t)t.escuro, t.entrada, ox, oy };', '(uint8_t)t.escuro, 0, ox, oy };'),
     ('the full-repaint trigger leaves the accent out',
      ' || acento != antes.acento;', ';'),
+]
+
+
+# The glue's own statements about the theme (S10c, A'2b): each entry is a change to DisplayManager_UiA.cpp that the glue link must refuse. (name, the glue's text, what replaces it,
+# how many times the text occurs.) The first three are the mutants the review of A'2 found passing every check of A'2; the others were found by mutating the same statements.
+GLUE_MUTANTES = [
+    ('the accent never reaches the glass: uaTema( ) asks ua::tema( ) for entry 0', 'return ua::tema( escuro, e.acento );', 'return ua::tema( escuro, 0 );', 1),
+    ('the dark mode inverted in uaTema( )', 'bool escuro = e.modo == ua::MODO_ESCURO;', 'bool escuro = e.modo != ua::MODO_ESCURO;', 1),
+    ('both hashes cut the identity after 2 bytes, so the accent leaves them', 'h = fnv( &id, sizeof id, h );', 'h = fnv( &id, 2, h );', 2),
+    ('the update screen hash cuts the identity after 2 bytes', '(uint8_t)MODE_OTA_UPDATE, tema, 0, 0 );\n  h = fnv( &id, sizeof id, h );',
+     '(uint8_t)MODE_OTA_UPDATE, tema, 0, 0 );\n  h = fnv( &id, 2, h );', 1),
+    ('the paint hash cuts the identity after 2 bytes', '(uint8_t)_uiMode, tema, ox, oy );\n  h = fnv( &id, sizeof id, h );',
+     '(uint8_t)_uiMode, tema, ox, oy );\n  h = fnv( &id, 2, h );', 1),
+    ('the identity restarts the hash and drops the view model', 'h = fnv( &id, sizeof id, h );', 'h = fnv( &id, sizeof id );', 2),
+    ('the view model leaves the hash', 'uint32_t h = fnv( q.vm, q.tam );', 'uint32_t h = fnv( q.vm, 0 );', 2),
+    ('the paint identity swaps ox and oy', 'tema, ox, oy );', 'tema, oy, ox );', 1),
+    ('the paint identity leaves the screen out', '(uint8_t)_uiMode, tema, ox, oy )', '0, tema, ox, oy )', 1),
+    ('the automatic mode inverted', 'if ( e.modo == ua::MODO_AUTOMATICO )', 'if ( e.modo != ua::MODO_AUTOMATICO )', 1),
+    ('dark from 20:00 instead of 19:00', '( h >= 19 || h < 7 )', '( h >= 20 || h < 7 )', 1),
+    ('dark only until 5:59 instead of 6:59', '( h >= 19 || h < 7 )', '( h >= 19 || h < 6 )', 1),
+    ('dark only where both bounds hold', '( h >= 19 || h < 7 )', '( h >= 19 && h < 7 )', 1),
+    ('no clock reads as night', 'uaRelogio( hora, h, provisoria ) && (', 'uaRelogio( hora, h, provisoria ) || (', 1),
+    ('the preview of index 0 is ignored', '_uaPrevia >= 0 )', '_uaPrevia > 0 )', 1),
+    ('every frame takes the preview, not the Tema screen alone', '( modo == MODE_SETTINGS_THEMES && _uaPrevia >= 0 )', '( (void)modo, _uaPrevia >= 0 )', 1),
+    ('the saved theme is ignored', '_uaPrevia : _sysConfigPtr ? _sysConfigPtr->themeIndex : 0 )', '_uaPrevia : 0 )', 1),
 ]
 
 
@@ -92,6 +121,48 @@ def corre(exe):
     return r.returncode, r.stdout
 
 
+def recorta_glue(glue):
+    """The pieces of the glue that the host link compiles, verbatim (S10c, A'2b): {file name: text}, and what could not be found."""
+    pecas, falta = {}, []
+    for arq, padrao in (('fnv.inc', r'^uint32_t fnv\(.*?^\}\n'),
+                        ('uatema.inc', r'^const ua::Tema &DisplayManager::uaTema\( UiMode modo \) \{.*?^\}\n')):
+        m = re.search(padrao, glue, re.S | re.M)
+        if m:
+            pecas[arq] = m.group(0)
+        else:
+            falta.append(f'{arq}: the function was not found in DisplayManager_UiA.cpp')
+    inicios = [m.start() for m in re.finditer(r'^  uint32_t h = fnv\(.*\n', glue, re.M)]
+    if len(inicios) != 2:
+        falta.append(f'hash_*.inc: {len(inicios)} runs of statements start with `uint32_t h = fnv(`, expected 2 (the Angulo frame and the update screen)')
+    else:
+        for arq, ini, fim in (('hash_pintar.inc', inicios[0], '  static ua::IdentidadeDoQuadro s_id = {};'),
+                              ('hash_ota.inc', inicios[1], '  if ( _otaRedrawAll ) _uaTudo = true;')):
+            f = glue.find(fim, ini)
+            if f < 0:
+                falta.append(f'{arq}: the line that ends the run, `{fim.strip()}`, was not found after it')
+            else:
+                pecas[arq] = glue[ini:f]
+    return pecas, falta
+
+
+def constroi_glue(tmp, nome, glue, angulo_o, gfx_obj, inc):
+    """The host link of the glue's pieces (S10c, A'2b): cuts them out of `glue`, compiles test_temas_glue_main.cpp around them and links it with the kit's object.
+    Returns (executable, '') or (None, why)."""
+    pecas, falta = recorta_glue(glue)
+    if falta:
+        return None, '; '.join(falta)
+    d = tmp / nome
+    d.mkdir()
+    for arq, texto in pecas.items():
+        (d / arq).write_text(texto, encoding='utf-8')
+    rc, err = compila(GLUE_MAIN, d / 'glue_main.o', inc + [f'-I{d}'], True)
+    if rc:
+        return None, err
+    exe = d / 'glue'
+    r = subprocess.run(['g++', str(gfx_obj), str(angulo_o), str(d / 'glue_main.o'), '-o', str(exe)], capture_output=True, text=True)
+    return (exe, '') if r.returncode == 0 else (None, r.stderr)
+
+
 def problemas_do_glue(glue):
     """The glue's side of the hash: [problem]."""
     p = []
@@ -104,6 +175,34 @@ def problemas_do_glue(glue):
         p.append('the full-repaint trigger must be id.repintaTudo( s_id ) and s_id = id; must follow a painted frame')
     if 'ua::escolhaDoIndice(' not in glue or re.search(r'escolha == [12]\b', glue):
         p.append('uaTema( ) must decode themeIndex with ua::escolhaDoIndice( ), not compare it with 1 and 2')
+    return p
+
+
+GATILHO = '  if ( id.repintaTudo( s_id ) ) _uaTudo = true;\n'
+PULO = '  if ( !_uaTudo && s_temQuadro && h == s_hash && s_modo == _uiMode ) return;\n'
+
+
+def problemas_do_glue_exato(glue):
+    """The statements of the glue that no run reaches, held to their exact text (S10c, A'2b): the mode each call of uaTema( ) takes, and the full-repaint trigger, its place and
+    the record of the frame it compares with, the update screen's test of the hash, and the alignment the identity hashes."""
+    p = []
+    g = sem_comentarios(glue)
+    chamadas = re.findall(r'const ua::Tema &tema = uaTema\( (\w+) \);', g)
+    if chamadas != ['modo', '_uiMode', 'MODE_OTA_UPDATE']:
+        p.append(f'the three frames must take their theme with uaTema( modo ) (uaPintar( )), uaTema( _uiMode ) (the paint identity) and uaTema( MODE_OTA_UPDATE ) (the update screen), in that order: {chamadas}')
+    if len(re.findall(r'(?<![:\w])uaTema\( [^)]', g)) != 3:
+        p.append('uaTema( ) is called from somewhere other than those three declarations')
+    if len(re.findall(r'^  if \( id\.repintaTudo\( s_id \) \) _uaTudo = true;$', g, re.M)) != 1:
+        p.append('the trigger must be the statement `if ( id.repintaTudo( s_id ) ) _uaTudo = true;`, once')
+    i, j = g.find('id.repintaTudo( s_id )'), g.find('if ( !_uaTudo && s_temQuadro && h == s_hash && s_modo == _uiMode ) return;')
+    if not 0 <= i < j:
+        p.append('the full-repaint trigger must come before the line that skips an unchanged frame')
+    if g.count('s_id = id;') != 1 or not re.search(r'if \( uaPintar\( q, _uiMode, h \) \) \{[^{}]*\bs_id = id;\s*\}', g):
+        p.append('s_id = id; must be written once, as the last statement of the branch that follows a painted frame')
+    if g.count('if ( _uaTudo || !s_temQuadro || h != s_hash || s_modo != MODE_OTA_UPDATE ) {') != 1:
+        p.append('the update screen must repaint on a changed hash, `if ( _uaTudo || !s_temQuadro || h != s_hash || s_modo != MODE_OTA_UPDATE ) {`, written once: the hash is its only trigger for the accent')
+    if g.count('const int8_t ox = _driver.tft->getOffsetX( ), oy = _driver.tft->getOffsetY( );') != 1:
+        p.append('the alignment the identity hashes must be read as `const int8_t ox = _driver.tft->getOffsetX( ), oy = _driver.tft->getOffsetY( );`, once')
     return p
 
 
@@ -253,8 +352,54 @@ def main():
             rc, saida = corre(exe)
             caso(f'control: {nome} must fail the program', rc == 1 and 'FAIL' in saida)
 
+        # the glue's own statements, compiled against a stand-in and run (S10c, A'2b): the real text first, then one program per mutant of it
+        glue0 = GLUE.read_text(encoding='utf-8')
+        angulo_o = tmp / 'real' / 'Angulo.o'
+        aplicaveis = [(i, m) for i, m in enumerate(GLUE_MUTANTES) if glue0.count(m[1]) == m[3]]
+        jobs_g = [('glue_real', glue0)] + [(f'g{i}', glue0.replace(m[1], m[2])) for i, m in aplicaveis]
+        with concurrent.futures.ThreadPoolExecutor(4) as ex:
+            ligados = list(ex.map(lambda j: constroi_glue(tmp, j[0], j[1], angulo_o, gfx_obj, inc), jobs_g))
+        exe, err = ligados[0]
+        if exe is None:
+            caso("glue link: the glue's own uaTema( ) and hashes build against the stand-in", [f'does not build: {err.strip()[:400]}'])
+        else:
+            rc, saida = corre(exe)
+            falhas = [l for l in saida.splitlines() if l.startswith('FAIL')]
+            resumo = saida.strip().splitlines()[-1] if saida.strip() else 'no output'
+            caso(f"glue link: the glue's own uaTema( ) and the two hashes, run against the generated header ({resumo})", not falhas and rc == 0 and resumo.endswith(' 0 failed'))
+            for l in falhas[:6]:
+                print('       ' + l)
+            for l in saida.splitlines():
+                if l.startswith('MEDIDA'):
+                    print('       ' + l)
+        feitos_g = dict(zip([i for i, _ in aplicaveis], ligados[1:]))
+        for i, (nome, velho, _, n) in enumerate(GLUE_MUTANTES):
+            if i not in feitos_g:
+                caso(f'control: {nome} must fail the glue link', [f'its text is not in DisplayManager_UiA.cpp {n} time(s)'])
+                continue
+            exe, err = feitos_g[i]
+            if exe is None:
+                caso(f'control: {nome} must fail the glue link', [f'the mutant does not build: {err.strip()[:200]}'])
+                continue
+            rc, saida = corre(exe)
+            caso(f'control: {nome} must fail the glue link', rc == 1 and 'FAIL' in saida)
+
     glue = GLUE.read_text(encoding='utf-8')
     caso('glue: the frame identity comes from ua::identidadeDoQuadro( ) in both paints, uaTema( ) decodes with ua::escolhaDoIndice( )', problemas_do_glue(glue))
+    caso("glue: the three calls of uaTema( ), the full-repaint trigger and the record of the frame are written exactly", problemas_do_glue_exato(glue))
+    caso("control: the painted frame taking the theme of _uiMode instead of its own mode is reported",
+         bool(problemas_do_glue_exato(glue.replace('const ua::Tema &tema = uaTema( modo );', 'const ua::Tema &tema = uaTema( _uiMode );'))))
+    caso("control: the update screen taking the theme of _uiMode is reported",
+         bool(problemas_do_glue_exato(glue.replace('const ua::Tema &tema = uaTema( MODE_OTA_UPDATE );', 'const ua::Tema &tema = uaTema( _uiMode );'))))
+    caso("control: a trigger that clears the flag is reported",
+         bool(problemas_do_glue_exato(glue.replace('.repintaTudo( s_id ) ) _uaTudo = true;', '.repintaTudo( s_id ) ) _uaTudo = false;'))))
+    caso("control: a trigger after the line that skips an unchanged frame is reported", bool(problemas_do_glue_exato(glue.replace(GATILHO + PULO, PULO + GATILHO))))
+    caso("control: the record of the frame hoisted before the paint is reported",
+         bool(problemas_do_glue_exato(glue.replace('  if ( uaPintar( q, _uiMode, h ) ) {', '  s_id = id;\n  if ( uaPintar( q, _uiMode, h ) ) {'))))
+    caso("control: an update screen that no longer compares the hash is reported",
+         bool(problemas_do_glue_exato(glue.replace('|| h != s_hash || s_modo != MODE_OTA_UPDATE', '|| s_modo != MODE_OTA_UPDATE'))))
+    caso("control: an alignment read from the wrong axis is reported",
+         bool(problemas_do_glue_exato(glue.replace('oy = _driver.tft->getOffsetY( );', 'oy = _driver.tft->getOffsetX( );'))))
     caso('control: a glue that hashes a fixed theme instead of uaTema( )\'s is reported',
          problemas_do_glue(glue.replace('ua::identidadeDoQuadro( (uint8_t)MODE_OTA_UPDATE, tema,', 'ua::identidadeDoQuadro( (uint8_t)MODE_OTA_UPDATE, ua::temaClaro( ),')) != [] and
          bool(problemas_do_glue(glue.replace('ua::identidadeDoQuadro( (uint8_t)MODE_OTA_UPDATE, tema,', 'ua::identidadeDoQuadro( (uint8_t)MODE_OTA_UPDATE, ua::temaClaro( ),'))))

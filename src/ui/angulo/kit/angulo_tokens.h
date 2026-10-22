@@ -25,7 +25,7 @@ struct Tema {
 };
 
 // Tema claro
-const Tema TEMA_CLARO PROGMEM = {
+constexpr Tema TEMA_CLARO PROGMEM = {
   /* fundo         #f6f6f4 */ 0xF7BE,
   /* superficie    #ffffff */ 0xFFFF,
   /* superficie2   #ecebe6 */ 0xEF5C,
@@ -45,7 +45,7 @@ const Tema TEMA_CLARO PROGMEM = {
   /* perigoTinta   #fff5f3 */ 0xFFBE,
 };
 // Tema claro, estado desabilitado: cada papel misturado a 45 % sobre o fundo
-const Tema TEMA_CLARO_DESAB PROGMEM = {
+constexpr Tema TEMA_CLARO_DESAB PROGMEM = {
   /* fundo         */ 0xF7BE,
   /* superficie    */ 0xFFDF,
   /* superficie2   */ 0xF79E,
@@ -66,7 +66,7 @@ const Tema TEMA_CLARO_DESAB PROGMEM = {
 };
 
 // Tema escuro
-const Tema TEMA_ESCURO PROGMEM = {
+constexpr Tema TEMA_ESCURO PROGMEM = {
   /* fundo         #161513 */ 0x10A2,
   /* superficie    #201e1b */ 0x20E3,
   /* superficie2   #2a2723 */ 0x2924,
@@ -86,7 +86,7 @@ const Tema TEMA_ESCURO PROGMEM = {
   /* perigoTinta   #2b100c */ 0x2881,
 };
 // Tema escuro, estado desabilitado: cada papel misturado a 45 % sobre o fundo
-const Tema TEMA_ESCURO_DESAB PROGMEM = {
+constexpr Tema TEMA_ESCURO_DESAB PROGMEM = {
   /* fundo         */ 0x10A2,
   /* superficie    */ 0x18C2,
   /* superficie2   */ 0x18C3,
@@ -110,10 +110,11 @@ const Tema TEMA_ESCURO_DESAB PROGMEM = {
 // A entrada 0 e o acento de hoje (TEMA_CLARO e TEMA_ESCURO, acima, palavra por palavra). Cada outra traz os 17 papeis
 // com o acento proprio de cada modo: acentoForte e 25 % da tinta do modo sobre o acento, acentoTinta e o
 // do modo, e a versao desabilitada de cada tabela e a de sempre (45 % sobre o fundo).
+// Todas as tabelas do arquivo sao constexpr: o compilador monta a paleta de Angulo.cpp e ela fica na flash, sem inicializador no boot (RAM estatica 432 B menor).
 constexpr uint8_t ACENTOS_N = 6;
 
 // Acento 1 (petroleo), tema claro
-const Tema TEMA_CLARO_PETROLEO PROGMEM = {
+constexpr Tema TEMA_CLARO_PETROLEO PROGMEM = {
   /* fundo         #f6f6f4 */ 0xF7BE,
   /* superficie    #ffffff */ 0xFFFF,
   /* superficie2   #ecebe6 */ 0xEF5C,
@@ -133,7 +134,7 @@ const Tema TEMA_CLARO_PETROLEO PROGMEM = {
   /* perigoTinta   #fff5f3 */ 0xFFBE,
 };
 // Acento 1 (petroleo), tema claro, estado desabilitado
-const Tema TEMA_CLARO_PETROLEO_DESAB PROGMEM = {
+constexpr Tema TEMA_CLARO_PETROLEO_DESAB PROGMEM = {
   /* fundo         */ 0xF7BE,
   /* superficie    */ 0xFFDF,
   /* superficie2   */ 0xF79E,
@@ -154,7 +155,7 @@ const Tema TEMA_CLARO_PETROLEO_DESAB PROGMEM = {
 };
 
 // Acento 1 (petroleo), tema escuro
-const Tema TEMA_ESCURO_PETROLEO PROGMEM = {
+constexpr Tema TEMA_ESCURO_PETROLEO PROGMEM = {
   /* fundo         #161513 */ 0x10A2,
   /* superficie    #201e1b */ 0x20E3,
   /* superficie2   #2a2723 */ 0x2924,
@@ -174,7 +175,7 @@ const Tema TEMA_ESCURO_PETROLEO PROGMEM = {
   /* perigoTinta   #2b100c */ 0x2881,
 };
 // Acento 1 (petroleo), tema escuro, estado desabilitado
-const Tema TEMA_ESCURO_PETROLEO_DESAB PROGMEM = {
+constexpr Tema TEMA_ESCURO_PETROLEO_DESAB PROGMEM = {
   /* fundo         */ 0x10A2,
   /* superficie    */ 0x18C2,
   /* superficie2   */ 0x18C3,
@@ -195,7 +196,7 @@ const Tema TEMA_ESCURO_PETROLEO_DESAB PROGMEM = {
 };
 
 // Acento 2 (azul), tema claro
-const Tema TEMA_CLARO_AZUL PROGMEM = {
+constexpr Tema TEMA_CLARO_AZUL PROGMEM = {
   /* fundo         #f6f6f4 */ 0xF7BE,
   /* superficie    #ffffff */ 0xFFFF,
   /* superficie2   #ecebe6 */ 0xEF5C,
@@ -215,7 +216,7 @@ const Tema TEMA_CLARO_AZUL PROGMEM = {
   /* perigoTinta   #fff5f3 */ 0xFFBE,
 };
 // Acento 2 (azul), tema claro, estado desabilitado
-const Tema TEMA_CLARO_AZUL_DESAB PROGMEM = {
+constexpr Tema TEMA_CLARO_AZUL_DESAB PROGMEM = {
   /* fundo         */ 0xF7BE,
   /* superficie    */ 0xFFDF,
   /* superficie2   */ 0xF79E,
@@ -236,7 +237,7 @@ const Tema TEMA_CLARO_AZUL_DESAB PROGMEM = {
 };
 
 // Acento 2 (azul), tema escuro
-const Tema TEMA_ESCURO_AZUL PROGMEM = {
+constexpr Tema TEMA_ESCURO_AZUL PROGMEM = {
   /* fundo         #161513 */ 0x10A2,
   /* superficie    #201e1b */ 0x20E3,
   /* superficie2   #2a2723 */ 0x2924,
@@ -256,7 +257,7 @@ const Tema TEMA_ESCURO_AZUL PROGMEM = {
   /* perigoTinta   #2b100c */ 0x2881,
 };
 // Acento 2 (azul), tema escuro, estado desabilitado
-const Tema TEMA_ESCURO_AZUL_DESAB PROGMEM = {
+constexpr Tema TEMA_ESCURO_AZUL_DESAB PROGMEM = {
   /* fundo         */ 0x10A2,
   /* superficie    */ 0x18C2,
   /* superficie2   */ 0x18C3,
@@ -277,7 +278,7 @@ const Tema TEMA_ESCURO_AZUL_DESAB PROGMEM = {
 };
 
 // Acento 3 (indigo), tema claro
-const Tema TEMA_CLARO_INDIGO PROGMEM = {
+constexpr Tema TEMA_CLARO_INDIGO PROGMEM = {
   /* fundo         #f6f6f4 */ 0xF7BE,
   /* superficie    #ffffff */ 0xFFFF,
   /* superficie2   #ecebe6 */ 0xEF5C,
@@ -297,7 +298,7 @@ const Tema TEMA_CLARO_INDIGO PROGMEM = {
   /* perigoTinta   #fff5f3 */ 0xFFBE,
 };
 // Acento 3 (indigo), tema claro, estado desabilitado
-const Tema TEMA_CLARO_INDIGO_DESAB PROGMEM = {
+constexpr Tema TEMA_CLARO_INDIGO_DESAB PROGMEM = {
   /* fundo         */ 0xF7BE,
   /* superficie    */ 0xFFDF,
   /* superficie2   */ 0xF79E,
@@ -318,7 +319,7 @@ const Tema TEMA_CLARO_INDIGO_DESAB PROGMEM = {
 };
 
 // Acento 3 (indigo), tema escuro
-const Tema TEMA_ESCURO_INDIGO PROGMEM = {
+constexpr Tema TEMA_ESCURO_INDIGO PROGMEM = {
   /* fundo         #161513 */ 0x10A2,
   /* superficie    #201e1b */ 0x20E3,
   /* superficie2   #2a2723 */ 0x2924,
@@ -338,7 +339,7 @@ const Tema TEMA_ESCURO_INDIGO PROGMEM = {
   /* perigoTinta   #2b100c */ 0x2881,
 };
 // Acento 3 (indigo), tema escuro, estado desabilitado
-const Tema TEMA_ESCURO_INDIGO_DESAB PROGMEM = {
+constexpr Tema TEMA_ESCURO_INDIGO_DESAB PROGMEM = {
   /* fundo         */ 0x10A2,
   /* superficie    */ 0x18C2,
   /* superficie2   */ 0x18C3,
@@ -359,7 +360,7 @@ const Tema TEMA_ESCURO_INDIGO_DESAB PROGMEM = {
 };
 
 // Acento 4 (violeta), tema claro
-const Tema TEMA_CLARO_VIOLETA PROGMEM = {
+constexpr Tema TEMA_CLARO_VIOLETA PROGMEM = {
   /* fundo         #f6f6f4 */ 0xF7BE,
   /* superficie    #ffffff */ 0xFFFF,
   /* superficie2   #ecebe6 */ 0xEF5C,
@@ -379,7 +380,7 @@ const Tema TEMA_CLARO_VIOLETA PROGMEM = {
   /* perigoTinta   #fff5f3 */ 0xFFBE,
 };
 // Acento 4 (violeta), tema claro, estado desabilitado
-const Tema TEMA_CLARO_VIOLETA_DESAB PROGMEM = {
+constexpr Tema TEMA_CLARO_VIOLETA_DESAB PROGMEM = {
   /* fundo         */ 0xF7BE,
   /* superficie    */ 0xFFDF,
   /* superficie2   */ 0xF79E,
@@ -400,7 +401,7 @@ const Tema TEMA_CLARO_VIOLETA_DESAB PROGMEM = {
 };
 
 // Acento 4 (violeta), tema escuro
-const Tema TEMA_ESCURO_VIOLETA PROGMEM = {
+constexpr Tema TEMA_ESCURO_VIOLETA PROGMEM = {
   /* fundo         #161513 */ 0x10A2,
   /* superficie    #201e1b */ 0x20E3,
   /* superficie2   #2a2723 */ 0x2924,
@@ -420,7 +421,7 @@ const Tema TEMA_ESCURO_VIOLETA PROGMEM = {
   /* perigoTinta   #2b100c */ 0x2881,
 };
 // Acento 4 (violeta), tema escuro, estado desabilitado
-const Tema TEMA_ESCURO_VIOLETA_DESAB PROGMEM = {
+constexpr Tema TEMA_ESCURO_VIOLETA_DESAB PROGMEM = {
   /* fundo         */ 0x10A2,
   /* superficie    */ 0x18C2,
   /* superficie2   */ 0x18C3,
@@ -441,7 +442,7 @@ const Tema TEMA_ESCURO_VIOLETA_DESAB PROGMEM = {
 };
 
 // Acento 5 (magenta), tema claro
-const Tema TEMA_CLARO_MAGENTA PROGMEM = {
+constexpr Tema TEMA_CLARO_MAGENTA PROGMEM = {
   /* fundo         #f6f6f4 */ 0xF7BE,
   /* superficie    #ffffff */ 0xFFFF,
   /* superficie2   #ecebe6 */ 0xEF5C,
@@ -461,7 +462,7 @@ const Tema TEMA_CLARO_MAGENTA PROGMEM = {
   /* perigoTinta   #fff5f3 */ 0xFFBE,
 };
 // Acento 5 (magenta), tema claro, estado desabilitado
-const Tema TEMA_CLARO_MAGENTA_DESAB PROGMEM = {
+constexpr Tema TEMA_CLARO_MAGENTA_DESAB PROGMEM = {
   /* fundo         */ 0xF7BE,
   /* superficie    */ 0xFFDF,
   /* superficie2   */ 0xF79E,
@@ -482,7 +483,7 @@ const Tema TEMA_CLARO_MAGENTA_DESAB PROGMEM = {
 };
 
 // Acento 5 (magenta), tema escuro
-const Tema TEMA_ESCURO_MAGENTA PROGMEM = {
+constexpr Tema TEMA_ESCURO_MAGENTA PROGMEM = {
   /* fundo         #161513 */ 0x10A2,
   /* superficie    #201e1b */ 0x20E3,
   /* superficie2   #2a2723 */ 0x2924,
@@ -502,7 +503,7 @@ const Tema TEMA_ESCURO_MAGENTA PROGMEM = {
   /* perigoTinta   #2b100c */ 0x2881,
 };
 // Acento 5 (magenta), tema escuro, estado desabilitado
-const Tema TEMA_ESCURO_MAGENTA_DESAB PROGMEM = {
+constexpr Tema TEMA_ESCURO_MAGENTA_DESAB PROGMEM = {
   /* fundo         */ 0x10A2,
   /* superficie    */ 0x18C2,
   /* superficie2   */ 0x18C3,
@@ -523,7 +524,7 @@ const Tema TEMA_ESCURO_MAGENTA_DESAB PROGMEM = {
 };
 
 // Por indice do acento (0 = o de hoje): a tabela de cada modo e a sua versao desabilitada
-const Tema *const TEMAS_CLARO[ACENTOS_N] PROGMEM = {
+constexpr const Tema *TEMAS_CLARO[ACENTOS_N] PROGMEM = {
   &TEMA_CLARO,  // 0 verde-azulado
   &TEMA_CLARO_PETROLEO,  // 1 petroleo
   &TEMA_CLARO_AZUL,  // 2 azul
@@ -531,7 +532,7 @@ const Tema *const TEMAS_CLARO[ACENTOS_N] PROGMEM = {
   &TEMA_CLARO_VIOLETA,  // 4 violeta
   &TEMA_CLARO_MAGENTA,  // 5 magenta
 };
-const Tema *const TEMAS_CLARO_DESAB[ACENTOS_N] PROGMEM = {
+constexpr const Tema *TEMAS_CLARO_DESAB[ACENTOS_N] PROGMEM = {
   &TEMA_CLARO_DESAB,  // 0 verde-azulado
   &TEMA_CLARO_PETROLEO_DESAB,  // 1 petroleo
   &TEMA_CLARO_AZUL_DESAB,  // 2 azul
@@ -539,7 +540,7 @@ const Tema *const TEMAS_CLARO_DESAB[ACENTOS_N] PROGMEM = {
   &TEMA_CLARO_VIOLETA_DESAB,  // 4 violeta
   &TEMA_CLARO_MAGENTA_DESAB,  // 5 magenta
 };
-const Tema *const TEMAS_ESCURO[ACENTOS_N] PROGMEM = {
+constexpr const Tema *TEMAS_ESCURO[ACENTOS_N] PROGMEM = {
   &TEMA_ESCURO,  // 0 verde-azulado
   &TEMA_ESCURO_PETROLEO,  // 1 petroleo
   &TEMA_ESCURO_AZUL,  // 2 azul
@@ -547,7 +548,7 @@ const Tema *const TEMAS_ESCURO[ACENTOS_N] PROGMEM = {
   &TEMA_ESCURO_VIOLETA,  // 4 violeta
   &TEMA_ESCURO_MAGENTA,  // 5 magenta
 };
-const Tema *const TEMAS_ESCURO_DESAB[ACENTOS_N] PROGMEM = {
+constexpr const Tema *TEMAS_ESCURO_DESAB[ACENTOS_N] PROGMEM = {
   &TEMA_ESCURO_DESAB,  // 0 verde-azulado
   &TEMA_ESCURO_PETROLEO_DESAB,  // 1 petroleo
   &TEMA_ESCURO_AZUL_DESAB,  // 2 azul

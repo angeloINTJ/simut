@@ -41,7 +41,7 @@ namespace ua {
 
 namespace {
 
-Tema deEntrega( const entrega::Tema &e, bool escuro, uint8_t entrada ) {
+constexpr Tema deEntrega( const entrega::Tema &e, bool escuro, uint8_t entrada ) {
   return Tema{ e.fundo, e.superficie, e.superficie2, e.tinta, e.tinta2, e.linha, e.linhaForte, e.acento,
                e.acentoForte, e.acentoTinta, e.positivo, e.positivoSuave, e.alerta, e.alertaSuave, e.perigo,
                e.perigoSuave, e.perigoTinta, escuro, entrada };
@@ -50,11 +50,12 @@ Tema deEntrega( const entrega::Tema &e, bool escuro, uint8_t entrada ) {
 // How many entries the palette holds: the extent of the generated index array, so that no second copy of the count lives here.
 constexpr size_t kAcentos = sizeof entrega::TEMAS_CLARO / sizeof entrega::TEMAS_CLARO[0];
 
-// The palette's tables, one per mode and entry, built by static initialisation (before setup( ) starts Core 1) and only read
-// afterwards. The 45 % twins stay in the generated tables: desab( ) reads them in place.
+// The palette's tables, one per mode and entry, built by the compiler (S10c, A'2b): the generated tables are constexpr, so these are too, and they sit in flash
+// beside them. As const objects with a constructor they sat in .bss (0x1B0 B) and a static initialiser filled them at every boot; tools/check_ui_ram.py measured
+// the static RAM at 9,603 B then and 9,171 B now (2026-10-22). The 45 % twins stay in the generated tables: desab( ) reads them in place.
 struct Paleta {
   Tema t[2][kAcentos];
-  Paleta( ) {
+  constexpr Paleta( ) : t{} {
     for ( size_t k = 0; k < kAcentos; k++ ) {
       t[0][k] = deEntrega( *entrega::TEMAS_CLARO[k], false, (uint8_t)k );
       t[1][k] = deEntrega( *entrega::TEMAS_ESCURO[k], true, (uint8_t)k );
@@ -62,7 +63,7 @@ struct Paleta {
   }
 };
 
-const Paleta kPaleta;
+constexpr Paleta kPaleta;
 
 }  // namespace
 
@@ -97,7 +98,8 @@ uint16_t desab( const Tema &t, uint16_t cor ) {
   return cor;
 }
 
-// The two encoding functions: the only code that knows how many modes there are and how large the palette is.
+// The two encoding functions: the only code that knows how many modes there are, and the only readers of the generated count of the palette. tema( ) and desab( ) also
+// read the palette's size, through kAcentos above: the extent of the generated index array, so the count has one source and no second copy.
 Escolha escolhaDoIndice( int8_t t ) {
   static_assert( 3 * entrega::ACENTOS_N <= 127, "themeIndex is an int8_t: every index of the palette must fit" );
   if ( t < 0 || t >= 3 * entrega::ACENTOS_N ) return Escolha{ MODO_CLARO, 0 };
