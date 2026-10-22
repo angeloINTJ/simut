@@ -90,8 +90,9 @@ constexpr const char *TEMA_TITULO = "Tema";
 constexpr const char *TEMA_MODOS[TM_N] = { "Claro", "Escuro", "Automático" };
 constexpr IconeNome TEMA_ICONES[TM_N] = { IconeNome::SUN, IconeNome::MOON, IconeNome::SUN_MOON };
 constexpr const char *TEMA_FRASES[TM_N] = { "Modo claro", "Modo escuro", "Modo automático: escuro das 19 às 7" };
-// The palette's accents in its order (entry 0 is the stock one): the names the screen and the web list say.
-constexpr const char *TEMA_CORES[] = { "Verde-azulado", "Petróleo", "Azul", "Índigo", "Violeta", "Magenta" };
+// The palette's accents in its order (entry 0 is the stock one): the names the screen and the web list say. In lower case: a name follows a colon on the words line ("Cor de destaque: azul")
+// and a comma in the catalogue ("Claro, azul"), and the Ângulo's sentence case (ANGULO.md section 7) writes it so (S10c, A'3b); tools/tft_ui/test_temas.py holds it.
+constexpr const char *TEMA_CORES[] = { "verde-azulado", "petróleo", "azul", "índigo", "violeta", "magenta" };
 constexpr int TEMA_CORES_N = sizeof TEMA_CORES / sizeof TEMA_CORES[0];
 constexpr const char *TEMA_FMT_COR = "Cor de destaque: %s";
 constexpr const char *TEMA_APLICAR_ROTULO = "Aplicar tema";

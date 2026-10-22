@@ -16,6 +16,11 @@ check, desab( ) and tema( ) stuck on entry 0, the identity or the full-repaint t
 accent field) must exit 1, and the text checks must report a glue that drops the theme or the trigger, and so must the glue link for every mutant of GLUE_MUTANTES (the accent, the mode, the hour,
 the preview or part of the hash dropped).
 
+The preview's scoping (S10c, A'3b; the review of A'3 found three mutants that every check passed): the preview reaches the glass on the Tema screen's frame alone. The glue link runs uaTema( )
+with the screen on show chosen apart from the frame's mode, the update screen's theme and hash from the statement that gives it its theme, and the one statement of uaQuadro( ) that drops the
+preview; exact-text pins keep every other path from reading or keeping it (in the glue and in the menus glue). The colour names are held in lower case after the colon of the words line and
+after the comma of the catalogue (ANGULO.md section 7).
+
 Usage: python3 tools/tft_ui/test_temas.py   exit 0 when all hold, 1 when not, 2 when it cannot build.
 """
 import concurrent.futures
@@ -69,6 +74,10 @@ MUTANTES = [
 ]
 
 
+# Two statements of uaQuadro( ) in the glue (S10c, A'3b): the one that drops the preview, and the line that returns while no look is due.
+RESET = '  if ( _uiMode != MODE_SETTINGS_THEMES ) _uaPrevia = -1;\n'
+OLHAR = '  if ( !_uaSujo && !_uaTudo && agora - _uaVisto < 250 ) return;\n'
+
 # The glue's own statements about the theme (S10c, A'2b): each entry is a change to DisplayManager_UiA.cpp that the glue link must refuse. (name, the glue's text, what replaces it,
 # how many times the text occurs.) The first three are the mutants the review of A'2 found passing every check of A'2; the others were found by mutating the same statements.
 GLUE_MUTANTES = [
@@ -91,6 +100,12 @@ GLUE_MUTANTES = [
     ('the preview of index 0 is ignored', '_uaPrevia >= 0 )', '_uaPrevia > 0 )', 1),
     ('every frame takes the preview, not the Tema screen alone', '( modo == MODE_SETTINGS_THEMES && _uaPrevia >= 0 )', '( (void)modo, _uaPrevia >= 0 )', 1),
     ('the saved theme is ignored', '_uaPrevia : _sysConfigPtr ? _sysConfigPtr->themeIndex : 0 )', '_uaPrevia : 0 )', 1),
+    # S10c, A'3b: the preview's scoping (the review of A'3: M1 uaTema( ) ignores the frame's mode, M2 the update screen asks for the screen on show's theme, M3 the reset deleted)
+    ('uaTema( ) asks the screen on show, not the frame\'s mode, whether the preview applies', '( modo == MODE_SETTINGS_THEMES && _uaPrevia >= 0 )', '( _uiMode == MODE_SETTINGS_THEMES && _uaPrevia >= 0 )', 1),
+    ('the update screen takes the theme of the screen on show', 'const ua::Tema &tema = uaTema( MODE_OTA_UPDATE );', 'const ua::Tema &tema = uaTema( _uiMode );', 1),
+    ('the preview is dropped on the Tema screen and kept elsewhere', 'if ( _uiMode != MODE_SETTINGS_THEMES ) _uaPrevia = -1;', 'if ( _uiMode == MODE_SETTINGS_THEMES ) _uaPrevia = -1;', 1),
+    ('the preview is reset to 0 and not to none', 'MODE_SETTINGS_THEMES ) _uaPrevia = -1;', 'MODE_SETTINGS_THEMES ) _uaPrevia = 0;', 1),
+    ('the reset of the preview is deleted (refused at the cut)', RESET, '', 1),
 ]
 
 
@@ -137,11 +152,27 @@ def recorta_glue(glue):
     else:
         for arq, ini, fim in (('hash_pintar.inc', inicios[0], '  static ua::IdentidadeDoQuadro s_id = {};'),
                               ('hash_ota.inc', inicios[1], '  if ( _otaRedrawAll ) _uaTudo = true;')):
+            if arq == 'hash_ota.inc':   # S10c, A'3b: from the statement that gives the update screen its theme, so that the mode it asks uaTema( ) for is run and not only read
+                ant = glue.rfind('\n', 0, ini - 1) + 1
+                if not re.fullmatch(r'  const ua::Tema &tema = uaTema\( [^)]*\);\n', glue[ant:ini]):
+                    falta.append(f'{arq}: the statement that gives the update screen its theme, `const ua::Tema &tema = uaTema( ... );`, does not stand just before its hash')
+                    continue
+                ini = ant
             f = glue.find(fim, ini)
             if f < 0:
                 falta.append(f'{arq}: the line that ends the run, `{fim.strip()}`, was not found after it')
             else:
                 pecas[arq] = glue[ini:f]
+    # S10c, A'3b: the one statement of uaQuadro( ) that names the preview. None, or two, is refused at the cut: a deleted reset leaves nothing to link
+    m = re.search(r'^void DisplayManager::uaQuadro\( \) \{.*?^\}\n', glue, re.S | re.M)
+    if not m:
+        falta.append('reset.inc: uaQuadro( ) was not found in DisplayManager_UiA.cpp')
+    else:
+        nomeiam = [l for l in sem_comentarios(m.group(0)).splitlines(True) if '_uaPrevia' in l]
+        if len(nomeiam) != 1:
+            falta.append(f'reset.inc: {len(nomeiam)} statements of uaQuadro( ) name _uaPrevia, expected 1 (the one that drops the preview)')
+        else:
+            pecas['reset.inc'] = nomeiam[0]
     return pecas, falta
 
 
@@ -150,7 +181,7 @@ def constroi_glue(tmp, nome, glue, angulo_o, gfx_obj, inc):
     Returns (executable, '') or (None, why)."""
     pecas, falta = recorta_glue(glue)
     if falta:
-        return None, '; '.join(falta)
+        return None, 'cut: ' + '; '.join(falta)
     d = tmp / nome
     d.mkdir()
     for arq, texto in pecas.items():
@@ -184,7 +215,7 @@ PULO = '  if ( !_uaTudo && s_temQuadro && h == s_hash && s_modo == _uiMode ) ret
 
 def problemas_do_glue_exato(glue):
     """The statements of the glue that no run reaches, held to their exact text (S10c, A'2b): the mode each call of uaTema( ) takes, and the full-repaint trigger, its place and
-    the record of the frame it compares with, the update screen's test of the hash, and the alignment the identity hashes."""
+    the record of the frame it compares with, the update screen's test of the hash, the alignment the identity hashes, and (S10c, A'3b) the statement that drops the preview, its place and who may name it."""
     p = []
     g = sem_comentarios(glue)
     chamadas = re.findall(r'const ua::Tema &tema = uaTema\( (\w+) \);', g)
@@ -203,6 +234,19 @@ def problemas_do_glue_exato(glue):
         p.append('the update screen must repaint on a changed hash, `if ( _uaTudo || !s_temQuadro || h != s_hash || s_modo != MODE_OTA_UPDATE ) {`, written once: the hash is its only trigger for the accent')
     if g.count('const int8_t ox = _driver.tft->getOffsetX( ), oy = _driver.tft->getOffsetY( );') != 1:
         p.append('the alignment the identity hashes must be read as `const int8_t ox = _driver.tft->getOffsetX( ), oy = _driver.tft->getOffsetY( );`, once')
+    # S10c, A'3b: the preview reaches the glass on the Tema screen's frame alone. uaTema( modo ) takes it for that frame only (the link runs it); these keep every other path from
+    # reading or keeping it
+    if g.count('if ( _uiMode != MODE_SETTINGS_THEMES ) _uaPrevia = -1;') != 1:
+        p.append('uaQuadro( ) must drop the preview with `if ( _uiMode != MODE_SETTINGS_THEMES ) _uaPrevia = -1;`, once')
+    ir, jo = g.find('_uaPrevia = -1;'), g.find('if ( !_uaSujo && !_uaTudo && agora - _uaVisto < 250 ) return;')
+    if not 0 <= ir < jo:
+        p.append('the preview must be dropped before the line that returns while no look is due: after it, a frame of another mode would keep the preview until the next look')
+    nomes = len(re.findall(r'\b_uaPrevia\b', g))
+    if nomes != 3:
+        p.append(f'_uaPrevia must be named three times in DisplayManager_UiA.cpp (uaTema( ) reads it twice, uaQuadro( ) drops it once), not {nomes}: no other statement may read or keep it')
+    pinta = re.findall(r'\buaPintar\( q, (\w+), h \)', g)
+    if pinta != ['_uiMode', 'MODE_OTA_UPDATE']:
+        p.append(f'uaPintar( ) must be called for _uiMode (uaQuadro( )) and for MODE_OTA_UPDATE (uiPaintOta( )), in that order: {pinta}')
     return p
 
 
@@ -310,6 +354,39 @@ def problemas_do_catalogo(cat, mh):
     return p
 
 
+def problemas_da_previa_nos_menus(menus):
+    """S10c, A'3b: in the menus glue the preview is named only inside the two bodies of `case MODE_SETTINGS_THEMES: {` (the builder's and the touch's): no other screen reads, shows or sets it."""
+    p = []
+    g = sem_comentarios(menus)
+    corpos = blocos_do_caso(g)
+    total = len(re.findall(r'\b_uaPrevia\b', g))
+    dentro = sum(len(re.findall(r'\b_uaPrevia\b', c)) for c in corpos)
+    if len(corpos) != 2:
+        p.append(f'DisplayManager_UiA_Menus.cpp has {len(corpos)} bodies of case MODE_SETTINGS_THEMES: {{, expected 2')
+    if total == 0 or total != dentro:
+        p.append(f'_uaPrevia is named {total} time(s) in DisplayManager_UiA_Menus.cpp and {dentro} inside the two cases of the Tema screen: no other screen may name it')
+    return p
+
+
+def problemas_de_caixa(cat, mh):
+    """S10c, A'3b, ANGULO.md section 7 (sentence case): a colour's name follows a colon on the words line ("Cor de destaque: azul") and a comma in the catalogue ("Claro, azul"), so it starts in
+    lower case in both, and the words line is `Cor de destaque: %s`."""
+    p = []
+    rows, cores, _ = pedacos_do_catalogo(cat, mh)
+    if not cores:
+        p.append('no accent name found in TEMA_CORES')
+    for c in cores:
+        if not c[:1].islower():
+            p.append(f'the accent name {c!r} starts in upper case, after the colon of the words line')
+    for _, n in rows:
+        if ', ' in n and not n.split(', ', 1)[1][:1].islower():
+            p.append(f'the catalogue name {n!r} starts its colour in upper case, after the comma')
+    fmt = re.search(r'TEMA_FMT_COR = "([^"]*)";', mh)
+    if not fmt or fmt.group(1) != 'Cor de destaque: %s':
+        p.append(f'the words line is {(fmt.group(1) if fmt else None)!r}, expected "Cor de destaque: %s"')
+    return p
+
+
 def main():
     gfx = find_gfx()
     if not gfx:
@@ -379,14 +456,15 @@ def main():
                 continue
             exe, err = feitos_g[i]
             if exe is None:
-                caso(f'control: {nome} must fail the glue link', [f'the mutant does not build: {err.strip()[:200]}'])
+                # a piece the glue no longer holds is refused at the cut (A'3b): the link fails before it is built; any other failure to build is not a kill
+                caso(f'control: {nome} must fail the glue link', True if err.startswith('cut: ') else [f'the mutant does not build: {err.strip()[:200]}'])
                 continue
             rc, saida = corre(exe)
             caso(f'control: {nome} must fail the glue link', rc == 1 and 'FAIL' in saida)
 
     glue = GLUE.read_text(encoding='utf-8')
     caso('glue: the frame identity comes from ua::identidadeDoQuadro( ) in both paints, uaTema( ) decodes with ua::escolhaDoIndice( )', problemas_do_glue(glue))
-    caso("glue: the three calls of uaTema( ), the full-repaint trigger and the record of the frame are written exactly", problemas_do_glue_exato(glue))
+    caso("glue: the three calls of uaTema( ), the full-repaint trigger, the record of the frame and the preview's reset are written exactly", problemas_do_glue_exato(glue))
     caso("control: the painted frame taking the theme of _uiMode instead of its own mode is reported",
          bool(problemas_do_glue_exato(glue.replace('const ua::Tema &tema = uaTema( modo );', 'const ua::Tema &tema = uaTema( _uiMode );'))))
     caso("control: the update screen taking the theme of _uiMode is reported",
@@ -400,6 +478,11 @@ def main():
          bool(problemas_do_glue_exato(glue.replace('|| h != s_hash || s_modo != MODE_OTA_UPDATE', '|| s_modo != MODE_OTA_UPDATE'))))
     caso("control: an alignment read from the wrong axis is reported",
          bool(problemas_do_glue_exato(glue.replace('oy = _driver.tft->getOffsetY( );', 'oy = _driver.tft->getOffsetX( );'))))
+    caso('control: a glue that never drops the preview is reported', bool(problemas_do_glue_exato(glue.replace(RESET, ''))))
+    caso('control: a preview dropped after the line that returns while no look is due is reported', bool(problemas_do_glue_exato(glue.replace(RESET + OLHAR, OLHAR + RESET))))
+    caso('control: a second reader of the preview in the glue is reported',
+         bool(problemas_do_glue_exato(glue.replace('  if ( !uaMontarOta( q ) ) return;\n', '  if ( !uaMontarOta( q ) || _uaPrevia > 99 ) return;\n'))))
+    caso('control: the update screen painted as the screen on show is reported', bool(problemas_do_glue_exato(glue.replace('uaPintar( q, MODE_OTA_UPDATE, h );', 'uaPintar( q, _uiMode, h );'))))
     caso('control: a glue that hashes a fixed theme instead of uaTema( )\'s is reported',
          problemas_do_glue(glue.replace('ua::identidadeDoQuadro( (uint8_t)MODE_OTA_UPDATE, tema,', 'ua::identidadeDoQuadro( (uint8_t)MODE_OTA_UPDATE, ua::temaClaro( ),')) != [] and
          bool(problemas_do_glue(glue.replace('ua::identidadeDoQuadro( (uint8_t)MODE_OTA_UPDATE, tema,', 'ua::identidadeDoQuadro( (uint8_t)MODE_OTA_UPDATE, ua::temaClaro( ),'))))
@@ -415,13 +498,19 @@ def main():
 
     cat, mh, mc = TEMAS_CPP.read_text(encoding='utf-8'), MENUS_H.read_text(encoding='utf-8'), MENUS_CPP.read_text(encoding='utf-8')
     menus = MENUS_GLUE.read_text(encoding='utf-8')
+    caso("menus glue: the preview is named only inside the two cases of the Tema screen", problemas_da_previa_nos_menus(menus))
+    caso('control: another screen naming the preview is reported', bool(problemas_da_previa_nos_menus(menus + '\nint8_t leMenus( ) { return _uaPrevia; }\n')))
     caso('catalogue: 18 ids and names, each at the index the decode gives it, ids within 15 B and names within 23 B', problemas_do_catalogo(cat, mh))
     r0 = re.findall(r'TEMA\(\s*"[^"]*"\s*,\s*"[^"]*"\s*\)', cat)
     caso('control: an id of 16 B is reported', bool(problemas_do_catalogo(cat.replace('"escuro-petroleo"', '"escuro-petroleos"'), mh)))
-    caso('control: a name of 24 B is reported', bool(problemas_do_catalogo(cat.replace('"Automático, Petróleo"', '"Automático, Petróleos2"'), mh)))
+    caso('control: a name of 24 B is reported', bool(problemas_do_catalogo(cat.replace('"Automático, petróleo"', '"Automático, petróleos2"'), mh)))
     caso('control: two rows swapped are reported', bool(problemas_do_catalogo(cat.replace(r0[4], '@@').replace(r0[5], r0[4]).replace('@@', r0[5]), mh)))
     caso('control: a catalogue of 17 rows is reported', bool(problemas_do_catalogo(cat.replace(r0[17] + ',', '', 1), mh)))
     caso('control: a catalogue without its static_assert is reported', bool(problemas_do_catalogo(cat.replace('static_assert( NUM_TEMAS == 3 *', 'static_assert( NUM_TEMAS >= 3 *'), mh)))
+    caso('microcopy: a colour name is in lower case after the colon of the words line and after the comma of the catalogue (ANGULO.md section 7)', problemas_de_caixa(cat, mh))
+    caso('control: a capitalised colour in the screen\'s list is reported', bool(problemas_de_caixa(cat, mh.replace('"azul"', '"Azul"'))))
+    caso('control: a capitalised colour in the catalogue is reported', bool(problemas_de_caixa(cat.replace('"Claro, azul"', '"Claro, Azul"'), mh)))
+    caso('control: a words line other than "Cor de destaque: %s" is reported', bool(problemas_de_caixa(cat, mh.replace('"Cor de destaque: %s"', '"Cor de Destaque: %s"'))))
     caso('sources: the Tema screen, its touch and uaTema( ) carry no bare 3 or 6 outside static_asserts', problemas_de_literais(mh, mc, menus, glue))
     caso('control: an `i < 3` in the touch is reported', bool(problemas_de_literais(mh, mc, menus.replace('else if ( a->tipo == TT_MODO ) {', 'else if ( a->tipo == TT_MODO && i < 3 ) {'), glue)))
     caso('control: a 6 in the screen is reported', bool(problemas_de_literais(mh, mc.replace('for ( int k = 0; k < TEMA_CORES_N; k++ ) desenharCor', 'for ( int k = 0; k < 6; k++ ) desenharCor'), menus, glue)))

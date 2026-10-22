@@ -1,13 +1,18 @@
-// test_temas_glue_main.cpp -- the glue's own statements about the theme, linked on the host (S10c, A'2b), built and run by tools/tft_ui/test_temas.py.
+// test_temas_glue_main.cpp -- the glue's own statements about the theme, linked on the host (S10c, A'2b; the preview's scoping, A'3b), built and run by tools/tft_ui/test_temas.py.
 //
 // DisplayManager_UiA.cpp itself cannot be linked here: it is a DisplayManager, with two displays, a touch panel, the saved configuration and two cores behind it.
 // Its text for the theme can. The review of A'2 found three mutants of that text which every check of A'2 passed (the accent never reaching ua::tema( ), the dark mode
-// inverted, the accent cut out of the hash by a length of 2), because the checks read the glue as text and nothing ran it. test_temas.py now cuts four pieces
+// inverted, the accent cut out of the hash by a length of 2), because the checks read the glue as text and nothing ran it. test_temas.py now cuts five pieces
 // out of the file, verbatim, into the .inc files included below:
 //   fnv.inc          fnv( ), the hash the glue runs;
 //   uatema.inc       DisplayManager::uaTema( UiMode ), the theme of a frame;
 //   hash_pintar.inc  the run of statements that hashes the view model and then the identity of the Angulo's frame;
-//   hash_ota.inc     the same run for the update screen.
+//   hash_ota.inc     the update screen's theme, from the statement that gives it, and the same run of statements for its hash (A'3b: it used to start at the hash, so the mode the
+//                    update screen asks uaTema( ) for was read as text and never run);
+//   reset.inc        the one statement of uaQuadro( ) that names the preview: it drops it when the screen on show is not the Tema screen (A'3b).
+// The review of A'3 found three mutants of the preview's scoping that every check passed (uaTema( ) ignoring the frame's mode, the update screen asking for the theme of the screen on show,
+// the reset deleted). The preview must reach the glass on the Tema screen's frame alone, and Core 0 paints the update screen while the screen on show may still be Tema, so the stand-in
+// has that screen (_uiMode) and every check below runs it apart from the frame's own mode.
 // They are compiled against a stand-in for the few members of DisplayManager they touch and the kit (Angulo.cpp) as it is. What they must give comes from the
 // generated header and from the rules written out below, not from the kit.
 
@@ -38,7 +43,10 @@ class DisplayManager {
  public:
   const ua::Tema &uaTema( UiMode modo );
   bool uaRelogio( char hora[6], int &h, bool &provisoria );
+  void soltaPrevia( );                     // reset.inc: the statement of uaQuadro( ) that drops the preview
+  uint32_t hashOta( const UaQuadro &q );   // hash_ota.inc: the update screen's theme and hash
 
+  UiMode _uiMode = MODE_DASHBOARD;   // the screen on show: the update screen is painted while this may still say Tema
   int8_t _uaPrevia = -1;
   const ConfigFalsa *_sysConfigPtr = nullptr;
   bool relogioTem = false;   // the stand-in clock: whether there is a line yet, and the hour it says
@@ -58,17 +66,24 @@ namespace {
 #include "fnv.inc"
 }  // namespace
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wunused-parameter"   // a mutant may stop reading the frame's mode: it must then be caught by what it gives, not by the compiler
 #include "uatema.inc"
+#pragma GCC diagnostic pop
+
+void DisplayManager::soltaPrevia( ) {
+#include "reset.inc"
+}
+
+uint32_t DisplayManager::hashOta( const UaQuadro &q ) {
+#include "hash_ota.inc"
+  (void)tema;   // a mutant may stop hashing it
+  return h;
+}
 
 uint32_t hashPintar( const UaQuadro &q, UiMode _uiMode, const ua::Tema &tema, const int8_t ox, const int8_t oy ) {
   (void)q; (void)_uiMode; (void)tema; (void)ox; (void)oy;   // a mutant may drop one of them
 #include "hash_pintar.inc"
-  return h;
-}
-
-uint32_t hashOta( const UaQuadro &q, const ua::Tema &tema ) {
-  (void)q; (void)tema;
-#include "hash_ota.inc"
   return h;
 }
 
@@ -111,21 +126,33 @@ Par decodificado( int t ) {
   return Par{ 0, 0 };
 }
 
+// The index that decodes to mode m with accent k, found through the listed decode and not computed.
+int8_t indiceDe( int m, int k ) {
+  for ( int t = 0; t < 128; t++ ) {
+    const Par p = decodificado( t );
+    if ( p.modo == m && p.acento == k ) return (int8_t)t;
+  }
+  return -1;
+}
+
+const UiMode modos[3] = { MODE_DASHBOARD, MODE_SETTINGS_THEMES, MODE_OTA_UPDATE };                   // the three kinds of frame
+const UiMode telas[4] = { MODE_DASHBOARD, MODE_SETTINGS_THEMES, MODE_OTA_UPDATE, MODE_OUTRO };   // the screen on show, whatever the frame being painted is
+
 // The theme the frame of `modo` must be painted with when the index is `indice`: mode 0 light, 1 dark, 2 automatic (dark from 19:00 to 6:59 by the clock, light with no clock),
 // the accent's table of that mode, its flag and its entry.
 void confereQuadro( DisplayManager &dm, UiMode modo, int indice ) {
   const Par p = decodificado( indice );
   const bool noite = p.modo == 1 || ( p.modo == 2 && dm.relogioTem && ( dm.relogioHora >= 19 || dm.relogioHora <= 6 ) );
   const ua::Tema &t = dm.uaTema( modo );
-  CONFERE( t.escuro == noite, "frame %d, preview %d, clock %d: index %d is mode %d accent %d, dark is %d, expected %d", (int)modo, (int)dm._uaPrevia,
+  CONFERE( t.escuro == noite, "frame %d on screen %d, preview %d, clock %d: index %d is mode %d accent %d, dark is %d, expected %d", (int)modo, (int)dm._uiMode, (int)dm._uaPrevia,
            dm.relogioTem ? dm.relogioHora : -1, indice, (int)p.modo, (int)p.acento, (int)t.escuro, (int)noite );
-  CONFERE( t.entrada == p.acento, "frame %d, preview %d, clock %d: index %d is accent %d, the theme says %d", (int)modo, (int)dm._uaPrevia,
+  CONFERE( t.entrada == p.acento, "frame %d on screen %d, preview %d, clock %d: index %d is accent %d, the theme says %d", (int)modo, (int)dm._uiMode, (int)dm._uaPrevia,
            dm.relogioTem ? dm.relogioHora : -1, indice, (int)p.acento, (int)t.entrada );
   const gerado::Tema *g = kGerado[noite ? 1 : 0][p.acento];
   int diferentes = 0;
   for ( int r = 0; r < PAPEIS; r++ )
     if ( papel( &t, r ) != papel( g, r ) ) diferentes++;
-  CONFERE( diferentes == 0, "frame %d, preview %d, clock %d: index %d, %d of the 17 roles differ from the generated table", (int)modo, (int)dm._uaPrevia,
+  CONFERE( diferentes == 0, "frame %d on screen %d, preview %d, clock %d: index %d, %d of the 17 roles differ from the generated table", (int)modo, (int)dm._uiMode, (int)dm._uaPrevia,
            dm.relogioTem ? dm.relogioHora : -1, indice, diferentes );
 }
 
@@ -140,10 +167,10 @@ uint32_t modelo( const UaQuadro &q, uint8_t tela, const ua::Tema &t, int8_t ox, 
 
 int main( ) {
   DisplayManager dm;
-  const UiMode modos[3] = { MODE_DASHBOARD, MODE_SETTINGS_THEMES, MODE_OTA_UPDATE };
   int quadros = 0;
+  constexpr int INDICES = 3 * gerado::ACENTOS_N;
 
-  // 1. The saved theme, over every int8_t value and over no configuration at all, with every hour of the clock and with none, on the three kinds of frame.
+  // 1. The saved theme, over every int8_t value and over no configuration at all, with every hour of the clock and with none, on the three kinds of frame, whatever screen is on show.
   for ( int cfg = -129; cfg <= 127; cfg++ ) {   // -129: no configuration yet, which means index 0
     const ConfigFalsa conf{ (int8_t)( cfg < -128 ? 0 : cfg ) };
     dm._sysConfigPtr = cfg < -128 ? nullptr : &conf;
@@ -151,14 +178,19 @@ int main( ) {
     for ( int relogio = -1; relogio < 24; relogio++ ) {
       dm.relogioTem = relogio >= 0;
       dm.relogioHora = relogio < 0 ? 0 : relogio;
-      for ( const UiMode modo : modos ) {
-        confereQuadro( dm, modo, cfg < -128 ? 0 : cfg );
-        quadros++;
+      for ( const UiMode tela : telas ) {
+        dm._uiMode = tela;
+        for ( const UiMode modo : modos ) {
+          confereQuadro( dm, modo, cfg < -128 ? 0 : cfg );
+          quadros++;
+        }
       }
     }
   }
 
-  // 2. The preview: the frame of the Tema screen takes it when there is one (a value of 0 or more), every other frame keeps the saved theme (17: automatic, last accent).
+  // 2. The preview: the frame of the Tema screen takes it when there is one (a value of 0 or more), every other frame keeps the saved theme (17: automatic, last accent). The frame's
+  //    mode decides, not the screen on show: the update screen, painted while the screen on show says Tema, keeps the saved theme, and a Tema frame takes the preview whatever the
+  //    screen on show says (A'3b).
   const ConfigFalsa salvo{ 17 };
   dm._sysConfigPtr = &salvo;
   const int relogios[4] = { -1, 3, 12, 22 };
@@ -167,14 +199,18 @@ int main( ) {
     for ( const int relogio : relogios ) {
       dm.relogioTem = relogio >= 0;
       dm.relogioHora = relogio < 0 ? 0 : relogio;
-      for ( const UiMode modo : modos ) {
-        confereQuadro( dm, modo, ( modo == MODE_SETTINGS_THEMES && previa >= 0 ) ? previa : 17 );
-        quadros++;
+      for ( const UiMode tela : telas ) {
+        dm._uiMode = tela;
+        for ( const UiMode modo : modos ) {
+          confereQuadro( dm, modo, ( modo == MODE_SETTINGS_THEMES && previa >= 0 ) ? previa : 17 );
+          quadros++;
+        }
       }
     }
   }
 
-  // 3. The two hashes: each equals the model, and every theme, view model, screen and alignment gives its own value.
+  // 3. The two hashes: each equals the model, and every theme, view model, screen and alignment gives its own value. The update screen's takes the saved theme through uaTema( ), so there
+  //    is one configuration per theme and no preview.
   static const uint8_t vmA[24] = { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24 };
   uint8_t vmB[24];
   memcpy( vmB, vmA, sizeof vmA );
@@ -182,10 +218,18 @@ int main( ) {
   const UaQuadro qA{ vmA, sizeof vmA }, qB{ vmB, sizeof vmB };
   constexpr int NT = 2 * gerado::ACENTOS_N;
   uint32_t hp[NT], ho[NT];
+  ConfigFalsa confs[NT];
+  dm._uaPrevia = -1;
+  dm.relogioTem = false;
+  dm._uiMode = MODE_OTA_UPDATE;
   for ( int i = 0; i < NT; i++ ) {
-    const ua::Tema &t = ua::tema( i / gerado::ACENTOS_N == 1, (uint8_t)( i % gerado::ACENTOS_N ) );
+    const bool noite = i / gerado::ACENTOS_N == 1;
+    const int acento = i % gerado::ACENTOS_N;
+    const ua::Tema &t = ua::tema( noite, (uint8_t)acento );
+    confs[i] = ConfigFalsa{ indiceDe( noite ? 1 : 0, acento ) };
+    dm._sysConfigPtr = &confs[i];
     hp[i] = hashPintar( qA, MODE_SETTINGS_THEMES, t, 3, -2 );
-    ho[i] = hashOta( qA, t );
+    ho[i] = dm.hashOta( qA );
     const uint32_t mp = modelo( qA, (uint8_t)MODE_SETTINGS_THEMES, t, 3, -2 ), mo = modelo( qA, (uint8_t)MODE_OTA_UPDATE, t, 0, 0 );
     CONFERE( hp[i] == mp, "the Angulo's frame hash of theme %d is %08x, the model says %08x", i, hp[i], mp );
     CONFERE( ho[i] == mo, "the update screen's hash of theme %d is %08x, the model says %08x", i, ho[i], mo );
@@ -198,13 +242,51 @@ int main( ) {
   const ua::Tema &t0 = ua::tema( false, 0 );
   const uint32_t base = hashPintar( qA, MODE_SETTINGS_THEMES, t0, 3, -2 );
   CONFERE( hashPintar( qB, MODE_SETTINGS_THEMES, t0, 3, -2 ) != base, "the view model is not in the Angulo's frame hash" );
-  CONFERE( hashOta( qB, t0 ) != hashOta( qA, t0 ), "the view model is not in the update screen's hash" );
+  dm._sysConfigPtr = &confs[0];   // light, stock accent
+  CONFERE( dm.hashOta( qB ) != dm.hashOta( qA ), "the view model is not in the update screen's hash" );
   CONFERE( hashPintar( qA, MODE_DASHBOARD, t0, 3, -2 ) != base, "the screen is not in the Angulo's frame hash" );
   CONFERE( hashPintar( qA, MODE_SETTINGS_THEMES, t0, -2, 3 ) != base, "ox and oy are interchangeable in the Angulo's frame hash" );
   CONFERE( hashPintar( qA, MODE_SETTINGS_THEMES, t0, 3, 0 ) != base, "oy is not in the Angulo's frame hash" );
   CONFERE( hashPintar( qA, MODE_SETTINGS_THEMES, t0, 0, -2 ) != base, "ox is not in the Angulo's frame hash" );
 
-  printf( "MEDIDA glue: uaTema( ) on %d frames (every index, every hour, the preview), the two hashes on %d themes and %d pairs\n", quadros, NT, NT * ( NT - 1 ) / 2 );
+  // 4. The update screen while the Tema screen has a preview (A'3b): Core 0 paints it while the screen on show may still say Tema, and it is painted, hash included, with the SAVED theme.
+  //    Every saved choice against every preview on every screen on show; where the two themes differ the model tells them apart, so the check cannot pass by both being alike.
+  dm.relogioTem = false;   // no clock: automatic is light
+  int pares = 0;
+  for ( int s = 0; s < INDICES; s++ ) {
+    const ConfigFalsa conf{ (int8_t)s };
+    dm._sysConfigPtr = &conf;
+    const Par ps = decodificado( s );
+    const ua::Tema &ts = ua::tema( ps.modo == 1, ps.acento );
+    const uint32_t esperado = modelo( qA, (uint8_t)MODE_OTA_UPDATE, ts, 0, 0 );
+    for ( int previa = 0; previa < INDICES; previa++ ) {
+      const Par pp = decodificado( previa );
+      const ua::Tema &tp = ua::tema( pp.modo == 1, pp.acento );
+      if ( tp.escuro != ts.escuro || tp.entrada != ts.entrada )
+        CONFERE( modelo( qA, (uint8_t)MODE_OTA_UPDATE, tp, 0, 0 ) != esperado, "saved %d and preview %d are two themes and hash alike", s, previa );
+      for ( const UiMode tela : telas ) {
+        dm._uaPrevia = (int8_t)previa;
+        dm._uiMode = tela;
+        CONFERE( dm.hashOta( qA ) == esperado, "update screen with saved choice %d, preview %d, screen on show %d: its hash is not the saved theme's", s, previa, (int)tela );
+        pares++;
+      }
+    }
+  }
+
+  // 5. The statement that drops the preview (uaQuadro( ), reset.inc, A'3b): on the Tema screen the preview stays whatever it is, on every other screen it goes.
+  int soltas = 0;
+  for ( const UiMode tela : telas )
+    for ( int previa = -128; previa <= 127; previa++ ) {
+      dm._uiMode = tela;
+      dm._uaPrevia = (int8_t)previa;
+      dm.soltaPrevia( );
+      const int esperada = tela == MODE_SETTINGS_THEMES ? previa : -1;
+      CONFERE( dm._uaPrevia == esperada, "screen on show %d, preview %d: it is %d after the statement, expected %d", (int)tela, previa, (int)dm._uaPrevia, esperada );
+      soltas++;
+    }
+
+  printf( "MEDIDA glue: uaTema( ) on %d frames (every index, every hour, the preview, every screen on show), the update screen's hash on %d saved-against-preview cases, "
+          "the preview's reset on %d cases, the two hashes on %d themes and %d pairs\n", quadros, pares, soltas, NT, NT * ( NT - 1 ) / 2 );
   printf( "%d checks, %d failed\n", checks, falhas );
   return falhas ? 1 : 0;
 }

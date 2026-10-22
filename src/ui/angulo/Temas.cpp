@@ -25,26 +25,27 @@ namespace entrega {
 
 namespace {
 /* Index t is mode t % 3 with accent t / 3: light, dark, automatic for the stock accent, then for each of the others. The ids are ASCII, at most 15 B (the .thm
- * code's size); the names are at most 23 B of UTF-8 (its name's size); tools/tft_ui/test_temas.py holds both, and each row to its index. */
+ * code's size); the names are at most 23 B of UTF-8 (its name's size); tools/tft_ui/test_temas.py holds both, and each row to its index.
+ * The colour follows the comma in lower case, as TEMA_CORES (telas/MenusConfig.h) writes it: sentence case, ANGULO.md section 7 (S10c, A'3b). */
 const ThemePalette kTemas[] = {
  TEMA( "claro", "Claro" ),
  TEMA( "escuro", "Escuro" ),
  TEMA( "auto", "Automático" ),
- TEMA( "claro-petroleo", "Claro, Petróleo" ),
- TEMA( "escuro-petroleo", "Escuro, Petróleo" ),
- TEMA( "auto-petroleo", "Automático, Petróleo" ),
- TEMA( "claro-azul", "Claro, Azul" ),
- TEMA( "escuro-azul", "Escuro, Azul" ),
- TEMA( "auto-azul", "Automático, Azul" ),
- TEMA( "claro-indigo", "Claro, Índigo" ),
- TEMA( "escuro-indigo", "Escuro, Índigo" ),
- TEMA( "auto-indigo", "Automático, Índigo" ),
- TEMA( "claro-violeta", "Claro, Violeta" ),
- TEMA( "escuro-violeta", "Escuro, Violeta" ),
- TEMA( "auto-violeta", "Automático, Violeta" ),
- TEMA( "claro-magenta", "Claro, Magenta" ),
- TEMA( "escuro-magenta", "Escuro, Magenta" ),
- TEMA( "auto-magenta", "Automático, Magenta" ),
+ TEMA( "claro-petroleo", "Claro, petróleo" ),
+ TEMA( "escuro-petroleo", "Escuro, petróleo" ),
+ TEMA( "auto-petroleo", "Automático, petróleo" ),
+ TEMA( "claro-azul", "Claro, azul" ),
+ TEMA( "escuro-azul", "Escuro, azul" ),
+ TEMA( "auto-azul", "Automático, azul" ),
+ TEMA( "claro-indigo", "Claro, índigo" ),
+ TEMA( "escuro-indigo", "Escuro, índigo" ),
+ TEMA( "auto-indigo", "Automático, índigo" ),
+ TEMA( "claro-violeta", "Claro, violeta" ),
+ TEMA( "escuro-violeta", "Escuro, violeta" ),
+ TEMA( "auto-violeta", "Automático, violeta" ),
+ TEMA( "claro-magenta", "Claro, magenta" ),
+ TEMA( "escuro-magenta", "Escuro, magenta" ),
+ TEMA( "auto-magenta", "Automático, magenta" ),
 };
 constexpr int NUM_TEMAS = sizeof( kTemas ) / sizeof( kTemas[0] );
 static_assert( NUM_TEMAS == 3 * entrega::ACENTOS_N, "every mode comes with every accent of the palette: index t is mode t % 3, accent t / 3 (ua::escolhaDoIndice)" );
