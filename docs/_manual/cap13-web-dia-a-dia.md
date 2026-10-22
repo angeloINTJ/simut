@@ -467,7 +467,7 @@ Há dois seletores:
 
 Os dois seletores gravam a mesma escolha no navegador. Ela vale para todas as páginas daquele navegador e muda os textos na hora, sem recarregar. Na primeira visita de um navegador sem escolha guardada, a interface usa o pacote do aparelho, se houver um.
 
-O idioma do navegador muda os textos da interface web; nos nomes dos eventos, ele escolhe entre o inglês e o idioma do pacote do aparelho ([capítulo 16](#cap-16)). O idioma do painel e do console é o do aparelho.
+O idioma do navegador muda os textos da interface web; nos nomes dos eventos, ele escolhe entre o inglês e o idioma do pacote do aparelho ([capítulo 16](#cap-16)). O idioma do painel e das respostas do console é o do aparelho; as linhas do log que o console e o syslog mostram saem em inglês ([capítulo 16](#cap-16-console)).
 
 Alguns textos aparecem sempre em inglês, qualquer que seja a escolha: por exemplo `No active sensors.`, `Connection Error`, `Access Denied`, `Error updating password.` e a unidade `pkts` dos registros pendentes.
 

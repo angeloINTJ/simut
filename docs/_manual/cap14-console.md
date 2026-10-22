@@ -278,8 +278,10 @@ O log de eventos está no [capítulo 16](#cap-16).
 SIMUT> debug on
 OK: Debug: LIGADO
 Vale para esta sessao; nao persiste apos reiniciar.
-[14:05:12][UP 02:05:40][C0][INF][NET] Mostrar IP: 192.0.2.10
+[14:05:12][UP 02:05:40][C0][INF][NET] Show IP: 192.0.2.10
 ```
+
+A resposta do comando sai no idioma do aparelho; a linha do evento sai em inglês ([capítulo 16](#cap-16-console)).
 
 `debug off` para a transmissão. O log continua sendo gravado com o `debug` ligado ou desligado.
 
