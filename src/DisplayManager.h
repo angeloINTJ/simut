@@ -1678,6 +1678,12 @@ private:
 		 * back to inline English. */
 		uint32_t helpOffset;
 		uint32_t helpLen;
+#if SIMUT_UI_PACK_TEXTS
+		/* @ANGULO, the Angulo panel's texts (S10c, B2b): a byte range into the file, like @HELP's. The panel's boot hook reads it once
+		 * (uiLangLoaded( ), src/ui/angulo/DisplayManager_UiA_Textos.cpp). anguloLen == 0 means the pack has no such section. */
+		uint32_t anguloOffset;
+		uint32_t anguloLen;
+#endif
 	};
 	static ActiveLang _activeLang;
 	static bool _activeLangLoaded;

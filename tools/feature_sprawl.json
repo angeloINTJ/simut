@@ -237,6 +237,11 @@
  "SIMUT_UI_CUSTOM_THEMES": {
   "WebManager_Files.cpp": 2
  },
+ "SIMUT_UI_PACK_TEXTS": {
+  "DisplayManager.h": 1,
+  "DisplayManager_LangParser.cpp": 1,
+  "LangPackIndex.h": 2
+ },
  "SIMUT_WDT_DISABLED": {
   "main.cpp": 3
  },

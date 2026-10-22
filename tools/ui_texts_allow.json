@@ -357,6 +357,23 @@
      "the segments are the kit's modes, in the kit's order"
     ]
    }
+  },
+  {
+   "reason": "a file mode: the mode of LittleFS.open( ), read by the file system and never drawn",
+   "texts": {
+    "src/ui/angulo/DisplayManager_UiA_Textos.cpp": [
+     "r"
+    ]
+   }
+  },
+  {
+   "reason": "the option a #pragma GCC diagnostic names (Textos.h, S10c B2b): read by the compiler, never drawn",
+   "texts": {
+    "src/ui/angulo/Textos.h": [
+     "-Wformat-nonliteral",
+     "-Wformat-security"
+    ]
+   }
   }
  ]
 }

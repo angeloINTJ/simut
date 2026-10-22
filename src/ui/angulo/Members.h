@@ -7,6 +7,9 @@ public:
 	 * 1 copied, 0 no frame on the glass yet, -1 Core 1 kept rewriting the
 	 * record for 2 ms (the caller answers "busy" rather than "none"). */
 	int8_t uaEstado( UaEstado &e ) const;
+	/* The language pack has finished loading at boot (AppManager_Boot.cpp, Core 0, once): the panel reads the pack's @ANGULO section into ua::textosCarregar( ).
+	 * Returns 0, or the ua::TextosResultado of the refusal, which the core logs. DisplayManager_UiA_Textos.cpp; the original's hook of the same name returns 0 (UiDriverMembers.h). */
+	int uiLangLoaded( );
 private:
 	/* The Ângulo build (src/ui/angulo/DisplayManager_UiA*.cpp). Last among
 	 * the members, like the update screen's, so they move no other one. */

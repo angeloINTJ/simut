@@ -30,11 +30,14 @@
 // compare the translation's conversion sequence with the English literal's (same count and types, no %n, no *) and fall back to the English on
 // any difference; none exists yet. What holds today: tools/check_ui_texts.py refuses UA_TXT( ) as the format argument of a printf-family call (and
 // of a kit function declared with a const char * before ... or a va_list). A text that reaches printf through a variable is for
-// -Wformat-nonliteral, which is not on: measured on 2026-10-22 on the Ângulo's units of both Ângulo images it names 0 sites in src/ui/angulo
-// (B2b and B3 decide).
+// -Wformat-nonliteral, which is on from the end of this header (S10c B2b, the two pragmas below): measured on 2026-10-22 on the Ângulo's units of both
+// Ângulo images it names 0 sites in src/ui/angulo. The pragma holds to the end of the translation unit, so a unit includes this header AFTER the project's
+// own headers: -Wformat-nonliteral names src/SystemDefs_Records.h:962, a lambda of a header the panel's units include, and that one is not the panel's to fix.
 //
-// Built only by the Ângulo UI driver and the host harness. textosCarregar( ) is called once, on Core 0, before the first paint, with the body of
-// the pack's @ANGULO section.
+// Built only by the Ângulo UI driver and the host harness. textosCarregar( ) is called once, on Core 0, from DisplayManager::uiLangLoaded( )
+// (DisplayManager_UiA_Textos.cpp, S10c B2b), with the body of the pack's @ANGULO section, which the loader found by byte range and uiLangLoaded( )
+// read into one temporary buffer (refused above UA_TEXTOS_MAX before anything is allocated) and freed. Core 1 may already be drawing: it sees
+// no table or the whole one.
 
 #include <stddef.h>
 #include <stdint.h>
@@ -71,6 +74,7 @@ enum TextosResultado : uint8_t {
   TEXTOS_DUPLICADA,      // two lines with the same hash
   TEXTOS_SEM_MEMORIA,    // malloc( ) gave nothing
   TEXTOS_JA_CARREGADO,   // a table is already published: it stays
+  TEXTOS_LEITURA,        // never returned by textosCarregar( ): the caller's own, when the pack did not open or gave fewer bytes than the section is long
 };
 
 // Builds the table from the body of an @ANGULO section: `n` bytes at `secao`, lines ended by '\n' with a '\r' before it allowed, blank lines
@@ -98,3 +102,10 @@ const char *txt( const char *en );
 // literals as the compiler does, so UA_TXT( "a " "b" ) is one English. tools/check_ui_texts.py and tools/check_lang_packs.py read the literals
 // of the sources the same way.
 #define UA_TXT( en ) ( ::ua::txt( "" en ) )
+
+// A looked-up text is never a format, on the compiler (S10c, B2b). With the project's -Wall -Wextra -Werror, from here to the end of the translation unit a
+// printf-family call whose format is not a literal is an error: -Wformat-nonliteral when it has arguments (snprintf( b, n, UA_TXT( "x %d" ), 1 )) and
+// -Wformat-security when it has none (printf( UA_TXT( "x" ) )). The words go in as arguments of a literal format: snprintf( b, n, "%d %s", v, UA_TXT( "min" ) ).
+// tools/tft_ui/test_textos.py plants both calls on g++ and on the cross-compiler and holds that they fail, and that they compile once these two lines are out.
+#pragma GCC diagnostic error "-Wformat-nonliteral"
+#pragma GCC diagnostic error "-Wformat-security"

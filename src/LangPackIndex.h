@@ -29,6 +29,11 @@
  *    their place. A radio build ignores @HELPWIRE the same way. A pack without
  *    @HELPWIRE leaves a wired build no help, so `help` prints the built-in
  *    English, which is the wired text.
+ *  - an image whose UI driver reads a section of the pack (SIMUT_UI_PACK_TEXTS: the Angulo) also knows @ANGULO, the texts the panel draws
+ *    (src/ui/angulo/Textos.h). The rules are the same ones: the whole name, the last occurrence, a body that ends at the next directive, and
+ *    @WEBDICT still the file's suffix. Every other image takes @ANGULO for an unknown directive, which ends the body before it and nothing
+ *    else, as all of them did until S10c B2b; the section's enumerator and table entry are under the capability, so those images preprocess
+ *    the scanner they had.
  *
  * One result differs, on purpose. The old parser ran the section just before
  * @WEBDICT one byte long — it counted the newline it appended to its own
@@ -50,6 +55,7 @@
 #include <string.h>
 #include "net/NetCaps.h"   /* SIMUT_NET_LAN, tested in identify( ): this header includes no other project header,
                               and an undefined macro reads as 0, so a wired build would take @HELP for its help */
+#include "ui/UiCaps.h"     /* SIMUT_UI_PACK_TEXTS, tested below: pure as NetCaps.h is (no include, no code), and for the same reason */
 
 /** The sections the firmware tells apart. The order here means nothing; in a
  *  file the order is free, except that @WEBDICT comes last. */
@@ -61,6 +67,9 @@ enum LangSection : uint8_t {
 	LANG_SEC_LOGCODES,
 	LANG_SEC_TRL,
 	LANG_SEC_WEBDICT,
+#if SIMUT_UI_PACK_TEXTS   /* the Angulo panel's texts, S10c B2b: under the capability the products' index (and the stack of loadLangFile( )) is the size it was */
+	LANG_SEC_ANGULO,
+#endif
 	LANG_SEC_COUNT
 };
 
@@ -160,6 +169,9 @@ private:
 #endif
 			{ "LOGCODES", 8, LANG_SEC_LOGCODES }, { "TRL", 3, LANG_SEC_TRL },
 			{ "WEBDICT", 7, LANG_SEC_WEBDICT },
+#if SIMUT_UI_PACK_TEXTS   /* the same capability as the enumerator above; "ANGULO" fits _dir[8] */
+			{ "ANGULO", 6, LANG_SEC_ANGULO },
+#endif
 		};
 		for (const auto& d : kDirs) {
 			if (_dirLen == d.len && memcmp(_dir, d.name, d.len) == 0) return (int8_t)d.sec;

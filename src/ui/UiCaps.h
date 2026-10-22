@@ -23,6 +23,10 @@
  *                         and its log record, are not compiled. The file itself is stored and deleted like any other; the Angulo
  *                         neither offers it as a theme nor applies it, and it takes effect when the board runs the original
  *                         (S10c, A'4). The original keeps the value it has today.
+ *     SIMUT_UI_PACK_TEXTS  the driver reads a section of its own from the language pack: the Angulo's @ANGULO, the texts it draws
+ *                         (src/ui/angulo/Textos.h). Read by the pack's scanner (LangPackIndex.h), the loader (DisplayManager_LangParser.cpp) and
+ *                         the ActiveLang record (DisplayManager.h): where it is 0 the scanner takes @ANGULO for an unknown directive, as every
+ *                         image did before S10c B2b, and nothing is kept. Not the identity, which check_ui_boundary.py keeps out of those files.
  *
  * The derived macros are never passed with -D. Passed, they could disagree with
  * the identity (an Angulo image that still says it is the original); derived here
@@ -56,8 +60,8 @@
 // A derived macro passed from outside is a second source of truth: an image built
 // with -DSIMUT_UI_ORIGINAL=1 -DSIMUT_UI_ANGULO=1 would test true for both. The test
 // is `defined`, so the value (even 0) does not matter, as for the network's class.
-#if defined(SIMUT_UI_ORIGINAL) || defined(SIMUT_UI_CUSTOM_THEMES)
-#error "SIMUT_UI_ORIGINAL and SIMUT_UI_CUSTOM_THEMES are derived from the UI driver in src/ui/UiCaps.h and never passed: name the driver instead (-DSIMUT_UI_ANGULO=1 for Angulo, nothing for the original, the default)"
+#if defined(SIMUT_UI_ORIGINAL) || defined(SIMUT_UI_CUSTOM_THEMES) || defined(SIMUT_UI_PACK_TEXTS)
+#error "SIMUT_UI_ORIGINAL, SIMUT_UI_CUSTOM_THEMES and SIMUT_UI_PACK_TEXTS are derived from the UI driver in src/ui/UiCaps.h and never passed: name the driver instead (-DSIMUT_UI_ANGULO=1 for Angulo, nothing for the original, the default)"
 #endif
 
 #ifndef SIMUT_UI_ANGULO
@@ -73,3 +77,4 @@
 #endif
 
 #define SIMUT_UI_CUSTOM_THEMES (SIMUT_UI_ORIGINAL)
+#define SIMUT_UI_PACK_TEXTS (SIMUT_UI_ANGULO)   // S10c, B2b: the Angulo has a section of the language pack of its own, @ANGULO

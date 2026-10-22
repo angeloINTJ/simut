@@ -1005,6 +1005,15 @@ void AppManager::setup( ) {
   DisplayManager::findAndLoadLangFile( );
  }
  
+ /* The UI driver's hook (src/ui/UiDriverMembers.h): the language pack, if the language needed one, has finished loading. Core 0, once, and this is the
+  * only call. The Angulo reads its own section of the pack now (src/ui/angulo/DisplayManager_UiA_Textos.cpp); a board in English loaded no pack, and the
+  * Angulo shows its English. Core 1 is already drawing the boot status (startCore1( ) is above), so a frame drawn before this point shows English; one drawn
+  * after it sees the whole table or none (Textos.cpp publishes the table with one release store). The hook returns 0, or why the Angulo kept no table, and the core logs
+  * that here, as it logs everything: a refusal is I18N_PACK_FAILED at WARN with the context 100 + the reason. The original's hook returns 0 and nothing is left of this. */
+ if (const int langWhy = _displayMgr->uiLangLoaded( )) {
+  LOG_CODE(LOG_WARN, "I18N", I18N_PACK_FAILED, 100 + langWhy, "ui_texts");   /* the pack loader's own record of this code is LOG_ERROR with context 0 (SystemDefs_Logging.h) */
+ }
+ 
  _displayMgr->setLanguage(cfg.displayLang);
  
 

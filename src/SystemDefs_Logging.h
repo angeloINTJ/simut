@@ -316,7 +316,15 @@ enum LogCode {
   * pack loaded at boot was APP_UI_LANG_CHANGED, a change a person makes, and
   * a pack refused was SYS_STORAGE_FAIL, which LogPolicy routes as a history
   * fault. The context: for OUTDATED the @DICT lines the pack has, against the
-  * firmware's TR_KEYS_COUNT; for MULTIPLE the packs found in /lang. */
+  * firmware's TR_KEYS_COUNT; for MULTIPLE the packs found in /lang.
+  *
+  * PACK_FAILED is also the Angulo panel's record of a refused @ANGULO section
+  * (S10c, B2b: the panel's hook reports it, AppManager_Boot.cpp logs it): at LOG_WARN, with the
+  * context 100 + ua::TextosResultado (src/ui/angulo/Textos.h): 101 empty, 102 over
+  * UA_TEXTOS_MAX, 103 a malformed line, 104 a repeated hash, 105 no memory, 106 a
+  * table already published, 107 the pack could not be read. The loader's own
+  * PACK_FAILED is LOG_ERROR with context 0, so the two cannot be taken for each
+  * other. A pack with no section, and a section that loaded, leave no record. */
  I18N_PACK_LOADED = 620,
  I18N_PACK_OUTDATED = 621,
  I18N_PACK_MULTIPLE = 622,

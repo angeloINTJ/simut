@@ -24,7 +24,9 @@
  * into that buffer, null-terminated in place. Every other section stays on
  * flash as a byte range: @HELP is read when the CLI asks for it,
  * GET /api/lang streams @WEBDICT and GET /api/logcodes scans for @LOGCODES on
- * its own. @TRL is read by nothing on the device. Packs carried a @LICENSE
+ * its own. @TRL is read by nothing on the device. In an Angulo image @ANGULO is
+ * a byte range too, kept in _activeLang and read once at boot by the panel
+ * (src/ui/angulo/DisplayManager_UiA_Textos.cpp). Packs carried a @LICENSE
  * section until 2026-10-02; the License screen draws the firmware's own text
  * now, so in an older pack that section is an unknown directive and skipped.
  *
@@ -45,6 +47,7 @@
 
 #include "DisplayManager.h"
 #include "LangPackIndex.h"
+#include "ui/UiCaps.h"   /* SIMUT_UI_PACK_TEXTS, tested in loadLangFile( ) */
 #include "Utf8Fold.h"
 #include "WebDictValue.h"
 #include "LogManager.h"
@@ -231,6 +234,14 @@ bool DisplayManager::loadLangFile(const char* path) {
  _activeLang.webDictOffset = ix.start[LANG_SEC_WEBDICT];
  _activeLang.webDictLen = ix.end[LANG_SEC_WEBDICT] - ix.start[LANG_SEC_WEBDICT];
  }
+#if SIMUT_UI_PACK_TEXTS
+ /* @ANGULO: the Angulo panel's texts, a byte range like @HELP's; the panel reads it once, from uiLangLoaded( ), after this returns. Zeroed by
+  * unloadLang( ), so a board in English (no pack) and a pack without the section both read length 0. */
+ if (ix.end[LANG_SEC_ANGULO] > ix.start[LANG_SEC_ANGULO]) {
+ _activeLang.anguloOffset = ix.start[LANG_SEC_ANGULO];
+ _activeLang.anguloLen = ix.end[LANG_SEC_ANGULO] - ix.start[LANG_SEC_ANGULO];
+ }
+#endif
 
  /* Path is kept so /api/lang can reopen the file to stream @WEBDICT. */
  strncpy(_activeLang.path, path, sizeof(_activeLang.path) - 1);

@@ -14,7 +14,7 @@ Este teste pede ao `cpp` do host (o mesmo do test_net_caps.py, que tambem acha o
 shutil.which("cpp") e passa -I<raiz> -I<src>) o veredito de cada montagem, pelo UiCaps.h e pelo
 simut_config.h, e prende:
 
-  1. as respostas: sem flag O/A/T (ORIGINAL, ANGULO, CUSTOM_THEMES) = 1/0/1, com o Angulo 0/1/0; o Angulo
+  1. as respostas: sem flag O/A/T/P (ORIGINAL, ANGULO, CUSTOM_THEMES, PACK_TEXTS) = 1/0/1/0, com o Angulo 0/1/0/1; o Angulo
      com um valor que nao e 0 nem 1, e um macro derivado passado de fora (com qualquer valor, sozinho ou
      junto de uma linha que parece certa), param num #error;
   2. o Angulo sem a TFT (o LCD 16x2, ou sem mostrador) para num #error do simut_config.h, e o original passa
@@ -49,8 +49,8 @@ CONFIG = os.path.join(SRC, "simut_config.h")
 
 ANGULO = "-DSIMUT_UI_ANGULO=1"
 
-# O que cada sonda imprime: O (ORIGINAL) A (ANGULO) T (CUSTOM_THEMES), na ordem.
-NAMES = (("O", "SIMUT_UI_ORIGINAL"), ("A", "SIMUT_UI_ANGULO"), ("T", "SIMUT_UI_CUSTOM_THEMES"))
+# O que cada sonda imprime: O (ORIGINAL) A (ANGULO) T (CUSTOM_THEMES) P (PACK_TEXTS), na ordem.
+NAMES = (("O", "SIMUT_UI_ORIGINAL"), ("A", "SIMUT_UI_ANGULO"), ("T", "SIMUT_UI_CUSTOM_THEMES"), ("P", "SIMUT_UI_PACK_TEXTS"))
 MACROS = "".join(f"#if {name}\nPROBE_{tag} 1\n#else\nPROBE_{tag} 0\n#endif\n" for tag, name in NAMES)
 PROBES = {"caps": '#include "ui/UiCaps.h"\n' + MACROS, "config": '#include "simut_config.h"\n' + MACROS}
 
@@ -60,7 +60,7 @@ ERR_COUNT = "exactly one UI driver"                # o do UiCaps.h: um valor que
 ERR_TFT = "SIMUT_UI_ANGULO needs SIMUT_DISPLAY_TFT"   # o do simut_config.h: o Angulo sem a TFT
 CAPS_ERRORS = [ERR_DERIVED, ERR_COUNT]
 
-ORIGINAL_ANSWER, ANGULO_ANSWER = "101", "010"
+ORIGINAL_ANSWER, ANGULO_ANSWER = "1010", "0101"
 
 # Os flags que o manifesto passa a cada mostrador, lidos dele em vez de copiados (tools/features.toml
 # [display.*]): o simut_config.h so pode recusar o Angulo onde a TFT nao e a do perfil.
@@ -68,7 +68,7 @@ _DISPLAYS = gf.load_manifest()["display"]
 LCD = list(_DISPLAYS["alpha_paralelo"]["flags"])
 HEADLESS = list(_DISPLAYS["nenhum"]["flags"])
 
-# (rotulo, sonda, flags, veredito). O veredito e ("ok", "OAT") ou ("erro", trecho).
+# (rotulo, sonda, flags, veredito). O veredito e ("ok", "OATP") ou ("erro", trecho).
 CASES = [
     # -- o UiCaps.h sozinho ---------------------------------------------------------------
     ("sem flag: o original e o padrao", "caps", [], ("ok", ORIGINAL_ANSWER)),
@@ -86,6 +86,9 @@ CASES = [
      ("erro", ERR_DERIVED)),
     ("o original=1 junto do Angulo", "caps", ["-DSIMUT_UI_ORIGINAL=1", ANGULO], ("erro", ERR_DERIVED)),
     ("os temas=0 junto do Angulo", "caps", [ANGULO, "-DSIMUT_UI_CUSTOM_THEMES=0"], ("erro", ERR_DERIVED)),
+    ("os textos do pacote passados de fora (S10c, B2b)", "caps", ["-DSIMUT_UI_PACK_TEXTS=1"], ("erro", ERR_DERIVED)),
+    ("os textos do pacote passados de fora com valor 0", "caps", ["-DSIMUT_UI_PACK_TEXTS=0"], ("erro", ERR_DERIVED)),
+    ("os textos do pacote=0 junto do Angulo", "caps", [ANGULO, "-DSIMUT_UI_PACK_TEXTS=0"], ("erro", ERR_DERIVED)),
     # -- as mesmas respostas pelo simut_config.h, e o Angulo contra o mostrador -------------
     ("simut_config.h sem flag", "config", [], ("ok", ORIGINAL_ANSWER)),
     ("simut_config.h com o Angulo na TFT", "config", [ANGULO], ("ok", ANGULO_ANSWER)),
@@ -100,13 +103,14 @@ CASES = [
     ("simut_config.h com o Angulo=2", "config", ["-DSIMUT_UI_ANGULO=2"], ("erro", ERR_COUNT)),
     ("simut_config.h com o original de fora", "config", ["-DSIMUT_UI_ORIGINAL=1"], ("erro", ERR_DERIVED)),
     ("simut_config.h com os temas de fora", "config", ["-DSIMUT_UI_CUSTOM_THEMES=1"], ("erro", ERR_DERIVED)),
+    ("simut_config.h com os textos do pacote de fora", "config", ["-DSIMUT_UI_PACK_TEXTS=1"], ("erro", ERR_DERIVED)),
 ]
 
 ERR_LINE = re.compile(r"error: #error")
 
 
 def preprocess(flags, probe_text, root, tmp):
-    """O `cpp` do host sobre a sonda: (codigo de saida, "OAT" lido, linhas de #error, ultima linha do stderr)."""
+    """O `cpp` do host sobre a sonda: (codigo de saida, "OATP" lido, linhas de #error, ultima linha do stderr)."""
     probe = os.path.join(tmp, "probe.c")
     with open(probe, "w", encoding="utf-8") as fh:
         fh.write(probe_text)
@@ -114,7 +118,7 @@ def preprocess(flags, probe_text, root, tmp):
     errors = [ln for ln in r.stderr.splitlines() if ERR_LINE.search(ln)]
     seen = {}
     for ln in r.stdout.splitlines():
-        m = re.fullmatch(r"PROBE_([OAT]) ([01])", ln.strip())
+        m = re.fullmatch(r"PROBE_([OATP]) ([01])", ln.strip())
         if m:
             seen[m.group(1)] = m.group(2)
     answer = "".join(seen.get(tag, "?") for tag, _ in NAMES)
@@ -136,7 +140,7 @@ def judge(case, root, tmp):
     if code != 0 or errors:
         return f"era para ser aceito como {what} e parou: {errors or tail or code}"
     if answer != what:
-        return f"aceito, mas ORIGINAL/ANGULO/CUSTOM_THEMES = {answer} em vez de {what}"
+        return f"aceito, mas ORIGINAL/ANGULO/CUSTOM_THEMES/PACK_TEXTS = {answer} em vez de {what}"
     return None
 
 
@@ -201,10 +205,10 @@ def main():
                 path = os.path.join(dirpath, f)
                 with open(path, encoding="utf-8", errors="ignore") as fh:
                     for n, ln in enumerate(fh, 1):
-                        if re.match(r"\s*#\s*define\s+SIMUT_UI_(ORIGINAL|ANGULO|CUSTOM_THEMES)\b", ln):
+                        if re.match(r"\s*#\s*define\s+SIMUT_UI_(ORIGINAL|ANGULO|CUSTOM_THEMES|PACK_TEXTS)\b", ln):
                             definers.setdefault(os.path.relpath(path, SRC), []).append(n)
-    if sorted(definers) != [os.path.join("ui", "UiCaps.h")] or [len(v) for v in definers.values()] != [3]:
-        fails.append("a identidade e a capacidade (SIMUT_UI_ORIGINAL, SIMUT_UI_ANGULO, SIMUT_UI_CUSTOM_THEMES) tem de "
+    if sorted(definers) != [os.path.join("ui", "UiCaps.h")] or [len(v) for v in definers.values()] != [4]:
+        fails.append("a identidade e as capacidades (SIMUT_UI_ORIGINAL, SIMUT_UI_ANGULO, SIMUT_UI_CUSTOM_THEMES, SIMUT_UI_PACK_TEXTS) tem de "
                      f"ser definida so no ui/UiCaps.h, uma vez cada: {definers}")
 
     # O simut_config.h inclui o cabecalho depois dos macros do mostrador (que o cabecalho nao ve) e antes
@@ -268,7 +272,7 @@ def main():
     # 5. O manifesto. O macro derivado nunca vai por -D (o UiCaps.h o recusa); a identidade do Angulo vai nos
     #    flags do driver e so nas imagens que o escolhem; o original, o padrao, nao emite nada.
     M = gf.load_manifest()
-    derived = re.compile(r"-DSIMUT_UI_(ORIGINAL|CUSTOM_THEMES)\b")
+    derived = re.compile(r"-DSIMUT_UI_(ORIGINAL|CUSTOM_THEMES|PACK_TEXTS)\b")
     for path in ("platformio.ini", os.path.join("tools", "generated", "profiles.ini")):
         with open(os.path.join(ROOT, path), encoding="utf-8") as fh:
             hit = [ln.strip() for ln in fh if derived.search(ln)]

@@ -260,6 +260,7 @@ include = [
     "ui/angulo/Angulo.cpp",
     "ui/angulo/DisplayManager_UiA*.cpp",
     "ui/angulo/Temas.cpp",
+    "ui/angulo/Textos.cpp",
     "ui/angulo/WebManager_UiA.cpp",
     "ui/angulo/telas/*.cpp",
 ]
