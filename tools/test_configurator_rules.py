@@ -177,29 +177,29 @@ def main():
                 if got != pyh[c["name"]]:
                     fails.append(f"JS e Python divergem no aviso '{c['name']}': JS {got}, Python {pyh[c['name']]}")
 
-    # The control of the Angulo on the Pico W (2026-10-22): without the rule, the cases that expect it fail, on both sides. A case that holds
+    # The control of the Angulo's rules of 2026-10-22 (the Pico W, then the panel chart): without a rule, the cases that expect it fail, on both sides. A case that holds
     # with the rule removed proves nothing about the rule.
-    new_rule = "angulo-cyw43-needs-rp2350"
-    needing = [c["name"] for c in table["cases"] if new_rule in c["violates"]]
-    if len(needing) < 3:
-        fails.append(f"a regra {new_rule} deveria ter pelo menos 3 casos que a quebram, tem {len(needing)}")
-    sem = copy.deepcopy(M)
-    sem["rules"] = [r for r in sem["rules"] if r["id"] != new_rule]
-    if len(sem["rules"]) == len(M["rules"]):
-        fails.append(f"controle: a regra {new_rule} não está no manifesto")
-    py_sem = {c["name"]: sorted(r["id"] for r in gf.rule_violations(py_config(sem, c), sem)) for c in table["cases"]}
-    for name in needing:
-        if py_sem[name] == py[name]:
-            fails.append(f"controle: sem a regra {new_rule}, o Python dá o mesmo em '{name}' ({py_sem[name]}): o caso não a exercita")
-    if node:
-        r2, _ = run_node(node, table, drop_rule=new_rule)
-        if r2.returncode != 0:
-            fails.append("node falhou no controle:\n" + r2.stderr.strip())
-        else:
-            js_sem = json.loads(r2.stdout)
-            for name in needing:
-                if js_sem["cases"][name] == py[name]:
-                    fails.append(f"controle: sem a regra {new_rule}, o JS dá o mesmo em '{name}' ({js_sem['cases'][name]}): o caso não a exercita")
+    for new_rule in ("angulo-cyw43-needs-rp2350", "angulo-needs-tft-graph"):
+        needing = [c["name"] for c in table["cases"] if new_rule in c["violates"]]
+        if len(needing) < 3:
+            fails.append(f"a regra {new_rule} deveria ter pelo menos 3 casos que a quebram, tem {len(needing)}")
+        sem = copy.deepcopy(M)
+        sem["rules"] = [r for r in sem["rules"] if r["id"] != new_rule]
+        if len(sem["rules"]) == len(M["rules"]):
+            fails.append(f"controle: a regra {new_rule} não está no manifesto")
+        py_sem = {c["name"]: sorted(r["id"] for r in gf.rule_violations(py_config(sem, c), sem)) for c in table["cases"]}
+        for name in needing:
+            if py_sem[name] == py[name]:
+                fails.append(f"controle: sem a regra {new_rule}, o Python dá o mesmo em '{name}' ({py_sem[name]}): o caso não a exercita")
+        if node:
+            r2, _ = run_node(node, table, drop_rule=new_rule)
+            if r2.returncode != 0:
+                fails.append("node falhou no controle:\n" + r2.stderr.strip())
+            else:
+                js_sem = json.loads(r2.stdout)
+                for name in needing:
+                    if js_sem["cases"][name] == py[name]:
+                        fails.append(f"controle: sem a regra {new_rule}, o JS dá o mesmo em '{name}' ({js_sem['cases'][name]}): o caso não a exercita")
 
     lit_rules = {rid for c in table["cases"] for rid in c["violates"]}
     lit_hazards = {hid for c in table["hazard_cases"] for hid in c["hazards"]}

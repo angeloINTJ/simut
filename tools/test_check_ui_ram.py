@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """test_check_ui_ram.py -- the cases of tools/check_ui_ram.py, with the negative controls: the guard must fail when the strip's fill or hash is in flash,
 absent, or past the end of SRAM, and must not fail an image that does not carry the Angulo; and the Angulo's static RAM must fail when it is 4 B over or under its
-budget; on the RP2350 the end of SRAM is the RP2350's, chosen by the image's chip; and a configurator build is held to the budget of the real environment it names, as a ceiling.
+budget; on the RP2350 the end of SRAM is the RP2350's, chosen by the image's chip; and a configurator build is held to the budget of the real environment it names, as a ceiling;
+and the command line (main( )) refuses an image with the Angulo that comes without --chip and holds a build to the entry --budget-env names.
 Exit 0 when every case holds."""
 import importlib.util
 import pathlib
@@ -192,6 +193,86 @@ for chip_, fim_ in (("rp2040", 0x20042000), ("rp2350", 0x20082000)):
         confere(f"... equal to SRAM_END in the SDK's {chip_} addressmap.h", int(achado.group(1), 16) if achado else None, guarda.SRAM_END.get(chip_))
     else:
         print(f"skip the SDK's {chip_} addressmap.h: the framework is not installed here")
+
+# ---- the command line (2026-10-22, S10c C1a-b). main( ) reads --chip and --budget-env itself, and no case above called it: the review of C1a made the default chip "rp2040" and
+# made --budget-env ignored, and every case passed. The stubs stand where nm and objdump stand (main( ) takes both by option): two executables that print the listing of the cases
+# above and the one object of the Angulo (OBJ_A, 120 B of static RAM), in the folder layout PlatformIO leaves (<env>/firmware.elf, <env>/src/ui/angulo/*.o).
+import contextlib  # noqa: E402
+import io  # noqa: E402
+
+
+def executavel(caminho, texto):
+    """An executable that prints `texto` whatever it is asked, to stand in for nm or objdump; its path."""
+    saida = pathlib.Path(str(caminho) + ".txt")
+    saida.write_text(texto, encoding="utf-8")
+    pathlib.Path(caminho).write_text(f"#!/bin/sh\nexec cat '{saida}'\n", encoding="utf-8")
+    pathlib.Path(caminho).chmod(0o755)
+    return str(caminho)
+
+
+def linha_de_comando(nome, argv, esperado, diz=(), nao_diz=()):
+    """One case of the command line: guarda.main( argv ) must exit `esperado`, its output must say every text of `diz` and none of `nao_diz`."""
+    texto = io.StringIO()
+    with contextlib.redirect_stdout(texto):
+        codigo = guarda.main(argv)
+    confere(nome, (codigo, [t for t in diz if t not in texto.getvalue()], [t for t in nao_diz if t in texto.getvalue()]), (esperado, [], []))
+
+
+with tempfile.TemporaryDirectory() as tmp_cli:
+    base = pathlib.Path(tmp_cli)
+    objdump = executavel(base / "objdump", OBJ_A)
+    nm_ok = executavel(base / "nm_ok", nm())
+    nm_alto = executavel(base / "nm_alto", nm(fill=0x20050000))     # inside the RP2350's SRAM, outside the RP2040's
+    nm_sem = executavel(base / "nm_sem", "10000100 T main\n")       # an image without the Angulo
+    orcamento = base / "orcamento.json"
+    orcamento.write_text(json.dumps({"envs": {"pico2_w_angulo": {"budget": 124}, "pico2_w_exato": {"budget": 120}, "pico2_w_estreito": {"budget": 116}}}))
+
+    def elf(env):
+        pasta_obj = base / env / guarda.PASTA_ANGULO
+        pasta_obj.mkdir(parents=True)
+        (pasta_obj / "Angulo.cpp.o").write_bytes(b"x")
+        (base / env / "firmware.elf").write_bytes(b"x")
+        return str(base / env / "firmware.elf")
+
+    custom, real, exato = elf("_custom"), elf("pico2_w_angulo"), elf("pico2_w_exato")
+
+    def argv_de(imagem, nm_bin, *resto):
+        return [imagem, "--nm", nm_bin, "--objdump", objdump, "--budget", str(orcamento), *resto]
+
+    # --chip: the end of SRAM is the chip's, and no default stands in for it
+    linha_de_comando("no --chip: an image with the Angulo is refused, and the message names the option", argv_de(custom, nm_ok, "--budget-env", "pico2_w_angulo"), 1, diz=("--chip",))
+    linha_de_comando("... the control: the same run with --chip rp2350 passes", argv_de(custom, nm_ok, "--chip", "rp2350", "--budget-env", "pico2_w_angulo"), 0, nao_diz=("--chip",))
+    linha_de_comando("no --chip on an image without the Angulo: nothing to hold, nothing refused", argv_de(custom, nm_sem, "--budget-env", "pico2_w_angulo"), 0, diz=("nothing to hold",))
+    linha_de_comando("an unknown --chip is refused and named", argv_de(custom, nm_ok, "--chip", "rp2999", "--budget-env", "pico2_w_angulo"), 1, diz=("rp2999",))
+    linha_de_comando("--chip rp2040 hands the RP2040's end to the check (a fill above it fails)", argv_de(custom, nm_alto, "--chip", "rp2040", "--budget-env", "pico2_w_angulo"), 1, diz=("outside SRAM",))
+    linha_de_comando("... and --chip rp2350 hands it the RP2350's (the same image passes)", argv_de(custom, nm_alto, "--chip", "rp2350", "--budget-env", "pico2_w_angulo"), 0)
+    # --budget-env: a configurator build (its folder is _custom, which has no entry) is held to the entry it names, as a ceiling
+    linha_de_comando("--budget-env: 4 B under the named entry passes, as a ceiling", argv_de(custom, nm_ok, "--chip", "rp2350", "--budget-env", "pico2_w_angulo"), 0,
+                     diz=("4 B under the ceiling of 124 B of pico2_w_angulo",))
+    linha_de_comando("--budget-env: on the named entry passes", argv_de(custom, nm_ok, "--chip", "rp2350", "--budget-env", "pico2_w_exato"), 0, diz=("on the budget of pico2_w_exato",))
+    linha_de_comando("--budget-env: 4 B over the named entry fails, and says it is a ceiling", argv_de(custom, nm_ok, "--chip", "rp2350", "--budget-env", "pico2_w_estreito"), 1,
+                     diz=("4 B over the budget of 116 B of pico2_w_estreito", "ceiling"))
+    linha_de_comando("--budget-env: an entry that does not exist fails and is named", argv_de(custom, nm_ok, "--chip", "rp2350", "--budget-env", "nao_existe"), 1, diz=("nao_existe",))
+    linha_de_comando("the control: without --budget-env the folder names the environment, and _custom has no entry", argv_de(custom, nm_ok, "--chip", "rp2350"), 1,
+                     diz=("no static-RAM budget for _custom",))
+    linha_de_comando("a real environment's folder is held to its own entry, exactly (4 B under fails)", argv_de(real, nm_ok, "--chip", "rp2350"), 1,
+                     diz=("4 B under the budget of 124 B", "only goes down"))
+    linha_de_comando("... and with --budget-env the same folder is held as a ceiling (passes)", argv_de(real, nm_ok, "--chip", "rp2350", "--budget-env", "pico2_w_angulo"), 0, diz=("ceiling",))
+    linha_de_comando("a real environment on its mark passes, exactly", argv_de(exato, nm_ok, "--chip", "rp2350"), 0, diz=("on its budget",))
+    linha_de_comando("no argument: the usage, which names --chip and --budget-env", [], 2, diz=("--chip", "--budget-env"))
+
+# the text beside the gate is tied to the code it describes (a comment that names an option the code renamed is stale)
+aqui = pathlib.Path(__file__).resolve().parent
+comentario = json.loads((aqui / guarda.ORCAMENTO).read_text(encoding="utf-8"))["_comment"]
+confere("the budget file's comment names the option a configurator build uses", guarda.OPCAO_ORCAMENTO in comentario, True)
+confere("... says an entry bounds that build as a ceiling, and that raising the entry raises it", "as a ceiling" in comentario and "raising" in comentario, True)
+# check_flash_probe.py cannot import the table (it runs inside SCons) and keeps the RP2040's end for every chip. On the RP2350 that is only stricter, a false failure and never a false
+# pass, for as long as the bound is not above the end of any chip in the table; and its comment points at the table.
+sonda = (aqui / "check_flash_probe.py").read_text(encoding="utf-8")
+fim_sonda = int(re.search(r"^SRAM_END = (0x[0-9a-fA-F]+)\s*$", sonda, re.M).group(1), 16)
+for chip_, fim_ in guarda.SRAM_END.items():
+    confere(f"check_flash_probe.py's bound is not above the end of the {chip_}'s SRAM (a bound above it would pass a shim outside SRAM)", fim_sonda <= fim_, True)
+confere("check_flash_probe.py's comment points at the per-chip table of check_ui_ram.py", "check_ui_ram.py" in sonda, True)
 
 with tempfile.TemporaryDirectory() as pasta:
     p = pathlib.Path(pasta)

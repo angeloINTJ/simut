@@ -310,6 +310,43 @@ def main():
     if [o["id"] for o in model["ui"]["options"]] != sorted(M["ui"], key=lambda n: M["ui_panels"][n]["order"]):
         fails.append(f"model.json: as opcoes de UI {[o['id'] for o in model['ui']['options']]} nao seguem o order de [ui_panels]")
 
+    # O que as regras do Angulo e a ajuda dele dizem (S10c C1a-b, 2026-10-22). A revisao do C1a achou tres frases que nao eram verdade: a recusa do Pico W dizia que o Angulo
+    # "nao cabe" (medido so na imagem de release; a regra recusa todo perfil do Pico W pela decisao do mantenedor de 2026-10-21), a ajuda dizia que o custo em flash "nao foi
+    # medido" (a evidencia da regra o cita), e faltava a regra do grafico do painel. Cada frase abaixo e a de uma lingua que a pagina ou os FEATURES*.md mostram.
+    rules = {r["id"]: r for r in M["rules"]}
+    pico_w, grafico = rules.get("angulo-cyw43-needs-rp2350"), rules.get("angulo-needs-tft-graph")
+    if pico_w is None or grafico is None:
+        fails.append(f"faltam regras do Angulo no manifesto: angulo-cyw43-needs-rp2350 {pico_w is not None}, angulo-needs-tft-graph {grafico is not None}")
+    else:
+        for lang, diz, nao_diz in (("en", ("not offered yet", "Choose the Pico 2 W", "original look"), r"\bfit"),
+                                   ("pt", ("ainda não é oferecido", "Escolha o Pico 2 W", "visual original"), r"\bcabe"),
+                                   ("es", ("aún no se ofrece", "Elija la Pico 2 W", "aspecto original"), r"\bcabe")):
+            texto = pico_w["why"][lang]
+            for tk in diz:
+                if tk not in texto:
+                    fails.append(f"angulo-cyw43-needs-rp2350.why.{lang} não diz «{tk}»: {texto!r}")
+            if re.search(nao_diz, texto):
+                fails.append(f"angulo-cyw43-needs-rp2350.why.{lang} diz que o Angulo não cabe, e isso foi medido só na release do Pico W: {texto!r}")
+        for tk in ("decided on 2026-10-21", "every Pico W profile", "45,856 B", "31,008 B"):
+            if tk not in pico_w["evidence"]:
+                fails.append(f"angulo-cyw43-needs-rp2350.evidence não diz «{tk}» (a decisão com a data, e a medida que ficou)")
+        for lang in ("en", "pt", "es"):
+            rotulo = M["ui_toggles"]["tft_graph"]["label"][lang]
+            if rotulo not in grafico["why"][lang]:
+                fails.append(f"angulo-needs-tft-graph.why.{lang} não chama a chave pelo rótulo que a página mostra, «{rotulo}»: {grafico['why'][lang]!r}")
+        for tk in ("2026-10-22", "python3 tools/build_custom.py --profile", "\"tft_graph\":false", "'_graphData' was not declared in this scope", "DisplayManager_UiA.cpp:293:44"):
+            if tk not in grafico["evidence"]:
+                fails.append(f"angulo-needs-tft-graph.evidence não cita «{tk}» (o erro do compilador, o comando e a data)")
+        figura = re.search(r"is ([\d,]+) B above pico2_w_release", pico_w["evidence"])
+        for lang, vazio, fig in (("en", "has not been measured", figura and figura.group(1)),
+                                 ("pt", "ainda não foi medido", figura and figura.group(1).replace(",", ".")),
+                                 ("es", "aún no se midió", figura and figura.group(1).replace(",", "."))):
+            ajuda = M["ui_panels"]["angulo"]["help"][lang]
+            if vazio in ajuda:
+                fails.append(f"ui_panels.angulo.help.{lang} diz que o custo em flash «{vazio}», e a regra do Pico W cita a medida dele: {ajuda!r}")
+            if not fig or f"{fig} B" not in ajuda:
+                fails.append(f"ui_panels.angulo.help.{lang} não traz a medida que a evidência da regra do Pico W dá ({fig} B): {ajuda!r}")
+
     # 6. O gerador, com manifestos de brinquedo. As unidades de um driver de UI saem das imagens dos outros e o
     #    `include` entra so na dele, como as de um driver de rede. Nenhum driver do manifesto de hoje tem unidades
     #    (as do Angulo chegam em S2a), entao sem este brinquedo o laco de compose( ) nao teria quem o exercitasse.

@@ -859,7 +859,8 @@ unsupported.es = "El ENC28J60 solo existe, por ahora, para la Pico común (RP204
 # A escolha da UI do painel touch (2026-10-14). Fica no grupo Interface, com as chaves da tela. O
 # Ângulo é um estudo ainda não aprovado para produtos, e o texto dele diz isso e diz o que custa: só
 # existe com a tela touch (a regra angulo-needs-tft trava a opção nas outras, com o motivo à vista),
-# e o custo em flash dele ainda não foi medido (a matriz de custos só conhece chaves e redes).
+# e o custo em flash dele, medido em 2026-10-21 como a diferença entre duas imagens do Pico 2 W (docs/analysis/UI_DRIVERS.md seção 3.6, a medida que a evidência de
+# angulo-cyw43-needs-rp2350 cita), vai no texto com a data: a matriz de custos só conhece chaves e redes, e não o traz.
 [ui_panel]
 group    = "interface"
 label.en = "Touch display look"
@@ -880,9 +881,9 @@ order    = 2
 label.en = "Ângulo look (study)"
 label.pt = "Visual Ângulo (estudo)"
 label.es = "Aspecto Ángulo (estudio)"
-help.en  = "A study of a new look for the touch display, drawn to the Ângulo standard. Not approved for products yet: it needs the touch display, and its cost in flash has not been measured."
-help.pt  = "Um estudo de um visual novo para a tela touch, desenhado no padrão Ângulo. Ainda não aprovado para produtos: exige a tela touch, e o custo dele em flash ainda não foi medido."
-help.es  = "Un estudio de un aspecto nuevo para la pantalla táctil, dibujado según el estándar Ángulo. Aún no aprobado para productos: requiere la pantalla táctil, y su costo en flash aún no se midió."
+help.en  = "A study of a new look for the touch display, drawn to the Ângulo standard. Not approved for products yet: it needs the touch display. On the Pico 2 W its image is 31,008 B larger than the original look's (measured on 2026-10-21; docs/analysis/UI_DRIVERS.md section 3.6)."
+help.pt  = "Um estudo de um visual novo para a tela touch, desenhado no padrão Ângulo. Ainda não aprovado para produtos: exige a tela touch. No Pico 2 W a imagem dele é 31.008 B maior que a do visual original (medido em 21/10/2026; docs/analysis/UI_DRIVERS.md seção 3.6)."
+help.es  = "Un estudio de un aspecto nuevo para la pantalla táctil, dibujado según el estándar Ángulo. Aún no aprobado para productos: requiere la pantalla táctil. En la Pico 2 W su imagen es 31.008 B mayor que la del aspecto original (medido el 21/10/2026; docs/analysis/UI_DRIVERS.md sección 3.6)."
 
 [ui_groups.network]
 order    = 1
@@ -1161,8 +1162,9 @@ why.es   = "El aspecto Ángulo se dibuja en la pantalla táctil."
 evidence = "pico_w_alpha with ui = angulo (the composed environment plus -DSIMUT_UI_ANGULO=1, built with pio run on 2026-10-14) stops on every unit that includes simut_config.h, with: src/simut_config.h:99:2: error: #error \"SIMUT_UI_ANGULO needs SIMUT_DISPLAY_TFT\". The Air (no display) stops at the same #error, pinned by tools/test_ui_caps.py. Not compiled past it: the Ângulo panel draws on the ILI9341 and reads the XPT2046, which neither the 16x2 LCD nor the headless image has, and the manifest refuses the combination before a build starts."
 
 # O Angulo no Pico W (2026-10-22). O mantenedor decidiu em 2026-10-21 que o Angulo chega primeiro ao Pico 2 W, com uma versao menor para o Pico W depois, e em 2026-10-22
-# que o construtor monta o Pico 2 W das duas formas (o Angulo e o original). O Pico W e o RP2040 com o radio CYW43 (net = "cyw43"), e e nele que o Angulo nao cabe: a regra
-# pede o RP2350 a quem junta o Angulo ao radio. O SIMUT Wire com TFT (RP2040 com o ENC28J60, o pico_wiretft_angulo) nao e atingido, porque nao tem o radio: e a imagem de
+# que o construtor monta o Pico 2 W das duas formas (o Angulo e o original). O Pico W e o RP2040 com o radio CYW43 (net = "cyw43"), e nele o Angulo ainda nao e oferecido: a regra
+# recusa o Angulo em todo perfil do Pico W, pela decisao do mantenedor de 2026-10-21 (a medida de que nao cabe cobre so a imagem de release, e esta na evidencia),
+# e pede o RP2350 a quem junta o Angulo ao radio. O SIMUT Wire com TFT (RP2040 com o ENC28J60, o pico_wiretft_angulo) nao e atingido, porque nao tem o radio: e a imagem de
 # bancada do Angulo e continua. `chip` entrou no vocabulario das regras (config_of( )) por causa desta: sem ele nao ha como dizer "o RP2350", porque o Pico W e o Pico 2 W
 # escolhem o mesmo mostrador, a mesma rede e a mesma UI; a pagina le o chip do mesmo model.json (products[].config.chip). Nenhuma build do Angulo para o Pico W existe, entao
 # nao ha erro de compilador a citar: a evidencia e a medida de docs/analysis/UI_DRIVERS.md secao 3.6, com as datas dela.
@@ -1170,10 +1172,23 @@ evidence = "pico_w_alpha with ui = angulo (the composed environment plus -DSIMUT
 id       = "angulo-cyw43-needs-rp2350"
 when     = { ui = "angulo", net = "cyw43" }
 require  = { chip = "rp2350" }
-why.en   = "The Ângulo look does not fit the Pico W's Wi-Fi image. Choose the Pico 2 W, or keep the original look."
-why.pt   = "O visual Ângulo não cabe na imagem Wi-Fi do Pico W. Escolha o Pico 2 W ou mantenha o visual original."
-why.es   = "El aspecto Ángulo no cabe en la imagen Wi-Fi de la Pico W. Elija la Pico 2 W o mantenga el aspecto original."
-evidence = "No Ângulo build of the Pico W exists, so there is no compiler error to quote; the gap is measured on other images (docs/analysis/UI_DRIVERS.md section 3.6). Measured on 2026-10-14 (baseline images of 192e1ad, the study's Ângulo): 45,856 B above the plain pico_wiretft, against 5,643 B of OTA headroom in the Pico W's Wi-Fi release (PLANO_STABLE.md section 3.1), a gap of 34 to 40 kB. Rerun on 2026-10-21 (after S10b-1): pico2_w_angulo, a real Wi-Fi Ângulo build, is 31,008 B above pico2_w_release (.bin 1,029,952 against 998,944 B), and the Pico W's Wi-Fi release has 5,195 B of headroom in the same record and no Ângulo build, so a transposition of the 31 kB would not fit it. The maintainer decided on 2026-10-21 that the Ângulo ships first on the Pico 2 W only, with a smaller version for the Pico W later. The SIMUT Wire TFT (RP2040 with the ENC28J60, pico_wiretft_angulo) has no radio and is not refused: it is the Ângulo's bench image."
+why.en   = "On the Pico W with Wi-Fi the Ângulo look is not offered yet. Choose the Pico 2 W, or the original look."
+why.pt   = "No Pico W com Wi-Fi o visual Ângulo ainda não é oferecido. Escolha o Pico 2 W ou o visual original."
+why.es   = "En la Pico W con Wi-Fi el aspecto Ángulo aún no se ofrece. Elija la Pico 2 W o el aspecto original."
+evidence = "The rule applies a decision, not a measurement: the maintainer decided on 2026-10-21 that the Ângulo ships first on the Pico 2 W only, with a smaller version for the Pico W later, so the rule refuses every Pico W profile (the RP2040 with the CYW43 radio, whatever its display, the Wire TFT with the Wi-Fi back included), and the measurement below covers the Pico W's Wi-Fi release image only. No Ângulo build of the Pico W exists, so there is no compiler error to quote; the gap is measured on other images (docs/analysis/UI_DRIVERS.md section 3.6). Measured on 2026-10-14 (baseline images of 192e1ad, the study's Ângulo): 45,856 B above the plain pico_wiretft, against 5,643 B of OTA headroom in the Pico W's Wi-Fi release (PLANO_STABLE.md section 3.1), a gap of 34 to 40 kB. Rerun on 2026-10-21 (after S10b-1): pico2_w_angulo, a real Wi-Fi Ângulo build, is 31,008 B above pico2_w_release (.bin 1,029,952 against 998,944 B), and the Pico W's Wi-Fi release has 5,195 B of headroom in the same record and no Ângulo build, so a transposition of the 31 kB would not fit it. The SIMUT Wire TFT (RP2040 with the ENC28J60, pico_wiretft_angulo) has no radio and is not refused: it is the Ângulo's bench image."
+
+# O Angulo e o grafico do painel (2026-10-22). O Angulo le o pacote de dados do grafico (_graphData, um membro do DisplayManager que so existe com SIMUT_TFT_GRAPH) em
+# DisplayManager_UiA.cpp e em DisplayManager_UiA_Graficos.cpp. Com `tft_graph = false` o manifesto deixava passar `ui = "angulo"` e a build so parava no compilador (a revisao
+# do C1a, 2026-10-22). Como graph-needs-tft e angulo-needs-tft, a evidencia e o erro do compilador. A regra recusa; nao faz o Angulo compilar sem o grafico: isso e src/, e nao
+# o manifesto. Nos perfis sem TFT ela acende ao lado de angulo-needs-tft, porque tft_graph = false ali.
+[[rules]]
+id       = "angulo-needs-tft-graph"
+when     = { ui = "angulo" }
+require  = { tft_graph = true }
+why.en   = "The Ângulo look draws its charts on the touch display, so it needs the panel chart. Keep the switch \"Graph and calendar on the touch display\" on."
+why.pt   = "O visual Ângulo desenha os gráficos na tela touch, então precisa do gráfico do painel. Mantenha ligada a chave \"Gráfico e calendário na tela touch\"."
+why.es   = "El aspecto Ángulo dibuja sus gráficos en la pantalla táctil, así que necesita el gráfico del panel. Mantenga activado el interruptor \"Gráfico y calendario en la pantalla táctil\"."
+evidence = "pico2_w_release with ui = angulo and tft_graph = false passed the manifest and did not compile. Run on 2026-10-22 on the tree of a6859ce5, before this rule existed: python3 tools/build_custom.py --profile '{\"v\":1,\"base\":\"pico2_w_release\",\"set\":{\"ui\":\"angulo\",\"tft_graph\":false}}' exits 1 with src/ui/angulo/DisplayManager_UiA.cpp:293:44: error: '_graphData' was not declared in this scope, and five more of the same error in src/ui/angulo/DisplayManager_UiA_Graficos.cpp (its --validate-only exited 0). The Wire TFT (base pico_wiretft, the same two choices) fails the same way. The Ângulo reads the data package of the panel chart, DisplayManager::_graphData (a GraphDataPackage), a member that exists only when SIMUT_TFT_GRAPH is set (src/DisplayManager.h), so the Ângulo needs the chart switch on. The manifest refuses the combination before a build starts; making the Ângulo compile without the chart is a change in src/, not in the manifest."
 
 # O que o orcamento de PIO e de pinos recusa (tools/pio_budget.py, 2026-10-13), com as
 # palavras que a pagina mostra: `why` e o problema; `fix`, o remedio, com {list} trocado

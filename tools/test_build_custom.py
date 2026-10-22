@@ -179,6 +179,17 @@ CLI = [
     ('{"v":1,"base":"pico_wiretft_angulo","set":{"net":"cyw43"}}', 2, "regra angulo-cyw43-needs-rp2350"),
     ('{"v":1,"base":"pico_w_alpha","set":{"ui":"angulo"}}', 2, "regra angulo-cyw43-needs-rp2350"),
     ('{"v":1,"base":"pico_w_air","set":{"ui":"angulo"}}', 2, "regra angulo-cyw43-needs-rp2350"),
+    # O Angulo sem o grafico do painel (2026-10-22): o manifesto deixava passar e a build parava no compilador ('_graphData' was not declared in this scope). A regra
+    # angulo-needs-tft-graph recusa antes, nas duas bases que o Angulo tem, e o original sem o grafico segue valido.
+    ('{"v":1,"base":"pico2_w_release","set":{"ui":"angulo","tft_graph":false}}', 2, "regra angulo-needs-tft-graph"),
+    ('{"v":1,"base":"pico2_w_release","set":{"ui":"angulo","tft_graph":false}}', 2, "Graph and calendar on the touch display"),
+    ('{"v":1,"base":"pico_wiretft","set":{"ui":"angulo","tft_graph":false}}', 2, "regra angulo-needs-tft-graph"),
+    ('{"v":1,"base":"pico2_w_angulo","set":{"tft_graph":false}}', 2, "regra angulo-needs-tft-graph"),
+    ('{"v":1,"base":"pico_wiretft_angulo","set":{"tft_graph":false}}', 2, "regra angulo-needs-tft-graph"),
+    ('{"v":1,"base":"pico_w_release","set":{"ui":"angulo","tft_graph":false}}', 2, "regra angulo-needs-tft-graph"),
+    ('{"v":1,"base":"pico_w_alpha","set":{"ui":"angulo"}}', 2, "regra angulo-needs-tft-graph"),
+    ('{"v":1,"base":"pico2_w_release","set":{"ui":"original","tft_graph":false}}', 0, "perfil válido"),
+    ('{"v":1,"base":"pico_wiretft","set":{"tft_graph":false}}', 0, "perfil válido"),
     ('{"v":1,"base":"pico_w_alpha","set":{"ui":"original"}}', 0, "perfil válido"),
     ('{"v":1,"base":"pico_w_alpha","set":{"ui":"angulo"}}', 2, "regra angulo-needs-tft"),
     ('{"v":1,"base":"pico_w_air","set":{"ui":"angulo"}}', 2, "regra angulo-needs-tft"),
@@ -360,6 +371,13 @@ CLI_ABSENT = [
     ('{"v":1,"base":"pico_wiretft","set":{"ui":"angulo"}}', "angulo-cyw43-needs-rp2350"),
     ('{"v":1,"base":"pico2_w_release","set":{"ui":"angulo"}}', "angulo-cyw43-needs-rp2350"),
     ('{"v":1,"base":"pico_w_release","set":{"ui":"original"}}', "angulo-cyw43-needs-rp2350"),
+    # E a do grafico (2026-10-22) nao fala de quem tem o grafico, nem de quem fica no visual original sem ele.
+    ('{"v":1,"base":"pico2_w_release","set":{"ui":"angulo"}}', "angulo-needs-tft-graph"),
+    ('{"v":1,"base":"pico_wiretft","set":{"ui":"angulo"}}', "angulo-needs-tft-graph"),
+    ('{"v":1,"base":"pico2_w_angulo","set":{}}', "angulo-needs-tft-graph"),
+    ('{"v":1,"base":"pico_wiretft_angulo","set":{}}', "angulo-needs-tft-graph"),
+    ('{"v":1,"base":"pico2_w_release","set":{"ui":"original","tft_graph":false}}', "angulo-needs-tft-graph"),
+    ('{"v":1,"base":"pico_wiretft","set":{"tft_graph":false}}', "angulo-needs-tft-graph"),
 ]
 for text, needle in CLI_ABSENT:
     r = subprocess.run([sys.executable, os.path.join(HERE, "build_custom.py"), "--validate-only"],
@@ -400,6 +418,43 @@ if bloco:
             r = subprocess.run([sys.executable, os.path.join(HERE, "build_custom.py"), "--validate-only"], env={**os.environ, "SIMUT_PROFILE": text},
                                capture_output=True, text=True)
             check(r.returncode == 2 and NEW_RULE in r.stdout + r.stderr, f"com a regra, {text!r} deveria sair 2 nomeando {NEW_RULE}, saiu {r.returncode}\n{r.stdout}{r.stderr}")
+
+# O Angulo sem o grafico do painel (2026-10-22). Sem a regra angulo-needs-tft-graph, ui = angulo com tft_graph desligado passava pelo manifesto (exit 0) e a build parava no
+# compilador: src/ui/angulo/DisplayManager_UiA.cpp:293:44: error: '_graphData' was not declared in this scope (o membro so existe com SIMUT_TFT_GRAPH). O controle e o do bloco
+# acima, em memoria e pela linha de comando com o manifesto sem o bloco: sem a regra o perfil passa, e o caso que espera a recusa reprova.
+GRAPH_RULE = "angulo-needs-tft-graph"
+GRAPH_OFF = (("pico2_w_release", {"ui": "angulo", "tft_graph": False}), ("pico_wiretft", {"ui": "angulo", "tft_graph": False}),
+             ("pico2_w_angulo", {"tft_graph": False}), ("pico_wiretft_angulo", {"tft_graph": False}))
+M_sem_grafico = copy.deepcopy(M)
+M_sem_grafico["rules"] = [r for r in M_sem_grafico["rules"] if r["id"] != GRAPH_RULE]
+check(len(M_sem_grafico["rules"]) == len(M["rules"]) - 1, f"a regra {GRAPH_RULE} não está no manifesto: o controle não provou nada")
+for base_, set_ in GRAPH_OFF:
+    com = [b["id"] for b in gf.blockers(bc.resolve(base_, set_, M), M)]
+    sem = [b["id"] for b in gf.blockers(bc.resolve(base_, set_, M_sem_grafico), M_sem_grafico)]
+    check(com == [GRAPH_RULE], f"{base_} {set_}: com a regra, deveria ser recusado só por {GRAPH_RULE}: {com}")
+    check(sem == [], f"{base_} {set_}: sem a regra, nada mais recusa o perfil (foi o compilador que o recusou): {sem}")
+for base_, set_ in (("pico2_w_release", {"ui": "original", "tft_graph": False}), ("pico_wiretft", {"tft_graph": False}),
+                    ("pico2_w_release", {"ui": "angulo"}), ("pico_wiretft", {"ui": "angulo"}), ("pico2_w_angulo", {}), ("pico_wiretft_angulo", {})):
+    got = [b["id"] for b in gf.blockers(bc.resolve(base_, set_, M), M)]
+    check(got == [], f"{base_} {set_}: deveria passar pelas regras (tem o gráfico, ou fica no visual original): {got}")
+bloco_g = re.search(r'\[\[rules\]\]\nid\s*=\s*"' + re.escape(GRAPH_RULE) + r'"\n(?:(?!\n\n).)*\n\n', toml_text, re.S)
+check(bloco_g is not None, f"o bloco [[rules]] de {GRAPH_RULE} não está no features.toml: o controle pela linha de comando não provou nada")
+if bloco_g:
+    with tempfile.TemporaryDirectory() as pasta:
+        copia = os.path.join(pasta, "features_sem_a_regra_do_grafico.toml")
+        with open(copia, "w", encoding="utf-8") as fh:
+            fh.write(toml_text.replace(bloco_g.group(0), ""))
+        harness = ("import sys; sys.path.insert(0, %r); import gen_features as gf; gf.MANIFEST = %r; "
+                   "import build_custom as bc; sys.argv = ['build_custom.py', '--validate-only']; sys.exit(bc.main())" % (HERE, copia))
+        for base_, set_ in GRAPH_OFF[:2]:
+            text = json.dumps({"v": 1, "base": base_, "set": set_}, separators=(",", ":"))
+            r = subprocess.run([sys.executable, "-c", harness], env={**os.environ, "SIMUT_PROFILE": text}, capture_output=True, text=True)
+            out = r.stdout + r.stderr
+            check(r.returncode == 0 and GRAPH_RULE not in out and "perfil válido" in out, f"controle: sem a regra, {text!r} deveria passar (exit 0), saiu {r.returncode}\n{out}")
+            r = subprocess.run([sys.executable, os.path.join(HERE, "build_custom.py"), "--validate-only"], env={**os.environ, "SIMUT_PROFILE": text},
+                               capture_output=True, text=True)
+            out = r.stdout + r.stderr
+            check(r.returncode == 2 and GRAPH_RULE in out, f"com a regra, {text!r} deveria sair 2 nomeando {GRAPH_RULE}, saiu {r.returncode}\n{out}")
 
 # O orcamento de RAM estatica do Angulo numa build do configurador (2026-10-22). O ambiente `_custom` nao tem entrada no tools/ui_ram_budget.json, e por isso
 # nenhuma build do configurador com o Angulo linkava. O build_custom.py nomeia o ambiente de verdade cuja entrada vale para ela, derivado do hardware (chip,
@@ -585,5 +640,6 @@ print(f"test_build_custom: {len(HOSTILE)} perfis hostis recusados, {len(M['profi
       f"({len(M['ui'])}: {', '.join(M['ui'])}), log sem comando injetado; "
       f"o Ângulo recusado no Pico W e aceito no Pico 2 W e no Wire com TFT, com o controle sem a regra, e o ambiente do "
       f"orçamento de RAM dele derivado do hardware; "
+      f"o Ângulo sem o gráfico do painel recusado nas duas bases que o têm, com o controle sem a regra; "
       f"imagens e tetos de cada chip, e o acabamento depois da assinatura (Pico 2 W, Pico W, "
       f"Pico 2 W sem tabela).")

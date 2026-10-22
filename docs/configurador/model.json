@@ -380,8 +380,8 @@
           "pt": "Visual Ângulo (estudo)"
         },
         "help": {
-          "en": "A study of a new look for the touch display, drawn to the Ângulo standard. Not approved for products yet: it needs the touch display, and its cost in flash has not been measured.",
-          "pt": "Um estudo de um visual novo para a tela touch, desenhado no padrão Ângulo. Ainda não aprovado para produtos: exige a tela touch, e o custo dele em flash ainda não foi medido."
+          "en": "A study of a new look for the touch display, drawn to the Ângulo standard. Not approved for products yet: it needs the touch display. On the Pico 2 W its image is 31,008 B larger than the original look's (measured on 2026-10-21; docs/analysis/UI_DRIVERS.md section 3.6).",
+          "pt": "Um estudo de um visual novo para a tela touch, desenhado no padrão Ângulo. Ainda não aprovado para produtos: exige a tela touch. No Pico 2 W a imagem dele é 31.008 B maior que a do visual original (medido em 21/10/2026; docs/analysis/UI_DRIVERS.md seção 3.6)."
         }
       }
     ]
@@ -991,10 +991,24 @@
         "chip": "rp2350"
       },
       "why": {
-        "en": "The Ângulo look does not fit the Pico W's Wi-Fi image. Choose the Pico 2 W, or keep the original look.",
-        "pt": "O visual Ângulo não cabe na imagem Wi-Fi do Pico W. Escolha o Pico 2 W ou mantenha o visual original."
+        "en": "On the Pico W with Wi-Fi the Ângulo look is not offered yet. Choose the Pico 2 W, or the original look.",
+        "pt": "No Pico W com Wi-Fi o visual Ângulo ainda não é oferecido. Escolha o Pico 2 W ou o visual original."
       },
-      "evidence": "No Ângulo build of the Pico W exists, so there is no compiler error to quote; the gap is measured on other images (docs/analysis/UI_DRIVERS.md section 3.6). Measured on 2026-10-14 (baseline images of 192e1ad, the study's Ângulo): 45,856 B above the plain pico_wiretft, against 5,643 B of OTA headroom in the Pico W's Wi-Fi release (PLANO_STABLE.md section 3.1), a gap of 34 to 40 kB. Rerun on 2026-10-21 (after S10b-1): pico2_w_angulo, a real Wi-Fi Ângulo build, is 31,008 B above pico2_w_release (.bin 1,029,952 against 998,944 B), and the Pico W's Wi-Fi release has 5,195 B of headroom in the same record and no Ângulo build, so a transposition of the 31 kB would not fit it. The maintainer decided on 2026-10-21 that the Ângulo ships first on the Pico 2 W only, with a smaller version for the Pico W later. The SIMUT Wire TFT (RP2040 with the ENC28J60, pico_wiretft_angulo) has no radio and is not refused: it is the Ângulo's bench image."
+      "evidence": "The rule applies a decision, not a measurement: the maintainer decided on 2026-10-21 that the Ângulo ships first on the Pico 2 W only, with a smaller version for the Pico W later, so the rule refuses every Pico W profile (the RP2040 with the CYW43 radio, whatever its display, the Wire TFT with the Wi-Fi back included), and the measurement below covers the Pico W's Wi-Fi release image only. No Ângulo build of the Pico W exists, so there is no compiler error to quote; the gap is measured on other images (docs/analysis/UI_DRIVERS.md section 3.6). Measured on 2026-10-14 (baseline images of 192e1ad, the study's Ângulo): 45,856 B above the plain pico_wiretft, against 5,643 B of OTA headroom in the Pico W's Wi-Fi release (PLANO_STABLE.md section 3.1), a gap of 34 to 40 kB. Rerun on 2026-10-21 (after S10b-1): pico2_w_angulo, a real Wi-Fi Ângulo build, is 31,008 B above pico2_w_release (.bin 1,029,952 against 998,944 B), and the Pico W's Wi-Fi release has 5,195 B of headroom in the same record and no Ângulo build, so a transposition of the 31 kB would not fit it. The SIMUT Wire TFT (RP2040 with the ENC28J60, pico_wiretft_angulo) has no radio and is not refused: it is the Ângulo's bench image."
+    },
+    {
+      "id": "angulo-needs-tft-graph",
+      "when": {
+        "ui": "angulo"
+      },
+      "require": {
+        "tft_graph": true
+      },
+      "why": {
+        "en": "The Ângulo look draws its charts on the touch display, so it needs the panel chart. Keep the switch \"Graph and calendar on the touch display\" on.",
+        "pt": "O visual Ângulo desenha os gráficos na tela touch, então precisa do gráfico do painel. Mantenha ligada a chave \"Gráfico e calendário na tela touch\"."
+      },
+      "evidence": "pico2_w_release with ui = angulo and tft_graph = false passed the manifest and did not compile. Run on 2026-10-22 on the tree of a6859ce5, before this rule existed: python3 tools/build_custom.py --profile '{\"v\":1,\"base\":\"pico2_w_release\",\"set\":{\"ui\":\"angulo\",\"tft_graph\":false}}' exits 1 with src/ui/angulo/DisplayManager_UiA.cpp:293:44: error: '_graphData' was not declared in this scope, and five more of the same error in src/ui/angulo/DisplayManager_UiA_Graficos.cpp (its --validate-only exited 0). The Wire TFT (base pico_wiretft, the same two choices) fails the same way. The Ângulo reads the data package of the panel chart, DisplayManager::_graphData (a GraphDataPackage), a member that exists only when SIMUT_TFT_GRAPH is set (src/DisplayManager.h), so the Ângulo needs the chart switch on. The manifest refuses the combination before a build starts; making the Ângulo compile without the chart is a change in src/, not in the manifest."
     }
   ],
   "hazards": [
