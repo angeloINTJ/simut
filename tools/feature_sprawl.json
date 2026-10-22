@@ -235,7 +235,7 @@
   "ui/UiDriverTouch.h": 1
  },
  "SIMUT_UI_CUSTOM_THEMES": {
-  "WebManager_Files.cpp": 1
+  "WebManager_Files.cpp": 2
  },
  "SIMUT_WDT_DISABLED": {
   "main.cpp": 3

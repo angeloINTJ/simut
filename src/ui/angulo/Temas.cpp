@@ -2,7 +2,7 @@
  * @file Temas.cpp
  * @brief The Ângulo's theme catalogue: its three choices (light, dark, automatic), which give cfg.themeIndex its names where the web (/api/themes) and the
  *        console list them. Defines the six functions of src/ThemeCatalog.h; the original's definitions (src/Themes.cpp, the palettes and the .thm files) are not
- *        linked into this image. The colours are the default's: nothing this build puts on the glass is drawn with them. No .thm: scanCustomThemes( ) does nothing.
+ *        linked into this image. The colours are the default's: nothing this build puts on the glass is drawn with them. A .thm uploaded to this build is stored and neither offered nor applied: scanCustomThemes( ) does nothing, and the upload and delete handlers do not call it here (SIMUT_UI_CUSTOM_THEMES is 0; S10c, A'4); only boot does.
  */
 #include "../../ThemeCatalog.h"   /* core: the type and the six functions; Themes.h is the original's */
 

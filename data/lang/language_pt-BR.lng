@@ -390,7 +390,6 @@ Atualização instalada
 7599a637 RSSI implausível duas vezes — link dado como morto, reconectando
 79d951e9 Senha BT admin rejeitada
 7b990491 Senha redefinida pela CLI: 
-7bb0d94e Este painel não usa arquivos de tema. Escolha Claro, Escuro ou Automático em Configurações > Temas.
 80a25b25 Comando de recuperação recusado pelo Bluetooth
 836dd19a Cursor de telemetria adiante dos dados — reset para 0
 86c72a1e Varredura nunca terminou — abandonando

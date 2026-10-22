@@ -19,8 +19,10 @@
  *               driver changes this header and not its callers.
  *     SIMUT_UI_CUSTOM_THEMES  the theme catalogue and the .thm files a user
  *                         uploads: the original's. Angulo has colours of its own.
- *                         Read by WebManager_Files.cpp since S10b: a .thm upload is
- *                         refused where it is 0. The original keeps the value it has today.
+ *                         Read by WebManager_Files.cpp: where it is 0, the rescan after a .thm is uploaded or deleted,
+ *                         and its log record, are not compiled. The file itself is stored and deleted like any other; the Angulo
+ *                         neither offers it as a theme nor applies it, and it takes effect when the board runs the original
+ *                         (S10c, A'4). The original keeps the value it has today.
  *
  * The derived macros are never passed with -D. Passed, they could disagree with
  * the identity (an Angulo image that still says it is the original); derived here

@@ -390,7 +390,6 @@ Actualización instalada
 7599a637 RSSI inverosímil dos veces — enlace dado por muerto, reconectando
 79d951e9 Contraseña BT admin rechazada
 7b990491 Contraseña restablecida por la CLI: 
-7bb0d94e Este panel no usa archivos de tema. Elija Claro, Oscuro o Automático en Configuración > Temas.
 80a25b25 Comando de recuperación rechazado por Bluetooth
 836dd19a Cursor de telemetría por delante de los datos — reset a 0
 86c72a1e El escaneo nunca terminó — se abandona

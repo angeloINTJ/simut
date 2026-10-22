@@ -144,10 +144,14 @@ void WebManager::handleDelete( ) {
  _storageRef->invalidateHistoryCodec( );
  }
  /* Hot-reload custom theme on delete (same pattern as upload) —
- * avoids residue in in-memory list after user removes a .thm. */
+ * avoids residue in in-memory list after user removes a .thm.
+ * Compiled only where the panel has custom themes (SIMUT_UI_CUSTOM_THEMES): the Ângulo deletes a .thm like any
+ * other file and keeps no list of them (S10c, A'4). */
+#if SIMUT_UI_CUSTOM_THEMES
  if (path.endsWith(".thm")) {
  scanCustomThemes( );
  }
+#endif
  _server->send(200, "application/json", "{\"status\":\"ok\"}");
 }
 
@@ -408,16 +412,6 @@ void WebManager::handleUploadData( ) {
  return;
  }
 
-#if !SIMUT_UI_CUSTOM_THEMES
- /* A panel without custom themes (the Ângulo) has no theme scan and no use for a .thm: refused here, at the first byte, the way the refusals around it are, so that nothing is
-  * written for it. The text goes to the log record; the answer is handleUploadComplete( )'s 400, the same as theirs. */
- if (upload.filename.endsWith(".thm")) {
- LOG_CODE(LOG_WARN, "WEB", WEB_UPLOAD, 0, TRL("Theme files are not used on this panel. Choose Light, Dark or Automatic under Settings > Themes."));
- _uploadRejected = true;
- return;
- }
-#endif
-
  String filename = upload.filename;
  if (!filename.startsWith("/")) filename = "/" + filename;
 
@@ -525,11 +519,16 @@ void WebManager::handleUploadData( ) {
  /* Hot-reload custom theme — re-scan if .thm uploaded
  * to any path (Files UI allows uploading to subdir).
  * New theme appears immediately in getThemeCount( ) and in the
- * selection list without reboot. */
+ * selection list without reboot.
+ * Compiled only where the panel has custom themes (SIMUT_UI_CUSTOM_THEMES): the Ângulo stores the file like any other,
+ * adds no theme to its own catalogue and applies nothing, so it neither rescans nor logs a rescan; the file takes effect
+ * when the board runs the original (S10c, A'4). */
+#if SIMUT_UI_CUSTOM_THEMES
  if (upload.filename.endsWith(".thm")) {
  scanCustomThemes( );
  LOG_CODE(LOG_INFO, "CFG", CFG_THEME_APPLIED, getThemeCount( ), TRL("Custom themes rescanned"));
  }
+#endif
  }
  }
  _uploadPath = "";
