@@ -43,7 +43,9 @@ soma as diferencas, e e contra estas builds que ela mede o quanto a soma erra.
 Metrica: o `used` que o proprio PlatformIO reporta (ELF), nao o .bin — e o numero
 consistente entre base e variante, e o que importa aqui e a DIFERENCA. O flash e o
 numero travado (deterministico); a RAM entra com tolerancia (ruido de alinhamento
-do linker) — ver RAM_TOL.
+do linker) — ver RAM_TOL. O piso (--check, --update) mede o flash SEM o enchimento
+que o linker poe antes do banco do BTstack, lido do mapa do linker — ver BANK_SECTION;
+a --matrix mede o `used` inteiro, porque ali o que importa e caber no slot.
 
 @project SIMUT — Integrated Universal Monitoring and Telemetry System
 @license MIT License
@@ -70,6 +72,77 @@ OVERFLOW_RE = re.compile(r"region `?FLASH'? overflowed by (\d+) bytes")
 # RAM estatica pode oscilar poucos bytes por alinhamento do linker mesmo quando a
 # RAM do recurso nao muda; o piso de RAM aceita essa folga. O flash nao tem folga.
 RAM_TOL = 64
+
+# O banco do BTstack: 8 KB de .rodata que o framework alinha a um setor de 4 KB
+# (__bluetooth_tlv, cores/rp2040/sdkoverride/btstack_flash_bank.cpp), em toda imagem
+# com Bluetooth — entre as bases, a pico_w_alpha e a pico_w_air. O linker enche ate
+# 4.095 B na frente dele, e o `used` do PlatformIO conta esse enchimento: o banco e a
+# ultima coisa da .rodata, entao a secao termina num setor. Medida com o enchimento, a
+# economia de um recurso nessas bases andava com cada byte de .rodata da imagem inteira:
+# em 2026-10-22 a do bluetooth tinha caido 2.912 B em tres semanas enquanto o codigo que
+# a chave tira crescia 8 B, e a do tel_tls tinha subido 4.096 B entre duas arvores com
+# os mesmos simbolos removidos (docs/analysis/ECONOMIA_DE_RECURSOS.md). O piso desconta
+# o enchimento: `used` menos o `*fill*` que termina no endereco do banco, no mapa.
+BANK_SECTION = ".rodata._ZL15__bluetooth_tlv"
+# $BUILD_DIR e do SCons: o mapa sai ao lado do firmware.elf de cada ambiente. Muda o
+# checksum do projeto, como os ambientes temporarios ja mudam (AGENTS.md).
+MAP_FLAG = "-Wl,-Map,$BUILD_DIR/firmware.map"
+# O objeto que define o banco: numa imagem com Bluetooth ele aparece no mapa (as funcoes
+# pico_flash_bank_* e o banco); numa sem Bluetooth, em parte nenhuma (conferido 2026-10-22).
+BANK_OBJECT = "btstack_flash_bank.cpp.o"
+_MAP_ENTRY_RE = re.compile(r"^ (\S+)(?:\s+0x([0-9a-fA-F]+)\s+0x([0-9a-fA-F]+)(?:\s+(\S.*))?)?")
+_MAP_ADDR_RE = re.compile(r"^\s+0x([0-9a-fA-F]+)\s+0x([0-9a-fA-F]+)\s+(\S.*)")
+
+
+def bank_pad(map_text):
+    """Bytes de enchimento que o linker poe logo antes do banco do BTstack; 0 sem banco.
+
+    So conta a parte "Linker script and memory map": numa imagem sem Bluetooth o banco
+    pode aparecer em "Discarded input sections", que nao ocupa flash. O enchimento e o
+    `*fill*` imediatamente anterior a entrada do banco (pulando as entradas de tamanho
+    zero, que o mapa tambem lista), e tem de terminar no endereco dele: um que nao
+    termina e mapa que este leitor nao entende, e vira erro, nao zero. Tambem vira erro
+    o mapa que tem o objeto do banco (BANK_OBJECT) e nao tem o banco com esse nome: um
+    framework que o renomeie faria a Alpha e o Air voltarem a contar o enchimento, calados.
+    As strings mescladas (.str1.1) dividem enderecos, entao o "fim da entrada anterior"
+    nao serve para calcular."""
+    start = map_text.find("Linker script and memory map")
+    if start < 0:
+        raise ValueError("mapa do linker sem 'Linker script and memory map'")
+    lines = map_text[start:].splitlines()
+    seen = []                     # (nome, endereco, tamanho) das entradas ate aqui
+    bank_object = False           # alguma entrada veio do objeto do banco
+    i = 0
+    while i < len(lines):
+        m = _MAP_ENTRY_RE.match(lines[i])     # uma entrada: um espaco e o nome
+        if not m:
+            i += 1
+            continue
+        name, addr, size, obj = m.group(1), m.group(2), m.group(3), m.group(4)
+        if addr is None and i + 1 < len(lines):
+            m2 = _MAP_ADDR_RE.match(lines[i + 1])
+            if m2:
+                addr, size, obj = m2.group(1), m2.group(2), m2.group(3)
+                i += 1
+        if obj and BANK_OBJECT in obj:
+            bank_object = True
+        if addr is not None:
+            if name == BANK_SECTION:
+                bank = int(addr, 16)
+                before = [e for e in seen if e[2] != 0]
+                if not before or before[-1][0] != "*fill*":
+                    return 0
+                fill = before[-1]
+                if fill[1] + fill[2] != bank:
+                    raise ValueError(f"*fill* em {fill[1]:#x}+{fill[2]:#x} nao termina "
+                                     f"no banco do BTstack ({bank:#x})")
+                return fill[2]
+            seen.append((name, int(addr, 16), int(size, 16)))
+        i += 1
+    if bank_object:
+        raise ValueError(f"o mapa tem o {BANK_OBJECT} e nao tem {BANK_SECTION}: "
+                         "o banco do BTstack mudou de nome?")
+    return 0
 
 # Interruptores do manifesto: (recurso, perfil-base onde esta LIGADO). Desligar =
 # virar a chave no dicionario do perfil e recompor — compose() cuida de flag,
@@ -168,12 +241,19 @@ def parse_sizes(text):
     return out
 
 
-def pio_run(env):
+def pio_run(env, linker_map=False):
+    """`linker_map`: pede o mapa do linker (MAP_FLAG) somado a qualquer
+    PLATFORMIO_BUILD_FLAGS que ja esteja no ambiente."""
     pio = os.path.expanduser("~/.platformio/penv/bin/pio")
     if not os.path.exists(pio):
         pio = "pio"
+    run_env = None
+    if linker_map:
+        run_env = dict(os.environ)
+        run_env["PLATFORMIO_BUILD_FLAGS"] = \
+            (run_env.get("PLATFORMIO_BUILD_FLAGS", "") + " " + MAP_FLAG).strip()
     return subprocess.run([pio, "run", "-e", env],
-                          cwd=ROOT, capture_output=True, text=True)
+                          cwd=ROOT, capture_output=True, text=True, env=run_env)
 
 
 # build_webui_gz.py cai para gzip -9 quando o python do PlatformIO nao tem o
@@ -212,15 +292,36 @@ def pio_build_full(env, echo=False):
 
 
 def pio_build(env):
-    """Constroi um env e devolve {'flash':N,'ram':M}, ou None se falhou."""
-    r = pio_run(env)
+    """Constroi um env com o mapa do linker e devolve {'flash':N,'ram':M,'pad':P},
+    ou None se falhou. P e o enchimento antes do banco do BTstack (bank_pad).
+    Recusa, como a pio_build_full, a build sem zopfli; e recusa a build sem mapa,
+    porque um enchimento que nao foi lido nao e um enchimento zero."""
+    r = pio_run(env, linker_map=True)
     sizes = parse_sizes(r.stdout)
     if r.returncode != 0 or sizes is None:
         sys.stderr.write(f"[falha ao construir {env}]\n")
         tail = "\n".join(r.stdout.splitlines()[-8:] + r.stderr.splitlines()[-8:])
         sys.stderr.write(tail + "\n")
         return None
+    if NO_ZOPFLI in r.stdout:
+        sys.stderr.write(f"[{env}: zopfli ausente no python do PlatformIO: medida recusada]\n")
+        return None
+    map_path = os.path.join(ROOT, ".pio", "build", env, "firmware.map")
+    if not os.path.exists(map_path):
+        sys.stderr.write(f"[{env}: a build nao deixou {map_path}: medida recusada]\n")
+        return None
+    with open(map_path, encoding="utf-8", errors="replace") as fh:
+        try:
+            sizes["pad"] = bank_pad(fh.read())
+        except ValueError as e:
+            sys.stderr.write(f"[{env}: {e}: medida recusada]\n")
+            return None
     return sizes
+
+
+def gate_flash(sizes):
+    """O flash que o piso compara: o `used` sem o enchimento do banco do BTstack."""
+    return sizes["flash"] - sizes["pad"]
 
 
 class TempEnvs:
@@ -263,10 +364,12 @@ def measure(features):
                 continue
             results[f] = {
                 "base": base,
-                "flash_saved": bs["flash"] - vs["flash"],
+                "flash_saved": gate_flash(bs) - gate_flash(vs),
                 "ram_saved":   bs["ram"] - vs["ram"],
                 "flash_base":  bs["flash"],
                 "flash_off":   vs["flash"],
+                "pad_base":    bs["pad"],
+                "pad_off":     vs["pad"],
             }
     return results
 
@@ -285,6 +388,9 @@ def print_table(results):
         if r.get("error"):
             print(f"{f:<20} {r['base']:<16} {'ERRO':>10} {'':>8}  {note}")
             continue
+        if r.get("pad_base") or r.get("pad_off"):
+            note = (note + "; " if note else "") + \
+                f"sem o enchimento do banco BT (base {r['pad_base']} B, off {r['pad_off']} B)"
         print(f"{f:<20} {r['base']:<16} {r['flash_saved']:>10} "
               f"{r['ram_saved']:>8}  {note}")
     skipped = [f for f in COUPLED if f not in results]
