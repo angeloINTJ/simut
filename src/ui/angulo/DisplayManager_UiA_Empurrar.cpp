@@ -15,7 +15,7 @@
  * - The GRAM readback of GET /api/screenshot and of the mirror (readRect, readRectDmaStart; Core 0) runs only with Core 1 parked at the top of loopCore1 (the "SPI-bus
  *   exclusion without the IRQ lockout" of DisplayManager.h; the flash pause uses the same park point), which Core 1 reaches after uaPintar( ) has returned. Their DMA
  *   channels are two others (dmaRdChannel, dmaRdTxChannel); this one is the driver's own (canalDma( )). The core's pushes (blitWindowDma( ), fillWindowDma( ), through
- *   blitCanvas( ), fastFillRect( ), fastClearScreen( )) return unless _uaPintando in this image, and uaPintar( ) calls none of them any more.
+ *   blitCanvas( ), fastFillRect( ), fastClearScreen( )) are not linked into this image (`nm -C` lists none of them), and uaPintar( ) calls none of them.
  * - The update screen: uiPaintOta( ) -> uaPintar( ), on Core 1 from otaTick( ), or on Core 0 while Core 1 is parked (DisplayManager_OtaCore.cpp). The same function, the same
  *   rule: it returns with the bus free, and while Core 0 paints Core 1 is parked, so the bus has one user.
  * - fillMarginsBlack( ), at the start of a full repaint, is the library's synchronous path and runs before the frame's first burst.

@@ -133,7 +133,7 @@ TOY_UNITS = ("src/DisplayManager.cpp", "src/DisplayManager_Alarm.cpp", "src/Disp
 # Everything the rules forbid outside the driver is what the driver is made of: its own unit holds the
 # identity macros, the hook names and the macro, and the clean tree has none of them anywhere else.
 ANGULO_TEXT = ("#if SIMUT_UI_ANGULO", "#endif",
-               "void DisplayManager::uaSujo( ) { _uaPintando = true; UA_DESVIO( ); }",
+               "void DisplayManager::uaSujo( ) { _uaTudo = true; UA_DESVIO( ); }",
                "bool DisplayManager::uaToque( int &x, int &y ) { return false; }",
                "void DisplayManager::uaQuadro( ) { }",
                "void DisplayManager::uaMontarOta( ) { }",
@@ -266,7 +266,7 @@ TEXT = {
                  "bool a = SIMUT_UI_ANGULO;", "#if SIMUT_UI_ANGULO && SIMUT_DISPLAY_TFT"],
     "cross-driver": ['#include "ui/angulo/UiA.h"', "#include <ui/angulo/UiA.h>", '#include "ui/angulo/kit/angulo_tokens.h"'],
     "driver-hook": ["UA_DESVIO( );", "uaSujo( );", "if (uaToque(x, y)) return;", "uaQuadro( );", "uaMontarOta( );",
-                    "uaMontarMenus( );", "uaTema( );", "bool b = _uaPintando;", "int g = g_uaVm[0];",
+                    "uaMontarMenus( );", "uaTema( );", "bool b = _uaTudo;", "int g = g_uaVm[0];",
                     "bool uaRelogio( ) { return false; }",
                     "void (DisplayManager::*p)( ) = &DisplayManager::uaQuadro;",
                     # the review of 2026-10-14 measured these as 0 findings: a member prefix other than `_` and `g_`,
@@ -968,8 +968,8 @@ def real_tree_cases():
                 fh.write(clean_text)
         check(f"real tree + a user agent `uaString` and the core's `UiArrowDir` in {core_clean}: still passes (the driver introduces neither)",
               rc == 0 and out[-1:] == ["check_ui_boundary: 0 findings"], f"rc={rc} out={out[-3:]}")
-        mutated(core_clean, "\nstatic bool boundary_probe = _uaPintando;\n", "driver-hook",
-                f"real tree + `_uaPintando` in {core_clean}: one finding")
+        mutated(core_clean, "\nstatic bool boundary_probe = _uaTudo;\n", "driver-hook",
+                f"real tree + `_uaTudo` in {core_clean}: one finding")
         mutated(core_clean, '\n#include "ui/angulo/UiA.h"\n', "cross-driver",
                 f"real tree + an include of an Angulo header in {core_clean}: one finding")
         # the exemption is the selection headers' alone: the real src/ui/UiDriverMembers.h given an include of the

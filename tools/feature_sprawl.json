@@ -232,7 +232,6 @@
  },
  "SIMUT_UI_ANGULO": {
   "AppManager_Events.cpp": 4,
-  "DisplayManager_Panel.cpp": 3,
   "ui/UiDriverTouch.h": 1
  },
  "SIMUT_UI_CUSTOM_THEMES": {

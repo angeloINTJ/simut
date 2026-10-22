@@ -187,15 +187,14 @@ bool DisplayManager::uaPintar( const UaQuadro &q, UiMode modo, uint32_t hash ) {
   /* The record of the frame (Pintor::gravar( )) lives in the canvas's rows under the strips: the canvas is 320 x 45 (allocated in DisplayManager.cpp), the two
    * strips take 40 rows and the other 5, 3,200 B, are idle during a paint. A static list cost 14,856 B of RAM (P1); this costs none. Nothing writes those
    * rows while a frame is painted: the strip class clips to its own 20 rows (Faixa.h), the hash and the push read the strip's 20, and the old screens'
-   * draw functions that also use the canvas are not linked in this image (V-NM) or push nothing outside uaPintar( ) (blitCanvas( ) returns
-   * unless _uaPintando). If the canvas is not the size relied on, there is no list and every strip draws the screen, as before P1. */
+   * draw functions that also use the canvas are not linked in this image (V-NM), nor is blitCanvas( ), the core's push of a canvas
+   * (`nm -C` lists neither). If the canvas is not the size relied on, there is no list and every strip draws the screen, as before P1. */
   if ( cv->width( ) == LARGURA_FAIXA && cv->height( ) >= ua::LINHAS_DAS_FAIXAS + ua::LINHAS_DA_LISTA )
     ua::Pintor::lista( cv->getBuffer( ) + LARGURA_FAIXA * ua::LINHAS_DAS_FAIXAS, ua::BYTES_DA_LISTA );
   else
     ua::Pintor::lista( nullptr, 0 );
   const uint32_t t0 = millis( );
   uint8_t enviadas = 0;
-  _uaPintando = true;
   const bool tudo = _uaTudo;
   if ( tudo ) {
     /* A full repaint does not clear the glass first any more: fastClearScreen( ) was 56 ms of black at 24 MHz before the first strip (measured on
@@ -238,7 +237,6 @@ bool DisplayManager::uaPintar( const UaQuadro &q, UiMode modo, uint32_t hash ) {
   uaEmpurrarEsperar( );
   /* The canvas's spare rows go back: nothing records outside a paint, and no pointer into the canvas outlives it. */
   ua::Pintor::lista( nullptr, 0 );
-  _uaPintando = false;
   _uaTudo = false;
   s_seq = s_seq + 1;
   __dmb( );
@@ -366,8 +364,8 @@ void DisplayManager::uiPaintOta( ) {
 /* Core 1, once, when it has initialised the panel (loopCore1( )): the first
  * frame repaints every strip. Both flags start true and nothing has run since,
  * so this says it again where the original cleared the glass and drew its fixed
- * background (the old fastClearScreen( ) stops at the _uaPintando guard, and
- * drawInterfaceFixed( ) is not linked into this image). */
+ * background (its uiBegin( ), UiOriginal.h: fastClearScreen( ) and
+ * drawInterfaceFixed( ); neither is linked into this image). */
 void DisplayManager::uiBegin( ) {
   _uaTudo = true;
   uaSujo( );

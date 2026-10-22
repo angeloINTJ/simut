@@ -11,7 +11,6 @@ private:
 	/* The Ângulo build (src/ui/angulo/DisplayManager_UiA*.cpp). Last among
 	 * the members, like the update screen's, so they move no other one. */
 	volatile bool _uaSujo = true;   /**< a hook or a tick said the frame may have changed: repaint if it did */
-	bool _uaPintando = false;       /**< the Ângulo renderer is pushing pixels: the old primitives may run */
 	bool _uaTudo = true;            /**< repaint every strip (theme, alignment, a screen that drew under us) */
 	uint32_t _uaVisto = 0;          /**< millis of the last look at the frame */
 	void uaSujo( ) { _uaSujo = true; }
