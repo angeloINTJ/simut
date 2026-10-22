@@ -66,8 +66,12 @@ locally. When one fires, it is usually right:
   running `tools/gen_logcodes.py`, never the generated `.h`.
 - **Language packs** — a new `TRL("…")` literal must be added to the `@TRL`
   block of both `data/lang/*.lng` packs, keyed by a hash of the English. The
-  gate prints the hash it wants. A missing entry is not a visible failure at
-  runtime: that one line silently stays in English.
+  gate prints the hash it wants. That block is a ledger kept for the build:
+  nothing on the device reads it (`trlLookup( )` has answered "absent" since
+  b0799f6e, 2026-08-29, which kept only `@DICT` in the heap), so every `TRL( )`
+  text shows in English on the device, with or without its entry. The device
+  translates the panel from `@DICT`, the web page from `@WEBDICT` and the CLI's
+  help from `@HELP`.
 - **Authorization matrix** — every new HTTP route needs a gate or an
   allowlist entry with a reason (`docs/AUTHORIZATION.md`).
 

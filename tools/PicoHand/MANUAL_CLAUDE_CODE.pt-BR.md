@@ -54,20 +54,23 @@ mão é o que te salva quando o alvo trava a ponto de não atender USB.
 
 ### Mais rápido e confiável: perguntar ao udev
 
-A mão é um **Pico** comum; o alvo SIMUT é um **Pico W**. Os descritores USB
-dizem isso diretamente, sem tráfego serial e sem risco de mandar comando para a
-placa errada:
+A mão é um **Pico** comum; desde 22/10/2026 o alvo SIMUT é um **Pico 2 W**
+(antes, um Pico W). Os descritores USB dizem isso diretamente, sem tráfego
+serial e sem risco de mandar comando para a placa errada. Compare a linha
+inteira: `ID_MODEL=Pico` também é o começo de `ID_MODEL=Pico_2W` e de
+`ID_MODEL=Pico_W`, e uma comparação por prefixo chama o alvo de mão:
 
 ```bash
 for p in /dev/ttyACM*; do
-  udevadm info -q property -n "$p" | grep -q 'ID_MODEL=Pico_W' && echo "$p alvo" && continue
-  udevadm info -q property -n "$p" | grep -q 'ID_MODEL=Pico'   && echo "$p mao"
+  m=$(udevadm info -q property -n "$p" | sed -n 's/^ID_MODEL=//p')
+  case "$m" in Pico_2W|Pico_W) echo "$p alvo" ;; Pico) echo "$p mao" ;; esac
 done
 ```
 
-Nesta bancada: mão `ID_SERIAL_SHORT=E660C062131E3E27`, alvo
-`E6642815E34C1824`. Números de série são estáveis entre reenumerações, então
-são a âncora mais segura se você precisar fixar uma placa.
+Nesta bancada (22/10/2026): mão `ID_SERIAL_SHORT=E660C062131E3E27`
+(`ID_MODEL=Pico`), alvo `6A73539D612923CA` (`ID_MODEL=Pico_2W`). Números de
+série são estáveis entre reenumerações, então são a âncora mais segura se você
+precisar fixar uma placa.
 
 ### Ou use o wrapper
 
