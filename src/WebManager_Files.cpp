@@ -11,6 +11,7 @@
 #include "LogManager.h"
 #include "TouchPriority.h"
 #include "Themes.h"
+#include "simut_config.h"   /* SIMUT_UI_CUSTOM_THEMES is tested below: included here, not left to WebManager.h */
 #include <LittleFS.h>
 
 using ReadGuard = StorageManager::ReadGuard;
@@ -406,6 +407,16 @@ void WebManager::handleUploadData( ) {
  _uploadRejected = true;
  return;
  }
+
+#if !SIMUT_UI_CUSTOM_THEMES
+ /* A panel without custom themes (the Ângulo) has no theme scan and no use for a .thm: refused here, at the first byte, the way the refusals around it are, so that nothing is
+  * written for it. The text goes to the log record; the answer is handleUploadComplete( )'s 400, the same as theirs. */
+ if (upload.filename.endsWith(".thm")) {
+ LOG_CODE(LOG_WARN, "WEB", WEB_UPLOAD, 0, TRL("Theme files are not used on this panel. Choose Light, Dark or Automatic under Settings > Themes."));
+ _uploadRejected = true;
+ return;
+ }
+#endif
 
  String filename = upload.filename;
  if (!filename.startsWith("/")) filename = "/" + filename;
