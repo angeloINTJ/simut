@@ -69,13 +69,16 @@ constexpr uint32_t OTA_PH_NONE = 0;   // the update's state word: the phase in t
 inline uint32_t otaPhaseOf( uint32_t st ) { return st >> 24; }
 inline uint32_t otaSeqOf( uint32_t st ) { return st & 0xFFFFFFu; }
 
+extern int g_violacoes;
+bool barramentoOcupado( );
+
 class TftFalso {
  public:
   int8_t ox = 0, oy = 0;   // the display alignment the identity hashes
   int margensPretas = 0;   // how many times the margin band was blackened (a full repaint does it)
   int8_t getOffsetX( ) const { return ox; }
   int8_t getOffsetY( ) const { return oy; }
-  void fillMarginsBlack( ) { margensPretas++; }
+  void fillMarginsBlack( ) { margensPretas++; if ( barramentoOcupado( ) ) g_violacoes++; }
 };
 
 struct DisplayDriver {
@@ -142,6 +145,13 @@ struct EmVoo {
 };
 EmVoo g_emVoo;
 int g_empurradas = 0, g_terminadas = 0, g_violacoes = 0;
+bool barramentoOcupado( ) { return g_emVoo.buf != nullptr; }
+// The overlap of compose and push (S10c, A'2e, the review of A'2d and A'6): the waits the glue asks for itself while a push is in flight. uaEmpurrar( ) waits
+// too (one channel), and that wait is the hardware's rule, not the glue's, so it is not counted. A paint that pushes every strip has one such wait, the last; a strip
+// skipped between two pushed ones adds the wait before its half of the canvas is composed again. A glue that waits after every push, or before every strip,
+// paints the same pixels with compose and push one after the other: only this count sees it.
+bool g_noEmpurrar = false;
+int g_esperasDaCola = 0;
 
 // Role r of a table, read from its bytes (the 17 roles come first, in the header's order).
 uint16_t papel( const void *t, int r ) {
@@ -184,7 +194,9 @@ bool DisplayManager::uaMontarOta( UaQuadro &q ) { q = quadroDe( g_vmOta ); retur
 // glass (and is counted in g_violacoes, which compares the strip with its copy), and a push never waited for never reaches the glass. A real burst reads a little all the time between the start and the end, so a
 // caller that waits before it writes gets the right strip whenever the burst reads, and one that does not gets it right or wrong by the luck of the timing: the model makes the wrong one certain.
 bool DisplayManager::uaEmpurrar( const uint16_t *buf, int x, int y, int w, int h ) {
+  g_noEmpurrar = true;
   uaEmpurrarEsperar( );
+  g_noEmpurrar = false;
   if ( (size_t)w * (size_t)h > sizeof g_emVoo.copia / sizeof( uint16_t ) ) {
     printf( "FAIL stand-in: a push of %d x %d px does not fit its record\n", w, h );
     exit( 1 );
@@ -201,6 +213,7 @@ bool DisplayManager::uaEmpurrar( const uint16_t *buf, int x, int y, int w, int h
 
 void DisplayManager::uaEmpurrarEsperar( ) {
   esperas++;
+  if ( !g_noEmpurrar && g_emVoo.buf ) g_esperasDaCola++;
   if ( !g_emVoo.buf ) return;   // as the real one: nothing in flight, nothing to wait for
   const EmVoo &v = g_emVoo;
   if ( memcmp( v.copia, v.buf, (size_t)v.w * (size_t)v.h * sizeof( uint16_t ) ) != 0 ) g_violacoes++;   // the strip was written while the burst was reading it
@@ -806,19 +819,24 @@ int main( ) {
     escreveRelogio( dm, "" );
     dm._uiMode = MODE_DASHBOARD;
     dm._uaPrevia = -1;
-    struct Passo7 { const char *quando; int n; bool tudo; int faixas; };
-    const Passo7 passos7[] = { { "uaPintar( ) pushing every strip", 0, true, N_FAIXAS }, { "uaPintar( ) pushing strips 4 and 6, 5 skipped", 2, false, 2 }, { "uaPintar( ) pushing none", 2, false, 0 } };
+    // esperasCola: the glue's own waits with a push in flight (A'2e). Every strip: the last wait only. Strips 4 and 6 with 5 skipped: before strip 6 reuses strip 4's half,
+    // and before strip 8 reuses strip 6's (nothing was pushed in between), and the last wait finds the bus free. None: no wait finds a push.
+    struct Passo7 { const char *quando; int n; bool tudo; int faixas; int esperasCola; };
+    const Passo7 passos7[] = { { "uaPintar( ) pushing every strip", 0, true, N_FAIXAS, 1 }, { "uaPintar( ) pushing strips 4 and 6, 5 skipped", 2, false, 2, 2 }, { "uaPintar( ) pushing none", 2, false, 0, 0 } };
     sentinelaNoVidro( );
     for ( const Passo7 &c : passos7 ) {
       g_vm.n = (uint8_t)c.n;
       UaQuadro q;
       dm.uaMontar( q );
       dm._uaTudo = c.tudo;
+      const int ec0 = g_esperasDaCola;
       const bool pintou = dm.uaPintar( q, MODE_DASHBOARD, 1 );
       const bool livre = g_emVoo.buf == nullptr;   // read before anything else runs
       UaEstado e;
       dm.uaEstado( e );
       CONFERE( pintou && livre && e.faixas == c.faixas, "%s: it returned %d with %s and %d strips pushed, expected a free bus and %d", c.quando, (int)pintou, livre ? "no push in flight" : "a push in flight", (int)e.faixas, c.faixas );
+      CONFERE( g_esperasDaCola - ec0 == c.esperasCola, "%s: the glue waited %d times with a push in flight, expected %d (compose and push overlap: it waits only before reusing the half a push still reads, and at the end)",
+               c.quando, g_esperasDaCola - ec0, c.esperasCola );
       confereVidro( c.quando, false, 0, c.n );
       protocolos++;
     }

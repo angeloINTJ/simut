@@ -153,6 +153,12 @@ GLUE_MUTANTES = [
     ('the early return of the update screen does not say that the sequence is on the glass', '    __atomic_store_n( &_otaDrawnSeq, seq, __ATOMIC_RELEASE );\n    return;', '    return;', 1),
     ('the early return of the update screen is taken for a new sequence, not for the same one', 'if ( seq == s_otaSeq && !_otaRedrawAll', 'if ( seq != s_otaSeq && !_otaRedrawAll', 1),
     ('the percentage drawn of the update screen is left at 0', '  _otaPctDrawn = __atomic_load_n( &_otaPct, __ATOMIC_ACQUIRE );', '  _otaPctDrawn = 0;', 1),
+    # S10c, A'2e: what the review of A'2d and A'6 found passing: the alignment band blackened while a push is in flight (its O1a, O1b: the library's fill is
+    # synchronous and needs the bus free), and compose and push made to run one after the other (its O2, O5: the same pixels, only the count of waits sees it).
+    ('the alignment band is blackened inside the first burst, with a push in flight', [('    _driver.tft->fillMarginsBlack( );\n', '', 1), ('    s_faixa[k] = h;\n    enviadas++;\n', '    s_faixa[k] = h;\n    enviadas++;\n    if ( tudo && k == 0 ) {\n    _driver.tft->fillMarginsBlack( );\n    }\n', 1)]),
+    ('the alignment band is blackened just before the last wait, with a push in flight', [('    _driver.tft->fillMarginsBlack( );\n', '', 1), ("  uaEmpurrarEsperar( );\n  /* The canvas's spare rows go back", "  if ( tudo ) {\n    _driver.tft->fillMarginsBlack( );\n  }\n  uaEmpurrarEsperar( );\n  /* The canvas's spare rows go back", 1)]),
+    ('every push is waited for at once, so compose and push no longer overlap', '    voando = uaEmpurrar( buf, 0, (int16_t)( k * ALTURA_FAIXA ), LARGURA_FAIXA, ALTURA_FAIXA ) ? buf : nullptr;\n', '    voando = uaEmpurrar( buf, 0, (int16_t)( k * ALTURA_FAIXA ), LARGURA_FAIXA, ALTURA_FAIXA ) ? buf : nullptr;\n    uaEmpurrarEsperar( );\n    voando = nullptr;\n', 1),
+    ('the wait before composing is taken when the push in flight reads the other half', '    if ( voando == buf ) {\n', '    if ( voando && voando != buf ) {\n', 1),
 ]
 
 
@@ -317,6 +323,7 @@ CONDICIONAIS_QUE_ENVOLVEM = {
     'escolhaNaTela( )': [],
     'DisplayManager::uaToqueMenus( ), the statements before its switch': [],
     'DisplayManager::uaToqueMenus( ), case MODE_SETTINGS_THEMES': [],
+    'DisplayManager::uaMontarMenus( ), case MODE_SETTINGS_THEMES': [],
 }
 DIRETIVA = re.compile(r'^[ \t]*#[ \t]*(if|ifdef|ifndef|elif|else|endif)\b[^\n]*', re.M)
 
@@ -673,6 +680,17 @@ def recorta_menus(menus, nomeado=None):
         else:
             pecas['toque_tema.inc'] = corpo[casos[0][0]:casos[0][1]] + '\n'
             posicoes.append(('DisplayManager::uaToqueMenus( ), case MODE_SETTINGS_THEMES', f[0] + casos[0][0], f[0] + casos[0][1]))
+    m = posicao_da_definicao(limpo, r'^[^\n;{}()]*\bDisplayManager::uaMontarMenus\s*\(')
+    if m is None:
+        falta.append('montar_tema.inc: DisplayManager::uaMontarMenus( ) was not found exactly once')
+    else:
+        corpo_m = limpo[m[0]:m[1]]
+        cs = intervalos_do_caso(corpo_m, 'case MODE_SETTINGS_THEMES: {')
+        if len(cs) != 1:
+            falta.append('montar_tema.inc: uaMontarMenus( ) has %d bodies of the Tema case' % len(cs))
+        else:
+            pecas['montar_tema.inc'] = corpo_m[cs[0][0]:cs[0][1]] + '\n'
+            posicoes.append(('DisplayManager::uaMontarMenus( ), case MODE_SETTINGS_THEMES', m[0] + cs[0][0], m[0] + cs[0][1]))
     return pecas, falta + problemas_de_preprocessador(limpo, posicoes, nomeado)
 
 
@@ -732,6 +750,15 @@ def problemas_do_toque_tema(menus):
     exp = ' '.join([TEMA_PRE] + [cond + ' ' + corpo for _, cond, corpo in TEMA_RAMOS] + ['break;'])
     if not p and t != exp:
         p.append('the Tema case is not exactly the five statements: ' + t[:160])
+    # The routing (S10c, A'2e, the review of A'2d and A'6): the case above is reached only if the first switch of uaToqueMenus( ) owns MODE_SETTINGS_THEMES, and a tap on
+    # no target is a dead zone the screen takes (TRATADO), not a touch for no one. Its X6 and X7 passed every run: the run starts inside the case.
+    norma = ' '.join(f.split())
+    posse = re.search(r'switch \( _uiMode \) \{ ((?:case MODE_\w+: )+)break; default: return UaToque::NAO_E_MEU; \} if \( !a \) return UaToque::TRATADO;', norma)
+    if posse is None or norma.find('switch ( _uiMode )') != posse.start():
+        p.append('the first statement of uaToqueMenus( ) is not the switch of the screens it owns, ending `default: return UaToque::NAO_E_MEU;`, '
+                 'followed by `if ( !a ) return UaToque::TRATADO;`')
+    elif 'case MODE_SETTINGS_THEMES:' not in posse.group(1):
+        p.append('uaToqueMenus( ) does not own MODE_SETTINGS_THEMES in its first switch: no tap would reach the Tema case')
     return p
 
 
@@ -757,6 +784,12 @@ TOQUE_MUTANTES = [
     ('MM1 a tap on a mode resets the accent', [('ua::indiceDaEscolha( (uint8_t)a->indice, e.acento )', 'ua::indiceDaEscolha( (uint8_t)a->indice, 0 )', 1)], True, True),
     ('MM2 a tap on an accent resets the mode', [('ua::indiceDaEscolha( e.modo, (uint8_t)a->indice )', 'ua::indiceDaEscolha( 0, (uint8_t)a->indice )', 1)], True, True),
     ('MM3 the screen ignores a preview of 0', [('previa >= 0 ? previa :', 'previa > 0 ? previa :', 1)], False, True),
+    # S10c, A'2e, the review of A'2d and A'6: the routing to the Tema case (X6, X7: only the text sees them, the run starts inside the case) and the screen's builder
+    # (B1, B2: only the run sees them, since A'2e cuts and runs the builder's case).
+    ('X6 the menus touch does not own the Tema screen', [('    case MODE_SETTINGS_MAIN:\n    case MODE_SETTINGS_THEMES:\n    case MODE_SETTINGS_LANG:\n', '    case MODE_SETTINGS_MAIN:\n    case MODE_SETTINGS_LANG:\n', 1)], True, False),
+    ('X7 a tap on no target is not taken as a dead zone', [('if ( !a ) return UaToque::TRATADO;', 'if ( !a ) return UaToque::NAO_E_MEU;', 1)], True, False),
+    ('B1 the builder marks the shown choice as the saved one', [('vm.salvo = ua::indiceDaEscolha( s.modo, s.acento );', 'vm.salvo = ua::indiceDaEscolha( e.modo, e.acento );', 1)], False, True),
+    ('B2 the builder shows the stock accent', [('vm.acento = e.acento;', 'vm.acento = 0;', 1)], False, True),
 ]
 
 
@@ -973,7 +1006,7 @@ def main():
     t = aplica(menus, [("        /* The original's Back (handleTouch( ), Touch.cpp): SAIR is back to the menu, nothing applied. */", '        /* another comment, with `actApplyTheme( 1 )` and a 3 in it */', 1)])
     caso('control: a comment in the Tema case is not a change for the text rule', t is not None and not problemas_do_toque_tema(t))
     pecas_m, falta_m = recorta_menus(menus)
-    caso('menus cut: escolhaNaTela( ), the statements before the switch of uaToqueMenus( ) and its Tema case are found, with no conditional inside them or around them but the named ones', falta_m + ([] if len(pecas_m) == 3 else [f'{len(pecas_m)} pieces']))
+    caso('menus cut: escolhaNaTela( ), the statements before the switch of uaToqueMenus( ) and its Tema case are found, with no conditional inside them or around them but the named ones', falta_m + ([] if len(pecas_m) == 4 else [f'{len(pecas_m)} pieces']))
     caso('control: a menus glue without escolhaNaTela( ) is refused at the cut', bool(recorta_menus(menus.replace('ua::Escolha escolhaNaTela(', 'ua::Escolha escolhaNaTelaX('))[1]))
     caso('control: a menus glue that defines escolhaNaTela( ) twice is refused at the cut', bool(recorta_menus(menus + '\nua::Escolha escolhaNaTela( const SystemConfig *, int8_t ) { return ua::Escolha{ 0, 0 }; }\n')[1]))
     caso('control: a reformatted escolhaNaTela( ) and CRLF line ends are still cut',

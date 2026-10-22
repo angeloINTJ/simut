@@ -23,6 +23,7 @@
 #include <string.h>
 
 #include "Angulo.h"
+#include "UiA.h"
 #include "telas/MenusConfig.h"   // the Tema screen's targets (TT_*) and the lists' (LST_*)
 
 namespace gerado {
@@ -37,7 +38,8 @@ constexpr uint8_t ZONA_VOLTAR = 0xA0, ZONA_LINHA = 0xA1;   // the glue's names; 
 
 class DisplayManager {
  public:
-  void tocaTema( const ua::Alvo *a );   // the Tema case of uaToqueMenus( ), in the function's own frame
+  void tocaTema( const ua::Alvo *a );
+  bool montaTema( UaQuadro &q );   // the Tema case of uaToqueMenus( ), in the function's own frame
 
   // what the case calls, and records
   bool acceptTouch( uint8_t zona ) {
@@ -82,6 +84,21 @@ void DisplayManager::tocaTema( const ua::Alvo *a ) {
   }
 }
 #pragma GCC diagnostic pop
+
+uint8_t g_uaVm[UA_VM_MAX];
+namespace ua { namespace tela {
+void desenharTemas( Pintor &, const VmTemas & ) {}
+int alvosTemas( const VmTemas &, Alvo * ) { return 0; }
+} }
+bool DisplayManager::montaTema( UaQuadro &q ) {
+  using namespace ua::tela;
+  switch ( _uiMode ) {
+#include "montar_tema.inc"
+    default:
+      break;
+  }
+  return false;
+}
 
 // ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 namespace {
@@ -197,6 +214,26 @@ int main( ) {
         }
   }
 
+
+  // 3. The Tema screen's builder (the first case MODE_SETTINGS_THEMES of uaMontarMenus( )): the view model it fills.
+  int montagens = 0;
+  for ( int s = -129; s <= 127; s++ ) {
+    const bool semConfig = s == -129;
+    const SystemConfig c{ (int8_t)( semConfig ? 0 : s ) };
+    for ( const int pv : previas ) {
+      dm._uiMode = MODE_SETTINGS_THEMES;
+      dm._sysConfigPtr = semConfig ? nullptr : &c;
+      dm._uaPrevia = (int8_t)pv;
+      UaQuadro q = {};
+      const bool ok = dm.montaTema( q );
+      const VmTemas *v = static_cast<const VmTemas *>( q.vm );
+      const Par shown = decodificado( pv >= 0 ? pv : ( semConfig ? 0 : s ) ), saved = decodificado( semConfig ? 0 : s );
+      CONFERE( ok && v && q.tam == sizeof( VmTemas ) && v->modo == shown.modo && v->acento == shown.acento && v->salvo == saved.modo + 3 * saved.acento && v->premidoTipo == TT_NADA && v->premidoIndice == -1,
+               "builder: saved %d, preview %d: ok %d, shown (%d,%d) expected (%d,%d), salvo %d expected %d", s, pv, (int)ok, v ? (int)v->modo : -1, v ? (int)v->acento : -1, shown.modo, shown.acento, v ? (int)v->salvo : -99, saved.modo + 3 * saved.acento );
+      montagens++;
+    }
+  }
+  printf( "MEDIDA builder: the Tema screen's view model on %d saved-and-preview cases\n", montagens );
   printf( "MEDIDA toque: escolhaNaTela( ) on %d saved-and-preview pairs; the Tema case on %d taps (every saved index and none x %d previews x %d targets x the gate granting and refusing)\n", escolhas, toques,
           (int)( sizeof previas / sizeof previas[0] ), nAlvos );
   printf( "%d checks, %d failed\n", checks, falhas );
