@@ -1,5 +1,5 @@
 {
- "_doc": "The Angulo driver's colour roles for the 320x240 RGB565 panel. 'guia' is the Angulo guide's palette (ANGULO.md 3.1, the values the web and the app use); 'tft' holds the panel's deviations, role by role, each with its reason in tools/tft_ui/gen_tokens.py. tools/tft_ui/gen_tokens.py writes src/ui/angulo/kit/angulo_tokens.h from this file; never edit the header by hand.",
+ "_doc": "The Angulo driver's colour roles for the 320x240 RGB565 panel. 'guia' is the Angulo guide's palette (ANGULO.md 3.1, the values the web and the app use); 'tft' holds the panel's deviations, role by role, each with its reason in tools/tft_ui/gen_tokens.py. tools/tft_ui/gen_tokens.py writes src/ui/angulo/kit/angulo_tokens.h from this file; never edit the header by hand. 'acentos' is the accent palette of the Angulo's themes (S10c): an entry is an id and, for the light and the dark mode, the hex of its accent; entry 0 is the stock accent of 'guia' and has no hex. gen_tokens.py derives the rest of each entry (the pressed accent, the text on it, the 45 % disabled twins) and holds every entry and mode to the contrast floors, the 17 distinct roles and the hue rule, refusing to write the header when one fails.",
  "guia": {
   "claro": {
    "fundo": "#f6f6f4", "superficie": "#ffffff", "superficie2": "#ecebe6",

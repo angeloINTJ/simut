@@ -50,8 +50,9 @@ the same branch, is `pico2_w_angulo`: the Ângulo on the Pico 2 W, `pico2_w_rele
 with the touch panel drawn by `src/ui/angulo/` (the maintainer decided that day
 that the Ângulo ships first on that board). Not approved for products and not
 published either; CI builds it and holds it to its own flash and static-RAM
-budgets, it is not a required check, and nothing runs it on a board yet. Name the
-eleven.
+budgets, it is not a required check, and since 2026-10-22 the Pico 2 W on the
+bench runs it (the S10b tip's image, then the S10c A' tip's: see section 2.16 of
+`docs/analysis/UI_DRIVERS.md`). Name the eleven.
 There is no debug environment — see the note in `platformio.ini` for why.
 
 ## What will fail your build before CI does
