@@ -633,10 +633,15 @@ void DisplayManager::readRect(int16_t,int16_t,int16_t,int16_t,uint16_t*){}
 void DisplayManager::unaccent(const char* utf8, char* out, size_t outSize) {
 	utf8FoldAscii(utf8, out, outSize);   /* the same table as the TFT build: Utf8Fold.h */
 }
-const char* DisplayManager::trlLookup(const char*){return "";}
+/* "Absent" is nullptr, as in the TFT build (DisplayManager_LangParser.cpp):
+ * LogManager::translateCode( ) and tr( ) fall back to the English text only
+ * on nullptr. These two answered "", taken as the translation, so outside
+ * English, the factory language being PT, every console and syslog line of
+ * an alpha or a Wire carried no event name and no TRL( ) text (2026-10-22). */
+const char* DisplayManager::trlLookup(const char*){return nullptr;}
 void DisplayManager::fillCalData(TouchCalData*)const{}
 void DisplayManager::getNewPassword(char*,unsigned)const{}
-const char* DisplayManager::logcodeLookup(uint16_t){return "";}
+const char* DisplayManager::logcodeLookup(uint16_t){return nullptr;}
 bool DisplayManager::consumePreviewSound(SoundEvent&,uint8_t&){return false;}
 bool DisplayManager::findAndLoadLangFile( ) {
 	char firstName[40] = {0};

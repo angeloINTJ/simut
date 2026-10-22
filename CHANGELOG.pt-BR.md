@@ -11,7 +11,8 @@ rodava a 24 MHz, fosse qual fosse o `SIMUT_TFT_SPI_HZ`; as imagens 5.4.x anterio
 código de clock e não foram medidas. Um rádio que para de responder não é mais associado às cegas, o que segurava o
 Core 0 além do watchdog de hardware: ele é reiniciado pelo caminho planejado (#266). Os registros de log do pacote de
 idioma têm tag e códigos próprios: eram gravados como `?`, dois avisos como "OK" e o pacote carregado no boot como um
-idioma trocado pela interface (#283).**
+idioma trocado pela interface (#283). Um Alpha ou um Wire num idioma que não é o inglês volta a dar nome aos eventos
+no console e no syslog: os dois saíam sem o nome.**
 
 ### O barramento do painel
 
@@ -129,6 +130,22 @@ idioma trocado pela interface (#283).**
 - **Testes no host:** 711 casos em 11 suítes, eram 706. Três no `native` prendem a tag `I18N`, uma volta pela tabela
   inteira de nomes e os nomes que a checagem recusa; dois no `native_logpolicy` prendem a troca de idioma fora da
   lista do despertar e o pacote que falhou fora da família do histórico.
+
+### O console e o syslog de um Alpha ou de um Wire
+
+- **Os eventos voltam a ter nome fora do inglês.** O log pede ao código do mostrador a tradução do nome e do detalhe
+  de cada evento, e entende um ponteiro nulo como "não há, use o inglês". O código do mostrador do Alpha, que o SIMUT
+  Wire usa também, respondia com uma string vazia, e o log a imprimia. O idioma de fábrica é o português, então em
+  todo Alpha e todo Wire fora do inglês cada linha que o console imprime com `debug on` saía sem o nome do evento, um
+  detalhe escrito por `TRL( )` saía vazio também, e as linhas do syslog perdiam o mesmo. O log da flash não foi
+  afetado: ele guarda códigos. As duas respostas são um ponteiro nulo agora, então nomes e detalhes saem em inglês,
+  como nas outras imagens. O Alpha respondia assim desde a primeira imagem dele (06/06/2026), e o Wire desde a dele
+  (12/10/2026).
+- **O manual** dizia que o console e o syslog falam o idioma do pacote. Eles falam inglês em toda imagem, e os
+  capítulos 14, 16 e 25 dizem isso; as linhas de exemplo deles são agora o texto que o aparelho manda (`Login failed`,
+  `Show IP`).
+- Conferido nas imagens, ainda não na bancada: os dois lookups do Alpha devolviam o endereço de uma string vazia e
+  agora devolvem 0. As sete imagens que não compilam esse código saem idênticas, byte a byte.
 
 ## v2.11.1 (2026-10-12)
 

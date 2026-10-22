@@ -1,82 +1,82 @@
 {
   "cli_full": {
     "base": "pico_w_test",
-    "flash_saved": 48232,
-    "ram_saved": 0
+    "flash_saved": 48152,
+    "ram_saved": -2048
   },
   "web_https": {
     "base": "pico_w_release",
-    "flash_saved": 24520,
-    "ram_saved": 24
+    "flash_saved": 24568,
+    "ram_saved": 16
   },
   "mdns": {
     "base": "pico_w_release",
-    "flash_saved": 16568,
+    "flash_saved": 16632,
     "ram_saved": 168
   },
   "concurrency_asserts": {
     "base": "pico_w_asserts",
-    "flash_saved": 2176,
+    "flash_saved": 2240,
     "ram_saved": 0
   },
   "bluetooth": {
     "base": "pico_w_alpha",
-    "flash_saved": 140132,
+    "flash_saved": 136808,
     "ram_saved": 19348
   },
   "sensor_ds18b20": {
     "base": "pico_w_release",
-    "flash_saved": 5432,
+    "flash_saved": 5520,
     "ram_saved": 64
   },
   "sensor_dht22": {
     "base": "pico_w_release",
-    "flash_saved": 3400,
+    "flash_saved": 3456,
     "ram_saved": 0
   },
   "sensor_bme280": {
     "base": "pico_w_release",
-    "flash_saved": 17724,
+    "flash_saved": 17804,
     "ram_saved": 220
   },
   "sound_buzzer": {
     "base": "pico_w_release",
-    "flash_saved": 5008,
+    "flash_saved": 4984,
     "ram_saved": 0
   },
   "tel_tls": {
     "base": "pico_w_air",
-    "flash_saved": 67936,
+    "flash_saved": 58080,
     "ram_saved": 16
   },
   "tel_mqtt": {
     "base": "pico_w_air",
-    "flash_saved": 7704,
+    "flash_saved": 9344,
     "ram_saved": 0
   },
   "web_history": {
     "base": "pico_w_air",
-    "flash_saved": 21768,
+    "flash_saved": 23872,
     "ram_saved": 0
   },
   "web_export_api": {
     "base": "pico_w_release",
-    "flash_saved": 12336,
+    "flash_saved": 12296,
     "ram_saved": 2052
   },
   "web_metrics": {
     "base": "pico_w_release",
-    "flash_saved": 4904,
+    "flash_saved": 4968,
     "ram_saved": 0
   },
   "syslog": {
     "base": "pico_w_release",
-    "flash_saved": 1760,
+    "flash_saved": 1768,
     "ram_saved": 0
   },
   "tft_graph": {
     "base": "pico_w_release",
-    "flash_saved": 20312,
-    "ram_saved": 2236
+    "flash_saved": 20432,
+    "ram_saved": 2232
   }
 }
