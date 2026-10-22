@@ -229,6 +229,10 @@ jobs:
       - name: Angulo RAM-resident functions (the guard and its controls)
         run: python3 tools/test_check_ui_ram.py
 
+      # The Angulo link set's gate, on synthetic nm text: the pattern, the allowance and their negative controls (no ELF, no toolchain).
+      - name: Angulo link set (the gate and its controls)
+        run: python3 tools/check_ui_link.py --selftest
+
       # The Angulo driver's colour tokens: src/ui/angulo/kit/angulo_tokens.h is generated
       # from tools/tft_ui/tokens_tft.json (the guide's palette and the panel's deviations)
       # and never edited by hand, so the header must be what the JSON generates; and the
@@ -583,6 +587,14 @@ jobs:
       # it ("bin"); an image under "ota_exempt" is held to neither.
       - name: Check flash budget
         run: python3 tools/check_flash_budget.py ${{ matrix.env }} build.log
+
+      # The two Angulo images link none of the original's draws (DisplayManager::draw*, render, redraw*, simutFont, availableThemes) and none of
+      # its pixel primitives (fastFillRect, fastClearScreen, blitCanvas): S4 to S10b made that so, and nothing else in CI holds it (the flash
+      # budget counts bytes, not names). Reads the ELF this job just built. The images are not required checks (CLAUDE.md names the nine), and
+      # neither is this step.
+      - name: Angulo link set (no original draws, no pixel primitives)
+        if: endsWith(matrix.env, '_angulo')
+        run: python3 tools/check_ui_link.py .pio/build/${{ matrix.env }}/firmware.elf
 
       # The sizes tools/pio_budget.py counts with, held to the programs' own
       # sources. The gates job has neither the libraries nor the framework and
