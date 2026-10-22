@@ -813,7 +813,8 @@ void hostAnotarTexto( const char *s, int16_t x0, int16_t x1, int16_t y0, int16_t
   for ( ; i < (int)sizeof t.texto - 1 && s[i]; i++ ) t.texto[i] = s[i];
   // A cut that falls inside a character backs off to its first byte, as ua::copiar( ) does: host_telas.py reads the record as UTF-8, and a
   // translation of 84 bytes with "í" at bytes 62 and 63 ended it in a UnicodeDecodeError that named no sample (the review of S10c B3).
-  // The longest text drawn is 43 bytes (2026-10-22, six groups in pt-BR and es-ES); host_telas.py refuses a record that fills the field.
+  // The longest text drawn is 43 bytes (2026-10-22, six groups in pt-BR and es-ES); host_telas.py refuses a record within 3 bytes of the field,
+  // which every cut record is.
   if ( s[i] )
     while ( i > 0 && ( (uint8_t)s[i] & 0xC0 ) == 0x80 ) i--;
   t.texto[i] = 0;
@@ -1261,6 +1262,10 @@ Caixa16 paginadorEsquerda( ) { return Caixa16{ ESP2, 196, 48, 40 }; }
 Caixa16 paginadorDireita( ) { return Caixa16{ ESP2 + 48 + ESP2, 196, 48, 40 }; }
 Caixa16 paginadorAcao( const Acao &a ) { return Caixa16{ (int16_t)( 320 - ESP2 - a.w ), 196, a.w, 40 }; }
 
+void contagemDoPaginador( char *buf, int cap, int16_t pagina, int16_t total ) {
+  snprintf( buf, (size_t)cap, "%d %s %d", (int)pagina, UA_TXT( "of" ), (int)total );
+}
+
 void paginador( Pintor &p, int16_t pagina, int16_t total, const Acao *acao ) {
   const Tema &T = p.t( );
   const int16_t y = 196, h = 40;
@@ -1269,7 +1274,7 @@ void paginador( Pintor &p, int16_t pagina, int16_t total, const Acao *acao ) {
   botao( p, ESP2 + 48 + ESP2, y, 48, h, "", Botao::SECUNDARIO );
   p.icone( IconeNome::CHEVRON_RIGHT, 20, ESP2 + 48 + ESP2 + 14, y + 10, T.tinta );
   char buf[24];
-  snprintf( buf, sizeof buf, "%d %s %d", (int)pagina, UA_TXT( "of" ), (int)total );
+  contagemDoPaginador( buf, (int)sizeof buf, pagina, total );
   textoCentrado( p, buf, ESP2 + 104 + ESP3, y, h, tipo::apoio, T.tinta2, 'l' );
   if ( acao ) botao( p, 320 - ESP2 - acao->w, y, acao->w, h, acao->rotulo, acao->tipo );
 }

@@ -112,10 +112,10 @@ void paginadorComEstados( Pintor &p, int16_t pagina, int16_t total, const char *
   if ( pagina <= 1 ) setaDesabilitada( p, esq, IconeNome::CHEVRON_LEFT );
   if ( pagina >= total ) setaDesabilitada( p, dir, IconeNome::CHEVRON_RIGHT );
   if ( nome && *nome ) {
-    // Where the kit puts "n de m" (right of the second arrow, ESP3 away), and
-    // the page's name ESP2 after it.
+    // Where the kit puts its count (right of the second arrow, ESP3 away), and
+    // the page's name ESP2 after it: the count is the kit's own text, in the pack's words.
     char contagem[24];
-    snprintf( contagem, sizeof contagem, "%d de %d", (int)pagina, (int)total );
+    contagemDoPaginador( contagem, (int)sizeof contagem, pagina, total );
     const int16_t x = (int16_t)( dir.x + dir.w + ESP3 + larguraTinta( contagem, tipo::apoio ) + ESP2 );
     char legenda[40];
     snprintf( legenda, sizeof legenda, "· %s", nome );

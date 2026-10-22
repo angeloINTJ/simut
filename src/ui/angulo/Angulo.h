@@ -433,6 +433,10 @@ void interruptor( Pintor &p, int16_t x, int16_t y, bool ligado, bool desabilitad
 
 // Footer pager: two square arrow buttons and "n de m"; an optional action at the right.
 void paginador( Pintor &p, int16_t pagina, int16_t total, const Acao *acao = nullptr );
+// The count paginador( ) draws, "n of m" in the pack's words, for a screen that places something after it: it measures this text and not a
+// copy (S10c B3-c: the charts placed the page's name after a literal "n de m", and in English, "1 of 3" being 5 px narrower, the gap grew from
+// 8 to 13 px).
+void contagemDoPaginador( char *buf, int cap, int16_t pagina, int16_t total );
 // The pager's boxes (left arrow, right arrow, action).
 Caixa16 paginadorEsquerda( );
 Caixa16 paginadorDireita( );

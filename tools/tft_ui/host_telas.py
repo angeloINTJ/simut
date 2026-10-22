@@ -218,9 +218,10 @@ def ler_textos(nome, tema, dados, campo, erros):
         partes = linha.split(' ', 5)
         x0, x1, y0, y1 = map(int, partes[:4])
         t = partes[5] if len(partes) > 5 else ''
-        if len(t.encode('utf-8')) >= campo - 3:
-            erros.append(f'{nome}_{tema}: "{t}" fills the {campo} bytes the recorder keeps of a text, so its end, where a cut puts "…", '
-                         f'was not read (raise TextoDesenhado::texto in src/ui/angulo/Angulo.h)')
+        n = len(t.encode('utf-8'))
+        if n >= campo - 3:
+            erros.append(f'{nome}_{tema}: "{t}" is {n} bytes, within 3 of the {campo} bytes the recorder keeps of a text: it may have been cut '
+                         f'there, and the end of a cut text, where "…" goes, is not read (raise TextoDesenhado::texto in src/ui/angulo/Angulo.h)')
         (selos if partes[4] == 's' else textos).append((x0, x1, y0, y1, t))
     return textos, selos
 
@@ -592,6 +593,8 @@ def main():
                 for tema in ('escuro', 'claro'):
                     img = ler_565(dados / f'{nome}_{tema}.565')
                     img.save(out / f'{nome}_{tema}.png')
+                    # the texts' records too, for the checks that compare one sample across languages (test_idiomas.py)
+                    (out / f'{nome}_{tema}.textos').write_bytes((dados / f'{nome}_{tema}.textos').read_bytes())
                     quadros.append(img)
                 ov = quadros[1].copy()
                 d = ImageDraw.Draw(ov)

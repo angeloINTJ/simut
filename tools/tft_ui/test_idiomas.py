@@ -8,7 +8,10 @@ gives the English. This runs tools/tft_ui/host_telas.py for every group in each 
      text outside the safe area, over another, across the edge of a touch target or of the card it sits on, and no fixed text cut with "…" (only the
      long names a sample plants on purpose may be, and tools/tft_ui/cortes_aceitos.txt lists them for every language). Every group, and not only the
      converted ones, because the kit's texts reach them all: B3 translated the kit's "Voltar", three screens still built its box with the literal, and
-     the charts' detail, in English and in Spanish, stopped the harness on the difference (S10c B3-b).
+     the charts' detail, in English and in Spanish, stopped the harness on the difference (S10c B3-b). And what a screen places by the width of a
+     translated text keeps its place against it in the three languages: the touch target of the kit's back button against its label, in every sample
+     that draws the kit's bar (127), and the charts' page name after the pager's count (S10c B3-c: a literal copy of either moves the gap by the
+     difference of the two widths, which no check of one language can see).
   2. The checks bite, through the whole chain (a pack file, the loader, UA_TXT( ), the screen, the recorder, the check). A pack is planted with one text changed, and the
      samples that fail must be EXACTLY the samples whose frames differ from the shipped pack's (two instruments that do not read each other: the pixels and the
      checks): an "ő" (no font has it) in the label of the boot button; a label of 74 characters in the same button; a text of 102 characters in the card that says
@@ -85,6 +88,54 @@ def plantar(pacote, ingles, novo, destino):
     return destino
 
 
+def contagem_e_legenda(pasta):
+    """{sample: gap} for the charts' pager with a page name: the ink gap from the kit's count ("1 of 3", "1 de 3") to the name drawn after
+    it ("· Pressão"), read from the light theme's records host_telas.py keeps in --out. The name is placed by the count's measured width,
+    so the gap is the layout's and must not change with the language (S10c B3-c: it was placed after a literal "n de m", and in English,
+    "1 of 3" being 5 px narrower, the gap grew by 5 px)."""
+    out = {}
+    for f in sorted(pasta.glob('*_claro.textos')):
+        recs = [ln.split(' ', 5) for ln in f.read_text(encoding='utf-8').splitlines()]
+        cont = [r for r in recs if len(r) > 5 and r[4] == 't' and re.fullmatch(r'\d+ \S+ \d+', r[5])]
+        leg = [r for r in recs if len(r) > 5 and r[4] == 't' and r[5].startswith('\u00b7 ')]
+        if len(cont) == 1 and len(leg) == 1:
+            out[f.name[:-len('_claro.textos')]] = int(leg[0][0]) - int(cont[0][1])
+    return out
+
+
+def traducao(idioma, ingles):
+    """The text the shipped pack of `idioma` gives for `ingles` (the English itself for en, or when the pack has no line for it)."""
+    if idioma == 'en':
+        return ingles
+    chave = b'\n%08x ' % gate.fnv1a32(ingles)
+    dados = PACOTES[idioma].read_bytes()
+    if chave not in dados:
+        return ingles
+    i = dados.index(chave) + len(chave)
+    return dados[i:dados.index(b'\n', i)].decode('utf-8')
+
+
+def voltar_e_alvo(pasta, rotulo, inerte):
+    """{sample: gap} for the samples whose title bar draws the kit's back button with `rotulo` (the language's word for "Back"): the gap
+    from the touch target that holds the label to the label's ink. The target is computed from the label's width, so the gap is the
+    layout's and must not change with the language (S10c B3-b: three screens computed it from a literal "Voltar", and in English their
+    targets began 10 px further left than the "Back" drawn; no other check saw two of the three)."""
+    out = {}
+    for f in sorted(pasta.glob('*_claro.textos')):
+        nome = f.name[:-len('_claro.textos')]
+        recs = [ln.split(' ', 5) for ln in f.read_text(encoding='utf-8').splitlines()]
+        rot = [tuple(map(int, r[:4])) for r in recs if len(r) > 5 and r[4] == 't' and r[5] == rotulo and int(r[3]) <= 36]
+        if len(rot) != 1 or not (pasta / f'{nome}.alvos').exists():
+            continue
+        x0, x1, y0, y1 = rot[0]
+        cx, cy = (x0 + x1) // 2, (y0 + y1) // 2
+        alvos = [tuple(map(int, ln.split()[:6])) for ln in (pasta / f'{nome}.alvos').read_text().splitlines()]
+        dono = [a for a in alvos if a[4] != inerte and a[0] <= cx < a[0] + a[2] and a[1] <= cy < a[1] + a[3]]
+        if len(dono) == 1:
+            out[nome] = x0 - dono[0][0]
+    return out
+
+
 def quadros_diferentes(a, b):
     """The samples whose frame differs between two --out folders of the same group."""
     nomes = sorted({p.name[:-len('_escuro.png')] for p in a.glob('*_escuro.png')})
@@ -121,6 +172,28 @@ def main():
                 caso(f'{g} in {i}: host_telas.py exits 0', rc == 0, '\n'.join(saida.splitlines()[-6:]))
                 resumo = saida.strip().splitlines()[-1] if saida.strip() else ''
                 caso(f'{g} in {i}: no failure and texts held to their surface', ' 0 failures' in resumo and re.search(r'[1-9]\d* texts held to their surface', resumo), resumo)
+
+        # the charts' pager: the page's name keeps its gap after the count in every language
+        lacunas = {i: contagem_e_legenda(limpo / i / 'graficos') for i in IDIOMAS}
+        caso(f'charts\' pager: the same samples draw a count and a page name in every language ({len(lacunas["pt"])} in pt-BR)',
+             lacunas['pt'] and all(set(lacunas[i]) == set(lacunas['pt']) for i in IDIOMAS), str({i: sorted(v) for i, v in lacunas.items()}))
+        diferem = sorted(n for n in lacunas['pt'] if len({lacunas[i].get(n) for i in IDIOMAS}) != 1)
+        caso('charts\' pager: the gap from the count to the page name is the same in the three languages', not diferem,
+             '; '.join(f'{n}: ' + ', '.join(f'{i} {lacunas[i].get(n)} px' for i in IDIOMAS) for n in diferem[:4]))
+
+        # the kit's back button: its target keeps its place against the label drawn, in every language and every group
+        inerte = host_telas.alvo_inerte()
+        voltas = {i: {} for i in IDIOMAS}
+        for g in TODOS:
+            for i in IDIOMAS:
+                voltas[i].update({f'{g}/{n}': v for n, v in voltar_e_alvo(limpo / i / g, traducao(i, 'Back'), inerte).items()})
+        comuns = sorted(set(voltas['en']) & set(voltas['pt']) & set(voltas['es']))
+        grupos_com = sorted({n.split('/')[0] for n in comuns})
+        caso(f'back button: samples with the kit\'s bar in every language ({len(comuns)}, in {", ".join(grupos_com)})',
+             len(comuns) >= 10 and {'ajustes', 'menus', 'graficos'} <= set(grupos_com), str(grupos_com))
+        movidos = [n for n in comuns if len({voltas[i][n] for i in IDIOMAS}) != 1]
+        caso('back button: the gap from its target to its label is the same in the three languages', not movidos,
+             '; '.join(f'{n}: ' + ', '.join(f'{i} {voltas[i][n]} px' for i in IDIOMAS) for n in movidos[:4]))
 
         # 2. the plants fail exactly where their frames change
         limpo_es = limpo / 'es' / 'painel'
@@ -179,7 +252,7 @@ def main():
         e = []
         lidos = host_telas.ler_textos('cheio', 'claro', d, campo, e)
         caso(f'reader: a record of {campo - 3} bytes is an error, one of {campo - 4} is not',
-             lidos is not None and len(e) == 1 and f'"{cheio}" fills the {campo} bytes' in e[0], str(e))
+             lidos is not None and len(e) == 1 and f'"{cheio}" is {campo - 3} bytes, within 3 of the {campo} bytes' in e[0], str(e))
         caso('reader: texts and badges come apart, each with its box', lidos is not None and lidos[0] == [(10, 60, 4, 20, cheio), (10, 60, 30, 46, cheio[:-1])]
              and lidos[1] == [(70, 90, 4, 20, 'web')], str(lidos))
 
