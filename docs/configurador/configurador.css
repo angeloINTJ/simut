@@ -136,7 +136,8 @@ details > summary:focus-visible { outline: 2px solid var(--acento); outline-offs
 .cfg-interruptor:focus-visible { outline: 2px solid var(--acento); outline-offset: 2px; }
 .cfg-interruptor:disabled { opacity: 0.45; cursor: not-allowed; }
 
-/* ---- the connection: one radio per network driver, in the network group --- */
+/* ---- the choices of driver: one radio per network driver, in the network group,
+ *      and per look of the touch display, in the interface group (the same rows) --- */
 
 /* Rows like the switches', divided by linha, and not cards: the group is already
  * a card, and §4.4 allows none inside one. The whole row is the label, so the

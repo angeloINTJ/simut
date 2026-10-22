@@ -10,6 +10,14 @@
  * in `set` next to the switches, as the driver's id ("cyw43", "enc28j60"), and
  * the cost matrix names it "net=<id>", the way model.json names a refusal.
  *
+ * The look of the touch display is a choice of driver too (2026-10-22): `ui`
+ * rides in `set` the same way, as the id of a [ui.*] of the manifest ("original",
+ * "angulo"), the product's own look is not a change, and the rules that refuse
+ * the Ângulo (on the Pico W with Wi-Fi, without the touch display, without the
+ * panel chart) lock the option with their reason, the way a refused network
+ * driver is locked. The cost matrix has no "ui=<id>" flip yet, so the estimate
+ * leaves the look out and says so.
+ *
  * The estimate is the measured cost matrix (tools/measure_savings.py --matrix):
  * each published product built once as shipped and once per switch flipped.
  * Two or more changes are SUMMED, which is an estimate and is labelled one;
@@ -41,12 +49,14 @@ export function effectiveConfig(model, productId, set) {
 }
 
 /* `set` keeps only what differs from the product: a switch set back to its
- * default is not a change, and neither is the product's own network driver;
- * the link and the profile should not carry either. */
+ * default is not a change, and neither is the product's own network driver or
+ * its own look of the touch display; the link and the profile should not carry
+ * any of them. */
 export function normalizeSet(model, productId, set) {
   const base = productById(model, productId).config;
   const out = {};
   if (Object.prototype.hasOwnProperty.call(set, "net") && set.net !== base.net) out.net = set.net;
+  if (Object.prototype.hasOwnProperty.call(set, "ui") && set.ui !== base.ui) out.ui = set.ui;
   for (const t of model.toggles) {
     if (Object.prototype.hasOwnProperty.call(set, t.id) && set[t.id] !== base[t.id]) out[t.id] = set[t.id];
   }
@@ -65,7 +75,8 @@ export function flipOf(model, productId, toggleId) {
 
 /* The cost matrix's name for one entry of `set`: a switch is its own id (every
  * entry is the product's switch turned over), and a choice is "key=value", as
- * model.json names a refusal and the manifest a condition ("net=enc28j60"). */
+ * model.json names a refusal and the manifest a condition ("net=enc28j60",
+ * "ui=angulo"). */
 function flipKey(key, value) {
   return typeof value === "boolean" ? key : `${key}=${value}`;
 }
@@ -140,16 +151,31 @@ export function lockOf(model, config, toggleId, productId) {
   return b && b.lock && b.lock[toggleId] ? { id: b.id, why: b.lock[toggleId] } : b;
 }
 
-/* Why a network driver cannot be chosen: the same question as lockOf, asked of
- * the choice of driver. The first blocker of this choice with `net` set to
- * netId that the current choice does not already have, in blockersOf's order;
- * {id, why} or null. The chosen driver is never locked (it adds nothing). A
- * budget blocker's remedy is a list of switches to turn off and the network is
- * never in it, so the lock shows the generator's whole text. */
-export function netLockOf(model, config, netId, productId) {
+/* Why a choice of driver cannot be taken: the same question as lockOf, asked of
+ * the choice. The first blocker of this choice with `key` set to `value` that
+ * the current choice does not already have, in blockersOf's order; {id, why} or
+ * null. The chosen one is never locked (it adds nothing). A budget blocker's
+ * remedy is a list of switches to turn off and a choice is never in it, so the
+ * lock shows the generator's whole text. */
+function choiceLockOf(model, config, key, value, productId) {
   const now = new Set(blockersOf(model, productId, config).map((b) => b.id));
-  const b = blockersOf(model, productId, { ...config, net: netId }).find((x) => !now.has(x.id)) || null;
+  const b = blockersOf(model, productId, { ...config, [key]: value }).find((x) => !now.has(x.id)) || null;
   return b ? { id: b.id, why: b.why } : null;
+}
+
+/* Why a network driver cannot be chosen. */
+export function netLockOf(model, config, netId, productId) {
+  return choiceLockOf(model, config, "net", netId, productId);
+}
+
+/* Why a look of the touch display cannot be chosen (2026-10-22). The Ângulo is
+ * refused by three rules of the manifest, each with its reason: on the Pico W
+ * with Wi-Fi, without the touch display, and without the panel chart. The last
+ * has two ends and the page locks whichever move comes first: with the chart
+ * switch off this locks the Ângulo, and with the Ângulo chosen lockOf locks the
+ * chart switch on, because it asks the same question of the switch. */
+export function uiLockOf(model, config, uiId, productId) {
+  return choiceLockOf(model, config, "ui", uiId, productId);
 }
 
 /* The network driver this choice has that the generator refuses for the
@@ -193,7 +219,8 @@ export function noEffect(model, productId, toggleId) {
 }
 
 /* The sum. `missing` names the changes with no measurement behind them: the
- * key of `set` ("net" for the network, whose flip is "net=<id>"). */
+ * key of `set` ("net" for the network, whose flip is "net=<id>", and "ui" for
+ * the look of the touch display, whose flip would be "ui=<id>"). */
 export function estimate(model, productId, set) {
   const c = costsOf(model, productId);
   if (!c) return null;
@@ -259,8 +286,8 @@ export function verdictOf(model, productId, set) {
 }
 
 /* The profile tools/build_custom.py accepts, in its canonical spelling: the
- * same choice always gives the same bytes, so the same file name. `net` is a
- * key of `set` like the switches, and sorts among them. */
+ * same choice always gives the same bytes, so the same file name. `net` and
+ * `ui` are keys of `set` like the switches, and sort among them. */
 export function profileOf(productId, set) {
   const sorted = {};
   for (const k of Object.keys(set).sort()) sorted[k] = set[k];
@@ -274,25 +301,27 @@ export function profileJson(productId, set) {
   return `{"base":${JSON.stringify(p.base)},"set":${JSON.stringify(p.set)},"v":1}`;
 }
 
-/* ---- the link: #b=<product>&net=<driver>&on=<ids>&off=<ids> ------------- */
+/* ---- the link: #b=<product>&net=<driver>&ui=<look>&on=<ids>&off=<ids> -- */
 
 const ID = /^[a-z0-9_]{1,40}$/;
 const MAX_HASH = 1024;
 
 export function formatHash(productId, set) {
-  const switches = Object.keys(set).filter((k) => k !== "net");
+  const switches = Object.keys(set).filter((k) => k !== "net" && k !== "ui");
   const on = switches.filter((k) => set[k]).sort();
   const off = switches.filter((k) => !set[k]).sort();
   let h = `b=${productId}`;
   if (set.net) h += `&net=${set.net}`;
+  if (set.ui) h += `&ui=${set.ui}`;
   if (on.length) h += `&on=${on.join(",")}`;
   if (off.length) h += `&off=${off.join(",")}`;
   return `#${h}`;
 }
 
-/* Strict: a link names a product, at most one network driver and switches this
- * model knows, or it is refused with the first thing that is wrong. The page
- * shows the refusal as text (never as HTML) and opens the default product. */
+/* Strict: a link names a product, at most one network driver, at most one look
+ * of the touch display and switches this model knows, or it is refused with the
+ * first thing that is wrong. The page shows the refusal as text (never as HTML)
+ * and opens the default product. */
 /* Whether a hash is a place on the page rather than a build: a bare id (no
  * "=") of an element that exists. The bar's "#resultado" and the skip link's
  * "#main" are such places, and the hashchange that following them fires read
@@ -321,6 +350,14 @@ export function parseHash(model, hash) {
     const n = params.get("net");
     if (!ID.test(n) || !model.net.options.some((o) => o.id === n)) return { error: "net", value: n };
     set.net = n;
+  }
+  // The look of the touch display: a [ui.*] id of this model, once, refused the way a network driver is.
+  // Not a switch either, so on=ui is refused below.
+  if (params.has("ui")) {
+    if (params.getAll("ui").length > 1) return { error: "twice", value: "ui" };
+    const u = params.get("ui");
+    if (!ID.test(u) || !model.ui.options.some((o) => o.id === u)) return { error: "ui", value: u };
+    set.ui = u;
   }
   for (const [key, value] of [["on", true], ["off", false]]) {
     const list = params.get(key);

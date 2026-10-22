@@ -26,6 +26,12 @@ com o lado Python, que é a autoridade:
     conferido, porque sem o produto a trava e o botão perdem a recusa calados;
   - "não muda nada neste produto" é exatamente o `same` que a matriz mediu;
   - o erro que a página diz ter é o erro recalculado aqui.
+  - a UI da tela touch (2026-10-22, C1b) é uma escolha de driver como a rede, e não uma chave: `ui` vai no
+    `set`, o link (`&ui=`), o perfil que a página manda compilar e a estimativa a levam, e a UI do próprio
+    produto não se escreve em lugar nenhum; cada opção está travada se, e só se, o gerador tem um bloqueio
+    novo para o perfil com a UI trocada (o Ângulo no Pico W com Wi-Fi, sem a tela touch, sem o gráfico do
+    painel), com o motivo da regra à vista, e com o Ângulo escolhido é a chave do gráfico que fica travada.
+    O app.js de verdade roda num DOM de mentira (JS_APP) e o que se confere é o que está na tela;
 
     python3 tools/test_configurator_page.py     # exit 1 em qualquer divergência
 
@@ -55,6 +61,7 @@ with open(os.path.join(PAGE, "model.json"), encoding="utf-8") as fh:
 TOGGLES = [t["id"] for t in MODEL["toggles"]]
 PRODUCTS = [p["id"] for p in MODEL["products"]]
 NETS = [o["id"] for o in MODEL["net"]["options"]]
+UIS = [o["id"] for o in MODEL["ui"]["options"]]
 
 HOSTILE_HASHES = [
     "#b=pico_w_nada",
@@ -83,6 +90,24 @@ HOSTILE_NET = {
     "#b=pico_w_air&off=net": ("toggle", "net"),
 }
 HOSTILE_HASHES += list(HOSTILE_NET)
+# O visual da tela touch no link (2026-10-22): só o id de um [ui.*] do modelo, uma vez, como a rede. O que o
+# link traz de errado é recusado COM o motivo certo, porque a página diz ao leitor o que ignorou.
+HOSTILE_UI = {
+    "#b=pico2_w_release&ui=nonsense": ("ui", "nonsense"),              # uma UI que o modelo não tem
+    "#b=pico2_w_release&ui=ANGULO": ("ui", "ANGULO"),                  # os ids são minúsculos
+    "#b=pico2_w_release&ui=": ("ui", ""),                              # presente e vazio
+    "#b=pico2_w_release&ui=__proto__": ("ui", "__proto__"),
+    "#b=pico2_w_release&ui=constructor": ("ui", "constructor"),
+    "#b=pico2_w_release&ui=angulo%0A": ("ui", "angulo\n"),
+    "#b=pico2_w_release&ui=" + "a" * 41: ("ui", "a" * 41),             # além do teto de 40 do id
+    "#b=pico2_w_release&ui=cyw43": ("ui", "cyw43"),                    # um id de rede não é uma UI
+    "#b=pico2_w_release&ui=angulo&ui=angulo": ("twice", "ui"),         # duas vezes, igual
+    "#b=pico2_w_release&ui=angulo&ui=original": ("twice", "ui"),       # duas vezes, diferente
+    "#b=pico2_w_release&on=ui": ("toggle", "ui"),                      # a UI não é um interruptor
+    "#b=pico2_w_release&off=ui": ("toggle", "ui"),
+    "#b=pico2_w_release&net=ui": ("net", "ui"),                        # nem um id de UI é um driver de rede
+}
+HOSTILE_HASHES += list(HOSTILE_UI)
 
 # O script que o node roda: recebe os casos por stdin, devolve as respostas.
 JS = r"""
@@ -260,12 +285,23 @@ for p in PRODUCTS:
             sets.append((p, {"net": n, t: True}))
             sets.append((p, {"net": n, t: False}))
 
+# O visual da tela touch (2026-10-22): cada UI sozinha, com cada rede e com cada chave nos dois sentidos.
+for p in PRODUCTS:
+    for u in UIS:
+        sets.append((p, {"ui": u}))
+        for n in NETS:
+            sets.append((p, {"ui": u, "net": n}))
+        for t in TOGGLES:
+            sets.append((p, {"ui": u, t: True}))
+            sets.append((p, {"ui": u, t: False}))
+
 # Os estados em que se pergunta pela trava de uma opção de rede: o produto como é, cada chave virada, e o
 # outro driver já escolhido.
 CONTEXTS = {}
 for p in PRODUCTS:
     base = gf.config_of(gf.resolve_profile(p, M["profiles"]))
-    CONTEXTS[p] = ([{}] + [{t: not base[t]} for t in TOGGLES] + [{"net": n} for n in NETS if n != base["net"]])
+    CONTEXTS[p] = ([{}] + [{t: not base[t]} for t in TOGGLES] + [{"net": n} for n in NETS if n != base["net"]]
+                  + [{"ui": u} for u in UIS if u != base["ui"]])
 
 js = run_js({"model": MODEL, "sets": sets, "hostile": HOSTILE_HASHES,
              "products": PRODUCTS, "toggles": TOGGLES, "nets": NETS, "contexts": CONTEXTS})
@@ -298,6 +334,9 @@ for h, got in zip(HOSTILE_HASHES, js["hostile"]):
     if h in HOSTILE_NET:
         check((got.get("error"), got.get("value")) == HOSTILE_NET[h],
               f"link {h[:60]!r}: a página recusa com {(got.get('error'), got.get('value'))}, devia ser {HOSTILE_NET[h]}")
+    if h in HOSTILE_UI:
+        check((got.get("error"), got.get("value")) == HOSTILE_UI[h],
+              f"link {h[:60]!r}: a página recusa com {(got.get('error'), got.get('value'))}, devia ser {HOSTILE_UI[h]}")
 
 # 4. Uma chave: a estimativa É a medida. E `same` é o que a matriz mediu.
 costs = MODEL["costs"]["products"] if MODEL.get("costs") else {}
@@ -723,6 +762,706 @@ want_norm = {k: v for k, v in {"net": "enc28j60", "mdns": True}.items() if v != 
 check(nl["normalized"] == want_norm and "net" not in want_norm,
       f"normalizeSet deveria tirar net quando é o do produto ({want_norm}): {nl['normalized']}")
 
+
+# ---------------------------------------------------------------------------------------------------------
+# 13. O visual da tela touch (2026-10-22, C1b). `ui` é uma escolha de driver como a rede, e não uma chave:
+#     vai no `set` ao lado dela, o produto traz a sua em `config.ui`, e as regras do Ângulo (no Pico W com
+#     Wi-Fi, sem a tela touch, sem o gráfico do painel) a travam com o motivo à vista. A página não decide
+#     nada disso: o que se confere aqui é que ela mostra o que o gerador (gen_features.blockers) diz.
+# ---------------------------------------------------------------------------------------------------------
+
+# 13a. A UI no modelo que a página desenha: o grupo onde ela fica existe (sem ele a escolha nunca seria
+#      desenhada, calado), há uma opção por [ui.*] na ordem de [ui_panels].order, cada uma com o texto do
+#      manifesto em en e pt, e todo produto tem uma UI que existe -- a que o manifesto lhe dá.
+check(MODEL["ui"]["group"] in {g["id"] for g in MODEL["groups"]},
+      f"model.json: o grupo da UI, {MODEL['ui']['group']!r}, não é um grupo da página")
+check(MODEL["ui"]["group"] == M["ui_panel"]["group"], "model.json: o grupo da UI não é o de [ui_panel]")
+check(UIS == sorted(M["ui"], key=lambda n: M["ui_panels"][n]["order"]), f"as opções de UI {UIS} != as do manifesto")
+for lang in gf.LANGS:
+    check(MODEL["ui"]["label"].get(lang) == M["ui_panel"]["label"][lang], f"model.json: o título da UI em {lang} != o do manifesto")
+    for o in MODEL["ui"]["options"]:
+        for campo in ("label", "help"):
+            check(o[campo].get(lang) == M["ui_panels"][o["id"]][campo][lang],
+                  f"model.json: a opção de UI {o['id']} tem {campo}.{lang} diferente do manifesto")
+for p in MODEL["products"]:
+    check(p["config"].get("ui") == gf.config_of(gf.resolve_profile(p["id"], M["profiles"]))["ui"] and p["config"]["ui"] in UIS,
+          f"{p['id']}: config.ui {p['config'].get('ui')!r} não é a UI que o manifesto dá ao produto")
+
+# O JS da lógica: a trava de cada opção de UI, a das chaves com a UI escolhida, o link, o perfil, a estimativa.
+JS_UI = r"""
+import * as L from "./logic.js";
+const input = JSON.parse(await new Promise((ok) => {
+  let s = ""; process.stdin.on("data", (d) => (s += d)); process.stdin.on("end", () => ok(s));
+}));
+const model = input.model;
+const out = { uis: [], toggles: [], profiles: [], estimates: [], links: null };
+const lockUi = typeof L.uiLockOf === "function" ? L.uiLockOf : () => "sem uiLockOf";
+for (const p of input.products) {
+  // Cada opção de UI como a próxima escolha, em cada estado de partida: a trava é perguntada à escolha de
+  // agora, como a página a pergunta.
+  for (const ctx of input.contexts[p]) {
+    const now = L.effectiveConfig(model, p, ctx);
+    for (const u of input.uis) {
+      const next = L.normalizeSet(model, p, { ...ctx, ui: u });
+      const cfg = L.effectiveConfig(model, p, next);
+      const lock = lockUi(model, now, u, p);
+      const est = L.estimate(model, p, next);
+      out.uis.push({ p, ctx, u, lock: lock === "sem uiLockOf" ? lock : lock ? lock.id : null,
+                     why: lock && lock !== "sem uiLockOf" ? lock.why : null,
+                     ids: L.blockersOf(model, p, cfg).map((r) => r.id),
+                     verdict: L.verdictOf(model, p, next), fit: est ? L.slotFit(model, p, est) : null });
+    }
+  }
+  // Cada chave, com cada UI já escolhida: o gráfico do painel fica ligado quando o Ângulo está escolhido.
+  for (const u of input.uis) {
+    const cfg = L.effectiveConfig(model, p, { ui: u });
+    for (const t of input.toggles) {
+      const lock = L.lockOf(model, cfg, t, p);
+      out.toggles.push({ p, u, t, lock: lock ? lock.id : null, why: lock ? lock.why : null });
+    }
+    const set = L.normalizeSet(model, p, { ui: u });
+    out.profiles.push({ p, u, set, profile: L.profileJson(p, set), hash: L.formatHash(p, set) });
+    out.estimates.push({ p, u, set, est: L.estimate(model, p, set) });
+  }
+}
+out.links = {
+  one: L.formatHash("pico2_w_release", { ui: "angulo" }),
+  oneBack: L.parseHash(model, "#b=pico2_w_release&ui=angulo"),
+  mixed: L.formatHash("pico_w_release", { sensor_ds18b20: false, mdns: true, net: "enc28j60", ui: "angulo" }),
+  mixedBack: L.parseHash(model, "#b=pico_w_release&net=enc28j60&ui=angulo&on=mdns&off=sensor_ds18b20"),
+  sameAsProduct: L.parseHash(model, "#b=pico2_w_angulo&ui=angulo"),
+  otherThanProduct: L.parseHash(model, "#b=pico2_w_angulo&ui=original"),
+  originalDefault: L.parseHash(model, "#b=pico2_w_release&ui=original"),
+  defaultNotWritten: L.formatHash("pico2_w_angulo", L.normalizeSet(model, "pico2_w_angulo", { ui: "angulo" })),
+  normalized: L.normalizeSet(model, "pico2_w_angulo", { ui: "angulo", mdns: true }),
+};
+out.hostile = input.hostile.map((h) => L.parseHash(model, h));
+process.stdout.write(JSON.stringify(out));
+"""
+
+# O JS da página: o app.js de verdade, num DOM de mentira (só o que ele usa: createElement, atributos,
+# filhos, ouvintes, getElementById), com o modelo no lugar do fetch. Cada cenário é uma visita: o hash de
+# entrada, a língua, os cliques que o leitor dá; devolve, depois da carga e de cada clique, o que está na
+# tela. Um clique em controle desabilitado não acontece (o navegador não o entrega) e vem como "disabled".
+JS_APP = r"""
+// The page's own app.js, run against a small stand-in for the DOM.
+const input = JSON.parse(await new Promise((ok) => {
+  let s = ""; process.stdin.on("data", (d) => (s += d)); process.stdin.on("end", () => ok(s));
+}));
+const errors = [];
+const brief = (e) => String(e && e.stack ? e.stack.split("\n").slice(0, 3).join(" | ") : e);
+process.on("unhandledRejection", (e) => errors.push("unhandledRejection: " + brief(e)));
+process.on("uncaughtException", (e) => errors.push("uncaughtException: " + brief(e)));
+
+class NodeBase {}
+class Txt extends NodeBase {
+  constructor(t) { super(); this.data = String(t); }
+  get textContent() { return this.data; }
+}
+class El extends NodeBase {
+  constructor(tag) { super(); this.tag = tag; this.attrs = {}; this.kids = []; this.listeners = {}; this.parent = null; this.style = {}; }
+  setAttribute(k, v) { this.attrs[k] = String(v); }
+  hasAttribute(k) { return k in this.attrs; }
+  append(...kids) { for (const k of kids) { k.parent = this; this.kids.push(k); } }
+  replaceChildren(...kids) { this.kids = []; this.append(...kids); }
+  addEventListener(type, fn) { (this.listeners[type] ||= []).push(fn); }
+  focus() {}
+  set className(v) { this.attrs.class = String(v); }
+  get className() { return this.attrs.class || ""; }
+  set textContent(v) { this.kids = []; this.append(new Txt(v)); }
+  get textContent() { return this.kids.map((k) => k.textContent).join(""); }
+  get checked() { return this._checked !== undefined ? this._checked : "checked" in this.attrs; }
+  set checked(v) { this._checked = Boolean(v); }
+  get disabled() { return "disabled" in this.attrs; }
+}
+function* walk(e) { if (e instanceof El) { yield e; for (const k of e.kids) yield* walk(k); } }
+const cls = (e, c) => (e.attrs.class || "").split(/\s+/).includes(c);
+const find = (root, pred) => [...walk(root)].filter(pred);
+const closest = (e, pred) => { for (let x = e; x; x = x.parent) if (x instanceof El && pred(x)) return x; return null; };
+const define = (name, value) => Object.defineProperty(globalThis, name, { value, configurable: true, writable: true });
+const first = (list) => (list.length ? list[0] : null);
+
+function row(label) {
+  const input = first(find(label, (e) => e.tag === "input"));
+  const text = (c) => { const e = first(find(label, (x) => cls(x, c))); return e ? e.textContent : null; };
+  return { id: input.attrs.id, radio: input.attrs.name, name: text("cfg-chave-nome"), help: text("cfg-apoio"),
+           lock: text("cfg-chave-trava"), cost: text("cfg-chave-custo"), checked: input.checked, disabled: input.disabled };
+}
+
+function snapshot(appEl, loc) {
+  const snap = { hash: loc.hash, fieldsets: [], switches: [], warnings: [], notice: null, product: null,
+                 build: null, summary: null, selos: [], profile: null, issue: null };
+  for (const f of find(appEl, (e) => e.tag === "fieldset" && cls(e, "cfg-rede"))) {
+    const legend = first(find(f, (e) => e.tag === "legend"));
+    const block = closest(f.parent, (e) => cls(e, "cfg-bloco"));
+    const title = block && first(find(block, (e) => cls(e, "cfg-bloco-titulo")));
+    const siblings = block ? block.kids.filter((k) => k instanceof El) : [];
+    const firstSwitch = siblings.findIndex((k) => cls(k, "cfg-chave"));
+    snap.fieldsets.push({
+      legend: legend.kids[0].textContent, changed: find(legend, (e) => cls(e, "selo")).length > 0,
+      block: title ? title.textContent : null,
+      beforeSwitches: firstSwitch === -1 || siblings.indexOf(f) < firstSwitch,
+      rows: find(f, (e) => e.tag === "label" && cls(e, "cfg-rede-opcao")).map(row),
+    });
+  }
+  for (const i of find(appEl, (e) => e.tag === "input" && e.attrs.role === "switch")) {
+    const r = closest(i, (e) => cls(e, "cfg-chave"));
+    snap.switches.push({ id: i.attrs.id, checked: i.checked, disabled: i.disabled,
+                         locks: find(r, (e) => cls(e, "cfg-chave-trava")).map((e) => e.textContent) });
+  }
+  snap.warnings = find(appEl, (e) => e.tag === "li" && cls(e, "cfg-aviso")).map((e) => ({ tone: e.attrs["data-tom"], text: e.textContent }));
+  const notice = first(find(appEl, (e) => e.tag === "p" && cls(e, "cfg-aviso") && e.attrs.role === "status"));
+  snap.notice = notice ? notice.textContent : null;
+  const radio = first(find(appEl, (e) => e.tag === "input" && e.attrs.name === "produto" && e.checked));
+  snap.product = radio ? radio.attrs.value : null;
+  const build = first(find(appEl, (e) => e.attrs.id === "compilar"));
+  snap.build = build ? { disabled: build.disabled } : null;
+  const summary = first(find(appEl, (e) => cls(e, "cfg-resumo-texto")));
+  snap.summary = summary ? summary.textContent : null;
+  const selos = first(find(appEl, (e) => cls(e, "cfg-selos")));
+  snap.selos = selos ? find(selos, (e) => cls(e, "selo")).map((e) => e.textContent) : [];
+  const pre = first(find(appEl, (e) => e.tag === "pre" && cls(e, "cfg-comando")));
+  snap.profile = pre ? pre.textContent : null;
+  const a = first(find(appEl, (e) => e.tag === "a" && cls(e, "botao") && String(e.attrs.href).includes("/issues/new")));
+  if (a) {
+    const href = a.attrs.href;
+    snap.issue = { title: decodeURIComponent(/[?&]title=([^&]*)/.exec(href)[1]), body: decodeURIComponent(/[?&]body=(.*)$/.exec(href)[1]) };
+  }
+  return snap;
+}
+
+async function settle(appEl) {
+  for (let i = 0; i < 500 && appEl.kids.length === 0 && errors.length === 0; i++) await new Promise((r) => setTimeout(r, 1));
+}
+
+const results = [];
+let n = 0;
+for (const sc of input.scenarios) {
+  errors.length = 0;
+  const body = new El("body"), appEl = new El("div"), ann = new El("p");
+  appEl.attrs.id = "app"; ann.attrs.id = "cfg-anuncio"; body.append(ann, appEl);
+  const loc = { hash: sc.hash, get href() { return "https://example.test/configurador/" + this.hash; } };
+  const store = () => { const m = new Map(); return { getItem: (k) => (m.has(k) ? m.get(k) : null), setItem: (k, v) => m.set(k, v), removeItem: (k) => m.delete(k) }; };
+  define("Node", NodeBase);
+  define("document", { documentElement: { dataset: {}, lang: "" }, title: "", activeElement: null,
+                       createElement: (t) => new El(t), createTextNode: (t) => new Txt(t),
+                       getElementById: (id) => [...walk(body)].find((e) => e.attrs.id === id) || null,
+                       querySelectorAll: () => [], querySelector: () => null });
+  define("location", loc);
+  define("history", { replaceState: (a, b, h) => { loc.hash = h; } });
+  define("navigator", { languages: [sc.lang === "pt" ? "pt-BR" : "en"], language: sc.lang });
+  define("window", { localStorage: store(), sessionStorage: store(), addEventListener() {} });
+  define("fetch", async () => ({ ok: true, status: 200, json: async () => JSON.parse(JSON.stringify(input.model)) }));
+  const rec = { name: sc.name, snaps: [], steps: [], errors: [] };
+  try {
+    await import("./app.js?run=" + n++);
+    await settle(appEl);
+    rec.snaps.push(snapshot(appEl, loc));
+    for (const a of sc.actions) {
+      const el = first(find(body, (e) => e.attrs.id === a.click));
+      const step = { click: a.click, result: null };
+      if (!el) step.result = "missing";
+      else if (el.disabled) step.result = "disabled";
+      else {
+        el.checked = el.attrs.type === "checkbox" ? !el.checked : true;
+        try { for (const fn of el.listeners.change || []) fn({ target: el }); step.result = "clicked"; }
+        catch (e) { step.result = "threw: " + brief(e); }
+      }
+      rec.steps.push(step);
+      rec.snaps.push(snapshot(appEl, loc));
+    }
+  } catch (e) { rec.errors.push(brief(e)); }
+  rec.errors.push(...errors);
+  results.push(rec);
+}
+process.stdout.write(JSON.stringify(results));
+"""
+
+def run_node(script, payload, logic_text=None, app_text=None):
+    """Roda um script de node ao lado de cópias da página: o logic.js e o app.js dados (ou os de verdade) e o
+    rules.js. Um node que falha (uma cópia com defeito) volta como {"node_error": ...}, que vira achado."""
+    node = shutil.which("node")
+    if not node:
+        sys.exit("test_configurator_page: node não encontrado")
+    with tempfile.TemporaryDirectory() as tmp:
+        shutil.copy(os.path.join(PAGE, "rules.js"), tmp)
+        for name, text in (("logic.js", logic_text), ("app.js", app_text)):
+            if text is None:
+                shutil.copy(os.path.join(PAGE, name), tmp)
+            else:
+                with open(os.path.join(tmp, name), "w", encoding="utf-8") as fh:
+                    fh.write(text)
+        with open(os.path.join(tmp, "package.json"), "w") as fh:
+            fh.write('{"type": "module"}\n')
+        with open(os.path.join(tmp, "run.js"), "w", encoding="utf-8") as fh:
+            fh.write(script)
+        r = subprocess.run([node, "run.js"], cwd=tmp, input=json.dumps(payload), capture_output=True, text=True)
+    if r.returncode != 0:
+        return {"node_error": r.stderr[-1500:]}
+    return json.loads(r.stdout)
+
+
+def str_of(lang, key):
+    """O texto que o app.js diz em `lang` para `key`, lido do STR dele."""
+    block = re.search(r"\n  %s: \{\n(.*?)\n  \},\n" % lang, APP, re.S).group(1)
+    m = re.search(r'"%s":\s*"((?:[^"\\]|\\.)*)"' % re.escape(key), block)
+    return json.loads('"' + m.group(1) + '"')
+
+
+def say(lang, key, **kw):
+    s = str_of(lang, key)
+    for k, v in kw.items():
+        s = s.replace("{" + k + "}", str(v))
+    return s
+
+
+def rule_why(rid):
+    return {lang: next(r for r in M["rules"] if r["id"] == rid)["why"][lang] for lang in gf.LANGS}
+
+
+def new_blockers(prof, **change):
+    """Os bloqueios que `change` traz ao perfil e que ele ainda não tinha: a pergunta de toda trava."""
+    now = {b["id"] for b in gf.blockers(prof, M)}
+    return [b for b in gf.blockers(dict(prof, **change), M) if b["id"] not in now]
+
+
+def label_of(pid, lang):
+    return M["ui_products"][pid]["label"][lang]
+
+
+ANGULO_RULES = {"angulo-needs-tft", "angulo-cyw43-needs-rp2350", "angulo-needs-tft-graph"}
+
+
+def ui_logic_findings(js):
+    """A lógica da UI (logic.js) contra o Python: cada trava, o link, o perfil e a estimativa."""
+    fs = []
+
+    def ok(cond, msg):
+        if not cond:
+            fs.append(msg)
+
+    if "node_error" in js:
+        return [f"o node falhou na lógica da UI: {js['node_error']}"]
+    by_ui = {(r["p"], r["u"], json.dumps(r["ctx"], sort_keys=True)): r for r in js["uis"]}
+
+    def get(p, u, ctx=None):
+        return by_ui[(p, u, json.dumps(ctx or {}, sort_keys=True))]
+
+    # 1. Cada opção de UI, em cada estado de partida, está travada se, e só se, o Python tem um bloqueio NOVO
+    #    para o perfil com a UI trocada -- o primeiro, com as mesmas palavras --, e o veredito é "blocked" se,
+    #    e só se, o Python tem algum bloqueio.
+    for r in js["uis"]:
+        p, u, ctx = r["p"], r["u"], r["ctx"]
+        tag = f"{p}/{ctx or 'como publicado'}/ui={u}"
+        prof = dict(gf.resolve_profile(p, M["profiles"]), **ctx)
+        new = new_blockers(prof, ui=u)
+        after = gf.blockers(dict(prof, ui=u), M)
+        ok(r["lock"] == (new[0]["id"] if new else None),
+           f"{tag}: trava da página {r['lock']} != bloqueios novos {[b['id'] for b in new]}")
+        if new and r["lock"] == new[0]["id"]:
+            ok(r["why"] == new[0]["why"], f"{tag}: o texto da trava {r['why']} != o do gerador {new[0]['why']}")
+        ok(r["ids"] == [b["id"] for b in after], f"{tag}: blockersOf dá {r['ids']}, gen_features.blockers {[b['id'] for b in after]}")
+        ok(r["verdict"] == ("blocked" if after else r["fit"]), f"{tag}: o veredito é {r['verdict']!r}, com os bloqueios {[b['id'] for b in after]}")
+    # Sem uma opção travada por cada regra do Ângulo, e uma livre, a comparação acima não prova nada.
+    locked = {r["lock"] for r in js["uis"] if r["lock"]}
+    ok(ANGULO_RULES <= locked, f"as regras do Ângulo que travam alguma opção: {sorted(locked)}; faltam {sorted(ANGULO_RULES - locked)}")
+    ok(any(r["lock"] is None and r["u"] == "angulo" and not r["ctx"] for r in js["uis"]), "nenhum produto deixa o Ângulo livre")
+
+    # 2. O que o desenho promete, em palavras. O Pico W com Wi-Fi: o Ângulo travado em todo perfil, e nos de
+    #    tela touch com o gráfico ligado (o release) a razão é a do Pico W; o Pico 2 W e o SIMUT Wire com tela
+    #    touch: livre. A UI do próprio produto nunca está travada.
+    pico_w = [p["id"] for p in MODEL["products"] if p["config"]["chip"] == "rp2040" and p["config"]["net"] == "cyw43"]
+    ok("pico_w_release" in pico_w and len(pico_w) >= 4, f"os perfis do Pico W com Wi-Fi: {pico_w}")
+    for p in pico_w:
+        cfg = next(x for x in MODEL["products"] if x["id"] == p)["config"]
+        lock = get(p, "angulo")["lock"]
+        ok(lock is not None and lock.startswith("angulo-"), f"{p}: o Ângulo devia estar travado no Pico W com Wi-Fi, trava por {lock}")
+        if cfg["display"] == "tft" and cfg["tft_graph"]:
+            ok(lock == "angulo-cyw43-needs-rp2350", f"{p}: a razão devia ser a do Pico W, é {lock}")
+            ok(get(p, "angulo")["why"] == rule_why("angulo-cyw43-needs-rp2350"), f"{p}: o motivo da trava não é o da regra do Pico W")
+    for p in ("pico2_w_release", "pico_wiretft"):
+        ok(get(p, "angulo")["lock"] is None, f"{p}: o Ângulo devia estar livre, trava por {get(p, 'angulo')['lock']}")
+        ok(get(p, "original")["lock"] is None, f"{p}: o visual original devia estar livre")
+    for x in MODEL["products"]:
+        ok(get(x["id"], x["config"]["ui"])["lock"] is None, f"{x['id']}: a UI do próprio produto está travada")
+    #    O gráfico do painel: sem ele o Ângulo está travado, com o motivo da regra; e com o Ângulo escolhido
+    #    é a chave do gráfico que fica travada, ligada. Das duas pontas, o mesmo motivo.
+    for p in ("pico2_w_release", "pico_wiretft"):
+        r = get(p, "angulo", {"tft_graph": False})
+        ok(r["lock"] == "angulo-needs-tft-graph" and r["why"] == rule_why("angulo-needs-tft-graph"),
+           f"{p}: com o gráfico desligado o Ângulo devia travar por angulo-needs-tft-graph: {r['lock']}")
+        sw_on = next(t for t in js["toggles"] if (t["p"], t["u"], t["t"]) == (p, "angulo", "tft_graph"))
+        ok(sw_on["lock"] == "angulo-needs-tft-graph" and sw_on["why"] == rule_why("angulo-needs-tft-graph"),
+           f"{p}: com o Ângulo escolhido a chave do gráfico devia travar por angulo-needs-tft-graph: {sw_on}")
+        sw_off = next(t for t in js["toggles"] if (t["p"], t["u"], t["t"]) == (p, "original", "tft_graph"))
+        ok(sw_off["lock"] is None, f"{p}: com o visual original a chave do gráfico devia estar livre: {sw_off}")
+    ok(get("pico_wiretft", "angulo", {"net": "cyw43"})["lock"] == "angulo-cyw43-needs-rp2350",
+       "pico_wiretft com o Wi-Fi de volta: o Ângulo devia travar pela regra do Pico W")
+
+    # 3. As chaves, com cada UI escolhida: travadas se, e só se, virá-las traz um bloqueio novo (o primeiro).
+    for r in js["toggles"]:
+        p, u, t = r["p"], r["u"], r["t"]
+        prof = dict(gf.resolve_profile(p, M["profiles"]), ui=u)
+        new = new_blockers(prof, **{t: not bool(prof.get(t, False))})
+        ok(r["lock"] == (new[0]["id"] if new else None),
+           f"{p}/ui={u}/{t}: trava da página {r['lock']} != bloqueios novos {[b['id'] for b in new]}")
+        if new and r["lock"] == new[0]["id"] and new[0]["kind"] == "rule":
+            ok(r["why"] == new[0]["why"], f"{p}/ui={u}/{t}: o texto da trava {r['why']} != o do gerador {new[0]['why']}")
+
+    # 4. A UI no link e no perfil: a do produto não é uma mudança e não se escreve; a outra vai e volta igual,
+    #    e o perfil que a página manda compilar leva `ui` só nesse caso, na grafia do Python.
+    for r in js["profiles"]:
+        p, u = r["p"], r["u"]
+        base_ui = gf.config_of(gf.resolve_profile(p, M["profiles"]))["ui"]
+        want_set = {} if u == base_ui else {"ui": u}
+        ok(r["set"] == want_set, f"{p}: normalizeSet de ui={u} deu {r['set']}, devia ser {want_set}")
+        spelled = json.dumps({"v": 1, "base": p, "set": want_set}, sort_keys=True, separators=(",", ":"))
+        ok(r["profile"] == spelled == bc.canonical(p, want_set), f"{p}/ui={u}: o perfil {r['profile']} != {spelled}")
+        try:
+            ok(bc.parse_spec(r["profile"], M) == (p, want_set), f"{p}/ui={u}: o build_custom leu o perfil {r['profile']} de outro jeito")
+        except bc.SpecError as e:
+            fs.append(f"{p}/ui={u}: o build_custom recusou o perfil {r['profile']} ({e})")
+        ok(r["hash"] == f"#b={p}" + (f"&ui={u}" if want_set else ""), f"{p}/ui={u}: o link é {r['hash']}")
+    nl = js["links"]
+    ok(nl["one"] == "#b=pico2_w_release&ui=angulo", f"formatHash com a UI deu {nl['one']!r}")
+    ok(nl["oneBack"] == {"productId": "pico2_w_release", "set": {"ui": "angulo"}}, f"o link com ui=angulo voltou como {nl['oneBack']}")
+    ok(nl["mixed"] == "#b=pico_w_release&net=enc28j60&ui=angulo&on=mdns&off=sensor_ds18b20",
+       f"formatHash com a rede, a UI e interruptores deu {nl['mixed']!r}")
+    rel = gf.config_of(gf.resolve_profile("pico_w_release", M["profiles"]))
+    want_mixed = {k: v for k, v in {"mdns": True, "sensor_ds18b20": False, "net": "enc28j60", "ui": "angulo"}.items() if v != rel[k]}
+    ok(nl["mixedBack"] == {"productId": "pico_w_release", "set": want_mixed} and want_mixed.get("ui") == "angulo",
+       f"o link com a rede, a UI e interruptores voltou como {nl['mixedBack']}")
+    ok(nl["sameAsProduct"] == {"productId": "pico2_w_angulo", "set": {}}, f"ui= igual ao do produto não é uma mudança: {nl['sameAsProduct']}")
+    ok(nl["otherThanProduct"] == {"productId": "pico2_w_angulo", "set": {"ui": "original"}}, f"ui=original no produto do Ângulo voltou como {nl['otherThanProduct']}")
+    ok(nl["originalDefault"] == {"productId": "pico2_w_release", "set": {}}, f"ui=original no Pico 2 W não é uma mudança: {nl['originalDefault']}")
+    ok(nl["defaultNotWritten"] == "#b=pico2_w_angulo", f"a UI do produto foi escrita no link: {nl['defaultNotWritten']!r}")
+    ok(nl["normalized"] == {}, f"normalizeSet deveria tirar ui e mdns quando são os do produto: {nl['normalized']}")
+    #    Os links hostis da UI, lidos por esta cópia da lógica: recusados, com o motivo certo.
+    for h, got in zip(HOSTILE_UI, js["hostile"]):
+        ok((got.get("error"), got.get("value")) == HOSTILE_UI[h],
+           f"link {h[:60]!r}: a página recusa com {(got.get('error'), got.get('value'))}, devia ser {HOSTILE_UI[h]}")
+
+    # 5. O custo: sem a medida de `ui=<id>` nos flips a estimativa a deixa de fora e diz que deixou ("sem
+    #    medida", como a rede); com ela, é a base mais a medida. Até a matriz medir, e depois.
+    costs_by = MODEL["costs"]["products"] if MODEL.get("costs") else {}
+    for r in js["estimates"]:
+        p, u, e = r["p"], r["u"], r["est"]
+        if p not in costs_by:
+            ok(e is None, f"{p} não tem custo medido, mas a página estimou {e}")
+            continue
+        base = costs_by[p]["base"]
+        flip = costs_by[p]["flips"].get(f"ui={u}")
+        if not r["set"]:
+            ok(e["used"] == base["used"] and e["missing"] == [], f"{p}/ui={u}: a UI do produto mexeu na estimativa: {e}")
+        elif flip is None or "used" not in flip and "overflow" not in flip:
+            ok(e["missing"] == ["ui"] and e["used"] == base["used"] and e["bin"] == base["bin"],
+               f"{p}/ui={u}: sem medida, a estimativa devia deixar `ui` em missing e a base como está: {e}")
+        elif "used" in flip:
+            ok(e["used"] == flip["used"] and e["bin"] == flip["bin"] and e["ram"] == flip["ram"] and e["missing"] == [],
+               f"{p}/ui={u}: a estimativa {e} != a medida {flip}")
+    return fs
+
+
+def ui_scenarios():
+    """As visitas à página: cada produto nas duas línguas, e as que se fazem com cliques."""
+    sc = [{"name": f"sweep:{lang}:{p}", "hash": f"#b={p}", "lang": lang, "actions": []}
+          for lang in ("en", "pt") for p in PRODUCTS]
+    sc += [
+        {"name": "two", "hash": "#b=pico2_w_release", "lang": "en",
+         "actions": [{"click": "u-angulo"}, {"click": "t-tft_graph"}, {"click": "u-original"}]},
+        {"name": "nochart", "hash": "#b=pico2_w_release&off=tft_graph", "lang": "en",
+         "actions": [{"click": "u-angulo"}, {"click": "t-tft_graph"}, {"click": "u-angulo"}]},
+        {"name": "wiretft", "hash": "#b=pico_wiretft", "lang": "en",
+         "actions": [{"click": "u-angulo"}, {"click": "n-cyw43"}]},
+        {"name": "twoangulo", "hash": "#b=pico2_w_angulo", "lang": "en",
+         "actions": [{"click": "u-original"}, {"click": "u-angulo"}]},
+        {"name": "linkblocked", "hash": "#b=pico_w_release&ui=angulo", "lang": "en", "actions": [{"click": "u-original"}]},
+        {"name": "linkunknown", "hash": "#b=pico2_w_release&ui=nonsense", "lang": "en", "actions": []},
+        {"name": "ptflow", "hash": "#b=pico2_w_release", "lang": "pt", "actions": [{"click": "u-angulo"}]},
+    ]
+    return sc
+
+
+def ui_app_findings(res):
+    """O app.js de verdade, visita por visita: o que o leitor vê da escolha da UI e do que ela trava."""
+    fs = []
+
+    def ok(cond, msg):
+        if not cond:
+            fs.append(msg)
+
+    by = {r["name"]: r for r in res}
+    for r in res:
+        for e in r["errors"]:
+            fs.append(f"{r['name']}: a página deu erro: {e}")
+    for want in ui_scenarios():
+        if want["name"] not in by:
+            fs.append(f"{want['name']}: a visita não voltou")
+        elif len(by[want["name"]]["snaps"]) != 1 + len(want["actions"]):
+            fs.append(f"{want['name']}: {len(by[want['name']]['snaps'])} telas para {len(want['actions'])} cliques")
+    if fs:
+        return fs
+
+    # Um elemento que não está na tela volta como um vazio que reprova as comparações, e não como um None
+    # que derrubaria o teste: ausência é um achado, não um traceback.
+    def fieldset(s, radio):
+        got = [f for f in s["fieldsets"] if f["rows"] and f["rows"][0]["radio"] == radio]
+        return got[0] if len(got) == 1 else {"legend": None, "changed": None, "block": None, "beforeSwitches": None, "rows": []}
+
+    def row(s, rid):
+        return next((x for f in s["fieldsets"] for x in f["rows"] if x["id"] == rid),
+                    {"id": rid, "radio": None, "name": None, "help": None, "lock": "ausente", "cost": None, "checked": None, "disabled": None})
+
+    def switch(s, sid):
+        return next((x for x in s["switches"] if x["id"] == sid), {"id": sid, "checked": None, "disabled": None, "locks": ["ausente"]})
+
+    # 1. A varredura: cada produto, nas duas línguas. A escolha está no grupo do modelo, antes das chaves, com
+    #    o título do modelo e uma opção por UI do manifesto, com o nome e a ajuda dele; a do produto marcada;
+    #    a opção que uma regra recusa desabilitada, com o motivo da regra à vista, no texto de toda trava.
+    #    A escolha da rede, que já existia, é lida do mesmo jeito: é o controle do instrumento.
+    for lang in ("en", "pt"):
+        for p in PRODUCTS:
+            s = by[f"sweep:{lang}:{p}"]["snaps"][0]
+            tag = f"{p} ({lang})"
+            prof = gf.resolve_profile(p, M["profiles"])
+            base = gf.config_of(prof)
+            ok(s["product"] == p, f"{tag}: a página abriu {s['product']}")
+            f = fieldset(s, "visual")
+            if not f["rows"]:
+                fs.append(f"{tag}: a página devia desenhar uma escolha de UI (rádios 'visual'), e não desenhou uma só")
+                continue
+            group = next(g for g in MODEL["groups"] if g["id"] == MODEL["ui"]["group"])
+            ok(f["block"] == group["label"][lang], f"{tag}: a escolha da UI está no bloco {f['block']!r}, devia estar em {group['label'][lang]!r}")
+            ok(f["legend"] == MODEL["ui"]["label"][lang], f"{tag}: o título da escolha é {f['legend']!r}")
+            ok(f["beforeSwitches"], f"{tag}: a escolha da UI devia vir antes das chaves do grupo")
+            ok(not f["changed"], f"{tag}: o produto como publicado já mostra 'mudou' na UI")
+            ok([x["id"] for x in f["rows"]] == [f"u-{u}" for u in UIS], f"{tag}: as opções são {[x['id'] for x in f['rows']]}")
+            for x, u in zip(f["rows"], UIS):
+                new = new_blockers(prof, ui=u)
+                ok(x["name"] == M["ui_panels"][u]["label"][lang], f"{tag}/{u}: o nome é {x['name']!r}")
+                ok(x["help"] == M["ui_panels"][u]["help"][lang], f"{tag}/{u}: a ajuda não é a do manifesto")
+                ok(x["checked"] == (u == base["ui"]), f"{tag}/{u}: marcada={x['checked']}, a UI do produto é {base['ui']}")
+                ok(x["disabled"] == bool(new), f"{tag}/{u}: desabilitada={x['disabled']}, bloqueios novos {[b['id'] for b in new]}")
+                ok(x["lock"] == (say(lang, "locked", why=new[0]["why"][lang]) if new else None),
+                   f"{tag}/{u}: o texto da trava é {x['lock']!r}, devia ser o motivo de {new[0]['id'] if new else None}")
+                ok(x["cost"] is None, f"{tag}/{u}: a opção mostra um preço ({x['cost']!r}) que nenhuma medida sustenta")
+            n = fieldset(s, "rede")
+            ok([x["id"] for x in n["rows"]] == [f"n-{o}" for o in NETS], f"{tag}: a escolha da rede não foi lida")
+            for x, o in zip(n["rows"], NETS):
+                new = new_blockers(prof, net=o)
+                ok(x["disabled"] == bool(new) and x["lock"] == (say(lang, "locked", why=new[0]["why"][lang]) if new else None),
+                   f"{tag}/net={o}: a página mostra {x['disabled']}/{x['lock']!r}, os bloqueios novos são {[b['id'] for b in new]}")
+
+    # 2. O Pico 2 W: escolher o Ângulo, e voltar. A chave do gráfico fica travada, ligada, com o motivo da
+    #    regra; a estimativa diz que não tem medida da UI; o perfil, o link e o pedido levam `ui`; voltar à
+    #    UI do produto deixa a tela IGUAL à de partida (o padrão não se escreve em lugar nenhum).
+    r = by["two"]
+    ok([st["result"] for st in r["steps"]] == ["clicked", "disabled", "clicked"], f"two: cliques {r['steps']}")
+    s0, s1, s2, s3 = r["snaps"]
+    chart = rule_why("angulo-needs-tft-graph")
+    ang_en = M["ui_panels"]["angulo"]["label"]["en"]
+    ok(s0["hash"] == "#b=pico2_w_release" and row(s0, "u-original")["checked"] and not row(s0, "u-angulo")["checked"]
+       and not row(s0, "u-angulo")["disabled"], f"two: a tela de partida: {s0['hash']}")
+    ok(switch(s0, "t-tft_graph")["checked"] and not switch(s0, "t-tft_graph")["disabled"], "two: o gráfico devia estar ligado e livre")
+    ok(s1["hash"] == "#b=pico2_w_release&ui=angulo", f"two: o link com o Ângulo é {s1['hash']!r}")
+    ok(row(s1, "u-angulo")["checked"] and not row(s1, "u-original")["checked"], "two: o Ângulo devia estar marcado")
+    ok(fieldset(s1, "visual")["changed"], "two: o título da escolha devia dizer 'mudou'")
+    sw1 = switch(s1, "t-tft_graph")
+    ok(sw1["checked"] and sw1["disabled"] and sw1["locks"] == [say("en", "locked", why=chart["en"])],
+       f"two: a chave do gráfico devia estar ligada e travada pelo motivo da regra: {sw1}")
+    ok(s1["build"] == {"disabled": False}, f"two: o botão de compilar com o Ângulo: {s1['build']}")
+    ok(s1["summary"] == say("en", "result.changes1", p=label_of("pico2_w_release", "en")), f"two: o resumo é {s1['summary']!r}")
+    ok(say("en", "warn.missing", list=ang_en) in [w["text"] for w in s1["warnings"]],
+       f"two: sem o aviso de que a UI não tem medida: {[w['text'] for w in s1['warnings']]}")
+    ok(s1["profile"] == f"python3 tools/build_custom.py --profile '{bc.canonical('pico2_w_release', {'ui': 'angulo'})}'",
+       f"two: o perfil que a página manda compilar é {s1['profile']!r}")
+    ok(s1["issue"] and f"- {M['ui_panel']['label']['en']}: {ang_en}" in s1["issue"]["body"].splitlines()
+       and s1["issue"]["title"] == f"Build request: {label_of('pico2_w_release', 'en')}, 1 change",
+       f"two: o pedido não leva a UI: {s1['issue']}")
+    ok(s2 == s1, "two: um clique em controle travado mexeu na tela")
+    ok(s3 == s0, f"two: ao voltar ao visual original a tela devia ser a de partida; hash {s3['hash']!r}, perfil {s3['profile']!r}")
+
+    # 3. Sem o gráfico do painel o Ângulo está travado, com o mesmo motivo; ligado o gráfico, ele se liberta.
+    r = by["nochart"]
+    ok([st["result"] for st in r["steps"]] == ["disabled", "clicked", "clicked"], f"nochart: cliques {r['steps']}")
+    s0, s1, s2, s3 = r["snaps"]
+    ang = row(s0, "u-angulo")
+    ok(ang["disabled"] and not ang["checked"] and ang["lock"] == say("en", "locked", why=chart["en"]),
+       f"nochart: o Ângulo sem o gráfico devia estar travado pelo motivo da regra: {ang}")
+    ok(not switch(s0, "t-tft_graph")["checked"] and not switch(s0, "t-tft_graph")["disabled"], "nochart: a chave do gráfico devia estar desligada e livre")
+    ok(s1 == s0, "nochart: um clique em controle travado mexeu na tela")
+    ok(s2["hash"] == "#b=pico2_w_release" and not row(s2, "u-angulo")["disabled"] and row(s2, "u-angulo")["lock"] is None,
+       f"nochart: ligado o gráfico o Ângulo devia se libertar: {s2['hash']}, {row(s2, 'u-angulo')}")
+    ok(s3["hash"] == "#b=pico2_w_release&ui=angulo" and switch(s3, "t-tft_graph")["disabled"], f"nochart: {s3['hash']}")
+
+    # 4. O SIMUT Wire com tela touch (RP2040 com o cabo): o Ângulo é livre; escolhido, o Wi-Fi de volta trava
+    #    pela regra do Pico W, que é a pergunta que a escolha da rede faz.
+    r = by["wiretft"]
+    ok([st["result"] for st in r["steps"]] == ["clicked", "disabled"], f"wiretft: cliques {r['steps']}")
+    s0, s1, s2 = r["snaps"]
+    ok(s0["hash"] == "#b=pico_wiretft" and not row(s0, "u-angulo")["disabled"] and row(s0, "u-original")["checked"], f"wiretft: partida {s0['hash']}")
+    ok(not row(s0, "n-cyw43")["disabled"], "wiretft: antes do Ângulo o Wi-Fi não devia estar travado")
+    prof = gf.resolve_profile("pico_wiretft", M["profiles"])
+    nb = new_blockers(dict(prof, ui="angulo"), net="cyw43")
+    ok(nb and nb[0]["id"] == "angulo-cyw43-needs-rp2350", f"wiretft: o Python devia travar o Wi-Fi com o Ângulo pela regra do Pico W: {[b['id'] for b in nb]}")
+    ok(s1["hash"] == "#b=pico_wiretft&ui=angulo" and s1["build"] == {"disabled": False}, f"wiretft: {s1['hash']}, {s1['build']}")
+    ok(row(s1, "n-cyw43")["disabled"] and row(s1, "n-cyw43")["lock"] == say("en", "locked", why=rule_why("angulo-cyw43-needs-rp2350")["en"]),
+       f"wiretft: escolhido o Ângulo, o Wi-Fi devia travar pelo motivo da regra: {row(s1, 'n-cyw43')}")
+    ok(s2 == s1, "wiretft: um clique em controle travado mexeu na tela")
+
+    # 5. O produto do Ângulo: a UI dele é a do produto e não se escreve; trocar para o original é a mudança.
+    r = by["twoangulo"]
+    ok([st["result"] for st in r["steps"]] == ["clicked", "clicked"], f"twoangulo: cliques {r['steps']}")
+    s0, s1, s2 = r["snaps"]
+    ok(s0["hash"] == "#b=pico2_w_angulo" and row(s0, "u-angulo")["checked"] and not row(s0, "u-original")["disabled"]
+       and not fieldset(s0, "visual")["changed"], f"twoangulo: partida {s0['hash']}")
+    ok(s1["hash"] == "#b=pico2_w_angulo&ui=original" and row(s1, "u-original")["checked"] and fieldset(s1, "visual")["changed"],
+       f"twoangulo: ao escolher o original o link é {s1['hash']!r}")
+    ok(s2 == s0, "twoangulo: voltar ao Ângulo devia deixar a tela como a de partida")
+
+    # 6. Um link com o Ângulo no Pico W: a página o mostra como está, bloqueado, com o motivo, e a saída
+    #    (o visual original) livre; escolhê-la limpa o bloqueio.
+    r = by["linkblocked"]
+    s0, s1 = r["snaps"]
+    ok(s0["hash"] == "#b=pico_w_release&ui=angulo", f"linkblocked: {s0['hash']!r}")
+    ok(row(s0, "u-angulo")["checked"] and not row(s0, "u-angulo")["disabled"] and not row(s0, "u-original")["disabled"],
+       f"linkblocked: a UI escolhida e a saída deviam estar livres: {row(s0, 'u-angulo')}, {row(s0, 'u-original')}")
+    ok(s0["build"] == {"disabled": True} and s0["selos"][:1] == [say("en", "fit.blocked")], f"linkblocked: {s0['build']}, {s0['selos']}")
+    texts = [w["text"] for w in s0["warnings"]]
+    ok(say("en", "warn.rule", why=rule_why("angulo-cyw43-needs-rp2350")["en"]) in texts, f"linkblocked: sem o motivo da regra no aviso: {texts}")
+    ok(s1["hash"] == "#b=pico_w_release" and s1["build"] == {"disabled": False}, f"linkblocked: ao escolher o original {s1['hash']}, {s1['build']}")
+    ok(not any(w["text"].startswith(say("en", "warn.rule", why="")) for w in s1["warnings"]), "linkblocked: o aviso da regra ficou")
+
+    # 7. Um link com uma UI que o modelo não conhece: ignorado, com o aviso de sempre, no produto padrão.
+    s = by["linkunknown"]["snaps"][0]
+    ok(s["notice"] == say("en", "err.hash", v="nonsense"), f"linkunknown: o aviso é {s['notice']!r}")
+    ok(s["product"] == "pico_w_release" and s["hash"] == "#b=pico_w_release", f"linkunknown: abriu {s['product']} em {s['hash']!r}")
+
+    # 8. Em português: o motivo da trava, o aviso de que não há medida e o pedido, que é sempre em inglês.
+    r = by["ptflow"]
+    s1 = r["snaps"][1]
+    ang_pt = M["ui_panels"]["angulo"]["label"]["pt"]
+    sw1 = switch(s1, "t-tft_graph")
+    ok(sw1["disabled"] and sw1["locks"] == [say("pt", "locked", why=chart["pt"])], f"ptflow: a trava da chave do gráfico em português: {sw1}")
+    ok(say("pt", "warn.missing", list=ang_pt) in [w["text"] for w in s1["warnings"]], "ptflow: sem o aviso de que a UI não tem medida, em português")
+    ok(f"- {M['ui_panel']['label']['en']}: {M['ui_panels']['angulo']['label']['en']}" in (s1["issue"] or {"body": ""})["body"].splitlines(),
+       "ptflow: o pedido devia dizer a UI em inglês")
+    return fs
+
+
+def ui_source_findings(app_text):
+    """O que só se vê no texto do app.js: o produto passa a toda trava de UI, sem o qual a recusa por chip some
+    sem erro nenhum."""
+    calls = re.findall(r"L\.uiLockOf\(([^()]*)\)", app_text)
+    if len(calls) == 1 and len([a for a in calls[0].split(",") if a.strip()]) == 4:
+        return []
+    return [f"app.js: a escolha da UI deveria chamar L.uiLockOf uma vez, com o produto (4 argumentos): {calls}"]
+
+
+def ui_run(logic_text=None, app_text=None):
+    """A lógica e a página, conferidas: a lista de achados e as telas de cada visita."""
+    fs = ui_logic_findings(run_node(JS_UI, {"model": MODEL, "products": PRODUCTS, "toggles": TOGGLES, "uis": UIS,
+                                            "contexts": CONTEXTS, "hostile": list(HOSTILE_UI)}, logic_text=logic_text))
+    fs += ui_source_findings(APP if app_text is None else app_text)
+    res = run_node(JS_APP, {"model": MODEL, "scenarios": ui_scenarios()}, logic_text=logic_text, app_text=app_text)
+    if isinstance(res, dict):
+        return fs + [f"o node falhou na página: {res['node_error']}"], []
+    return fs + ui_app_findings(res), res
+
+
+ui_findings, ui_visits = ui_run()
+failures.extend(ui_findings)
+if os.environ.get("SIMUT_PAGE_SNAPSHOTS"):   # para quem quer ver as telas: a lista de visitas, em JSON
+    with open(os.environ["SIMUT_PAGE_SNAPSHOTS"], "w", encoding="utf-8") as fh:
+        json.dump(ui_visits, fh, ensure_ascii=False, indent=1)
+
+# 13c. Os controles: uma quebra plantada numa cópia da página, uma de cada vez, e as conferências acima têm
+#      de acusá-la. Sem isto uma conferência que nunca morde passaria calada (a âncora tem de aparecer uma
+#      vez só, para a quebra ser a que se diz). Os dois últimos quebram a escolha da rede, que já existia: é a
+#      prova de que o instrumento (o DOM de mentira) lê a trava de uma escolha de driver.
+with open(os.path.join(PAGE, "logic.js"), encoding="utf-8") as fh:
+    LOGIC = fh.read()
+CONTROLS = [
+    ("normalizeSet esquece a UI", "logic",
+     '  if (Object.prototype.hasOwnProperty.call(set, "ui") && set.ui !== base.ui) out.ui = set.ui;\n', ""),
+    ("normalizeSet guarda a UI do próprio produto", "logic",
+     'hasOwnProperty.call(set, "ui") && set.ui !== base.ui) out.ui = set.ui;', 'hasOwnProperty.call(set, "ui")) out.ui = set.ui;'),
+    ("formatHash trata ui como interruptor", "logic", 'k !== "net" && k !== "ui"', 'k !== "net"'),
+    ("formatHash não escreve a UI", "logic", "  if (set.ui) h += `&ui=${set.ui}`;\n", ""),
+    ("parseHash ignora ui", "logic", '  if (params.has("ui")) {', "  if (false) {"),
+    ("parseHash aceita qualquer ui", "logic",
+     'if (!ID.test(u) || !model.ui.options.some((o) => o.id === u)) return { error: "ui", value: u };',
+     'if (!ID.test(u)) return { error: "ui", value: u };'),
+    ("parseHash aceita ui duas vezes", "logic", '    if (params.getAll("ui").length > 1) return { error: "twice", value: "ui" };\n', ""),
+    ("uiLockOf nunca trava", "logic",
+     '  return choiceLockOf(model, config, "ui", uiId, productId);', "  return null;"),
+    ("uiLockOf pergunta pela rede", "logic",
+     '  return choiceLockOf(model, config, "ui", uiId, productId);', '  return choiceLockOf(model, config, "net", uiId, productId);'),
+    ("a trava conta o bloqueio que a escolha já tem", "logic",
+     "{ ...config, [key]: value }).find((x) => !now.has(x.id))", "{ ...config, [key]: value }).find(() => true)"),
+    ("netLockOf nunca trava", "logic",
+     '  return choiceLockOf(model, config, "net", netId, productId);', "  return null;"),
+    ("renderFeatures não desenha a UI", "app",
+     "    const ui = g.id === m.ui.group ? renderUi(config) : null;", "    const ui = null;"),
+    ("a UI vai para o grupo da rede", "app", "g.id === m.ui.group ? renderUi", "g.id === m.net.group ? renderUi"),
+    ("a UI vem depois das chaves", "app",
+     'return h("div", { class: "cfg-bloco" }, h("h3", { class: "cfg-bloco-titulo", text: title }), net, ui, rows);',
+     'return h("div", { class: "cfg-bloco" }, h("h3", { class: "cfg-bloco-titulo", text: title }), net, rows, ui);'),
+    ("a opção recusada continua habilitada", "app",
+     "checked: config.ui === o.id, disabled: Boolean(lock),", "checked: config.ui === o.id,"),
+    ("a trava da UI não mostra o motivo", "app",
+     '''          lock ? h("span", { class: "cfg-chave-trava", id: lockId, text: t("locked", { why: label(lock.why) }) }) : null),
+        h("span", { class: "cfg-chave-lado" },
+          h("input", { type: "radio", class: "cfg-radio", name: "visual",''',
+     '''          null),
+        h("span", { class: "cfg-chave-lado" },
+          h("input", { type: "radio", class: "cfg-radio", name: "visual",'''),
+    ("a marcada não é a escolha de agora", "app", "checked: config.ui === o.id", "checked: state.set.ui === o.id"),
+    ("missingName não sabe ui", "app",
+     '''  if (id === "ui") {
+    const o = m.ui.options.find((x) => x.id === state.set.ui);
+    return label(o ? o.label : m.ui.label);
+  }
+''', ""),
+    ("changeLines não sabe ui", "app",
+     '''    if (id === "ui") {
+      const o = m.ui.options.find((y) => y.id === v);
+      return `- ${m.ui.label.en}: ${o ? o.label.en : v}`;
+    }
+''', ""),
+    ("chooseUi não normaliza", "app",
+     "  const next = { ...state.set, ui: uiId };\n  state.set = L.normalizeSet(state.model, state.productId, next);",
+     "  const next = { ...state.set, ui: uiId };\n  state.set = next;"),
+    ("chooseUi não escreve o link", "app",
+     "  state.set = L.normalizeSet(state.model, state.productId, next);\n  dropFinishedRun();\n  writeHash();\n  render();\n}\n\n/* ---- rendering",
+     "  state.set = L.normalizeSet(state.model, state.productId, next);\n  dropFinishedRun();\n  render();\n}\n\n/* ---- rendering"),
+    ("a trava da UI sem o produto", "app", "L.uiLockOf(m, config, o.id, state.productId)", "L.uiLockOf(m, config, o.id)"),
+    ("o título da UI não diz mudou", "app", '  const changed = "ui" in state.set;', "  const changed = false;"),
+    ("a trava da rede não mostra o motivo (instrumento)", "app",
+     '''          lock ? h("span", { class: "cfg-chave-trava", id: lockId, text: t("locked", { why: label(lock.why) }) }) : null),
+        h("span", { class: "cfg-chave-lado" },
+          priceText''',
+     '''          null),
+        h("span", { class: "cfg-chave-lado" },
+          priceText'''),
+    ("o rádio da rede não desabilita (instrumento)", "app",
+     "checked: config.net === o.id, disabled: Boolean(lock),", "checked: config.net === o.id,"),
+]
+control_hits = {}
+for cname, which, old, new in CONTROLS:
+    src = LOGIC if which == "logic" else APP
+    if src.count(old) != 1:
+        failures.append(f"controle '{cname}': a âncora aparece {src.count(old)} vez(es) em {which}.js, devia ser uma")
+        continue
+    broken = src.replace(old, new)
+    got, _ = ui_run(logic_text=broken if which == "logic" else None, app_text=broken if which == "app" else None)
+    control_hits[cname] = len(got)
+    check(got, f"controle '{cname}': a quebra plantada em {which}.js não foi acusada por nenhuma conferência")
+if os.environ.get("SIMUT_PAGE_CONTROLS"):   # para quem quer ver quantos achados cada quebra dá
+    with open(os.environ["SIMUT_PAGE_CONTROLS"], "w", encoding="utf-8") as fh:
+        json.dump(control_hits, fh, ensure_ascii=False, indent=1)
+
+
 if failures:
     print("test_configurator_page: FALHOU")
     for f in failures[:40]:
@@ -732,4 +1471,5 @@ if failures:
     sys.exit(1)
 print(f"test_configurator_page: {len(sets)} perfis e links, {len(HOSTILE_HASHES)} links hostis, "
       f"{len(js['singles'])} chaves medidas, {len(js['locks'])} travas, {len(js['nets'])} opções de rede; "
+      f"{len(ui_visits)} visitas à página, {len(UIS)} UIs, {len(CONTROLS)} quebras plantadas acusadas; "
       f"erro medido {max(miss_used, miss_bin)} B em {n} conferências, margem {js['margin']} B.")

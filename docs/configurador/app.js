@@ -1,10 +1,10 @@
 /* app.js — the SIMUT build configurator (docs/configurador/).
  *
- * The page draws what model.json says: the products, the network drivers as a
- * choice and the switches grouped as a tree, the rules (each measured by
- * compiling the combination it forbids) and the per-product cost of every
- * switch. Nothing about the firmware is typed in this file; tools/features.toml
- * is the one source, and logic.js does the sums.
+ * The page draws what model.json says: the products, the network drivers and
+ * the look of the touch display as choices, the switches grouped as a tree, the
+ * rules (each measured by compiling the combination it forbids) and the
+ * per-product cost of every switch. Nothing about the firmware is typed in this
+ * file; tools/features.toml is the one source, and logic.js does the sums.
  *
  * The page is not the authority on what builds. It locks what a rule forbids so
  * nobody asks for it, and tools/build_custom.py applies the same rules again
@@ -372,6 +372,16 @@ function chooseNet(netId) {
   render();
 }
 
+/* The look of the touch display is a choice of driver too, not a switch: it rides
+ * in `set` as the driver's id, and goes again when it is the product's own. */
+function chooseUi(uiId) {
+  const next = { ...state.set, ui: uiId };
+  state.set = L.normalizeSet(state.model, state.productId, next);
+  dropFinishedRun();
+  writeHash();
+  render();
+}
+
 /* ---- rendering ------------------------------------------------------------ */
 
 function render() {
@@ -461,15 +471,18 @@ function renderFeatures() {
     const rows = m.toggles.filter((x) => x.group === g.id).map((x) => renderToggle(x, config));
     // The choice of network driver sits in the group the model names, above its switches.
     const net = g.id === m.net.group ? renderNet(config) : null;
+    // The look of the touch display sits in the group the model names, above its switches.
+    const ui = g.id === m.ui.group ? renderUi(config) : null;
     const title = label(g.label);
     if (g.advanced) {
-      const changed = m.toggles.some((x) => x.group === g.id && x.id in state.set) || (net !== null && "net" in state.set);
+      const changed = m.toggles.some((x) => x.group === g.id && x.id in state.set) || (net !== null && "net" in state.set)
+        || (ui !== null && "ui" in state.set);
       const open = g.id in state.open ? state.open[g.id] : changed;
       return h("details", { class: "cfg-bloco cfg-detalhes", open,
                             ontoggle: (e) => { state.open[g.id] = e.target.open; } },
-        h("summary", {}, h("h3", { class: "cfg-bloco-titulo", text: title })), net, rows);
+        h("summary", {}, h("h3", { class: "cfg-bloco-titulo", text: title })), net, ui, rows);
     }
-    return h("div", { class: "cfg-bloco" }, h("h3", { class: "cfg-bloco-titulo", text: title }), net, rows);
+    return h("div", { class: "cfg-bloco" }, h("h3", { class: "cfg-bloco-titulo", text: title }), net, ui, rows);
   });
   return h("section", { class: "cfg-secao", "aria-labelledby": "h-recursos" },
     h("h2", { class: "cfg-secao-titulo", id: "h-recursos", text: t("sec.features") }), groups);
@@ -539,6 +552,37 @@ function renderNet(config) {
                        "aria-labelledby": `${id}-nome`, "aria-describedby": lock ? `${helpId} ${lockId}` : helpId,
                        checked: config.net === o.id, disabled: Boolean(lock),
                        onchange: () => chooseNet(o.id) })));
+    }));
+}
+
+/* The look of the touch display: one radio per [ui.*] of the model, as rows of the
+ * group the model names, the way the network drivers are (renderNet), and for the
+ * same reason: native radios in one fieldset, the arrow keys move between them. An
+ * option a rule refuses for this choice is disabled with the rule's reason on the
+ * row (L.uiLockOf, which asks the same question lockOf does): the Ângulo on the
+ * Pico W with Wi-Fi, without the touch display, and without the panel chart. No
+ * price is shown: the cost matrix has no "ui=<id>" flip yet, so choosing the
+ * Ângulo adds "no measurement" to the warnings (est.missing) and nothing to the sum. */
+function renderUi(config) {
+  const m = state.model;
+  const changed = "ui" in state.set;
+  return h("fieldset", { class: "cfg-rede" },
+    h("legend", { class: "cfg-rede-titulo" }, label(m.ui.label),
+      changed ? [" ", h("span", { class: "selo", text: t("changed") })] : null),
+    m.ui.options.map((o) => {
+      const id = `u-${o.id}`;
+      const lock = L.uiLockOf(m, config, o.id, state.productId);
+      const helpId = `${id}-ajuda`, lockId = `${id}-trava`;
+      return h("label", { class: "cfg-chave cfg-rede-opcao", for: id },
+        h("span", { class: "cfg-chave-texto" },
+          h("span", { class: "cfg-chave-nome", id: `${id}-nome`, text: label(o.label) }),
+          h("span", { class: "cfg-apoio", id: helpId, text: label(o.help) }),
+          lock ? h("span", { class: "cfg-chave-trava", id: lockId, text: t("locked", { why: label(lock.why) }) }) : null),
+        h("span", { class: "cfg-chave-lado" },
+          h("input", { type: "radio", class: "cfg-radio", name: "visual", id, value: o.id,
+                       "aria-labelledby": `${id}-nome`, "aria-describedby": lock ? `${helpId} ${lockId}` : helpId,
+                       checked: config.ui === o.id, disabled: Boolean(lock),
+                       onchange: () => chooseUi(o.id) })));
     }));
 }
 
@@ -627,12 +671,16 @@ function renderResult() {
 }
 
 /* What a change with no measurement is called: a switch by its label, the
- * network by the driver that was chosen (`net` is not one of the switches). */
+ * network and the look by what was chosen (`net` and `ui` are not switches). */
 function missingName(id) {
   const m = state.model;
   if (id === "net") {
     const o = m.net.options.find((x) => x.id === state.set.net);
     return label(o ? o.label : m.net.label);
+  }
+  if (id === "ui") {
+    const o = m.ui.options.find((x) => x.id === state.set.ui);
+    return label(o ? o.label : m.ui.label);
   }
   const sw = m.toggles.find((x) => x.id === id);
   return label(sw.label);
@@ -686,14 +734,18 @@ async function onCopy() {
   }
 }
 
-/* The changes, one line each: a switch by its state, the connection by the
- * driver chosen. English, because the issue is. */
+/* The changes, one line each: a switch by its state, the connection and the look
+ * by what was chosen. English, because the issue is. */
 function changeLines() {
   const m = state.model;
   return Object.entries(state.set).map(([id, v]) => {
     if (id === "net") {
       const o = m.net.options.find((y) => y.id === v);
       return `- ${m.net.label.en}: ${o ? o.label.en : v}`;
+    }
+    if (id === "ui") {
+      const o = m.ui.options.find((y) => y.id === v);
+      return `- ${m.ui.label.en}: ${o ? o.label.en : v}`;
     }
     const x = m.toggles.find((y) => y.id === id);
     return `- ${x.label.en}: ${v ? "on" : "off"}`;
