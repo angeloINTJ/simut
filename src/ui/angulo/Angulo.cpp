@@ -41,21 +41,37 @@ namespace ua {
 
 namespace {
 
-Tema deEntrega( const entrega::Tema &e, bool escuro ) {
+Tema deEntrega( const entrega::Tema &e, bool escuro, uint8_t entrada ) {
   return Tema{ e.fundo, e.superficie, e.superficie2, e.tinta, e.tinta2, e.linha, e.linhaForte, e.acento,
                e.acentoForte, e.acentoTinta, e.positivo, e.positivoSuave, e.alerta, e.alertaSuave, e.perigo,
-               e.perigoSuave, e.perigoTinta, escuro };
+               e.perigoSuave, e.perigoTinta, escuro, entrada };
 }
 
-const Tema kClaro = deEntrega( entrega::TEMA_CLARO, false );
-const Tema kEscuro = deEntrega( entrega::TEMA_ESCURO, true );
-const Tema kClaroDesab = deEntrega( entrega::TEMA_CLARO_DESAB, false );
-const Tema kEscuroDesab = deEntrega( entrega::TEMA_ESCURO_DESAB, true );
+// How many entries the palette holds: the extent of the generated index array, so that no second copy of the count lives here.
+constexpr size_t kAcentos = sizeof entrega::TEMAS_CLARO / sizeof entrega::TEMAS_CLARO[0];
+
+// The palette's tables, one per mode and entry, built by static initialisation (before setup( ) starts Core 1) and only read
+// afterwards. The 45 % twins stay in the generated tables: desab( ) reads them in place.
+struct Paleta {
+  Tema t[2][kAcentos];
+  Paleta( ) {
+    for ( size_t k = 0; k < kAcentos; k++ ) {
+      t[0][k] = deEntrega( *entrega::TEMAS_CLARO[k], false, (uint8_t)k );
+      t[1][k] = deEntrega( *entrega::TEMAS_ESCURO[k], true, (uint8_t)k );
+    }
+  }
+};
+
+const Paleta kPaleta;
 
 }  // namespace
 
-const Tema &temaClaro( ) { return kClaro; }
-const Tema &temaEscuro( ) { return kEscuro; }
+const Tema &temaClaro( ) { return kPaleta.t[0][0]; }
+const Tema &temaEscuro( ) { return kPaleta.t[1][0]; }
+
+const Tema &tema( bool escuro, uint8_t acento ) {
+  return kPaleta.t[escuro ? 1 : 0][acento < kAcentos ? acento : 0];
+}
 
 uint16_t desab( const Tema &t, uint16_t cor ) {
   // The 17 roles are distinct within a theme (angulo_tokens.h, 2026-10-14), so
@@ -65,7 +81,9 @@ uint16_t desab( const Tema &t, uint16_t cor ) {
   // 2026-10-15); a table of member pointers would cost 72 B more.
   static_assert( offsetof( Tema, fundo ) == 0 && offsetof( Tema, escuro ) == 17 * sizeof( uint16_t ),
                  "Tema must start with its 17 colour roles and nothing else before escuro" );
-  const Tema &d = t.escuro ? kEscuroDesab : kClaroDesab;
+  static_assert( sizeof( entrega::Tema ) == 17 * sizeof( uint16_t ), "the delivered Tema is the 17 roles and nothing else" );
+  // The twin is the one of the same palette entry and mode as t (S10c, A'2), read in place from the delivered tables.
+  const entrega::Tema &d = *( t.escuro ? entrega::TEMAS_ESCURO_DESAB : entrega::TEMAS_CLARO_DESAB )[t.entrada < kAcentos ? t.entrada : 0];
   const unsigned char *papeis = reinterpret_cast<const unsigned char *>( &t );
   const unsigned char *mist = reinterpret_cast<const unsigned char *>( &d );
   for ( size_t o = 0; o < offsetof( Tema, escuro ); o += sizeof( uint16_t ) ) {
@@ -77,6 +95,26 @@ uint16_t desab( const Tema &t, uint16_t cor ) {
     }
   }
   return cor;
+}
+
+// The two encoding functions: the only code that knows how many modes there are and how large the palette is.
+Escolha escolhaDoIndice( int8_t t ) {
+  static_assert( 3 * entrega::ACENTOS_N <= 127, "themeIndex is an int8_t: every index of the palette must fit" );
+  if ( t < 0 || t >= 3 * entrega::ACENTOS_N ) return Escolha{ MODO_CLARO, 0 };
+  return Escolha{ (uint8_t)( t % 3 ), (uint8_t)( t / 3 ) };
+}
+
+int8_t indiceDaEscolha( uint8_t modo, uint8_t acento ) {
+  if ( modo >= 3 || acento >= entrega::ACENTOS_N ) return 0;
+  return (int8_t)( modo + 3 * acento );
+}
+
+IdentidadeDoQuadro identidadeDoQuadro( uint8_t tela, const Tema &t, int8_t ox, int8_t oy ) {
+  return IdentidadeDoQuadro{ tela, (uint8_t)t.escuro, t.entrada, ox, oy };
+}
+
+bool IdentidadeDoQuadro::repintaTudo( const IdentidadeDoQuadro &antes ) const {
+  return ox != antes.ox || oy != antes.oy || escuro != antes.escuro || acento != antes.acento;
 }
 
 int16_t rd2( int32_t v ) {

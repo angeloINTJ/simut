@@ -31,20 +31,48 @@ namespace ua {
 /* Tokens                                                              */
 /* ------------------------------------------------------------------ */
 
-// The 17 roles of a theme, in RGB565 (angulo_tokens.h).
+// The 17 roles of a theme, in RGB565 (angulo_tokens.h), then the mode and the palette entry the table was built for.
 struct Tema {
   uint16_t fundo, superficie, superficie2, tinta, tinta2, linha, linhaForte,
       acento, acentoForte, acentoTinta, positivo, positivoSuave, alerta,
       alertaSuave, perigo, perigoSuave, perigoTinta;
   bool escuro;
+  uint8_t entrada;   // the palette entry (0 = the stock accent): desab( ) takes the 45 % twin from the same entry
 };
-const Tema &temaClaro( );
-const Tema &temaEscuro( );
+const Tema &temaClaro( );    // tema( false, 0 )
+const Tema &temaEscuro( );   // tema( true, 0 )
 
 // "Disabled": the role pre-mixed at 45 % over the theme's background
 // (the delivered *_DESAB tables). Any colour that is not a role of the theme
 // comes back unchanged.
 uint16_t desab( const Tema &t, uint16_t cor );
+
+// A theme is a mode plus one accent of the palette (S10c, A'2). cfg.themeIndex holds both in one byte: the mode is the remainder and
+// the palette entry the quotient of a division by the number of modes. The values 0, 1 and 2 are the three modes with the stock
+// accent (entry 0), as they always were; a value outside the palette means ( light, stock ). These two functions alone know all this.
+enum Modo : uint8_t { MODO_CLARO = 0, MODO_ESCURO = 1, MODO_AUTOMATICO = 2 };
+struct Escolha {
+  uint8_t modo;
+  uint8_t acento;
+};
+Escolha escolhaDoIndice( int8_t t );
+int8_t indiceDaEscolha( uint8_t modo, uint8_t acento );   // a pair outside the palette gives 0
+
+// The table of a mode and an accent. The tables are built once, before Core 1 starts, and only read afterwards: Core 1 takes them by
+// reference and no core holds a copy that the other one writes. An accent outside the palette is the stock one.
+const Tema &tema( bool escuro, uint8_t acento );
+
+// What a frame is besides its view model: the screen, the theme (the mode AND the accent) and the display alignment.
+// DisplayManager_UiA.cpp hashes it after the view model and repaints everything when repintaTudo( ) says so. A web or CLI change
+// of the accent alone changes no view model: without the accent here nothing would repaint (G5 of the S10c plan).
+struct IdentidadeDoQuadro {
+  uint8_t tela, escuro, acento;
+  int8_t ox, oy;
+  // The theme or the alignment changed since `antes`: everything on the glass is stale, not only the strips whose view model changed.
+  bool repintaTudo( const IdentidadeDoQuadro &antes ) const;
+};
+static_assert( sizeof( IdentidadeDoQuadro ) == 5, "the identity is hashed as it is: five bytes and no padding" );
+IdentidadeDoQuadro identidadeDoQuadro( uint8_t tela, const Tema &t, int8_t ox, int8_t oy );
 
 enum : int16_t {
   ESP1 = 4, ESP2 = 8, ESP3 = 12, ESP4 = 16, ESP5 = 24, ESP6 = 32, ESP7 = 48,

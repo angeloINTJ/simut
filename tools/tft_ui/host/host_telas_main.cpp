@@ -14,6 +14,7 @@
 //   <dir>/<nome>_<tema>.faltam     the glyphs or icons the kit could not draw
 #include <Adafruit_GFX.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 #include "Amostras.h"
@@ -43,7 +44,8 @@ static int pixelsVivos( const ua::Alvo *alvos, int n, const ua::ControleDesenhad
 }
 
 int main( int argc, char **argv ) {
-  if ( argc < 2 ) { fprintf( stderr, "usage: %s <folder>\n", argv[0] ); return 2; }
+  if ( argc < 2 ) { fprintf( stderr, "usage: %s <folder> [accent]\n", argv[0] ); return 2; }
+  const uint8_t acento = argc > 2 ? (uint8_t)atoi( argv[2] ) : 0;   // the palette entry; 0 is the stock one, the frames V-PIX holds
   GFXcanvas16 canvas( 320, 240 );
   LeitorCanvas leitor( canvas );
   char path[512];
@@ -52,7 +54,7 @@ int main( int argc, char **argv ) {
   for ( int i = 0; i < amostra::kAmostrasN; i++ ) {
     const amostra::Amostra &a = amostra::kAmostras[i];
     for ( int t = 0; t < 2; t++ ) {
-      const ua::Tema &tema = t ? ua::temaClaro( ) : ua::temaEscuro( );
+      const ua::Tema &tema = ua::tema( t == 0, acento );
       const char *nomeTema = t ? "claro" : "escuro";
       // The firmware clears each strip to the theme's background before a
       // screen draws (DisplayManager_UiA.cpp); the host does the same.

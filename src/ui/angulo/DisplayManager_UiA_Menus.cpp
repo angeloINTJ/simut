@@ -128,7 +128,9 @@ bool DisplayManager::uaMontarMenus( UaQuadro &q ) {
       return true;
     }
     case MODE_SETTINGS_THEMES: {
-      /* cfg.themeIndex is the choice among three: 0 light, 1 dark, 2 automatic (uaTema( ) reads it the same way). */
+      /* cfg.themeIndex holds the mode and the accent (uaTema( ) decodes it with ua::escolhaDoIndice( )): 0 light, 1 dark and 2 automatic
+       * are the three modes with the stock accent, the only choice this screen offers. The screen is still the three rows (the
+       * Tema screen is S10c's A'3), so a value above 2 marks light here until then. */
       VmTemas &vm = uaVm<VmTemas>( );
       const int8_t t = _sysConfigPtr ? _sysConfigPtr->themeIndex : 0;
       vm.atual = t == 1 ? TM_ESCURO : t == 2 ? TM_AUTOMATICO : TM_CLARO;

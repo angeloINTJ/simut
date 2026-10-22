@@ -38,6 +38,7 @@ two targets that overlap. With --out it keeps a PNG per frame, an overlay of
 the targets per sample (and the list it draws, <sample>.alvos: x y w h type index) and a contact sheet of the group (_folha.png).
 
 Usage: python3 tools/tft_ui/host_telas.py <grupo> [--out <folder>]
+       python3 tools/tft_ui/host_telas.py --acentos [--out <folder>]
 Exit 0 clean, 1 when a check fails, 2 when it cannot build or run.
 """
 import argparse
@@ -244,11 +245,91 @@ def conferir_contagem(nome, dados, erros):
     return listados, maximo
 
 
+# --acentos (S10c, A'2): the three screens the palette is judged on, as (group, sample, what it is)
+ACENTOS_TELAS = (('painel', 'painel_dht22', 'the dashboard'), ('menus', 'menu_admin_p1', 'a menu'), ('graficos', 'grafico_24h', 'a chart'))
+
+
+def tabelas_do_cabecalho():
+    """The generated header read back: {( mode, entry ): {role: RGB565 word}}, through the index arrays TEMAS_ESCURO and TEMAS_CLARO."""
+    import re
+    texto = (ROOT / 'src' / 'ui' / 'angulo' / 'kit' / 'angulo_tokens.h').read_text(encoding='utf-8')
+    papeis = re.findall(r'uint16_t (\w+);', re.search(r'struct Tema \{(.*?)\};', texto, re.S).group(1))
+    tabelas = {m.group(1): [int(x, 16) for x in re.findall(r'\*/ (0x[0-9A-Fa-f]{4}),', m.group(2))]
+               for m in re.finditer(r'const Tema (\w+) PROGMEM = \{\n(.*?)\n\};', texto, re.S)}
+    indices = {m.group(1): re.findall(r'&(\w+),', m.group(2))
+               for m in re.finditer(r'const Tema \*const (\w+)\[ACENTOS_N\] PROGMEM = \{\n(.*?)\n\};', texto, re.S)}
+    out = {}
+    for modo, chave in (('escuro', 'TEMAS_ESCURO'), ('claro', 'TEMAS_CLARO')):
+        for k, nome in enumerate(indices[chave]):
+            out[(modo, k)] = dict(zip(papeis, tabelas[nome]))
+    return out
+
+
+def acentos(saida):
+    """The dashboard, a menu and a chart in every accent of the palette and both modes (3 x 6 x 2 = 36 frames), and the pixels read
+    against the header, not against another capture: each frame holds pixels in ITS entry's acento (the accent is on the glass) and
+    none in the acento or acentoForte of another entry of the same mode (nothing of another accent leaks in)."""
+    import collections
+    import struct
+    tabela = tabelas_do_cabecalho()
+    n = 1 + max(k for _, k in tabela)
+    erros, proprios, quadros = [], 0, {}
+    with tempfile.TemporaryDirectory(prefix='telas_acentos_') as tmp:
+        tmp = pathlib.Path(tmp)
+        for grupo, nome, _ in ACENTOS_TELAS:
+            (tmp / grupo).mkdir()
+            exe = build(grupo, tmp / grupo)
+            if not exe:
+                return 2
+            for k in range(n):
+                dados = tmp / grupo / f'dados{k}'
+                dados.mkdir()
+                r = subprocess.run([str(exe), str(dados), str(k)], capture_output=True, text=True)
+                if r.returncode:
+                    print(r.stderr.strip(), file=sys.stderr)
+                    return 2
+                for modo in ('escuro', 'claro'):
+                    caminho = dados / f'{nome}_{modo}.565'
+                    quadros[(nome, modo, k)] = caminho
+                    conta = collections.Counter(struct.unpack('<%dH' % (320 * 240), caminho.read_bytes()))
+                    seu = tabela[(modo, k)]
+                    if not conta[seu['acento']]:
+                        erros.append(f'{nome} {modo} accent {k}: no pixel in the entry\'s acento 0x{seu["acento"]:04X}')
+                    proprios += conta[seu['acento']]
+                    for j in range(n):
+                        for papel in ('acento', 'acentoForte'):
+                            w = tabela[(modo, j)][papel]
+                            if j != k and w not in seu.values() and conta[w]:
+                                erros.append(f'{nome} {modo} accent {k}: {conta[w]} pixels in entry {j}\'s {papel} 0x{w:04X}')
+        if saida:
+            from PIL import Image, ImageDraw
+            pasta = pathlib.Path(saida)
+            pasta.mkdir(parents=True, exist_ok=True)
+            linhas = [(nome, modo) for _, nome, _ in ACENTOS_TELAS for modo in ('escuro', 'claro')]
+            folha = Image.new('RGB', (n * 330 + 10, len(linhas) * 262 + 10), (128, 128, 128))
+            d = ImageDraw.Draw(folha)
+            for li, (nome, modo) in enumerate(linhas):
+                for k in range(n):
+                    d.text((10 + k * 330, 10 + li * 262), f'{nome} {modo} accent {k}', fill=(0, 0, 0))
+                    folha.paste(ler_565(quadros[(nome, modo, k)]), (10 + k * 330, 22 + li * 262))
+            folha.save(pasta / '_acentos.png')
+    for e in erros:
+        print('FAIL ' + e)
+    print(f'acentos: {len(quadros)} frames ({len(ACENTOS_TELAS)} screens x {n} accents x 2 modes), {proprios} pixels in their own entry\'s acento, '
+          f'{len(erros)} problem(s)')
+    return 1 if erros or len(quadros) != len(ACENTOS_TELAS) * n * 2 else 0
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__.split('\n')[0])
-    ap.add_argument('grupo')
+    ap.add_argument('grupo', nargs='?')
+    ap.add_argument('--acentos', action='store_true', help='the dashboard, a menu and a chart in every accent and both modes, read against the header')
     ap.add_argument('--out', help='keep the PNGs, the target overlays and the contact sheet here')
     args = ap.parse_args()
+    if args.acentos:
+        return acentos(args.out)
+    if not args.grupo:
+        ap.error('a group or --acentos')
     with tempfile.TemporaryDirectory(prefix='telas_host_') as tmp:
         tmp = pathlib.Path(tmp)
         exe = build(args.grupo, tmp)

@@ -114,18 +114,21 @@ const TextoMsg kMensagens[] = {
 /* Theme and clock                                                     */
 /* ------------------------------------------------------------------ */
 
-/* cfg.themeIndex: 0 light, 1 dark, 2 automatic (dark from 19:00 to 6:59 by
- * the panel's clock; light while there is no clock). */
+/* cfg.themeIndex holds the mode and the accent together; ua::escolhaDoIndice( ) decodes it and is the only code that knows how
+ * (S10c, A'2). The mode is light, dark or automatic (dark from 19:00 to 6:59 by the panel's clock; light while there is no clock),
+ * and the accent is the palette entry whose tables the mode takes. The values 0, 1 and 2 are the three modes with the stock
+ * accent, as before; a value outside the palette means light with the stock accent. Core 1 reads only this byte and const
+ * tables (ua::tema( ) hands out the kit's, built before it started): no copy of a theme is shared between the cores. */
 const ua::Tema &DisplayManager::uaTema( ) {
-  const int8_t escolha = _sysConfigPtr ? _sysConfigPtr->themeIndex : 0;
-  if ( escolha == 1 ) return ua::temaEscuro( );
-  if ( escolha == 2 ) {
+  const ua::Escolha e = ua::escolhaDoIndice( _sysConfigPtr ? _sysConfigPtr->themeIndex : 0 );
+  bool escuro = e.modo == ua::MODO_ESCURO;
+  if ( e.modo == ua::MODO_AUTOMATICO ) {
     char hora[6];
     int h = -1;
     bool provisoria = false;
-    if ( uaRelogio( hora, h, provisoria ) && ( h >= 19 || h < 7 ) ) return ua::temaEscuro( );
+    escuro = uaRelogio( hora, h, provisoria ) && ( h >= 19 || h < 7 );
   }
-  return ua::temaClaro( );
+  return ua::tema( escuro, e.acento );
 }
 
 /* "HH:MM" and the hour from the clock line Core 0 publishes
@@ -306,19 +309,18 @@ void DisplayManager::uaQuadro( ) {
   const ua::Tema &tema = uaTema( );
   const int8_t ox = _driver.tft->getOffsetX( ), oy = _driver.tft->getOffsetY( );
   uint32_t h = fnv( q.vm, q.tam );
-  const uint8_t extra[4] = { (uint8_t)_uiMode, (uint8_t)tema.escuro, (uint8_t)ox, (uint8_t)oy };
-  h = fnv( extra, sizeof extra, h );
-  static int8_t s_ox = 0, s_oy = 0;
-  static bool s_escuro = false;
-  if ( ox != s_ox || oy != s_oy || tema.escuro != s_escuro ) _uaTudo = true;
+  /* The frame's identity: the screen, the theme (the mode AND the accent: a web or CLI change of the accent alone changes no
+   * view model, so it has to be here) and the alignment. A change of theme or alignment repaints everything. */
+  const ua::IdentidadeDoQuadro id = ua::identidadeDoQuadro( (uint8_t)_uiMode, tema, ox, oy );
+  h = fnv( &id, sizeof id, h );
+  static ua::IdentidadeDoQuadro s_id = {};
+  if ( id.repintaTudo( s_id ) ) _uaTudo = true;
   if ( !_uaTudo && s_temQuadro && h == s_hash && s_modo == _uiMode ) return;
   if ( uaPintar( q, _uiMode, h ) ) {
     /* Core 0 waits on this before the boot's AP-by-touch window opens, so it
      * must count frames that are on the glass (AppManager_Boot.cpp:543-546). */
     if ( _lastRenderedState.isBooting && _uiMode == MODE_DASHBOARD ) _bootPaintSeq++;
-    s_ox = ox;
-    s_oy = oy;
-    s_escuro = tema.escuro;
+    s_id = id;
   }
   /* A long draw must not read as a dead core: the health check on Core 0
    * restarts a Core 1 whose stamp is 10 s old (AppManager_Loop.cpp). */
@@ -348,8 +350,9 @@ void DisplayManager::uiPaintOta( ) {
   if ( !uaMontarOta( q ) ) return;
   const ua::Tema &tema = uaTema( );
   uint32_t h = fnv( q.vm, q.tam );
-  const uint8_t extra[2] = { (uint8_t)MODE_OTA_UPDATE, (uint8_t)tema.escuro };
-  h = fnv( extra, sizeof extra, h );
+  /* The update screen has never hashed the display alignment (it cannot change while the update is on): ox and oy are 0 here. */
+  const ua::IdentidadeDoQuadro id = ua::identidadeDoQuadro( (uint8_t)MODE_OTA_UPDATE, tema, 0, 0 );
+  h = fnv( &id, sizeof id, h );
   if ( _otaRedrawAll ) _uaTudo = true;
   if ( _uaTudo || !s_temQuadro || h != s_hash || s_modo != MODE_OTA_UPDATE ) {
     uaPintar( q, MODE_OTA_UPDATE, h );
