@@ -126,6 +126,15 @@ jobs:
       # with each switch flipped from it, and compares the two.
       - name: Feature bits /api/status reports
         run: python3 tools/test_feature_bits.py
+      # The savings floor itself (measure_savings.py --check) builds 21 images,
+      # so it runs nightly in savings.yml, where no pull request sees it. What
+      # it compares is tested here: the fill the linker puts in front of the
+      # BTstack flash bank, read from the map and taken off both sides. Counted,
+      # it moved the floor of every switch on the alpha and the Air with each
+      # byte of .rodata anywhere in the image: on 2026-10-22, after 21 red
+      # nights, it was all of bluetooth's drop and part of tel_tls's.
+      - name: Savings floor measures past the BTstack bank's fill
+        run: python3 tools/test_measure_savings.py
 
       # The network driver is the image's identity (SIMUT_NET_CYW43, the default,
       # or SIMUT_NET_ENC28J60) and the Wi-Fi / cable class (SIMUT_NET_WIFI,

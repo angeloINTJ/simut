@@ -2,7 +2,9 @@
 
 **Estado:** Living · **Levantado em:** 2026-09-26 contra `main` `dc7c7c5`,
 medindo os seis ambientes de firmware com `tools/measure_savings.py`; o rastreio
-do que ainda não tem chave, em 2026-09-30 contra `main` `7b948e7` (v2.8.0) ·
+do que ainda não tem chave, em 2026-09-30 contra `main` `7b948e7` (v2.8.0); o
+piso, medido de novo sem o enchimento do banco do BTstack, em 2026-10-22 contra
+`main` `25e169df` ·
 **Pergunta:** ao desligar um driver ou qualquer funcionalidade, quanto de flash
 e de RAM a imagem realmente devolve — e o que hoje **não** devolve o que deveria?
 
@@ -19,7 +21,10 @@ cai e o portão reprova: o recurso **vazou** para o caminho sempre-ligado.
 
 A medida é o `used` que o próprio PlatformIO reporta (flash = `.text`+`.rodata`
 do ELF; RAM = `.data`+`.bss` estáticos). O que importa aqui é a **diferença**
-entre base e variante, não o número absoluto.
+entre base e variante, não o número absoluto. Desde 2026-10-22 o piso compara o
+flash **sem o enchimento** que o linker põe antes do banco do BTstack, lido do
+mapa do linker: contado, ele mexia a economia de toda chave do Alpha e do Air a
+cada byte de `.rodata` da imagem ([O enchimento do banco do BTstack](#o-enchimento-do-banco-do-btstack-e-os-pisos-de-2026-10-22)).
 
 ## O que cada recurso devolve (2026-09-26)
 
@@ -244,6 +249,114 @@ gráfico" agora é baixado fora delas: com a cerca em volta dos dois, um evento
 perdido deixaria o sinal de pé e pararia todos os eventos da interface. Com a
 chave ligada, as quatro imagens com painel saem byte a byte idênticas.
 
+### O enchimento do banco do BTstack e os pisos de 2026-10-22
+
+O job noturno (`savings.yml`) reprovou todas as noites de 2026-10-02 a
+2026-10-22, 21 seguidas, sem que PR nenhum visse: ele não roda em PR. Na
+última, cinco recursos estavam abaixo do piso: `tel_tls` (−10 096 B),
+`bluetooth` (−2 776 B), `cli_full` (−80 B de flash e −2 048 B de RAM),
+`web_export_api` (−40 B) e `sound_buzzer` (−24 B). Nenhum era vazamento: o do
+`bluetooth` era só o instrumento, e os outros, mudanças de verdade que ninguém
+registrou no piso, a do `tel_tls` com o instrumento por cima.
+
+**O instrumento.** O framework guarda o banco do BTstack em 8 KB de `.rodata`
+alinhados a um setor de 4 KB (`__bluetooth_tlv`,
+`cores/rp2040/sdkoverride/btstack_flash_bank.cpp`), em toda imagem com
+Bluetooth: entre as bases, o Alpha e o Air. O banco é a última coisa da
+`.rodata`, e o linker enche até 4 095 B na frente dele; o `used` conta esse
+enchimento. Numa base com o banco, um byte a mais de `.rodata` em qualquer
+lugar da imagem some no enchimento, e na variante sem Bluetooth ele conta: a
+economia do `bluetooth` caía a cada mudança e subiria 4 096 B de uma vez
+quando o enchimento acabasse. No Air os dois lados têm o banco, e a economia
+pulava 4 096 B para um lado ou para o outro. É o mesmo degrau que as notas de
+2026-09-30 acima viram ("o corte cabe no degrau"). Medido aqui, com o mesmo
+toolchain e o mesmo framework nos quatro commits. O framework daqui já tem os
+patches de outubro: em `2721eb2e`, o único dos três primeiros que o job mediu
+(em 01/10), o `used` do `bluetooth` sai 8 B longe do número dele, e o do
+`tel_tls`, igual:
+
+| | `2721eb2e` (01/10) | `2690c0a2` (#220) | `6109ddb3` (#221) | `25e169df` (22/10) |
+|---|---:|---:|---:|---:|
+| `bluetooth`, `used` | 140 268 | 139 572 | 138 892 | 137 356 |
+| `bluetooth`, sem o enchimento | 136 792 | 136 816 | 136 808 | 136 808 |
+| enchimento na base Alpha | 3 476 | 2 756 | 2 084 | 548 |
+| `tel_tls`, `used` | 67 936 | 72 032 | 57 880 | 57 840 |
+| `tel_tls`, sem o enchimento | 69 968 | 69 976 | 58 120 | 58 080 |
+| enchimento na base Air / na variante | 444 / 2 476 | 4 084 / 2 028 | 3 412 / 3 652 | 2 300 / 2 540 |
+
+Os símbolos que a chave do Bluetooth tira somam 132 474 B em `2721eb2e` e
+132 482 B em `25e169df`: o código dela mudou 8 B, e o `used` acusava −2 912 B.
+Os que a do `tel_tls` tira são os mesmos 69 879 B em `2721eb2e` e em
+`2690c0a2`, e o `used` acusava +4 096 B.
+
+**O conserto.** O piso (`--check`, `--update`) compara o `used` menos o
+`*fill*` que termina no endereço do banco, lido do mapa que a build pede ao
+linker (`-Wl,-Map`, por `PLATFORMIO_BUILD_FLAGS`). Com o mapa, as cinco bases
+saem byte a byte as mesmas imagens: sha256 do `firmware.bin` igual com e sem o
+flag (`pico_w_test` `b4074dd0`, `pico_w_release` `e971dfe8`, `pico_w_asserts`
+`abd422b5`, `pico_w_alpha` `93001b45`, `pico_w_air` `e5935de2`). Uma build que
+não deixa o mapa, que roda sem zopfli ou cujo mapa o leitor não entende é
+recusada, não medida; também a cujo mapa tem o objeto do banco
+(`btstack_flash_bank.cpp.o`) sem o banco com o nome dele, que é o que um
+framework que o renomeasse deixaria. A `--matrix`
+segue com o `used` inteiro, porque ali o que importa é caber no slot, e o
+enchimento ocupa o slot.
+
+**As quedas de verdade**, cada uma com a causa, medidas sem o enchimento:
+
+- `tel_tls`, −11 856 B, no #221 (`016dacab`, o stage e o apply só aceitam
+  imagem assinada). A imagem confere a assinatura ECDSA P-256 de toda
+  atualização com o verificador do BearSSL, e ele passou a ser sempre-ligado:
+  52 símbolos, 12 884 B, que a chave tirava em `2721eb2e` e não tira em
+  `11d38223` (`mul_f256`, `square_f256`, `p256_*`, `br_ecdsa_i31_vrfy_raw`,
+  `br_i31_*`). Desligar o TLS da telemetria não os tira mais.
+- `cli_full`, RAM 0 → −2 048 B, no #223 (`3335d115`). A tela de Licença do
+  painel passou a ler o `@WEBDICT` por um pedaço na pilha, sem o `lazyRead( )`.
+  O `help` da CLI completa nunca lê o pacote, então a imagem de teste perdeu o
+  `lazyRead( )` e o buffer estático de 2 048 B dele (`_lazyReadBuf`,
+  `DisplayManager_LangParser.cpp`). A imagem sem a CLI completa guarda os dois
+  para o `@HELP` do console de emergência. Desligar a CLI completa custa agora
+  2 048 B de RAM, e esses 2 048 B são só do `help` de emergência, em toda imagem
+  que o tem.
+- `cli_full`, flash −80 B. O #214 (`ab1e5b3b`) pôs o `set time` em toda
+  imagem (`case CMD_SET_TIME: /* every image */`), para o aparelho sem rede que
+  pede a hora: `cmdHandleSetTime( )` e `parse_3ints( )`, 412 B, saíram do que a
+  chave tira. O que ela tira cresceu em volta (`executeCommand( )` +396 B,
+  `cmdHandleSensorField( )` +124 B, `renderMetrics( )` +88 B), e a `.rodata`
+  dela encolheu 128 B.
+- `sound_buzzer`, −24 B. O #234 (`f24e1b71`) moveu o corpo de
+  `SoundManager::fillConfig( )` (218 → 22 B) para `soundStateToConfig( )`
+  (186 B), que o ensaio a seco do `commit_all` também usa
+  (`SoundManager::stateToConfig( )`), e o que a chave tira do `commit_all` saiu
+  12 B menor.
+- `web_export_api`, −40 B. O compilador passou a emitir fora de linha o
+  caminho de crescimento do `std::vector<String>` (`_M_check_len( )`, 60 B) no
+  `/api/history_days`, que toda imagem tem; em `2721eb2e` a variante sem a
+  exportação não tinha esse caminho fora de linha.
+- `bluetooth`: só o enchimento (acima).
+
+**Os pisos gravados em 2026-10-22** (`--update` sobre `25e169df` com a medida
+nova; os que subiram também sobem o piso, que só aceita subir):
+
+| Recurso | Base | Flash, piso anterior | Flash, piso novo | RAM, anterior | RAM, nova | Causa |
+|---|---|---:|---:|---:|---:|---|
+| `bluetooth` | `pico_w_alpha` | 140 132 | 136 808 | 19 348 | 19 348 | o enchimento (548 B na base) fica fora |
+| `tel_tls` | `pico_w_air` | 67 936 | 58 080 | 16 | 16 | #221; o enchimento fica fora |
+| `cli_full` | `pico_w_test` | 48 232 | 48 152 | 0 | −2 048 | #214 (flash) e #223 (RAM) |
+| `web_https` | `pico_w_release` | 24 520 | 24 568 | 24 | 16 | RAM dentro da tolerância de 64 B |
+| `web_history` | `pico_w_air` | 21 768 | 23 872 | 0 | 0 | o enchimento fica fora |
+| `tft_graph` | `pico_w_release` | 20 312 | 20 432 | 2 236 | 2 232 | RAM dentro da tolerância de 64 B |
+| `sensor_bme280` | `pico_w_release` | 17 724 | 17 804 | 220 | 220 |  |
+| `mdns` | `pico_w_release` | 16 568 | 16 632 | 168 | 168 |  |
+| `web_export_api` | `pico_w_release` | 12 336 | 12 296 | 2 052 | 2 052 | o `vector<String>` (acima) |
+| `tel_mqtt` | `pico_w_air` | 7 704 | 9 344 | 0 | 0 | o enchimento fica fora |
+| `sensor_ds18b20` | `pico_w_release` | 5 432 | 5 520 | 64 | 64 |  |
+| `sound_buzzer` | `pico_w_release` | 5 008 | 4 984 | 0 | 0 | #234 |
+| `web_metrics` | `pico_w_release` | 4 904 | 4 968 | 0 | 0 |  |
+| `sensor_dht22` | `pico_w_release` | 3 400 | 3 456 | 0 | 0 |  |
+| `concurrency_asserts` | `pico_w_asserts` | 2 176 | 2 240 | 0 | 0 |  |
+| `syslog` | `pico_w_release` | 1 760 | 1 768 | 0 | 0 |  |
+
 ## O que ainda não tem chave — o rastreio de 2026-09-30
 
 A tabela acima mede o que já se desliga. Esta seção olha o contrário: **o que
@@ -300,12 +413,18 @@ python3 tools/flash_compose.py --env pico_w_air --objects   # o rastreio: flash 
 
 O `--check` reconstrói base e variante de cada recurso do ledger e falha se a
 economia de flash ficou **abaixo** do piso (a RAM entra com tolerância de 64 B,
-ruído de alinhamento do linker). É um ratchet, como o orçamento de flash e a
+ruído de alinhamento do linker). O flash dos dois lados é o `used` sem o
+enchimento antes do banco do BTstack, lido do mapa que cada build pede ao
+linker; a build sem o mapa ou sem zopfli é recusada. É um ratchet, como o orçamento de flash e a
 marca d'água do sprawl: a economia só sobe; abaixá-la exige `--update` e
 justificativa no commit.
 
-**Custo em CI.** O portão constrói ~13 imagens (base + variante por recurso), o
-que não cabe no job `gates` (livre de framework). Pertence a um job próprio,
-agendado (noturno) ou disparado à mão — ver `.github/workflows/savings.yml`.
+**Custo em CI.** O portão constrói 21 imagens (as 5 bases e uma variante por
+recurso do piso, em 2026-10-22), o que não cabe no job `gates` (livre de
+framework). Pertence a um job próprio, agendado (noturno) ou disparado à mão —
+ver `.github/workflows/savings.yml` —, e por isso **nenhum PR vê o vermelho
+dele**: confira com `gh run list --workflow "SIMUT savings watermark"`. O que o
+`gates` roda em todo PR é o `tools/test_measure_savings.py`, a conta que o piso
+faz.
 Um `--check --only <recurso>` é barato e serve para conferir um recurso após
 mexer no que ele guarda.
