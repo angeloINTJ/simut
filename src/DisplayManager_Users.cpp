@@ -668,7 +668,6 @@ static void fmtHoursMinutes(char* dst, size_t cap, uint32_t minutes) {
 }
 
 void DisplayManager::drawAlarmSensorMenu( ) {
-	UA_DESVIO( );
 	if (!_driver.canvas || !_sysConfigPtr || _sensorMenuIdx < 0) return;
 	const SensorRecord& rec = _sysConfigPtr->sensors[_sensorMenuIdx];
 	const bool fullRedraw = _forceSettingsRedraw;
@@ -756,7 +755,6 @@ void DisplayManager::showMaintEntry(int sensorIdx) {
 }
 
 void DisplayManager::drawMaintEntry( ) {
-	UA_DESVIO( );
 	if (!_driver.canvas || !_sysConfigPtr || _maintSlot < 0) return;
 	const SensorRecord& rec = _sysConfigPtr->sensors[_maintSlot];
 	const uint32_t left = maintMinutesLeft(_sysConfigPtr, _maintSlot);

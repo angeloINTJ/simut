@@ -237,8 +237,8 @@ flags = ["-DSIMUT_UI_ANGULO=1"]
 # (DisplayManager_UiA*.cpp), o kit (Angulo.cpp), a rota GET /api/ui e as telas (telas/*.cpp). O filtro do
 # pico_base nao alcanca subdiretorios, por isso entram como `include`. Sem `units`: nenhum outro perfil as
 # compilaria (o filtro nao as ve), e um `-<unidade>` a mais mudaria o ambiente de cada perfil que escolhe o
-# `original`. Transitorio: nesta forma o driver ainda convive com todo o desenho do original, que a imagem
-# linka inteiro (as chamadas UA_DESVIO( ) so o desviam); os passos S4 a S10b o separam.
+# `original`. Transitorio: o driver ainda compila o desenho do original, que a imagem ja nao linka (`nm -C`
+# nao lista nenhuma funcao de desenho antiga); os passos S4 a S10b o separam.
 include = [
     "ui/angulo/Angulo.cpp",
     "ui/angulo/DisplayManager_UiA*.cpp",

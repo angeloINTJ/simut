@@ -124,7 +124,7 @@ static bool fillWindowDma(TftWithOffset* tft, uint16_t color,
 void DisplayManager::fastFillRect(int16_t x, int16_t y, int16_t w, int16_t h,
  uint16_t color) {
 #if SIMUT_UI_ANGULO
- /* The Ângulo build: only its own renderer pushes pixels (UA_DESVIO). */
+ /* The Ângulo build: only its own renderer pushes pixels. */
  if (!_uaPintando) return;
 #endif
  if (!_driver.tft) return;
@@ -152,7 +152,7 @@ void DisplayManager::fastFillRect(int16_t x, int16_t y, int16_t w, int16_t h,
 
 void DisplayManager::fastClearScreen(uint16_t color) {
 #if SIMUT_UI_ANGULO
- /* The Ângulo build: only its own renderer pushes pixels (UA_DESVIO). */
+ /* The Ângulo build: only its own renderer pushes pixels. */
  if (!_uaPintando) return;
 #endif
  if (!_driver.tft) return;
@@ -169,7 +169,7 @@ void DisplayManager::fastClearScreen(uint16_t color) {
 void DisplayManager::blitCanvas(GFXcanvas16* canvas, int16_t dstX, int16_t dstY,
  int16_t w, int16_t h, int16_t srcX) {
 #if SIMUT_UI_ANGULO
- /* The Ângulo build: only its own renderer pushes pixels (UA_DESVIO). */
+ /* The Ângulo build: only its own renderer pushes pixels. */
  if (!_uaPintando) return;
 #endif
  if (!canvas || !_driver.tft) return;

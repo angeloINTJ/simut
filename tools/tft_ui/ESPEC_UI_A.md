@@ -368,7 +368,7 @@ Modelo pronto para copiar: `src/ui/angulo/DisplayManager_UiA.cpp`, funções `ua
 **Montar.** `switch ( _uiMode )` nos modos do grupo; `VmX &vm = uaVm<VmX>( )` (zerado, no buffer comum de
 4 kB), preencher a partir do estado (os mesmos membros que a função de desenho antiga lê, com as mesmas
 travas), `uaUsar<VmX, desenharX, alvosX>( q, vm )`, `return true`; nos outros modos, `return false`.
-Roda no fim de cada volta do Core 1 quando alguma função de desenho antiga pediu (`UA_DESVIO`) e, no
+Roda no fim de cada volta do Core 1 quando um gancho ou um tick marcou o quadro (`uaSujo( )`) e, no
 mínimo, a cada 250 ms; o quadro só é pintado se o hash do modelo mudou. Então: nada de efeito colateral
 além dos avisos que a função de desenho antiga dava ao Core 0 (`_loadingDrawn = true`, `_statusLastDraw =
 millis( )`), e nada de `millis( )` cru dentro do modelo (um relógio que muda a cada volta repinta à toa:

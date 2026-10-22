@@ -212,7 +212,7 @@ jobs:
       # so `#ifdef SIMUT_UI_ANGULO` is true on every image. A file that tests one includes
       # simut_config.h or ui/UiCaps.h itself. No Angulo unit includes a header only the
       # original uses (Themes.h, UiWidgets.h, ...), no unit outside src/ui/angulo/ includes
-      # one of the Angulo's, and no hook name of the Angulo (UA_DESVIO, uaSujo, ...) is
+      # one of the Angulo's, and no hook name of the Angulo (UA_CONTROLE, uaSujo, ...) is
       # used outside it. What still breaks a rule is the transitional shape of the Angulo
       # driver, listed in tools/ui_boundary.json with the stage that ends it, and the
       # counts only go down. The test puts one violation of each rule into a clean tree,

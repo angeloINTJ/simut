@@ -8,8 +8,8 @@
  * The old chain of screens no longer runs in this build: uiPass( ) below runs
  * the core's timers and transitions (DisplayManager_Ticks.h), takes the
  * repaint requests the chain answered by drawing, and paints the frame of the
- * current mode. An old draw entry point is UA_DESVIO( ) (src/ui/UiDriver.h):
- * a call to one only asks for a repaint.
+ * current mode. None of the old draw functions is linked into this image (`nm -C`
+ * of it lists none), so none of the old drawing reaches the glass.
  */
 
 #include "../../DisplayManager.h"
@@ -297,8 +297,8 @@ int8_t DisplayManager::uaEstado( UaEstado &e ) const {
 void DisplayManager::uaQuadro( ) {
   if ( !_driver.tft || !_driver.canvas ) return;
   const uint32_t agora = millis( );
-  /* Old draw entry points say when the state changed; a look every 250 ms
-   * catches what none of them repaints (a humidity, the automatic theme, the
+  /* The hooks and the ticks say when the state changed (uaSujo( )); a look every 250 ms
+   * catches what none of them says (a humidity, the automatic theme, the
    * web's busy flag) at the cost of building one view model. */
   if ( !_uaSujo && !_uaTudo && agora - _uaVisto < 250 ) return;
   _uaSujo = false;
@@ -366,17 +366,17 @@ void DisplayManager::uiPaintOta( ) {
 /* Core 1, once, when it has initialised the panel (loopCore1( )): the first
  * frame repaints every strip. Both flags start true and nothing has run since,
  * so this says it again where the original cleared the glass and drew its fixed
- * background (the old fastClearScreen( ) stops at the _uaPintando guard and
- * drawInterfaceFixed( ) at UA_DESVIO( ), which marks the frame dirty). */
+ * background (the old fastClearScreen( ) stops at the _uaPintando guard, and
+ * drawInterfaceFixed( ) is not linked into this image). */
 void DisplayManager::uiBegin( ) {
   _uaTudo = true;
   uaSujo( );
 }
 
 /* The core says something this driver shows has changed (the alarm flash changed phase, the alarm ended, the bottom card
- * turned over, the row of buttons changed): the frame may be different, and the pass looks at it. The old
- * redrawAlarmFlash( ), restoreNormalDashboard( ), drawSlotPanel( ) and drawBottomButtons( ) came to the same through the
- * draw calls they made, each of which starts with UA_DESVIO( ). GRAPH_HEADER and GRAPH_BUSY, the graph's two immediate draws, are raised
+ * turned over, the row of buttons changed): the frame may be different, and the pass looks at it. The original
+ * answers by drawing (redrawAlarmFlash( ), restoreNormalDashboard( ), drawSlotPanel( ) and drawBottomButtons( ), UiOriginal.h);
+ * none of them is linked into this image. GRAPH_HEADER and GRAPH_BUSY, the graph's two immediate draws, are raised
  * only where the original's touch code stands: this driver has no header target and shows its busy line from its own model
  * (pedirDados( ), DisplayManager_UiA_Graficos.cpp), so they do not reach it; marking the frame would be the right answer if they did. */
 void DisplayManager::uiChanged( UiChange, int16_t ) {
@@ -384,8 +384,8 @@ void DisplayManager::uiChanged( UiChange, int16_t ) {
 }
 
 /* The top card changed (a short tap, a held press, a slot followed): the frame may be different, and the pass looks at it.
- * The old drawSlotPanel( ) and drawBottomButtons( ) that redrawTopPanel( ) called came to the same through the UA_DESVIO( )
- * each of them starts with. */
+ * The original draws the two panels here, with drawSlotPanel( ) and drawBottomButtons( ) (UiOriginal.h); neither is linked into
+ * this image. */
 void DisplayManager::uiTopPanel( const SystemState & ) {
   uaSujo( );
 }
@@ -410,7 +410,7 @@ void DisplayManager::tickMinMaxIdle( ) {
 }
 
 /* The Ângulo's pass of Core 1, after the theme change and the update screen (loopCore1( )). The old chain answered each
- * mode by drawing it, which here only asked for a repaint (UA_DESVIO( )); what it did besides, the core's timers and the
+ * mode by drawing it, which the frame below replaces; what it did besides, the core's timers and the
  * state it keeps, is what this runs: the dashboard's timers and the snapshot, the PIN screen's lockout, the sensitivity
  * screen's move on to the calibration, the limits of the alarm being edited, the web notice, and the repaint requests
  * taken. Then the frame, once, from the state, and the packet arrow's flash. */

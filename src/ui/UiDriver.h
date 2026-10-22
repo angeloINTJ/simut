@@ -1,7 +1,7 @@
 /**
  * @file UiDriver.h
  * @brief The UI driver's share of DisplayManager.h that has to come BEFORE the class: the macro that declares
- *        a hook, the Ângulo's types, and the macro the old draw entry points hand a frame to the Ângulo with.
+ *        a hook, the Ângulo's types, and the enum of what the core tells the driver has changed.
  *
  * An image has ONE UI driver (src/ui/UiCaps.h). Class DisplayManager is the same for every driver except for
  * the part that is the driver's, and four selection headers pick that part, each included at the one place
@@ -45,15 +45,3 @@ enum class UiChange : uint8_t {
 	GRAPH_HEADER,    /**< the graph's header was asked for the sensor's name (a tap on it): it shows the name for 3 s */
 	GRAPH_BUSY,      /**< a request that takes a while went to Core 0 (a step in time, a period, the calendar, a day, Today): the screen says so until the data lands */
 };
-
-/* The Ângulo build (pico_wiretft_angulo, src/ui/angulo/) paints every screen
- * itself, from the state, at the end of each Core 1 pass. An old draw entry
- * point then only says that the frame may have changed and returns, and none
- * of the old drawing reaches the glass; the Ângulo's uiPass( ) runs the core's
- * timers and transitions that the old chain ran around the draw calls. Every
- * other image compiles UA_DESVIO( ) to nothing. */
-#if SIMUT_UI_ANGULO
-#define UA_DESVIO( ) do { uaSujo( ); return; } while ( 0 )
-#else
-#define UA_DESVIO( ) do { } while ( 0 )
-#endif

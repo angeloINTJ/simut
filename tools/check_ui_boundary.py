@@ -59,8 +59,8 @@ six rules over src/**/*.{c,cc,cpp,cxx,h,hh,hpp,hxx,inl,ipp,tpp}:
                 here, and `uaString`, a user agent in the web server, is not: the driver does not
                 introduce it. A hook with neither mark (a plain `buildFrame`) is not found until it
                 is given one. One pattern remains, for the
-                macros: every UA_<anything> (UA_DESVIO is defined in a shared header, so the driver's
-                text does not give it). The gate refuses a tree whose src/ui/angulo/ has no source
+                macros: every UA_<anything> (the driver's macros are upper case, as UA_CONTROLE is, so the driver's
+                text does not give them). The gate refuses a tree whose src/ui/angulo/ has no source
                 (exit 2): with no driver there would be no names, and a gate must not pass for that.
   bus-open      an `SPI.beginTransaction( SPISettings( SIMUT_TFT_SPI_HZ, ... ) )`, the open of the panel's RAM write, that is not followed, as the next
                 statement, by `g_tftSpiBaud = spi_get_baudrate( spi0 );`. The original opens the bus in dmaTftOpen( ) and the Ângulo driver keeps a copy of
@@ -168,7 +168,7 @@ DEFINED = re.compile(r"\bdefined\b[\s\\(]*(" + UI_MACRO + ")")
 WORD = re.compile(r"[A-Za-z_]\w*")
 MARK = re.compile(r"(?:ua|Ua)[A-Z]\w*\Z")        # a part the driver marks as its own: uaSujo (a function, a member), UaToque (a type)
 MARK_UIA = re.compile(r"UiA(?:[A-Z]|\Z)")       # the second mark: UiA and a capital or the end, anywhere in the part (handleApiUiA; not UiArrowDir)
-UA_MACRO = re.compile(r"UA_\w+\Z")               # the macros are the one pattern: UA_DESVIO is defined in a shared header
+UA_MACRO = re.compile(r"UA_\w+\Z")               # the macros are the one pattern: the driver's are upper case (UA_CONTROLE), which no mark above reads
 NS_TOKEN = re.compile(r"\bnamespace\s+(\w+)(?:\s*::\s*\w+)*\s*\{|\bnamespace\s*\{|[{}]")   # `namespace x {` and the braces
 
 

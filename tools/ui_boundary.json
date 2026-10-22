@@ -10,25 +10,9 @@
   }
  },
  "driver-hook": {
-  "src/DisplayManager_Alarm.cpp": {
-   "count": 1,
-   "reason": "transitional hook of the Ângulo driver (S2a); removed in S4–S10b: UA_DESVIO( ) at the top of the draw functions of this file, which turns the original's drawing into a request for the Ângulo to repaint; ends in S10b (the Ângulo image stops linking the original)"
-  },
-  "src/DisplayManager_Dashboard.cpp": {
-   "count": 4,
-   "reason": "transitional hook of the Ângulo driver (S2a); removed in S4–S10b: UA_DESVIO( ) at the top of the draw functions of this file; ends in S10b (the Ângulo image stops linking the original)"
-  },
   "src/DisplayManager_Panel.cpp": {
    "count": 3,
    "reason": "transitional hook of the Ângulo driver (S2a); removed in S4–S10b: the `_uaPintando` guards of the pixel primitives (fastFillRect, fastClearScreen and blitCanvas), so that only the Ângulo's renderer pushes pixels; ends in S10b (the Ângulo image stops linking the original)"
-  },
-  "src/DisplayManager_Users.cpp": {
-   "count": 2,
-   "reason": "transitional hook of the Ângulo driver (S2a); removed in S4–S10b: UA_DESVIO( ) at the top of the draw functions of this file, which turns the original's drawing into a request for the Ângulo to repaint; ends in S10b (the Ângulo image stops linking the original)"
-  },
-  "src/ui/UiDriver.h": {
-   "count": 3,
-   "reason": "transitional hook of the Ângulo driver (S2a); removed in S4–S10b: the two definitions of UA_DESVIO( ) (the Ângulo's, which names uaSujo, and the original's no-op), moved here from src/DisplayManager.h in S4; ends in S10b (the Ângulo image stops linking the original's drawing, so no draw entry point needs to hand a frame over)"
   }
  }
 }

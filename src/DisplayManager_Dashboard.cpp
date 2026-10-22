@@ -181,7 +181,6 @@ void DisplayManager::restoreNormalDashboard( ) {
 }
 
 void DisplayManager::drawInterfaceFixed( ) {
- UA_DESVIO( );
  if (!_driver.tft) return;
  /* Paints ONLY the background the four dashboard widgets do not cover — see the
   * layout invariant at the top of this file.
@@ -275,7 +274,6 @@ void DisplayManager::blitFooterMenu(const char* exitLabel,
 }
 
 void DisplayManager::drawTopBar(const SystemState& state) {
- UA_DESVIO( );
  if(!_driver.canvas) return;
  const int W = DASH_W, H = TOPBAR_H;
 
@@ -560,7 +558,6 @@ void DisplayManager::drawTopBar(const SystemState& state) {
 
 
 void DisplayManager::drawSlotPanel(float t, float h, SensorType type, bool isValid, int slotIdx, const char* name, bool forceNameRedraw, DashPanel& panel, float p) {
- UA_DESVIO( );
  if(!_driver.canvas) return;
  int16_t x1, y1; uint16_t h_bound;
 
@@ -893,7 +890,6 @@ int DisplayManager::buildDashLayout(DashBtn out[5], int *totalPages, bool *hasPa
 }
 
 void DisplayManager::drawBottomButtons(int selectedIdx) {
- UA_DESVIO( );
  if(!_driver.canvas) return;
  _driver.canvas->fillScreen(C_BG_MAIN);
  const int btnW = 58, gap = 5, xStart = 5, pitch = btnW + gap;

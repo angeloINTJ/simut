@@ -66,7 +66,6 @@ void DisplayManager::showAlarmAction(int8_t slotIdx) {
  * shows only its corresponding portion. ~5x more CPU vs single-pass but eliminates
  * top-down visual tearing (~80ms total render). */
 void DisplayManager::drawAlarmAction( ) {
-	UA_DESVIO( );
 	if (!_driver.canvas) return;
 	if (!_forceSettingsRedraw) return;
 	_forceSettingsRedraw = false;

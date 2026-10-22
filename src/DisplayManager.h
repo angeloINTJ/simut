@@ -38,7 +38,7 @@ class Adafruit_GFX;
 #include "OtaScreen.h"          /* what the panel says during a firmware update */
 #include "Themes.h"
 #include "SoundManager.h"
-#include "ui/UiDriver.h"   /* the UI driver's share before the class: UI_HOOK, UA_DESVIO( ), the Ângulo's types */
+#include "ui/UiDriver.h"   /* the UI driver's share before the class: UI_HOOK, UiChange, the Ângulo's types */
 
 /* TFT/SPI pin assignments → see src/simut_config.h */
 
