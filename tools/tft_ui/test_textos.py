@@ -28,12 +28,24 @@ and the loader, 5 of the hash and the macro) and must fail; the shape rules and 
 hash comparison fails when the device's function is changed. A mutant that does not build is a failure of the test, except the ones that are
 meant to be stopped by a static_assert.
 
+What the review of B2a added (S10c, B2a-b). textosLimpar( ) exists only under UA_HOST: the object of Textos.cpp built without it (g++, and the
+project's arm-none-eabi-g++ for the Cortex-M0+ where it is installed) holds no such symbol and a call does not compile, and the object built with it holds
+the symbol (the control; another control takes the guard off and the check must fail). The gate's reading of an English is the compiler's: ua::fnv1a( )
+of the literals in a program g++ builds equals the gate's hash for each literal that is UTF-8 (an escape split across adjacent pieces included), and the
+literals that are not UTF-8 are refused, not read (a control decodes each piece by itself, as the gate did, and the check must fail). One CR before a
+newline is a line end and a second one is the text's ("abc\r\r\n"). The publication also runs under ThreadSanitizer (tools/tft_ui/host/
+test_textos_tsan_main.cpp: three reader threads and the loader): silent on the original, with the readers having seen the table, and a data race reported
+for a relaxed store and for a store before the fill. ThreadSanitizer needs libtsan and does not start on every kernel (here it needs `setarch <arch> -R`):
+where it cannot run, the check prints "NOT RUN <name>: <reason>" and the summary counts it, never a silent pass. The gates job does not depend on it.
+
 Usage: python3 tools/tft_ui/test_textos.py   exit 0 when all hold, 1 when not, 2 when it cannot build.
 """
 import concurrent.futures
 import os
 import pathlib
+import platform
 import re
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -44,12 +56,13 @@ ROOT = HERE.parents[1]
 sys.path.insert(0, str(ROOT / 'tools'))
 os.environ['LANG_GATE_NO_RUN'] = '1'          # check_lang_packs runs its gate on import otherwise (tools/test_lang_gate.py does the same)
 import check_lang_packs as gate               # noqa: E402
+import check_ui_texts as cut                  # noqa: E402  (the gate's reader of literals; a control replaces one of its functions)
 import check_net_boundary as cnb              # noqa: E402  (its source stripper: one lexer for the gates)
 
 KIT = ROOT / 'src' / 'ui' / 'angulo'
 MAIN = HERE / 'host' / 'test_textos_main.cpp'
 PARSER = ROOT / 'src' / 'DisplayManager_LangParser.cpp'
-CXX = ['g++', '-std=gnu++17', '-O1', '-g', '-Wall', '-Wextra', '-Werror', '-fsanitize=address,undefined', '-fno-sanitize-recover=undefined',
+CXX = ['g++', '-std=gnu++17', '-O1', '-g', '-Wall', '-Wextra', '-Werror', '-DUA_HOST', '-fsanitize=address,undefined', '-fno-sanitize-recover=undefined',
        '-fno-omit-frame-pointer']
 ENV = dict(os.environ, ASAN_OPTIONS='detect_leaks=1:abort_on_error=0', UBSAN_OPTIONS='print_stacktrace=1')
 
@@ -240,13 +253,14 @@ MUTANTES = [
     ('a text of blanks is accepted', 'Textos.cpp', 'if ( !visivel ) return LINHA_MA;', 'if ( false && !visivel ) return LINHA_MA;', 'run'),
     ('a NUL in the text is accepted', 'Textos.cpp', "if ( ini[k] == '\\0' ) return LINHA_MA;", "if ( false && ini[k] == '\\0' ) return LINHA_MA;", 'run'),
     ('the CR of a CRLF stays in the text', 'Textos.cpp', "  if ( len && ini[len - 1] == '\\r' ) len--;\n", '', 'run'),
+    ('every trailing CR is stripped, not one', 'Textos.cpp', "if ( len && ini[len - 1] == '\\r' ) len--;", "while ( len && ini[len - 1] == '\\r' ) len--;", 'run'),
     ('a blank line is malformed', 'Textos.cpp', 'if ( len == 0 ) return LINHA_VAZIA;', 'if ( len == 0 ) return LINHA_MA;', 'run'),
     ('the texts are cut to ASCII', 'Textos.cpp', 'memcpy( v.t + fim, tx, tam );', 'for ( size_t q = 0; q < tam; q++ ) v.t[fim + q] = tx[q] & 0x7f;', 'run'),
     ('a section with no line publishes an empty table', 'Textos.cpp', '  if ( quantas == 0 ) return TEXTOS_VAZIO;\n', '', 'run'),
     ('a second load replaces the first', 'Textos.cpp', '  if ( __atomic_load_n( &gTabela, __ATOMIC_ACQUIRE ) ) return TEXTOS_JA_CARREGADO;\n', '', 'run'),
     ('malloc( ) failing is not checked', 'Textos.cpp', '  if ( !t ) return TEXTOS_SEM_MEMORIA;\n', '', 'run'),
     ('the recorded size is one byte short', 'Textos.cpp', 't->bytes = bytes;', 't->bytes = bytes - 1;', 'run'),
-    ('textosLimpar( ) does not give the table back', 'Textos.cpp', '  free( t );\n}\n\nsize_t textosContagem', '  (void)t;\n}\n\nsize_t textosContagem', 'run'),
+    ('textosLimpar( ) does not give the table back', 'Textos.cpp', '  free( t );\n}\n#endif\n\nsize_t textosContagem', '  (void)t;\n}\n#endif\n\nsize_t textosContagem', 'run'),
     ('a null pointer hashes as zero', 'Textos.h', 'if ( !s ) return h;', 'if ( !s ) return 0;', 'build'),
     ('FNV-1 and not FNV-1a (multiply, then xor)', 'Textos.h', '    h ^= (uint8_t)*s++;\n    h *= 0x01000193u;', '    h *= 0x01000193u;\n    h ^= (uint8_t)*s++;', 'build'),
     ('a prime that is not the FNV prime', 'Textos.h', 'h *= 0x01000193u;', 'h *= 0x01000197u;', 'build'),
@@ -306,6 +320,212 @@ def matar(raiz, inc, n, mut, amostra):
     return True, (quais[0][5:70] if quais else 'the sanitizer: ' + (r.stderr.strip().splitlines() or ['?'])[0][:60])
 
 
+# ---- the device build, the English as the compiler's bytes, and the publication under ThreadSanitizer (S10c, B2a-b) -------------------------------
+
+NAO_RODOU = []
+
+
+def nao_rodou(nome, motivo):
+    """A check that cannot run here says so in so many words and the summary counts it: never a pass that says nothing."""
+    NAO_RODOU.append((nome, motivo))
+    print(f'NOT RUN {nome}: {motivo}', flush=True)
+
+
+def ferramenta(nome):
+    """The path of a tool on the PATH or in a toolchain PlatformIO installed (~/.platformio/packages/toolchain-*/bin), or None."""
+    achado = shutil.which(nome)
+    for pasta in sorted((pathlib.Path.home() / '.platformio' / 'packages').glob('toolchain-*/bin')):
+        if not achado and (pasta / nome).is_file():
+            achado = str(pasta / nome)
+    return achado
+
+
+def objeto(pasta, kit, cxx, flags, nome):
+    """Textos.cpp of `kit` compiled to an object the way the project compiles it (-Os, one section a function). -> (path or None, first line of stderr)."""
+    obj = pasta / nome
+    r = subprocess.run([cxx, '-std=gnu++17', '-Os', '-ffunction-sections', '-fdata-sections', '-Wall', '-Wextra', '-Werror', *flags, f'-I{kit}',
+                        '-c', str(kit / 'Textos.cpp'), '-o', str(obj)], capture_output=True, text=True)
+    return (obj if r.returncode == 0 else None), (r.stderr.strip().splitlines() or ['?'])[0][:100]
+
+
+def compila_com(pasta, cxx, flags, codigo, kit):
+    arq = pasta / 'trecho_flags.cpp'
+    arq.write_text('#include "Textos.h"\n' + codigo + '\n')
+    return subprocess.run([cxx, '-std=gnu++17', '-fsyntax-only', *flags, f'-I{kit}', str(arq)], capture_output=True, text=True).returncode == 0
+
+
+def problemas_do_limpar(pasta, kit, avisar=True):
+    """textosLimpar( ) frees the table that Core 1 may be reading, so it exists only under UA_HOST, the define the host harness passes. The object of
+    Textos.cpp built the way a device builds it (no UA_HOST) must hold no such symbol, and a call to it must not compile; the same source built with
+    UA_HOST must hold it (that one is the control: an empty answer from nm could be a tool that reads nothing). The host's g++ always; the project's
+    cross-compiler (Cortex-M0+) where it is installed, and said plainly where it is not."""
+    ruins = []
+    pernas = [('g++', 'nm', [], 'g++')]
+    cross, nm = ferramenta('arm-none-eabi-g++'), ferramenta('arm-none-eabi-nm')
+    if cross and nm:
+        pernas.append((cross, nm, ['-mthumb', '-mcpu=cortex-m0plus'], 'arm-none-eabi-g++ (Cortex-M0+)'))
+    elif avisar:
+        nao_rodou('device build: textosLimpar( ) absent from the cross-compiled object',
+                  'no arm-none-eabi-g++ and arm-none-eabi-nm on the PATH or in ~/.platformio/packages; only the host compiler ran this check')
+    for k, (cxx, nmx, flags, quem) in enumerate(pernas):
+        sem, e1 = objeto(pasta, kit, cxx, flags, f'sem_host{k}.o')
+        com, e2 = objeto(pasta, kit, cxx, [*flags, '-DUA_HOST'], f'com_host{k}.o')
+        if sem is None or com is None:
+            ruins.append(f'{quem}: Textos.cpp does not build {"without" if sem is None else "with"} UA_HOST: {e1 if sem is None else e2}')
+            continue
+        lidos = [subprocess.run([nmx, '-C', str(o)], capture_output=True, text=True) for o in (sem, com)]
+        if any(r.returncode for r in lidos):
+            ruins.append(f'{quem}: nm cannot read the objects')
+        else:
+            if 'textosLimpar' not in lidos[1].stdout:
+                ruins.append(f'{quem}: the object built WITH UA_HOST has no textosLimpar, so nm could not show its absence from the other')
+            if 'textosLimpar' in lidos[0].stdout:
+                ruins.append(f'{quem}: textosLimpar( ) is in the object built without UA_HOST, where Core 1 may be reading the table it frees')
+        if compila_com(pasta, cxx, flags, 'void f( ) { ua::textosLimpar( ); }', kit):
+            ruins.append(f'{quem}: a call to ua::textosLimpar( ) compiles without UA_HOST')
+        if not compila_com(pasta, cxx, [*flags, '-DUA_HOST'], 'void f( ) { ua::textosLimpar( ); }', kit):
+            ruins.append(f'{quem}: a call to ua::textosLimpar( ) does not compile with UA_HOST, which the host harness needs')
+    return ruins
+
+
+# (a literal as it is written in the source, True when its bytes are valid UTF-8 once the compiler has joined and decoded the pieces). Each is planted
+# as UA_TXT( "Z" <literal> ): the leading piece gives every English a letter (the gate lists only texts with one) and keeps the join in the test.
+LITERAIS = [
+    (r'"a\xE2\x80" "\xA6"', True),          # the review's case: an ellipsis split across two pieces
+    (r'"\xF0\x9F" "\x98\x80"', True),       # a 4-byte character split in the middle
+    (r'"caf\xC3\xA9"', True), (r'"\t"', True), (r'"\u00e9\u2026"', True), (r'"\303\251"', True), (r'"\x41\x42"', True), (r'"line\n"', True),
+    (r'R"(raw "q" \n)"', True), (r'"Two " "pieces"', True), ('"é… ok"', True),
+    (r'"\xFF"', False), (r'"\xC3"', False), (r'"\xE2\x80" "x"', False), (r'"\xC0\x80"', False),
+]
+
+
+def problemas_da_leitura(pasta):
+    """The gate's reading of an English is the compiler's: the bytes ua::fnv1a( ) hashes in a program the compiler built from the same literals equal the
+    gate's (check_lang_packs.angulo_literals( ) and its fnv1a32) for every literal that is UTF-8, and the others are refused, not read."""
+    prog = pasta / 'bytes_do_compilador.cpp'
+    prog.write_text('#include "Textos.h"\n#include <stdio.h>\nint main( ) {\n'
+                    + ''.join(f'  printf( "%08x\\n", (unsigned)ua::fnv1a( "" "Z" {lit} ) );\n' for lit, _ in LITERAIS) + '  return 0;\n}\n')
+    exe = pasta / 'bytes_do_compilador'
+    r = subprocess.run(['g++', '-std=gnu++17', f'-I{KIT}', str(prog), '-o', str(exe)], capture_output=True, text=True)
+    if r.returncode:
+        return ['the compiler does not build the literals: ' + (r.stderr.strip().splitlines() or ['?'])[0][:120]]
+    hs = [int(x, 16) for x in subprocess.run([str(exe)], capture_output=True, text=True).stdout.split()]
+    angulo = pasta / 'angulo_lido'
+    angulo.mkdir()
+    (angulo / 'plant.cpp').write_text(''.join(f'f( UA_TXT( "Z" {lit} ) );\n' for lit, _ in LITERAIS), encoding='utf-8')
+    antes = gate.ANGULO_DIR
+    gate.ANGULO_DIR = angulo
+    try:
+        vivos = {int(w.rsplit(':', 1)[1]): t for t, w in gate.angulo_literals().items()}
+        ruins = []
+        try:
+            recusados = {int(w.rsplit(':', 1)[1]) for w, _ in gate.angulo_bad_literals()}
+        except AttributeError as e:
+            ruins.append(f'the gate cannot name an English it refuses: {e}')
+            recusados = set()
+    finally:
+        gate.ANGULO_DIR = antes
+    for i, (lit, valido) in enumerate(LITERAIS, 1):
+        if valido:
+            t = vivos.get(i)
+            if t is None:
+                ruins.append(f'{lit}: the gate does not read it')
+            elif gate.fnv1a32(t) != hs[i - 1]:
+                ruins.append(f'{lit}: the gate hashes {gate.fnv1a32(t):08x}, the compiler\'s bytes {hs[i - 1]:08x}')
+        else:
+            if i in vivos:
+                ruins.append(f'{lit}: not UTF-8, and the gate reads it ({vivos[i]!r})')
+            if i not in recusados:
+                ruins.append(f'{lit}: not UTF-8, and the gate does not name it as refused')
+    return ruins[:6]
+
+
+TSAN_MAIN = HERE / 'host' / 'test_textos_tsan_main.cpp'
+CXX_TSAN = ['g++', '-std=gnu++17', '-O1', '-g', '-fsanitize=thread', '-fno-omit-frame-pointer', '-pthread', '-DUA_HOST']
+
+
+def rodar_tsan(lanc, exe, limite):
+    """One run of a ThreadSanitizer program. Under a randomised address space it dies at start-up with 'unexpected memory mapping' now and then
+    (the layout is drawn at each start): that start is tried again, up to 5 times, and is never read as a run that found nothing. -> (the run,
+    whether the program started)."""
+    for _ in range(5):
+        r = subprocess.run([*lanc, str(exe)], capture_output=True, text=True, timeout=limite, env=dict(os.environ, TSAN_OPTIONS='halt_on_error=0:exitcode=66'))
+        if 'FATAL: ThreadSanitizer' not in r.stderr:
+            return r, True
+    return r, False
+
+
+def lancador_tsan(pasta):
+    """-> (the command prefix that starts a ThreadSanitizer program here, '') or (None, why not). It builds an empty program: on some kernels the first
+    start dies with 'unexpected memory mapping' (a randomised address space the shadow memory does not fit); the same program under `setarch <arch> -R`
+    (no randomisation) starts."""
+    fonte = pasta / 'tsan_vazio.cpp'
+    fonte.write_text('int main( ) { return 0; }\n')
+    exe = pasta / 'tsan_vazio'
+    r = subprocess.run([*CXX_TSAN, str(fonte), '-o', str(exe)], capture_output=True, text=True)
+    if r.returncode:
+        return None, 'the compiler cannot build with -fsanitize=thread: ' + (r.stderr.strip().splitlines() or ['?'])[0][:120]
+    ultimo = ''
+    for lanc in ([['setarch', platform.machine(), '-R']] if shutil.which('setarch') else []) + [[]]:
+        try:
+            tentativas = [subprocess.run([*lanc, str(exe)], capture_output=True, text=True, timeout=60) for _ in range(5)]
+        except subprocess.TimeoutExpired:
+            ultimo = 'timeout'
+            continue
+        ruim = next((r for r in tentativas if r.returncode), None)
+        if ruim is None:
+            return lanc, ''
+        ultimo = (ruim.stderr.strip().splitlines() or [f'exit {ruim.returncode}'])[0][:120]
+    return None, 'a ThreadSanitizer program does not start here (5 starts in a row), with or without setarch -R: ' + ultimo
+
+
+def problemas_tsan(pasta, cpp, lanc):
+    """The publication under ThreadSanitizer: three reader threads call txt( ) while the loader runs. The original is silent (exit 0, no report) AND the
+    readers saw the table (hits > 0: a silence from readers that never saw it proves nothing); a relaxed store and a store before the fill each give a
+    data race report, which is what shows the instrument bites. Each run is repeated: ThreadSanitizer sees the races of the run it watched.
+    -> (problems, '') or ([], why it could not run: ThreadSanitizer died at start-up)."""
+    ruins = []
+    _loja = '__atomic_store_n( &gTabela, t, __ATOMIC_RELEASE );'
+    casos = [('original', [], False),
+             ('a relaxed store', [(_loja, '__atomic_store_n( &gTabela, t, __ATOMIC_RELAXED );')], True),
+             ('published before it is filled', [(_loja, ''), ('  t->bytes = bytes;\n', '  t->bytes = bytes;\n  ' + _loja + '\n')], True)]
+    for n, (nome, edicoes, quer_corrida) in enumerate(casos):
+        pasta_n = pasta / f'tsan{n}'
+        pasta_n.mkdir()
+        texto = cpp
+        for antigo, novo in edicoes:
+            texto = aplicar(texto, antigo, novo)
+        (pasta_n / 'Textos.cpp').write_text(texto, encoding='utf-8')
+        shutil.copy(KIT / 'Textos.h', pasta_n / 'Textos.h')
+        exe = pasta_n / 'tsan'
+        r = subprocess.run([*CXX_TSAN, f'-I{pasta_n}', str(TSAN_MAIN), str(pasta_n / 'Textos.cpp'), '-o', str(exe)], capture_output=True, text=True)
+        if r.returncode:
+            ruins.append(f'{nome}: does not build: ' + (r.stderr.strip().splitlines() or ['?'])[0][:100])
+            continue
+        corridas, vistas = 0, []
+        for _ in range(5):
+            try:
+                r, iniciou = rodar_tsan(lanc, exe, 120)
+                if not iniciou:
+                    return [], f'{nome}: ThreadSanitizer died at start-up in 5 tries in a row: ' + (r.stderr.strip().splitlines() or ['?'])[0][:100]
+            except subprocess.TimeoutExpired:
+                ruins.append(f'{nome}: timeout')
+                break
+            m = re.search(r'tsan run: load=(\d+) hits=(\d+) bad=(\d+)', r.stdout)
+            corrida = 'WARNING: ThreadSanitizer: data race' in r.stderr
+            corridas += corrida
+            vistas.append((r.returncode, corrida, m.groups() if m else None))
+            if not quer_corrida and (r.returncode or corrida or not m or m.group(1) != '0' or int(m.group(2)) < 3000 or int(m.group(3))):
+                ruins.append(f'{nome}: exit {r.returncode}, race report {corrida}, {m.group(0) if m else "no result line"}; '
+                             + (next((ln for ln in r.stderr.splitlines() if 'ThreadSanitizer' in ln), '')[:80]))
+                break
+            if quer_corrida and corrida:
+                break
+        if quer_corrida and not corridas:
+            ruins.append(f'control "{nome}": ThreadSanitizer reported no race in 5 runs of a broken publication, so its silence on the original proves nothing: {vistas[:2]}')
+    return ruins, ''
+
+
 def main():
     try:
         fonte = PARSER.read_text(encoding='utf-8')
@@ -359,6 +579,41 @@ def main():
         caso('style: no String, std::, exceptions, new or printf, includes only stddef.h stdint.h stdlib.h string.h, and txt( ) allocates nothing',
              regras_de_estilo('Textos.cpp', cpp, {'Textos.h', 'stdlib.h', 'string.h'}) + regras_de_estilo('Textos.h', hdr, {'stddef.h', 'stdint.h'}))
 
+        # the device build, the English as the compiler's bytes, the publication under ThreadSanitizer (S10c, B2a-b)
+        caso('device build: textosLimpar( ) is there only under UA_HOST (no such symbol in Textos.cpp built without it, and a call does not compile)',
+             problemas_do_limpar(tmp, KIT))
+        caso(f"English: the gate reads the compiler's bytes on {len([1 for _, v in LITERAIS if v])} literals (a split escape included) and refuses the "
+             f"{len([1 for _, v in LITERAIS if not v])} that are not UTF-8", problemas_da_leitura(tmp))
+        lanc, porque = lancador_tsan(tmp)
+        if lanc is None:
+            nao_rodou('publication under ThreadSanitizer (3 reader threads and the loader; a race on a relaxed store and on a store before the fill)', porque)
+        else:
+            ruins_tsan, porque = problemas_tsan(tmp, cpp, lanc)
+            if porque:
+                nao_rodou('publication under ThreadSanitizer (3 reader threads and the loader; a race on a relaxed store and on a store before the fill)', porque)
+            else:
+                caso('publication under ThreadSanitizer' + (f' (started with {" ".join(lanc)})' if lanc else '')
+                     + ': silent on the original with the readers seeing the table, a race reported for a relaxed store and for a store before the fill',
+                     ruins_tsan)
+
+        # the controls of the first two checks (the ThreadSanitizer one carries its own: the two broken publications)
+        sem_guarda = tmp / 'sem_guarda'
+        sem_guarda.mkdir()
+        (sem_guarda / 'Textos.h').write_text(aplicar(aplicar(hdr, '#ifdef UA_HOST\n', ''), '#endif\n', ''), encoding='utf-8')
+        (sem_guarda / 'Textos.cpp').write_text(aplicar(aplicar(cpp, '#ifdef UA_HOST\n', ''), '#endif\n', ''), encoding='utf-8')
+        (tmp / 'ctl_limpar').mkdir()
+        caso('control: the device-build check fails when the guard is taken off textosLimpar( )',
+             [] if problemas_do_limpar(tmp / 'ctl_limpar', sem_guarda, avisar=False) else ['the check passes with textosLimpar( ) in the device build'])
+        velho = cut._piece_bytes
+        cut._piece_bytes = lambda code, text, a, c: velho(code, text, a, c).decode('utf-8', 'replace').encode('utf-8')
+        try:
+            (tmp / 'ctl_leitura').mkdir()
+            reprovou = problemas_da_leitura(tmp / 'ctl_leitura')
+        finally:
+            cut._piece_bytes = velho
+        caso("control: the English check fails when the gate decodes each piece by itself, as it did before B2a-b",
+             [] if reprovou else ['the check passes with the old decoding'])
+
         # the controls
         ctl = []
         for nome, edicoes in MUTANTES_DA_FORMA:
@@ -398,7 +653,7 @@ def main():
         caso('control: the comparison fails when the device\'s function changes', ['does not build: ' + erro2[:80]] if not exe2 else
              [] if problemas_do_hash(exe2, tmp, amostra) else ['the 50 hashes still agree'])
     ruins = [n for n, ok in CASOS if not ok]
-    print(f'\n{len(CASOS)} checks, {len(ruins)} failed')
+    print(f'\n{len(CASOS)} checks, {len(ruins)} failed, {len(NAO_RODOU)} not run' + ''.join(f'\n  NOT RUN {n}: {m}' for n, m in NAO_RODOU))
     return 1 if ruins else 0
 
 

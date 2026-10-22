@@ -223,6 +223,37 @@ def angulo_cases():
             check("gate stops when Textos.h is not there", stopped)
             restore_tree()
 
+        # the English is the compiler's bytes (S10c, B2a-b): an escape split across adjacent literals is one character, and an English that is not
+        # UTF-8 is refused where it is written (a pack file is UTF-8 text: it cannot carry a line for the bytes the device would hash)
+        def fnv_bytes(b):
+            h = 0x811C9DC5
+            for c in b:
+                h = ((h ^ c) * 0x01000193) & 0xFFFFFFFF
+            return h
+
+        with tempfile.TemporaryDirectory() as td:
+            angulo_tree(td, {"bytes.cpp": 'const char *a = UA_TXT( "a\\xE2\\x80" "\\xA6" ), *b = UA_TXT( "caf\\xC3\\xA9" ), *c = UA_TXT( "tab\\t" );\n'})
+            got = sorted(gate.fnv1a32(t) for t in gate.angulo_literals())
+            want = sorted(fnv_bytes(w) for w in (b"a\xe2\x80\xa6", b"caf\xc3\xa9", b"tab\t"))
+            check("literals: the hash of an English is the hash of the compiler's bytes, an escape split across adjacent literals included",
+                  got == want, f"got {[f'{h:08x}' for h in got]}, the bytes' {[f'{h:08x}' for h in want]}")
+            restore_tree()
+        with tempfile.TemporaryDirectory() as td:
+            angulo_tree(td, {"plant.cpp": 'const char *a = UA_TXT( "Bad \\xFF" );\n'})
+            bad, err = run_gate(packs(td, None, None))
+            check("gate fires: a UA_TXT English that is not UTF-8 is refused where it is written (file:line) and is not asked of the packs",
+                  bad and "UTF-8" in err and "plant.cpp:1" in err and "has no" not in err, err[-300:])
+            restore_tree()
+        with tempfile.TemporaryDirectory() as td:
+            angulo_tree(td, {"plant.cpp": 'const char *a = UA_TXT( "Good \\xC3\\xA9" );\n'})
+            good = entry("Good é", "Bom é")
+            bad, err = run_gate(packs(td, good, good))
+            check("  and the twin written as UTF-8 passes with its entries", not bad, err[-300:])
+            restore_tree()
+        have, problems = gate.angulo_entries(b"12345678 abc\r\r\n12345679 x\r\n")
+        check("angulo_entries: ONE CR before the newline is the line end; a second is the text's, as the loader reads it (src/ui/angulo/Textos.cpp)",
+              not problems and have == {0x12345678: "abc\r", 0x12345679: "x"}, str((have, problems)))
+
         # the reader of literals: the compiler's reading, not a grep
         fonte = (
             '// UA_TXT( "in a line comment" )\n/* UA_TXT( "in a block comment" ) */\nconst char *a = "Outside";\n'

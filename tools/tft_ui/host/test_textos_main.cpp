@@ -273,6 +273,12 @@ static void c_fim_de_linha( ) {
   ua::textosLimpar( );
   CHECK( carregar( linha( "Save", "Salvar  " ) ) == ua::TEXTOS_OK );
   CHECK( e_texto( "Save", "Salvar  " ) );
+  // ONE CR before the newline is the line end and no more: "abc\r\r\n" is the text "abc\r" (a loader that strips every trailing CR reads "abc"), and a
+  // CR that ends the section with no newline after it is a line end too
+  ua::textosLimpar( );
+  CHECK( carregar( linha( "Save", "abc", "\r\r\n" ) + linha( "Cancel", "x", "\r" ) ) == ua::TEXTOS_OK );
+  CHECK( e_texto( "Save", "abc\r" ) );
+  CHECK( e_texto( "Cancel", "x" ) );
 }
 
 static void c_busca( ) {
@@ -404,7 +410,7 @@ static const struct {
     { "after every kind of refusal the next good section loads", c_nova_tentativa },
     { "a second load while one is published is refused and the first stays", c_segunda_carga },
     { "textosLimpar( ) gives back English, twice, and a new load follows", c_limpar },
-    { "line ends: no newline on the last line, CRLF, a CR inside a text, trailing blanks", c_fim_de_linha },
+    { "line ends: no newline on the last line, CRLF, a CR inside a text, a second CR kept, trailing blanks", c_fim_de_linha },
     { "500 entries shuffled and both ends of the hash: all found, 500 misses give the English", c_busca },
     { "the edges of the binary search: a miss below the first entry and above the last, a hit on each", c_bordas },
     { "UA_TXT( ) gives ua::txt( ) of its English, adjacent literals joined", c_macro },

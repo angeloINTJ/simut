@@ -20,8 +20,18 @@
 // which is 3.1 KB over the 523 sites B1 counted. When no pack is loaded txt( ) returns before it hashes anything.
 //
 // WHERE IT MAY BE CALLED. Where the text is drawn, never in an initialiser that runs before main( ): a table of UA_TXT( ) built at start-up
-// holds the English for good, because the pack is not loaded yet. And never as a printf format without a check: the text is a file anyone with
-// PERM_FILE_UPLOAD can put on the device (37 of the 408 texts hold a conversion, 2026-10-22).
+// holds the English for good, because the pack is not loaded yet.
+//
+// A LOOKED-UP TEXT IS NEVER A FORMAT. The text is a file anyone with PERM_FILE_UPLOAD can put on the device (37 of the 408 texts hold a
+// conversion, 2026-10-22), the loader keeps only hashes and so cannot compare a translation's conversions with the English's, and the build has no
+// -Wformat-nonliteral: snprintf( b, 16, UA_TXT( "%d min" ), v ) compiles under -Wall -Wextra -Werror, and a translation with another conversion,
+// or a %n, would read the stack or write where nobody pointed. So the words go in as arguments of a format that is a literal:
+// snprintf( b, 16, "%d %s", v, UA_TXT( "min" ) ). If a language's word order ever forces a conversion into a translation, a call-site helper must
+// compare the translation's conversion sequence with the English literal's (same count and types, no %n, no *) and fall back to the English on
+// any difference; none exists yet. What holds today: tools/check_ui_texts.py refuses UA_TXT( ) as the format argument of a printf-family call (and
+// of a kit function declared with a const char * before ... or a va_list). A text that reaches printf through a variable is for
+// -Wformat-nonliteral, which is not on: measured on 2026-10-22 on the Ângulo's units of both Ângulo images it names 0 sites in src/ui/angulo
+// (B2b and B3 decide).
 //
 // Built only by the Ângulo UI driver and the host harness. textosCarregar( ) is called once, on Core 0, before the first paint, with the body of
 // the pack's @ANGULO section.
@@ -70,8 +80,11 @@ enum TextosResultado : uint8_t {
 // never replaced or freed while the device runs, because Core 1 may hold a text of it (a second call returns TEXTOS_JA_CARREGADO).
 TextosResultado textosCarregar( const char *secao, size_t n );
 
-// Gives the table back. For the host tests only: on the device Core 1 may still be drawing a text of it.
+#ifdef UA_HOST
+// Gives the table back. For the host tests only, and compiled only under UA_HOST (the define the host harness passes): on the device Core 1 may
+// still be drawing a text of the table, so no device build can call it. tools/tft_ui/test_textos.py checks the object of a build without UA_HOST.
 void textosLimpar( );
+#endif
 
 size_t textosContagem( );   // texts in the published table, 0 when there is none
 size_t textosBytes( );      // bytes of its allocation, 0 when there is none

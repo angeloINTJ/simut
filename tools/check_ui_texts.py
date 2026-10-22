@@ -37,6 +37,24 @@ finding, unless tools/ui_texts_allow.json names it. What the gate sees is what t
   UA_TXT( )       a literal (or a run of adjacent pieces) is its argument when UA_TXT, as a whole identifier, and `(` come right before it and
                   `)` right after it. `UA_TXT( ok ? "a" : "b" )`, `UA_TXT( "a", n )` and `UA_TXTX( "a" )` do not qualify: write
                   `ok ? UA_TXT( "a" ) : UA_TXT( "b" )`. B2's check_lang_packs.py will want one pack entry per UA_TXT literal, so the argument is one text.
+  the English     is the compiler's BYTES. Each piece's escapes are decoded to bytes (\\xE2\\x80\\xA6 is three bytes, one ellipsis; \\u and \\U are
+                  code points written in UTF-8), the pieces' bytes are joined, and the join is read as UTF-8: UA_TXT( "a\\xE2\\x80" "\\xA6" ) is a and an
+                  ellipsis, the bytes the device hashes (decoding each piece by itself would read two replacement characters, and the gate's hash
+                  would differ from the device's). An English that is not valid UTF-8 is a finding of its own: a pack is a UTF-8 file and has no
+                  line for those bytes.
+
+A LOOKED-UP TEXT IS NEVER A FORMAT (S10c, B2a-b). A pack is a file anyone with PERM_FILE_UPLOAD can put on the device, the loader keeps only hashes
+and so cannot compare a translation's conversions with the English's, and the build has no -Wformat-nonliteral: snprintf( b, 16, UA_TXT( "%d min" ), v )
+compiles under -Wall -Wextra -Werror, and a translation with another conversion, or a %n, would read the stack or write where nobody pointed (37 of the
+408 texts hold a %, 2026-10-22). So the words go in as arguments of a format that is a literal: snprintf( b, 16, "%d %s", v, UA_TXT( "min" ) ). If a
+language's word order ever forces a conversion into a translation, a call-site helper must compare the translation's conversion sequence with the
+English literal's (same count and types, no %n, no *) and fall back to the English on any difference; none exists yet. This gate refuses UA_TXT( ) as
+the format argument of printf, vprintf, sprintf, vsprintf, fprintf, vfprintf, dprintf, vdprintf, asprintf, vasprintf, snprintf and vsnprintf (and
+newlib's iprintf family), called as a function or as a member (`Serial.printf( )`), and of any function the kit declares with a `const char *` right
+before `...` or a `va_list`, found by its declaration whatever its name (none exists today: src/ui/angulo has no such function, 2026-10-22). The format
+is the argument at the function's position, and UA_TXT as an identifier anywhere in it (a ternary, a cast) is the finding: one per call, at the line
+of the UA_TXT. `-Wformat-nonliteral` was measured and left off: on 2026-10-22, with the project's own flags added to, it names 0 sites in the 34 units
+of src/ui/angulo that each Ângulo image compiles, plus Textos.cpp, and 1 outside them (src/SystemDefs_Records.h:962, a lambda of the products).
 
 THE ALLOWANCES. tools/ui_texts_allow.json lists what has letters and is not panel text, one group per reason:
 
@@ -57,7 +75,10 @@ allowance file is an empty one.
 
 KNOWN LIMITS. It is a lexical gate, not a parser. It reads literals and not the text a program builds at run time (a snprintf( ) format is a
 literal and is seen, its result is not); `#if 0` code is scanned as code; a text that a header outside src/ui/angulo/ defines and the Ângulo
-only passes along is not seen; a literal on an `#include` line is a header name, never a text.
+only passes along is not seen; a literal on an `#include` line is a header name, never a text. A looked-up text that reaches a printf
+through a variable (`const char *f = UA_TXT( ... ); snprintf( b, n, f, v )`), through a macro that forwards its arguments, through a function
+pointer or through a function the kit declares without `...` or a va_list is not seen: that is -Wformat-nonliteral's, which is off. A template-id's
+comma before the format argument (`f<a, b>( ... )`) shifts the argument's position: angle brackets do not nest.
 
 MEASURED on 2026-10-22 (S10c, B1, on 78aba05a; `python3 tools/check_ui_texts.py --report`): 80 files read, 736 texts with a letter (564
 distinct); the allowance file takes out 213 of them (185 entries, 12 groups) and leaves 523 findings in 33 files (408 distinct). The plan's
@@ -104,9 +125,10 @@ MARK = "UA_TXT"
 # The one place the lexer is called from. The selftest's controls replace it (a no-op, to see the cases bite).
 STRIPPER = cnb.strip_source
 
-Lit = collections.namedtuple("Lit", "path line text converted")          # one text (adjacent pieces joined); converted: it is UA_TXT( )'s argument
+Lit = collections.namedtuple("Lit", "path line text converted raw")      # one text (adjacent pieces joined); converted: UA_TXT( )'s argument; raw: its bytes
 Allow = collections.namedtuple("Allow", "path text reason")
-Scan = collections.namedtuple("Scan", "findings converted allowed unused twice files")
+Fmt = collections.namedtuple("Fmt", "path line function")                  # a looked-up text used as the format of a printf-family call
+Scan = collections.namedtuple("Scan", "findings converted allowed unused twice files formats badutf8")
 
 
 # ── the gate ───────────────────────────────────────────────────────────────────────────────────
@@ -169,9 +191,10 @@ _ESCAPE = re.compile(r"\\(?:\r\n|\n|\r)|\\x[0-9A-Fa-f]+|\\[0-7]{1,3}|\\u[0-9A-Fa
 _SIMPLE = {"n": "\n", "t": "\t", "r": "\r", "a": "\a", "b": "\b", "f": "\f", "v": "\v"}      # \\ \' \" \? and the rest: the character itself
 
 
-def decode(body):
-    """The text a normal literal holds: the escapes decoded (a backslash at the end of a line removed; \\x and octal as bytes, so that
-    "\\xE2\\x80\\xA6" is one ellipsis; \\u and \\U as code points), read as UTF-8."""
+def decode_bytes(body):
+    """The BYTES a normal literal holds: the escapes decoded (a backslash at the end of a line removed; \\x and octal as one byte each, so that
+    "\\xE2\\x80\\xA6" is three bytes; \\u and \\U as code points written in UTF-8) and the rest of the source text in UTF-8. Whether they are valid UTF-8 is
+    for is_utf8( ): a piece may end in the middle of a character that the next piece completes."""
     out, pos = bytearray(), 0
     for m in _ESCAPE.finditer(body):
         out += body[pos:m.start()].encode("utf-8", "replace")
@@ -185,12 +208,17 @@ def decode(body):
             out.append(int(e[1:], 8) & 0xFF)
         elif k in "uU":
             cp = int(e[2:], 16)
-            out += (chr(cp) if cp <= 0x10FFFF and not 0xD800 <= cp <= 0xDFFF else "\ufffd").encode("utf-8")
+            out += (chr(cp) if cp <= 0x10FFFF and not 0xD800 <= cp <= 0xDFFF else "�").encode("utf-8")
         else:
             out += _SIMPLE.get(k, k).encode("utf-8")
         pos = m.end()
     out += body[pos:].encode("utf-8", "replace")
-    return out.decode("utf-8", "replace")
+    return bytes(out)
+
+
+def decode(body):
+    """The text a normal literal holds: decode_bytes( ) read as UTF-8, a byte that is not UTF-8 shown as U+FFFD."""
+    return decode_bytes(body).decode("utf-8", "replace")
 
 
 def has_letter(s):
@@ -223,15 +251,28 @@ def inside_ua_txt(code, first, last):
     return k < n and code[k] == ")"
 
 
-def _piece_text(code, text, a, c):
+def is_utf8(raw):
+    """The bytes of an English are valid UTF-8 (the strict decoder: no overlong form, no surrogate, nothing cut short)."""
+    try:
+        raw.decode("utf-8")
+    except UnicodeDecodeError:
+        return False
+    return True
+
+
+def _piece_bytes(code, text, a, c):
+    """The bytes of one piece of a literal: a raw string verbatim, a normal one with its escapes decoded (decode_bytes)."""
     raw = raw_body(code, text, a, c)
-    return raw if raw is not None else decode(text[a + 1:c])
+    return raw.encode("utf-8") if raw is not None else decode_bytes(text[a + 1:c])
 
 
-def texts_of(rel, text):
+def texts_of(rel, text, code=None):
     """[Lit]: every text of one file that holds a letter, in order. A text is a literal or a run of adjacent ones, joined as the compiler joins
-    them, at the line of its first quote; `converted` says it is UA_TXT( )'s argument."""
-    code, _includes = STRIPPER(text)
+    them, at the line of its first quote; `converted` says it is UA_TXT( )'s argument. The join is of the BYTES of the pieces (an escape may be split
+    across two of them: "a\\xE2\\x80" "\\xA6" is a and an ellipsis) and `raw` is that join, what the compiler holds and the device hashes; `text` is
+    `raw` read as UTF-8, a byte that is not UTF-8 shown as U+FFFD (is_utf8( raw ) tells). `code` is the lexer's output for `text`, when the caller has it."""
+    if code is None:
+        code, _includes = STRIPPER(text)
     newlines = [m.start() for m in re.finditer("\n", text)]
     groups, group = [], []
     for a, c in pieces(code):
@@ -247,9 +288,88 @@ def texts_of(rel, text):
         groups.append(group)
     out = []
     for g in groups:
-        body = "".join(_piece_text(code, text, a, c) for a, c in g)
+        raw = b"".join(_piece_bytes(code, text, a, c) for a, c in g)
+        body = raw.decode("utf-8", "replace")
         if has_letter(body):
-            out.append(Lit(rel, bisect.bisect_left(newlines, g[0][0]) + 1, body, inside_ua_txt(code, g[0][0], g[-1][1])))
+            out.append(Lit(rel, bisect.bisect_left(newlines, g[0][0]) + 1, body, inside_ua_txt(code, g[0][0], g[-1][1]), raw))
+    return out
+
+
+# The printf family: name -> the index of the format argument. A call is `name (` with `name` a whole identifier, wherever it is called from
+# (`Serial.printf(`, `std::snprintf(`); UA_TXT as an identifier anywhere in that argument is a looked-up text used as a format.
+FORMATTERS = {"printf": 0, "vprintf": 0, "iprintf": 0, "sprintf": 1, "vsprintf": 1, "siprintf": 1, "fprintf": 1, "vfprintf": 1, "fiprintf": 1,
+              "dprintf": 1, "vdprintf": 1, "asprintf": 1, "vasprintf": 1, "snprintf": 2, "vsnprintf": 2, "sniprintf": 2}
+_CALL = re.compile(r"(?<![A-Za-z0-9_])([A-Za-z_]\w*)\s*\(")
+_MARK = re.compile(r"(?<![A-Za-z0-9_])" + MARK + r"(?![A-Za-z0-9_])")
+_VARIADIC_FMT = re.compile(r"const\s+char\s*\*\s*(?:[A-Za-z_]\w*)?\s*,\s*(?:\.\.\.|va_list\b)")
+
+
+def call_args(code, p):
+    """The top-level arguments of the call whose `(` is at p, as (start, end) offsets in `code`, where strings and comments are blank, so that every
+    comma and parenthesis is code. Brackets and braces nest like parentheses; angle brackets do not. A call that never closes gives the arguments
+    it has."""
+    depth, start, args = 0, p + 1, []
+    for i in range(p + 1, len(code)):
+        c = code[i]
+        if c in "([{":
+            depth += 1
+        elif c in ")]}":
+            if depth == 0:
+                if args or code[start:i].strip(BLANK):
+                    args.append((start, i))
+                return args
+            depth -= 1
+        elif c == "," and depth == 0:
+            args.append((start, i))
+            start = i + 1
+    return args
+
+
+def kit_formatters(code):
+    """{name: index of the format argument} for the functions that `code` (a file, comments and strings blank) declares or defines with a
+    `const char *` right before `...` or a va_list: the kit's own printf family, found by its declaration whatever the name."""
+    out = {}
+    for m in _VARIADIC_FMT.finditer(code):
+        depth, i, commas = 0, m.start() - 1, 0
+        while i >= 0:                                  # back to the `(` of the parameter list, counting the commas of its own level
+            c = code[i]
+            if c in ")]}":
+                depth += 1
+            elif c in "([{":
+                if depth == 0:
+                    break
+                depth -= 1
+            elif c == "," and depth == 0:
+                commas += 1
+            i -= 1
+        if i < 0 or code[i] != "(":
+            continue
+        j = i - 1
+        while j >= 0 and code[j] in BLANK:
+            j -= 1
+        end = j + 1
+        while j >= 0 and (code[j].isalnum() or code[j] == "_"):
+            j -= 1
+        name = code[j + 1:end]
+        if name and not name[0].isdigit():
+            out[name] = commas
+    return out
+
+
+def format_uses(code, table):
+    """[(offset of the UA_TXT, function)]: one per call of a printf-family function (`table`: name -> index of its format argument) whose format
+    argument holds UA_TXT as an identifier. A call with fewer arguments (a declaration, a macro's body) has no such argument and is skipped."""
+    out = []
+    for m in _CALL.finditer(code):
+        k = table.get(m.group(1))
+        if k is None:
+            continue
+        args = call_args(code, m.end() - 1)
+        if len(args) <= k:
+            continue
+        t = _MARK.search(code, args[k][0], args[k][1])
+        if t:
+            out.append((t.start(), m.group(1)))
     return out
 
 
@@ -288,11 +408,12 @@ def load_allowances(root):
 
 def scan(root):
     """-> Scan: the findings (texts outside UA_TXT( ) that no allowance names), how many sit in UA_TXT( ), the allowed ones by reason, the
-    allowances that matched nothing, the ones named twice, and the number of files read."""
+    allowances that matched nothing, the ones named twice, the number of files read, the looked-up texts used as the format of a printf-family call
+    (Fmt) and the UA_TXT( ) English that is not UTF-8 (Lit)."""
     base = os.path.join(root, SCAN_DIR)
     if not os.path.isdir(base):
         raise CannotRead(f"no {SCAN_DIR}/ under {root}")
-    lits, files = [], 0
+    sources = []                                       # (path relative to root, text, the lexer's code)
     for dirpath, dirs, names in os.walk(base):
         dirs.sort()
         for f in sorted(names):
@@ -300,10 +421,22 @@ def scan(root):
                 continue
             path = os.path.join(dirpath, f)
             with open(path, encoding="utf-8", errors="replace") as fh:
-                lits.extend(texts_of(os.path.relpath(path, root).replace(os.sep, "/"), fh.read()))
-            files += 1
-    if not files:
+                text = fh.read()
+            sources.append((os.path.relpath(path, root).replace(os.sep, "/"), text, STRIPPER(text)[0]))
+    if not sources:
         raise CannotRead(f"no source under {SCAN_DIR}/: a gate with nothing to read must not pass")
+    lits = []
+    for rel, text, code in sources:
+        lits.extend(texts_of(rel, text, code))
+    formatters = dict(FORMATTERS)
+    for _rel, _text, code in sources:
+        formatters.update(kit_formatters(code))
+    formats = []
+    for rel, text, code in sources:
+        uses = format_uses(code, formatters)
+        if uses:
+            newlines = [m.start() for m in re.finditer("\n", text)]
+            formats.extend(Fmt(rel, bisect.bisect_left(newlines, off) + 1, fn) for off, fn in uses)
     table = collections.defaultdict(list)                  # (path, text) -> the reasons that name it
     for al in load_allowances(root):
         table[(al.path, al.text)].append(al.reason)
@@ -319,22 +452,39 @@ def scan(root):
     findings.sort(key=lambda f: (f.path, f.line))
     unused = sorted((p, t, r) for (p, t), rs in table.items() if (p, t) not in used for r in rs)
     twice = sorted((p, t, len(rs)) for (p, t), rs in table.items() if len(rs) > 1)
-    return Scan(findings, converted, allowed, unused, twice, files)
+    badutf8 = [lit for lit in lits if lit.converted and not is_utf8(lit.raw)]
+    return Scan(findings, converted, allowed, unused, twice, len(sources), formats, badutf8)
+
+
+def bad_message(lit):
+    return (f"{lit.path}:{lit.line}: UA_TXT( ) English is not valid UTF-8 (bytes {lit.raw.hex()}): the device hashes the compiler's bytes and a pack, "
+            "a UTF-8 file, has no line for them; write the character as its UTF-8 bytes")
+
+
+def format_message(f):
+    return (f"{f.path}:{f.line}: UA_TXT( ) is the format of {f.function}( ): a looked-up text is never a format (a pack is a file any uploader can "
+            "write); pass the words as %s arguments of a literal format")
 
 
 def print_findings(res):
-    """The default mode: every finding as `path:line: "text"`, then the allowance problems, then the count. -> the exit status."""
+    """The default mode: every finding as `path:line: "text"`, then the English that is not UTF-8 and the looked-up texts used as a format, then the
+    allowance problems, then the count. -> the exit status."""
     for f in res.findings:
         print(f"{f.path}:{f.line}: {json.dumps(f.text, ensure_ascii=False)}")
+    for lit in res.badutf8:
+        print(bad_message(lit))
+    for f in res.formats:
+        print(format_message(f))
     for p, t, r in res.unused:
         print(f"{ALLOW_FILE}: unused allowance: {json.dumps(t, ensure_ascii=False)} in {p} matches no literal outside UA_TXT( ) ({r[:60]})")
     for p, t, k in res.twice:
         print(f"{ALLOW_FILE}: allowed twice: {json.dumps(t, ensure_ascii=False)} in {p} is in {k} groups")
-    n = len(res.findings) + len(res.unused) + len(res.twice)
+    n = len(res.findings) + len(res.unused) + len(res.twice) + len(res.badutf8) + len(res.formats)
     if n:
         print("check_ui_texts: a text the panel draws goes through UA_TXT( \"<English>\" ); a literal that is not panel text (a unit, an icon name, a format "
               f"string with no word, a bench tag) is named in {ALLOW_FILE} with its reason (see the docstring of tools/check_ui_texts.py)", file=sys.stderr)
-    print(f"check_ui_texts: {n} findings ({len(res.findings)} texts outside UA_TXT( ), {len(res.unused)} unused allowances, {len(res.twice)} allowed twice)")
+    print(f"check_ui_texts: {n} findings ({len(res.findings)} texts outside UA_TXT( ), {len(res.unused)} unused allowances, {len(res.twice)} allowed twice, "
+          f"{len(res.badutf8)} English not UTF-8, {len(res.formats)} looked-up texts used as a format)")
     return 1 if n else 0
 
 
@@ -348,9 +498,13 @@ def print_report(res):
         print(f"taken out by {ALLOW_FILE} (not panel text), by reason:")
         for reason, k in sorted(res.allowed.items(), key=lambda kv: (-kv[1], kv[0])):
             print(f"{k:6d}  {reason[:90]}")
+    for lit in res.badutf8:
+        print(bad_message(lit))
+    for f in res.formats:
+        print(format_message(f))
     print(f"check_ui_texts: {len(res.findings)} texts in {len(by_file)} of {res.files} files ({len({f.text for f in res.findings})} distinct); "
           f"{res.converted} already in UA_TXT( ); {sum(res.allowed.values())} literals allowed in {len(res.allowed)} groups; "
-          f"{len(res.unused)} unused allowances")
+          f"{len(res.unused)} unused allowances; {len(res.badutf8)} English not UTF-8; {len(res.formats)} looked-up texts used as a format")
 
 
 # ── the selftest ───────────────────────────────────────────────────────────────────────────────
@@ -591,11 +745,86 @@ def run_cases(process=True):
                  lambda: (lambda a, b, c, d: (a[0] == 1 and 'a.cpp:1: "Cancelar"' in a[1] and b[0] == 0 and c[0] == 0 and d[0] == 2, "%r %r %r %r" % (a, b, c, d)))(
                      _cli("--root", bad), _cli("--root", bad, "--report"), _cli("--root", clean), _cli("--root", os.path.join(base, "nowhere"))))
 
+        # 11. a looked-up text is never a format; the English is the compiler's bytes (S10c, B2a-b)
+        def formats(text, extra=None):
+            """[(line, function)] of the looked-up texts that are the format of a printf-family call, in one file planted in a temporary tree."""
+            files = {A + "a.cpp": text}
+            files.update(extra or {})
+            return [(f.line, f.function) for f in scan(T.make(files)).formats]
+
+        for call, fn in (('printf( UA_TXT( "%d min" ), v );', "printf"),
+                         ('sprintf( b, UA_TXT( "%d min" ), v );', "sprintf"),
+                         ('snprintf( b, 16, UA_TXT( "%d min" ), v );', "snprintf"),
+                         ('vsprintf( b, UA_TXT( "%d min" ), ap );', "vsprintf"),
+                         ('vsnprintf( b, 16, UA_TXT( "%d min" ), ap );', "vsnprintf"),
+                         ('fprintf( stderr, UA_TXT( "%d min" ), v );', "fprintf"),
+                         ('Serial.printf( UA_TXT( "%d min" ), v );', "printf"),
+                         ('std::snprintf( b, 16, UA_TXT( "%d min" ), v );', "snprintf"),
+                         ('snprintf( b, g( 1, 2 ), UA_TXT( "%d min" ), v );', "snprintf"),
+                         ('snprintf( b, 16, ok ? UA_TXT( "%d min" ) : UA_TXT( "%d h" ), v );', "snprintf"),
+                         ('snprintf( b, 16, (const char *)UA_TXT( "%d min" ), v );', "snprintf"),
+                         ('f( snprintf( b, 16, UA_TXT( "%d min" ), v ), 2 );', "snprintf")):
+            case("UA_TXT( ) as the format is refused, once, naming the function: " + call,
+                 lambda call=call, fn=fn: eq(formats(_src(call)), [(1, fn)]))
+        case("a call over several lines: the finding is at the line of the UA_TXT",
+             lambda: eq(formats(_src("snprintf( b,", "          sizeof b,", '          UA_TXT( "%d min" ),', "          v );")), [(3, "snprintf")]))
+        case("the words go in as %s arguments of a literal format: none of these uses a looked-up text as a format",
+             lambda: eq(formats(_src('snprintf( b, 16, "%s min", UA_TXT( "hour" ) );', 'printf( "%s\\n", UA_TXT( "x" ) );',
+                                     'fprintf( stderr, "%s", ok ? UA_TXT( "a" ) : UA_TXT( "b" ) );', 'snprintf( b, g( 1, 2 ), "%s", UA_TXT( "x" ) );',
+                                     'sprintf( b, "%d %s", n, UA_TXT( "x" ) );')), []))
+        case("not a use: a comment, a string that says UA_TXT, another identifier (MY_UA_TXT)",
+             lambda: eq(formats(_src('// snprintf( b, 16, UA_TXT( "x %d" ), v );', 'snprintf( b, 16, "UA_TXT( x )", v );',
+                                     'snprintf( b, 16, MY_UA_TXT( "x %d" ), v );')), []))
+        case("a call with fewer arguments than the format's position, an unclosed call and a bare name are no finding and no crash",
+             lambda: eq(formats(_src("snprintf( b );", "printf( );", "int (*p)( ) = snprintf;", 'snprintf( b, 16, UA_TXT( "x"')), []))
+        kit = {A + "log.h": _src("void falar( int nivel, const char *fmt, ... );", "int vfalar( const char *formato, va_list ap );")}
+        case("a function the kit declares with a const char * before ... or va_list is a printf-family function too, found by its declaration",
+             lambda: eq(formats(_src('falar( 1, UA_TXT( "%d min" ), v );', 'vfalar( UA_TXT( "%d" ), ap );', 'falar( 1, "%s", UA_TXT( "x" ) );'), extra=kit),
+                        [(1, "falar"), (2, "vfalar")]))
+        case("and with no declaration of it the same calls give nothing: the discovery, and not the table, found them",
+             lambda: eq(formats(_src('falar( 1, UA_TXT( "%d min" ), v );', 'vfalar( UA_TXT( "%d" ), ap );')), []))
+
+        def format_in_default_mode():
+            rc, out, err = _run("--root", T.make({A + "a.cpp": _src('snprintf( b, 16, UA_TXT( "%d min" ), v );')}))
+            return (rc == 1 and 'a.cpp:1: UA_TXT( ) is the format of snprintf( )' in out
+                    and out.strip().splitlines()[-1].startswith("check_ui_texts: 1 findings")), "%d %r" % (rc, out)
+        case("the default mode: a looked-up text used as a format is one finding, with path:line and the function, exit 1", format_in_default_mode)
+        case("the twin: the same words as a %s argument of a literal format (a format with no word, allowed) exit 0",
+             lambda: eq(_run("--root", T.make({A + "a.cpp": _src('snprintf( b, 16, "%d %s", n, UA_TXT( "hour" ) );')}, _allow((A + "a.cpp", "%d %s"))))[0], 0))
+
+        def lits(text):
+            return [(l.text, l.raw, l.converted) for l in texts_of(A + "a.cpp", text)]
+        case("an escape split across adjacent literals is one character: UA_TXT( \"a\\xE2\\x80\" \"\\xA6\" ) is a and an ellipsis, the bytes the compiler holds",
+             lambda: eq(lits(_src(r'f( UA_TXT( "a\xE2\x80" "\xA6" ) );')), [("a…", b"a\xe2\x80\xa6", True)]))
+        case("\"caf\\xC3\\xA9\", \"x\\t\" and a raw string are the compiler's bytes, as they were",
+             lambda: eq(lits(_src(r'f( "caf\xC3\xA9", "x\t", R"(R\n"q")" );')),
+                        [("café", b"caf\xc3\xa9", False), ("x\t", b"x\t", False), ('R\\n"q"', b'R\\n"q"', False)]))
+        case("decode_bytes( ): \\t is the one byte 09, \\x41 is A", lambda: eq((decode_bytes(r"\t"), decode_bytes(r"\x41")), (b"\t", b"A")))
+        case("an English that is not UTF-8 is refused as a finding of its own: its line, the word UTF-8, exit 1",
+             lambda: (lambda rc, out, err: (rc == 1 and "a.cpp:1:" in out and "UTF-8" in out
+                                            and out.strip().splitlines()[-1].startswith("check_ui_texts: 1 findings"), "%d %r" % (rc, out)))(
+                 *_run("--root", T.make({A + "a.cpp": _src(r'f( UA_TXT( "a\xFF" ) );')}))))
+        case("the twin: the same English written as UTF-8 (\\xC3\\xA9) is no finding",
+             lambda: eq(_run("--root", T.make({A + "a.cpp": _src(r'f( UA_TXT( "a\xC3\xA9" ) );')}))[0], 0))
+        case("a text that is not UTF-8 outside UA_TXT( ) is a finding as before, shown with the replacement character",
+             lambda: eq(finds(_src(r'f( "a\xFF" );')), [(1, "a\ufffd")]))
+
         # 10. the real tree
         def real_tree():
             r = scan(DEFAULT_ROOT)
             return not r.unused and not r.twice and r.files > 0, "unused %r, twice %r, files %d" % (r.unused[:2], r.twice[:2], r.files)
         case("the real tree: every allowance of tools/ui_texts_allow.json matches a literal of src/ui/angulo, none twice", real_tree)
+
+        def bench_reason():
+            with open(os.path.join(DEFAULT_ROOT, ALLOW_FILE), encoding="utf-8") as fh:
+                groups = json.load(fh)["groups"]
+            reasons = [g["reason"] for g in groups if A + "WebManager_UiA.cpp" in g["texts"]]
+            with open(os.path.join(DEFAULT_ROOT, "tools/generated/profiles.ini"), encoding="utf-8") as fh:
+                parts = re.split(r"(?m)^\[env:(\w+)\]\s*$", fh.read())          # [head, name, body, name, body, ...]
+            builds = sorted(n for n, body in zip(parts[1::2], parts[2::2]) if "+<ui/angulo/WebManager_UiA.cpp>" in body)
+            named = sorted(n for n in parts[1::2] if reasons and re.search(r"\b%s\b" % re.escape(n), reasons[0]))
+            return len(reasons) == 1 and bool(builds) and named == builds, "the images that compile it: %r; the reason names: %r" % (builds, named)
+        case("the bench endpoint's reason names the images that compile WebManager_UiA.cpp, and only those (tools/generated/profiles.ini)", bench_reason)
 
         def planted_in_real():
             copy = os.path.join(base, "real")
@@ -620,11 +849,16 @@ def run_cases(process=True):
 # The controls: each breaks one part of the gate, and the cases must notice. A control that no case notices is a part of the gate nothing tests.
 CONTROLS = (
     ("the lexer of check_net_boundary.py is replaced by a no-op", lambda: {"STRIPPER": lambda text: (text, [])}),
-    ("escapes are not decoded", lambda: {"decode": lambda body: body}),
+    ("escapes are not decoded", lambda: {"decode_bytes": lambda body: body.encode("utf-8")}),
     ("adjacent literals are not joined", lambda: {"adjacent": lambda code, i, j: False}),
     ("UA_TXT( ) is not recognised", lambda: {"inside_ua_txt": lambda code, first, last: False}),
     ("raw strings are read as normal literals", lambda: {"raw_body": lambda code, text, a, c: None}),
     ("the allowances are ignored", lambda: {"is_allowed": lambda table, path, text: False}),
+    ("the format rule sees nothing", lambda: {"format_uses": lambda code, table: []}),
+    ("the kit's own formatters are not discovered", lambda: {"kit_formatters": lambda code: {}}),
+    ("the English is decoded piece by piece, with replacement",
+     lambda: {"_piece_bytes": (lambda real: lambda code, text, a, c: real(code, text, a, c).decode("utf-8", "replace").encode("utf-8"))(_piece_bytes)}),
+    ("an English that is not UTF-8 is accepted", lambda: {"is_utf8": lambda raw: True}),
 )
 
 

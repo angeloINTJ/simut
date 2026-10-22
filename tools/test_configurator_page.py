@@ -1356,7 +1356,9 @@ def ui_app_findings(res):
                    f"{tag}/net={o}: a página mostra {x['disabled']}/{x['lock']!r}, os bloqueios novos são {[b['id'] for b in new]}")
             # O que o leitor de tela recebe de cada rádio das duas escolhas (C1b-b). O nome é o título da linha
             # (aria-labelledby), a descrição é a ajuda e, se a opção está travada, o motivo (aria-describedby):
-            # cada id citado existe, uma vez só, e é o elemento certo da própria linha. Os rádios de uma escolha
+            # cada id citado existe, uma vez só, e é o elemento certo da própria linha, e a descrição lê a ajuda ANTES do motivo da trava (a ordem
+            # dos ids é a ordem em que o leitor de tela fala; trocá-la passava por todas as conferências até a revisão do B2a, 2026-10-22).
+            # Os rádios de uma escolha
             # têm um nome só (o grupo: as setas andam entre eles, um só fica marcado), e nenhuma outra escolha o usa.
             # A chave (renderToggle) tem outro construtor -- um <label for>, só a ajuda na descrição e a trava num
             # <p> sem id --, e fica fora desta leitura: o que se lê aqui é o que as duas escolhas dividem.
@@ -1365,8 +1367,8 @@ def ui_app_findings(res):
                     want_desc = ["help", "lock"] if new_blockers(prof, **{key: o}) else ["help"]
                     ok(x["labelledby"] == ["title"],
                        f"{tag}/{key}={o}: o nome do rádio (aria-labelledby={x['labelledbyAttr']!r}) vem de {x['labelledby']}, devia ser só o título da linha")
-                    ok(sorted(x["describedby"] or ["-"]) == sorted(want_desc),
-                       f"{tag}/{key}={o}: a descrição do rádio (aria-describedby={x['describedbyAttr']!r}) vem de {x['describedby']}, devia ser {want_desc}")
+                    ok((x["describedby"] or ["-"]) == want_desc,
+                       f"{tag}/{key}={o}: a descrição do rádio (aria-describedby={x['describedbyAttr']!r}) vem de {x['describedby']}, devia ser {want_desc}, nessa ordem")
                 ok({x["radio"] for x in choice["rows"]} == {group},
                    f"{tag}: os rádios da escolha {key} têm os nomes {sorted(str(x['radio']) for x in choice['rows'])}, devia ser todos {group!r}")
             ids = [r["id"] for r in s["radios"]]
@@ -1684,6 +1686,14 @@ CONTROLS = [
     ("a trava da UI repete o id da ajuda", "app",
      "const lock = L.uiLockOf(m, config, o.id, state.productId);\n      const helpId = `${id}-ajuda`, lockId = `${id}-trava`;",
      "const lock = L.uiLockOf(m, config, o.id, state.productId);\n      const helpId = `${id}-ajuda`, lockId = helpId;"),
+    # A ordem da descrição (a ajuda, depois o motivo da trava): a quebra que a revisão do B2a achou (2026-10-22), `lockId helpId` no lugar de
+    # `helpId lockId`, passava por todas as conferências, que liam o conjunto e não a ordem.
+    ("a descrição do rádio da UI lê a trava antes da ajuda", "app",
+     '"aria-describedby": lock ? `${helpId} ${lockId}` : helpId,\n                       checked: config.ui',
+     '"aria-describedby": lock ? `${lockId} ${helpId}` : helpId,\n                       checked: config.ui'),
+    ("a descrição do rádio da rede lê a trava antes da ajuda", "app",
+     '"aria-describedby": lock ? `${helpId} ${lockId}` : helpId,\n                       checked: config.net',
+     '"aria-describedby": lock ? `${lockId} ${helpId}` : helpId,\n                       checked: config.net'),
     # Os mesmos achados, na escolha da rede, na chave e na build em curso: sem estes, uma conferência que
     # lê as duas escolhas poderia estar lendo só uma.
     ("o segundo rádio da rede sai do grupo (instrumento)", "app",

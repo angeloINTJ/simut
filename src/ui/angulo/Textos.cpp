@@ -161,10 +161,13 @@ TextosResultado textosCarregar( const char *secao, size_t n ) {
   return TEXTOS_OK;
 }
 
+#ifdef UA_HOST
+// Host tests only (see Textos.h): the table is freed under the reader's feet if Core 1 is drawing a text of it, so no device build compiles this.
 void textosLimpar( ) {
   Tabela *t = __atomic_exchange_n( &gTabela, static_cast<Tabela *>( nullptr ), __ATOMIC_ACQ_REL );
   free( t );
 }
+#endif
 
 size_t textosContagem( ) {
   const Tabela *t = __atomic_load_n( &gTabela, __ATOMIC_ACQUIRE );

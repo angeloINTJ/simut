@@ -27,6 +27,10 @@ for every UA_TXT( ) literal under src/ui/angulo, and none for a hash that matche
 by two literals; the section no larger than UA_TEXTOS_MAX, read from Textos.h; and, as for every section, before @WEBDICT. The shipped packs
 have no @ANGULO yet and the sources no UA_TXT( ) literal, so the check passes with nothing to compare (2026-10-22): the conversion (B3 to
 B5) fills both sides, and the pack's size then meets LANG_FILE_MAX (the step that crosses it raises it).
+
+The English of a UA_TXT( ) literal is the compiler's bytes (S10c, B2a-b): the escapes of every piece are decoded to bytes, the pieces' bytes joined
+and the join read as UTF-8, because that is what the device hashes ("a\\xE2\\x80" "\\xA6" is a and an ellipsis). An English that is not valid UTF-8 is
+refused where it is written, once for the whole tree: a pack is a UTF-8 file and has no line for those bytes.
 """
 import json
 import os
@@ -253,8 +257,9 @@ def section(path, name):
 
 
 def fnv1a32(s):
+    """FNV-1a 32 of the bytes of `s` (a str is taken as UTF-8, which is what a pack carries; bytes are hashed as they are)."""
     h = 0x811C9DC5
-    for b in s.encode("utf-8"):
+    for b in (s if isinstance(s, bytes) else s.encode("utf-8")):
         h ^= b
         h = (h * 0x01000193) & 0xFFFFFFFF
     return h
@@ -363,15 +368,17 @@ def textos_max():
     return int(m.group(1))
 
 
-def angulo_literals():
-    """{english: first "file:line"} for every UA_TXT( "..." ) under src/ui/angulo, read as the compiler reads them and as check_ui_texts.py does
-    (one lexer: comments removed, escapes decoded, adjacent literals one text, a raw string verbatim). A literal with no letter is not a text
-    (check_ui_texts.py's rule) and is not listed. Only a file that names UA_TXT is lexed, which keeps this cheap: it runs in every build."""
+def _angulo_scan():
+    """({english: first "file:line"}, [("file:line", shown)]) for every UA_TXT( "..." ) under src/ui/angulo, read as the compiler reads them and as
+    check_ui_texts.py does (one lexer: comments removed, escapes decoded to bytes, adjacent literals one text, a raw string verbatim). The first holds
+    the English that is valid UTF-8, keyed by its text (the hash of the text's UTF-8 is the hash of the compiler's bytes); the second the English that
+    is not, which no pack can carry a line for, with the text as far as it reads. A literal with no letter is not a text (check_ui_texts.py's rule) and
+    is in neither. Only a file that names UA_TXT is lexed, which keeps this cheap: it runs in every build."""
     tools = str(ROOT / "tools")
     if tools not in sys.path:
         sys.path.insert(0, tools)   # PlatformIO exec's this file with no __file__, and its own directory is not on the path
     import check_ui_texts as cut
-    found = {}
+    found, refused = {}, []
     for f in sorted(ANGULO_DIR.rglob("*")):
         if f.suffix not in cut.EXTS or not f.is_file():
             continue
@@ -380,9 +387,24 @@ def angulo_literals():
             continue
         rel = "src/ui/angulo/" + f.relative_to(ANGULO_DIR).as_posix()
         for lit in cut.texts_of(rel, text):
-            if lit.converted:
-                found.setdefault(lit.text, f"{rel}:{lit.line}")
-    return found
+            if not lit.converted:
+                continue
+            where = f"{rel}:{lit.line}"
+            if cut.is_utf8(lit.raw):
+                found.setdefault(lit.text, where)
+            else:
+                refused.append((where, lit.text))
+    return found, refused
+
+
+def angulo_literals():
+    """{english: first "file:line"} for the UA_TXT( "..." ) English that is valid UTF-8 (see _angulo_scan)."""
+    return _angulo_scan()[0]
+
+
+def angulo_bad_literals():
+    """[("file:line", shown)] for the UA_TXT( "..." ) English that is not valid UTF-8 (see _angulo_scan)."""
+    return _angulo_scan()[1]
 
 
 def angulo_collisions(live):
@@ -508,13 +530,17 @@ def main():
     trl_live = trl_literals()
     wkeys, wprefixes = web_keys()
     ua_max = textos_max()
-    ua_live = angulo_literals()
+    ua_live, ua_bad = _angulo_scan()
     ua_clashes = angulo_collisions(ua_live)
     english = english_dict()
     if len(english) != want:
         raise SystemExit(f"check_lang_packs: read {len(english)} lines out of DICTIONARY_EN, "
                          f"TR_KEYS_COUNT is {want}: the reader is wrong, not the table")
     failed = False
+    for where, shown in ua_bad:
+        print(f"[lang-packs] FAIL {where}: the English {shown[:60]!r} of a UA_TXT( ) is not valid UTF-8 — the device hashes the compiler's bytes and a pack, "
+              f"a UTF-8 file, cannot carry a line for them; write the character as its UTF-8 bytes (\\xE2\\x80\\xA6 is one ellipsis)", file=sys.stderr)
+        failed = True
     for pack in PACKS:
         size = pack.stat().st_size
         raw = pack.read_bytes()
