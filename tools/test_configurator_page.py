@@ -31,7 +31,10 @@ com o lado Python, que é a autoridade:
     produto não se escreve em lugar nenhum; cada opção está travada se, e só se, o gerador tem um bloqueio
     novo para o perfil com a UI trocada (o Ângulo no Pico W com Wi-Fi, sem a tela touch, sem o gráfico do
     painel), com o motivo da regra à vista, e com o Ângulo escolhido é a chave do gráfico que fica travada.
-    O app.js de verdade roda num DOM de mentira (JS_APP) e o que se confere é o que está na tela;
+    O app.js de verdade roda num DOM de mentira (JS_APP) e o que se confere é o que está na tela: o texto, o
+    estado, a ordem, o link e (2026-10-22, C1b-b) o que o leitor de tela recebe -- o nome e a descrição de cada
+    rádio (cada id que eles citam existe, uma vez só, e é o do título, da ajuda ou da trava), o grupo de cada
+    escolha, a marca "mudou" nas duas línguas --, e a build pronta, que sai da tela quando a escolha muda;
 
     python3 tools/test_configurator_page.py     # exit 1 em qualquer divergência
 
@@ -46,6 +49,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+from urllib.parse import parse_qs
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
@@ -843,6 +847,9 @@ process.stdout.write(JSON.stringify(out));
 # filhos, ouvintes, getElementById), com o modelo no lugar do fetch. Cada cenário é uma visita: o hash de
 # entrada, a língua, os cliques que o leitor dá; devolve, depois da carga e de cada clique, o que está na
 # tela. Um clique em controle desabilitado não acontece (o navegador não o entrega) e vem como "disabled".
+# O botão de compilar se aperta ("press"); o GitHub é um fetch de mentira que responde ao pedido de build
+# ("api": "finish": a build termina, e o teste espera por ela) ou nunca responde ("api": "hang": a build fica em
+# curso); a espera de segundos entre duas consultas dele vira imediata.
 JS_APP = r"""
 // The page's own app.js, run against a small stand-in for the DOM.
 const input = JSON.parse(await new Promise((ok) => {
@@ -852,6 +859,10 @@ const errors = [];
 const brief = (e) => String(e && e.stack ? e.stack.split("\n").slice(0, 3).join(" | ") : e);
 process.on("unhandledRejection", (e) => errors.push("unhandledRejection: " + brief(e)));
 process.on("uncaughtException", (e) => errors.push("uncaughtException: " + brief(e)));
+// The page sleeps seconds between two looks at GitHub (sleep( ) in app.js); here the long waits are immediate.
+// The stand-in's own waits (1 ms) are the real ones.
+const realSetTimeout = globalThis.setTimeout;
+globalThis.setTimeout = (fn, ms, ...rest) => realSetTimeout(fn, ms >= 1000 ? 0 : ms, ...rest);
 
 class NodeBase {}
 class Txt extends NodeBase {
@@ -881,33 +892,50 @@ const closest = (e, pred) => { for (let x = e; x; x = x.parent) if (x instanceof
 const define = (name, value) => Object.defineProperty(globalThis, name, { value, configurable: true, writable: true });
 const first = (list) => (list.length ? list[0] : null);
 
-function row(label) {
+// What an id named by an aria-* attribute is on the page: the row's own title, help or lock, some other element,
+// nothing ("missing") or more than one element ("duplicate"). A reader of the page is told by these, and by
+// nothing else, what a radio is called and why it is locked.
+function role(root, id, own) {
+  const hits = find(root, (e) => e.attrs.id === id);
+  if (hits.length === 0) return "missing";
+  if (hits.length > 1) return "duplicate";
+  return Object.keys(own).find((r) => own[r] === hits[0]) || "other";
+}
+const named = (root, attr, own) => (attr === undefined ? null : attr.split(/\s+/).filter(Boolean).map((id) => role(root, id, own)));
+
+function row(label, root) {
   const input = first(find(label, (e) => e.tag === "input"));
-  const text = (c) => { const e = first(find(label, (x) => cls(x, c))); return e ? e.textContent : null; };
+  const el = (c) => first(find(label, (x) => cls(x, c)));
+  const text = (c) => { const e = el(c); return e ? e.textContent : null; };
+  const own = { title: el("cfg-chave-nome"), help: el("cfg-apoio"), lock: el("cfg-chave-trava") };
   return { id: input.attrs.id, radio: input.attrs.name, name: text("cfg-chave-nome"), help: text("cfg-apoio"),
-           lock: text("cfg-chave-trava"), cost: text("cfg-chave-custo"), checked: input.checked, disabled: input.disabled };
+           lock: text("cfg-chave-trava"), cost: text("cfg-chave-custo"), checked: input.checked, disabled: input.disabled,
+           labelledby: named(root, input.attrs["aria-labelledby"], own), labelledbyAttr: input.attrs["aria-labelledby"] || null,
+           describedby: named(root, input.attrs["aria-describedby"], own), describedbyAttr: input.attrs["aria-describedby"] || null };
 }
 
 function snapshot(appEl, loc) {
   const snap = { hash: loc.hash, fieldsets: [], switches: [], warnings: [], notice: null, product: null,
-                 build: null, summary: null, selos: [], profile: null, issue: null };
+                 build: null, summary: null, selos: [], profile: null, issue: null, radios: [], run: null };
   for (const f of find(appEl, (e) => e.tag === "fieldset" && cls(e, "cfg-rede"))) {
     const legend = first(find(f, (e) => e.tag === "legend"));
     const block = closest(f.parent, (e) => cls(e, "cfg-bloco"));
     const title = block && first(find(block, (e) => cls(e, "cfg-bloco-titulo")));
     const siblings = block ? block.kids.filter((k) => k instanceof El) : [];
     const firstSwitch = siblings.findIndex((k) => cls(k, "cfg-chave"));
+    const badges = find(legend, (e) => cls(e, "selo")).map((e) => e.textContent);
     snap.fieldsets.push({
-      legend: legend.kids[0].textContent, changed: find(legend, (e) => cls(e, "selo")).length > 0,
+      legend: legend.kids[0].textContent, changed: badges.length > 0, badges,
       block: title ? title.textContent : null,
       beforeSwitches: firstSwitch === -1 || siblings.indexOf(f) < firstSwitch,
-      rows: find(f, (e) => e.tag === "label" && cls(e, "cfg-rede-opcao")).map(row),
+      rows: find(f, (e) => e.tag === "label" && cls(e, "cfg-rede-opcao")).map((l) => row(l, appEl)),
     });
   }
   for (const i of find(appEl, (e) => e.tag === "input" && e.attrs.role === "switch")) {
     const r = closest(i, (e) => cls(e, "cfg-chave"));
     snap.switches.push({ id: i.attrs.id, checked: i.checked, disabled: i.disabled,
-                         locks: find(r, (e) => cls(e, "cfg-chave-trava")).map((e) => e.textContent) });
+                         locks: find(r, (e) => cls(e, "cfg-chave-trava")).map((e) => e.textContent),
+                         badges: find(r, (e) => cls(e, "selo")).map((e) => e.textContent) });
   }
   snap.warnings = find(appEl, (e) => e.tag === "li" && cls(e, "cfg-aviso")).map((e) => ({ tone: e.attrs["data-tom"], text: e.textContent }));
   const notice = first(find(appEl, (e) => e.tag === "p" && cls(e, "cfg-aviso") && e.attrs.role === "status"));
@@ -927,15 +955,19 @@ function snapshot(appEl, loc) {
     const href = a.attrs.href;
     snap.issue = { title: decodeURIComponent(/[?&]title=([^&]*)/.exec(href)[1]), body: decodeURIComponent(/[?&]body=(.*)$/.exec(href)[1]) };
   }
+  snap.radios = find(appEl, (e) => e.tag === "input" && e.attrs.type === "radio").map((e) => ({ id: e.attrs.id, name: e.attrs.name }));
+  const runBox = first(find(appEl, (e) => cls(e, "cfg-estado")));
+  snap.run = runBox ? { texts: find(runBox, (e) => e.tag === "p").map((e) => e.textContent),
+                        links: find(runBox, (e) => e.tag === "a").map((e) => e.attrs.href) } : null;
   return snap;
 }
 
 async function settle(appEl) {
-  for (let i = 0; i < 500 && appEl.kids.length === 0 && errors.length === 0; i++) await new Promise((r) => setTimeout(r, 1));
+  for (let i = 0; i < 500 && appEl.kids.length === 0 && errors.length === 0; i++) await new Promise((r) => realSetTimeout(r, 1));
 }
 
 const results = [];
-let n = 0;
+let n = 0, hung = false;
 for (const sc of input.scenarios) {
   errors.length = 0;
   const body = new El("body"), appEl = new El("div"), ann = new El("p");
@@ -951,18 +983,57 @@ for (const sc of input.scenarios) {
   define("history", { replaceState: (a, b, h) => { loc.hash = h; } });
   define("navigator", { languages: [sc.lang === "pt" ? "pt-BR" : "en"], language: sc.lang });
   define("window", { localStorage: store(), sessionStorage: store(), addEventListener() {} });
-  define("fetch", async () => ({ ok: true, status: 200, json: async () => JSON.parse(JSON.stringify(input.model)) }));
-  const rec = { name: sc.name, snaps: [], steps: [], errors: [] };
+  if (sc.token) window.sessionStorage.setItem(input.api.tokenKey, input.api.token);
+  // The model for the page's own fetch; for GitHub's API (the one address the page may send the token to) the
+  // answers of a build that is asked for, found, followed and finished -- or never answered ("hang").
+  const gh = { dispatched: [] };
+  define("fetch", async (url, opts = {}) => {
+    const u = String(url);
+    if (!u.startsWith(input.api.base)) return { ok: true, status: 200, json: async () => JSON.parse(JSON.stringify(input.model)) };
+    const path = u.slice(input.api.base.length);
+    const reply = (data, status = 200) => ({ ok: status < 400, status, statusText: String(status), json: async () => data });
+    if (path.endsWith("/dispatches")) {
+      const sent = JSON.parse(opts.body).inputs;
+      gh.dispatched.push({ profile: sent.profile, id: sent.request_id });
+      if (sc.api === "hang") return new Promise(() => {});
+      return reply(null, 204);
+    }
+    const id = gh.dispatched.length ? gh.dispatched[gh.dispatched.length - 1].id : null;
+    if (path.includes("/workflows/")) {
+      return reply({ workflow_runs: [{ display_title: `custom build ${id}`, id: input.api.runId, status: "queued",
+                                       html_url: `https://github.com/${input.api.repo}/actions/runs/${input.api.runId}` }] });
+    }
+    if (path.endsWith("/artifacts")) {
+      return reply({ artifacts: [{ name: `simut-custom-bin${input.api.bin}-ram${input.api.ram}`, id: input.api.artifactId }] });
+    }
+    if (path.endsWith(`/actions/runs/${input.api.runId}`)) return reply({ status: "completed", conclusion: "success" });
+    return reply({ message: "not found" }, 404);
+  });
+  const rec = { name: sc.name, snaps: [], steps: [], errors: [], dispatched: [] };
   try {
     await import("./app.js?run=" + n++);
     await settle(appEl);
     rec.snaps.push(snapshot(appEl, loc));
     for (const a of sc.actions) {
-      const el = first(find(body, (e) => e.attrs.id === a.click));
-      const step = { click: a.click, result: null };
+      const id = a.click || a.press;
+      const el = first(find(body, (e) => e.attrs.id === id));
+      const step = { click: id, result: null };
       if (!el) step.result = "missing";
       else if (el.disabled) step.result = "disabled";
-      else {
+      else if (a.press) {
+        // A button: its click listeners run; a build that is answered is waited for to its end -- for at most
+        // 5 s (it takes milliseconds), so that a page whose build never ends fails the test instead of holding it.
+        try {
+          const ended = Promise.all((el.listeners.click || []).map((fn) => fn({ target: el, preventDefault() {} })));
+          let won = true, timer;
+          if (sc.api !== "hang") {
+            won = await Promise.race([ended.then(() => true), new Promise((r) => { timer = realSetTimeout(() => r(false), 5000); })]);
+            clearTimeout(timer);
+          }
+          hung = hung || !won;
+          step.result = won ? "pressed" : "timeout";
+        } catch (e) { step.result = "threw: " + brief(e); }
+      } else {
         el.checked = el.attrs.type === "checkbox" ? !el.checked : true;
         try { for (const fn of el.listeners.change || []) fn({ target: el }); step.result = "clicked"; }
         catch (e) { step.result = "threw: " + brief(e); }
@@ -971,10 +1042,13 @@ for (const sc of input.scenarios) {
       rec.snaps.push(snapshot(appEl, loc));
     }
   } catch (e) { rec.errors.push(brief(e)); }
+  rec.dispatched = gh.dispatched.map((d) => d.profile);
   rec.errors.push(...errors);
   results.push(rec);
+  if (hung) break;   // that page is still polling in the background: what the next visit showed would be its doing
 }
-process.stdout.write(JSON.stringify(results));
+// A build that never ended is still running in the background: leave once the answer is written out.
+process.stdout.write(JSON.stringify(results), () => { if (hung) process.exit(0); });
 """
 
 def run_node(script, payload, logic_text=None, app_text=None):
@@ -1030,6 +1104,18 @@ def label_of(pid, lang):
 
 
 ANGULO_RULES = {"angulo-needs-tft", "angulo-cyw43-needs-rp2350", "angulo-needs-tft-graph"}
+
+
+def app_const(name):
+    m = re.search(r'\nconst %s = "([^"]*)";' % name, APP)
+    return m.group(1) if m else None
+
+
+# O GitHub de mentira da página (2026-10-22): os endereços e a chave do token são lidos do app.js, de onde a página
+# os tira; o que a build "terminada" devolve (a execução, o artefato, os tamanhos) é inventado aqui.
+PAGE_API = {"base": app_const("API"), "repo": app_const("REPO"), "tokenKey": app_const("STORAGE_KEY"),
+            "token": "github_pat_" + "x" * 30, "runId": 777, "artifactId": 5, "bin": 900000, "ram": 120000}
+check(all(PAGE_API[k] for k in ("base", "repo", "tokenKey")), f"app.js: não achei as constantes API, REPO e STORAGE_KEY: {PAGE_API}")
 
 
 def ui_logic_findings(js):
@@ -1178,12 +1264,25 @@ def ui_scenarios():
         {"name": "linkblocked", "hash": "#b=pico_w_release&ui=angulo", "lang": "en", "actions": [{"click": "u-original"}]},
         {"name": "linkunknown", "hash": "#b=pico2_w_release&ui=nonsense", "lang": "en", "actions": []},
         {"name": "ptflow", "hash": "#b=pico2_w_release", "lang": "pt", "actions": [{"click": "u-angulo"}]},
+        # A rede mudada e de volta, e a chave mudada, nas duas línguas: a marca "mudou" de cada uma (C1b-b).
+        {"name": "netchange:en", "hash": "#b=pico_wire", "lang": "en", "actions": [{"click": "n-cyw43"}, {"click": "n-enc28j60"}]},
+        {"name": "netchange:pt", "hash": "#b=pico_wire", "lang": "pt", "actions": [{"click": "n-cyw43"}]},
+        {"name": "togglechange:pt", "hash": "#b=pico2_w_release&off=tft_graph", "lang": "pt", "actions": [{"click": "t-tft_graph"}]},
+        # A build pronta pertence à escolha que a pediu: sai da tela quando o leitor muda a UI, como quando muda a
+        # rede; uma build em curso fica, com o nome do que ela compila (dropFinishedRun( ), C1b-b).
+        {"name": "run:look", "hash": "#b=pico2_w_release", "lang": "en", "api": "finish", "token": True,
+         "actions": [{"press": "compilar"}, {"click": "u-angulo"}]},
+        {"name": "run:net", "hash": "#b=pico_wire", "lang": "en", "api": "finish", "token": True,
+         "actions": [{"press": "compilar"}, {"click": "n-cyw43"}]},
+        {"name": "run:busy", "hash": "#b=pico2_w_release", "lang": "en", "api": "hang", "token": True,
+         "actions": [{"press": "compilar"}, {"click": "u-angulo"}]},
     ]
     return sc
 
 
 def ui_app_findings(res):
-    """O app.js de verdade, visita por visita: o que o leitor vê da escolha da UI e do que ela trava."""
+    """O app.js de verdade, visita por visita: o que o leitor vê da escolha da UI e do que ela trava, o que o
+    leitor de tela recebe de cada escolha, a marca de "mudou" e a build pronta."""
     fs = []
 
     def ok(cond, msg):
@@ -1194,6 +1293,9 @@ def ui_app_findings(res):
     for r in res:
         for e in r["errors"]:
             fs.append(f"{r['name']}: a página deu erro: {e}")
+        for st in r["steps"]:
+            if st["result"] == "timeout":
+                fs.append(f"{r['name']}: a build pedida ao apertar {st['click']} não terminou em 5 s; as visitas depois dela não rodaram")
     for want in ui_scenarios():
         if want["name"] not in by:
             fs.append(f"{want['name']}: a visita não voltou")
@@ -1206,14 +1308,15 @@ def ui_app_findings(res):
     # que derrubaria o teste: ausência é um achado, não um traceback.
     def fieldset(s, radio):
         got = [f for f in s["fieldsets"] if f["rows"] and f["rows"][0]["radio"] == radio]
-        return got[0] if len(got) == 1 else {"legend": None, "changed": None, "block": None, "beforeSwitches": None, "rows": []}
+        return got[0] if len(got) == 1 else {"legend": None, "changed": None, "badges": None, "block": None, "beforeSwitches": None, "rows": []}
 
     def row(s, rid):
         return next((x for f in s["fieldsets"] for x in f["rows"] if x["id"] == rid),
-                    {"id": rid, "radio": None, "name": None, "help": None, "lock": "ausente", "cost": None, "checked": None, "disabled": None})
+                    {"id": rid, "radio": None, "name": None, "help": None, "lock": "ausente", "cost": None, "checked": None, "disabled": None,
+                     "labelledby": None, "labelledbyAttr": None, "describedby": None, "describedbyAttr": None})
 
     def switch(s, sid):
-        return next((x for x in s["switches"] if x["id"] == sid), {"id": sid, "checked": None, "disabled": None, "locks": ["ausente"]})
+        return next((x for x in s["switches"] if x["id"] == sid), {"id": sid, "checked": None, "disabled": None, "locks": ["ausente"], "badges": None})
 
     # 1. A varredura: cada produto, nas duas línguas. A escolha está no grupo do modelo, antes das chaves, com
     #    o título do modelo e uma opção por UI do manifesto, com o nome e a ajuda dele; a do produto marcada;
@@ -1251,6 +1354,29 @@ def ui_app_findings(res):
                 new = new_blockers(prof, net=o)
                 ok(x["disabled"] == bool(new) and x["lock"] == (say(lang, "locked", why=new[0]["why"][lang]) if new else None),
                    f"{tag}/net={o}: a página mostra {x['disabled']}/{x['lock']!r}, os bloqueios novos são {[b['id'] for b in new]}")
+            # O que o leitor de tela recebe de cada rádio das duas escolhas (C1b-b). O nome é o título da linha
+            # (aria-labelledby), a descrição é a ajuda e, se a opção está travada, o motivo (aria-describedby):
+            # cada id citado existe, uma vez só, e é o elemento certo da própria linha. Os rádios de uma escolha
+            # têm um nome só (o grupo: as setas andam entre eles, um só fica marcado), e nenhuma outra escolha o usa.
+            # A chave (renderToggle) tem outro construtor -- um <label for>, só a ajuda na descrição e a trava num
+            # <p> sem id --, e fica fora desta leitura: o que se lê aqui é o que as duas escolhas dividem.
+            for choice, group, opts, key in ((f, "visual", UIS, "ui"), (n, "rede", NETS, "net")):
+                for x, o in zip(choice["rows"], opts):
+                    want_desc = ["help", "lock"] if new_blockers(prof, **{key: o}) else ["help"]
+                    ok(x["labelledby"] == ["title"],
+                       f"{tag}/{key}={o}: o nome do rádio (aria-labelledby={x['labelledbyAttr']!r}) vem de {x['labelledby']}, devia ser só o título da linha")
+                    ok(sorted(x["describedby"] or ["-"]) == sorted(want_desc),
+                       f"{tag}/{key}={o}: a descrição do rádio (aria-describedby={x['describedbyAttr']!r}) vem de {x['describedby']}, devia ser {want_desc}")
+                ok({x["radio"] for x in choice["rows"]} == {group},
+                   f"{tag}: os rádios da escolha {key} têm os nomes {sorted(str(x['radio']) for x in choice['rows'])}, devia ser todos {group!r}")
+            ids = [r["id"] for r in s["radios"]]
+            groups = {}
+            for r in s["radios"]:
+                groups.setdefault(r["name"], []).append(r["id"])
+            want_groups = {"produto": sorted(i for i in ids if i.startswith("p-")),
+                           "rede": sorted(f"n-{o}" for o in NETS), "visual": sorted(f"u-{u}" for u in UIS)}
+            ok({k: sorted(v) for k, v in groups.items()} == want_groups,
+               f"{tag}: os grupos de rádio da página são {groups}, devia ser um por escolha: {want_groups}")
 
     # 2. O Pico 2 W: escolher o Ângulo, e voltar. A chave do gráfico fica travada, ligada, com o motivo da
     #    regra; a estimativa diz que não tem medida da UI; o perfil, o link e o pedido levam `ui`; voltar à
@@ -1346,6 +1472,73 @@ def ui_app_findings(res):
     ok(say("pt", "warn.missing", list=ang_pt) in [w["text"] for w in s1["warnings"]], "ptflow: sem o aviso de que a UI não tem medida, em português")
     ok(f"- {M['ui_panel']['label']['en']}: {M['ui_panels']['angulo']['label']['en']}" in (s1["issue"] or {"body": ""})["body"].splitlines(),
        "ptflow: o pedido devia dizer a UI em inglês")
+
+    # 9. A marca "mudou" de uma linha mudada diz a palavra da língua da página, e só aparece onde há mudança: no
+    #    título da UI e no da rede (a escolha está no `set`, e o `set` é o que o link leva) e na linha de cada chave.
+    #    Lida em toda tela de toda visita; o link que diz o que mudou é lido aqui, de fora da página.
+    for want in ui_scenarios():
+        mark = say(want["lang"], "changed")
+        ok(mark.strip(), f"{want['name']}: o texto 'changed' do app.js em {want['lang']} é vazio")
+        for i, s in enumerate(by[want["name"]]["snaps"]):
+            q = parse_qs(s["hash"].lstrip("#"))
+            moved = {t for v in q.get("on", []) + q.get("off", []) for t in v.split(",") if t}
+            for radio, key in (("visual", "ui"), ("rede", "net")):
+                badges = [mark] if key in q else []
+                ok(fieldset(s, radio)["badges"] == badges,
+                   f"{want['name']}[{i}] {s['hash']}: a marca do título da escolha {key} é {fieldset(s, radio)['badges']!r}, devia ser {badges!r}")
+            for sw in s["switches"]:
+                badges = [mark] if sw["id"][2:] in moved else []
+                ok(sw["badges"] == badges, f"{want['name']}[{i}] {s['hash']}: a marca da chave {sw['id']} é {sw['badges']!r}, devia ser {badges!r}")
+
+    # 10. A rede mudada e de volta (o Wi-Fi no SIMUT Wire, e o cabo de novo): o link leva a rede só enquanto ela difere
+    #     da do produto, o título diz "mudou" só então, e voltar deixa a tela igual à de partida. A chave, em português.
+    r = by["netchange:en"]
+    ok([st["result"] for st in r["steps"]] == ["clicked", "clicked"], f"netchange:en: cliques {r['steps']}")
+    s0, s1, s2 = r["snaps"]
+    ok(s0["hash"] == "#b=pico_wire" and row(s0, "n-enc28j60")["checked"] and not fieldset(s0, "rede")["changed"],
+       f"netchange:en: partida {s0['hash']}")
+    ok(s1["hash"] == "#b=pico_wire&net=cyw43" and row(s1, "n-cyw43")["checked"] and not row(s1, "n-enc28j60")["checked"]
+       and fieldset(s1, "rede")["changed"], f"netchange:en: ao escolher o Wi-Fi o link é {s1['hash']!r}")
+    ok(s2 == s0, "netchange:en: voltar ao cabo devia deixar a tela como a de partida")
+    r = by["netchange:pt"]
+    ok([st["result"] for st in r["steps"]] == ["clicked"] and r["snaps"][1]["hash"] == "#b=pico_wire&net=cyw43"
+       and fieldset(r["snaps"][1], "rede")["changed"], f"netchange:pt: {r['steps']}, {r['snaps'][1]['hash']!r}")
+    r = by["togglechange:pt"]
+    ok([st["result"] for st in r["steps"]] == ["clicked"] and r["snaps"][0]["hash"] == "#b=pico2_w_release&off=tft_graph"
+       and not switch(r["snaps"][0], "t-tft_graph")["checked"] and r["snaps"][1]["hash"] == "#b=pico2_w_release",
+       f"togglechange:pt: {r['steps']}, {[x['hash'] for x in r['snaps']]}")
+
+    # 11. A build pronta pertence à escolha que a pediu: dropFinishedRun( ) a tira da tela quando o leitor muda a
+    #     UI, como quando muda a rede -- só a que terminou --, e uma build em curso fica, com o nome do que ela
+    #     compila, até acabar. O pedido que foi ao GitHub é o perfil da escolha de antes.
+    def stock_of(pid):
+        return say("en", "run.for", what=say("en", "result.stock", p=label_of(pid, "en")))
+
+    for name, pid, click, suffix in (("run:look", "pico2_w_release", "u-angulo", "&ui=angulo"),
+                                     ("run:net", "pico_wire", "n-cyw43", "&net=cyw43")):
+        r = by[name]
+        ok([st["result"] for st in r["steps"]] == ["pressed", "clicked"], f"{name}: cliques {r['steps']}")
+        s0, s1, s2 = r["snaps"]
+        ok(s0["run"] is None and s0["build"] == {"disabled": False}, f"{name}: a tela de partida: {s0['run']}, {s0['build']}")
+        ok(r["dispatched"] == [bc.canonical(pid, {})], f"{name}: o pedido que foi ao GitHub é {r['dispatched']}, devia ser o perfil de partida")
+        done = s1["run"] or {"texts": [], "links": []}
+        ok(done["texts"][:1] == [stock_of(pid)] and say("en", "run.ok", bin=f"{PAGE_API['bin']:,}", ram=f"{PAGE_API['ram']:,}") in done["texts"],
+           f"{name}: a build pronta não está na tela, com o que pediu e os tamanhos: {s1['run']}")
+        ok(f"https://github.com/{PAGE_API['repo']}/actions/runs/{PAGE_API['runId']}/artifacts/{PAGE_API['artifactId']}" in done["links"],
+           f"{name}: a build pronta não tem o link do artefato: {done['links']}")
+        ok(s1["build"] == {"disabled": False}, f"{name}: terminada a build o botão devia estar livre: {s1['build']}")
+        ok(s2["hash"] == s0["hash"] + suffix, f"{name}: ao escolher {click} o link é {s2['hash']!r}")
+        ok(s2["run"] is None, f"{name}: escolhido {click}, o resultado da build pronta, que é de outra escolha, continua na tela: {s2['run']}")
+        ok(s2["build"] == {"disabled": False}, f"{name}: escolhido {click} o botão de compilar devia estar livre: {s2['build']}")
+    r = by["run:busy"]
+    ok([st["result"] for st in r["steps"]] == ["pressed", "clicked"], f"run:busy: cliques {r['steps']}")
+    s0, s1, s2 = r["snaps"]
+    going = {"texts": [stock_of("pico2_w_release"), say("en", "run.dispatching")], "links": []}
+    ok(s1["run"] == going and s1["build"] == {"disabled": True}, f"run:busy: a build em curso: {s1['run']}, {s1['build']}")
+    ok(s2["hash"] == "#b=pico2_w_release&ui=angulo" and s2["run"] == going and s2["build"] == {"disabled": True},
+       f"run:busy: escolhida a UI, a build em curso devia ficar, com o nome do que ela compila: {s2['run']}, {s2['build']}")
+    ok(s2["summary"] == say("en", "result.changes1", p=label_of("pico2_w_release", "en")),
+       f"run:busy: o resumo da página devia ser o da escolha nova: {s2['summary']!r}")
     return fs
 
 
@@ -1363,7 +1556,7 @@ def ui_run(logic_text=None, app_text=None):
     fs = ui_logic_findings(run_node(JS_UI, {"model": MODEL, "products": PRODUCTS, "toggles": TOGGLES, "uis": UIS,
                                             "contexts": CONTEXTS, "hostile": list(HOSTILE_UI)}, logic_text=logic_text))
     fs += ui_source_findings(APP if app_text is None else app_text)
-    res = run_node(JS_APP, {"model": MODEL, "scenarios": ui_scenarios()}, logic_text=logic_text, app_text=app_text)
+    res = run_node(JS_APP, {"model": MODEL, "scenarios": ui_scenarios(), "api": PAGE_API}, logic_text=logic_text, app_text=app_text)
     if isinstance(res, dict):
         return fs + [f"o node falhou na página: {res['node_error']}"], []
     return fs + ui_app_findings(res), res
@@ -1377,8 +1570,12 @@ if os.environ.get("SIMUT_PAGE_SNAPSHOTS"):   # para quem quer ver as telas: a li
 
 # 13c. Os controles: uma quebra plantada numa cópia da página, uma de cada vez, e as conferências acima têm
 #      de acusá-la. Sem isto uma conferência que nunca morde passaria calada (a âncora tem de aparecer uma
-#      vez só, para a quebra ser a que se diz). Os dois últimos quebram a escolha da rede, que já existia: é a
-#      prova de que o instrumento (o DOM de mentira) lê a trava de uma escolha de driver.
+#      vez só, para a quebra ser a que se diz). Os marcados "(instrumento)" quebram a escolha da rede, a chave
+#      ou a build em curso, que já existiam: é a prova de que o instrumento (o DOM de mentira) lê a trava de
+#      uma escolha de driver, a marca de uma chave e o que o leitor de tela recebe da rede, como da UI. Os dez
+#      B1 a B10 são as quebras que a revisão da C1b plantou à mão (2026-10-22): cinco (B3, B4, B5, B9, B10)
+#      passavam por todas as conferências da época, e duas delas (B3, B10) só davam erro porque a edição mexia
+#      na âncora de outro controle -- agora cada uma é acusada pela leitura de uma tela.
 with open(os.path.join(PAGE, "logic.js"), encoding="utf-8") as fh:
     LOGIC = fh.read()
 CONTROLS = [
@@ -1446,6 +1643,68 @@ CONTROLS = [
           priceText'''),
     ("o rádio da rede não desabilita (instrumento)", "app",
      "checked: config.net === o.id, disabled: Boolean(lock),", "checked: config.net === o.id,"),
+    # As dez quebras da revisão (C1b-b). A âncora de cada uma é a da revisão; a quebra é acusada pela leitura de
+    # uma tela (o nome, a descrição, o grupo, a marca, a build), e não por uma âncora de outro controle.
+    ("B1 a trava da UI diz um motivo vazio", "app",
+     'lock ? h("span", { class: "cfg-chave-trava", id: lockId, text: t("locked", { why: label(lock.why) }) }) : null),\n        h("span", { class: "cfg-chave-lado" },\n          h("input", { type: "radio", class: "cfg-radio", name: "visual",',
+     'lock ? h("span", { class: "cfg-chave-trava", id: lockId, text: t("locked", { why: "" }) }) : null),\n        h("span", { class: "cfg-chave-lado" },\n          h("input", { type: "radio", class: "cfg-radio", name: "visual",'),
+    ("B2 o rádio da UI nunca é desabilitado", "app",
+     "checked: config.ui === o.id, disabled: Boolean(lock),", "checked: config.ui === o.id, disabled: Boolean(lock) && false,"),
+    ("B3 o segundo rádio da UI sai do grupo", "app",
+     'name: "visual", id, value: o.id,', 'name: o.id === "original" ? "visual" : "visual2", id, value: o.id,'),
+    ("B4 a descrição do rádio da UI perde a trava", "app",
+     '"aria-describedby": lock ? `${helpId} ${lockId}` : helpId,\n                       checked: config.ui',
+     '"aria-describedby": helpId,\n                       checked: config.ui'),
+    ("B5 o nome do rádio da UI aponta para um id que não existe", "app",
+     '"aria-labelledby": `${id}-nome`, "aria-describedby": lock ? `${helpId} ${lockId}` : helpId,\n                       checked: config.ui',
+     '"aria-labelledby": `${id}-nom`, "aria-describedby": lock ? `${helpId} ${lockId}` : helpId,\n                       checked: config.ui'),
+    ("B6 a UI do próprio produto vai para o link", "logic",
+     'if (Object.prototype.hasOwnProperty.call(set, "ui") && set.ui !== base.ui) out.ui = set.ui;',
+     'if (Object.prototype.hasOwnProperty.call(set, "ui") && set.ui !== undefined) out.ui = set.ui;'),
+    ("B7 parseHash aceita um id de rede como UI", "logic",
+     "model.ui.options.some((o) => o.id === u)",
+     "model.net.options.some((o) => o.id === u) || model.ui.options.some((o) => o.id === u)"),
+    ("B8 a trava da opção é a do último bloqueio novo", "logic",
+     ".find((x) => !now.has(x.id)) || null;\n  return b ? { id: b.id, why: b.why } : null;",
+     ".filter((x) => !now.has(x.id)).pop() || null;\n  return b ? { id: b.id, why: b.why } : null;"),
+    ("B9 a marca 'mudou' da UI sai sem texto", "app",
+     'changed ? [" ", h("span", { class: "selo", text: t("changed") })] : null),\n    m.ui.options.map',
+     'changed ? [" ", h("span", { class: "selo", text: "" })] : null),\n    m.ui.options.map'),
+    ("B10 chooseUi deixa a build pronta na tela", "app",
+     "  const next = { ...state.set, ui: uiId };\n  state.set = L.normalizeSet(state.model, state.productId, next);\n  dropFinishedRun();",
+     "  const next = { ...state.set, ui: uiId };\n  state.set = L.normalizeSet(state.model, state.productId, next);"),
+    # O que B4 e B5 deixam solto: um id que existe mas é de outro elemento (a ajuda no lugar do título), e a
+    # trava citada na descrição de uma opção que não tem trava (o id não existe).
+    ("o nome do rádio da UI é a ajuda, que existe", "app",
+     '"aria-labelledby": `${id}-nome`, "aria-describedby": lock ? `${helpId} ${lockId}` : helpId,\n                       checked: config.ui',
+     '"aria-labelledby": helpId, "aria-describedby": lock ? `${helpId} ${lockId}` : helpId,\n                       checked: config.ui'),
+    ("a descrição do rádio da UI cita a trava que a opção livre não tem", "app",
+     '"aria-describedby": lock ? `${helpId} ${lockId}` : helpId,\n                       checked: config.ui',
+     '"aria-describedby": `${helpId} ${lockId}`,\n                       checked: config.ui'),
+    ("a trava da UI repete o id da ajuda", "app",
+     "const lock = L.uiLockOf(m, config, o.id, state.productId);\n      const helpId = `${id}-ajuda`, lockId = `${id}-trava`;",
+     "const lock = L.uiLockOf(m, config, o.id, state.productId);\n      const helpId = `${id}-ajuda`, lockId = helpId;"),
+    # Os mesmos achados, na escolha da rede, na chave e na build em curso: sem estes, uma conferência que
+    # lê as duas escolhas poderia estar lendo só uma.
+    ("o segundo rádio da rede sai do grupo (instrumento)", "app",
+     'name: "rede", id, value: o.id,', 'name: o.id === "cyw43" ? "rede" : "rede2", id, value: o.id,'),
+    ("a descrição do rádio da rede perde a trava (instrumento)", "app",
+     '"aria-describedby": lock ? `${helpId} ${lockId}` : helpId,\n                       checked: config.net',
+     '"aria-describedby": helpId,\n                       checked: config.net'),
+    ("o nome do rádio da rede aponta para um id que não existe (instrumento)", "app",
+     '"aria-labelledby": `${id}-nome`, "aria-describedby": lock ? `${helpId} ${lockId}` : helpId,\n                       checked: config.net',
+     '"aria-labelledby": `${id}-nom`, "aria-describedby": lock ? `${helpId} ${lockId}` : helpId,\n                       checked: config.net'),
+    ("a marca 'mudou' da rede sai sem texto (instrumento)", "app",
+     'changed ? [" ", h("span", { class: "selo", text: t("changed") })] : null),\n    m.net.options.map',
+     'changed ? [" ", h("span", { class: "selo", text: "" })] : null),\n    m.net.options.map'),
+    ("a marca 'mudou' da chave sai sem texto (instrumento)", "app",
+     'changed ? h("span", { class: "selo", text: t("changed") }) : null),\n      h("p", { class: "cfg-apoio", id: helpId',
+     'changed ? h("span", { class: "selo", text: "" }) : null),\n      h("p", { class: "cfg-apoio", id: helpId'),
+    ("chooseNet deixa a build pronta na tela (instrumento)", "app",
+     "  const next = { ...state.set, net: netId };\n  state.set = L.normalizeSet(state.model, state.productId, next);\n  dropFinishedRun();",
+     "  const next = { ...state.set, net: netId };\n  state.set = L.normalizeSet(state.model, state.productId, next);"),
+    ("dropFinishedRun larga também a build em curso (instrumento)", "app",
+     "  if (state.run && state.run.done) state.run = null;", "  state.run = null;"),
 ]
 control_hits = {}
 for cname, which, old, new in CONTROLS:
