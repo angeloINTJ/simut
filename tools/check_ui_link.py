@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""check_ui_link.py -- the Angulo images must not link the original UI driver: the function table decides, the name patterns check what it does not cover (S10b: C6, 2026-10-21; C6b, C6c and C6d, 2026-10-22).
+"""check_ui_link.py -- the Angulo images must not link the original UI driver: the function table decides, the name patterns check what it does not cover (S10b: C6, 2026-10-21; C6b, C6c, C6d and C6e, 2026-10-22).
 
 usage: check_ui_link.py [--nm PATH] [--readelf PATH] [--tsv FILE] [--original-units A,B] ELF [ELF...]    each ELF an image that carries the Angulo (pico_wiretft_angulo, pico2_w_angulo)
-       check_ui_link.py --selftest                  the gate's own cases on synthetic `nm` text and synthetic table rows, a read of the real table, and the command line's own function (main) on a fake nm and a fake readelf, a shell script each (no toolchain, no ELF: it can run in the gates job)
+       check_ui_link.py --selftest                  the gate's own cases on synthetic `nm` text and synthetic table rows, a read of the real table, and the command line's own function (main) on a fake nm and a fake readelf, a shell script each, then the script itself run as a process, the way CI runs it (no toolchain, no ELF: it can run in the gates job)
 exit 0: every ELF clean. 1: a finding (a symbol the Angulo image must not hold, or an allowance that no longer applies). 2: a refusal (no ELF, nm or readelf missing or failed, not an Angulo image, a table it cannot read).
 
 Why. After S4 to S10b the Angulo links none of the original's draws and none of the pixel primitives it drew with: --gc-sections drops the units that are still compiled, and the builds no longer compile the eight units that [ui.original].units of
@@ -34,7 +34,7 @@ Known limits (C6c, measured on 2026-10-22 on the C6b images).
    touch handler call them; menuLabelNoNumber and sensorNthChannel stay core), and the 2 mixed are findings. The 30 that pass are 13 on core rows and the 17 compiler or library names.
 
 Measured on 2026-10-22 (S10b, C6c; the exits again at C6d): on the C6b images (pico_wiretft_angulo and pico2_w_angulo) it exits 0 with the same 22 allowances used on both; on the images as they were before C4a (C0's Wire, C0b's Wi-Fi), with the theme table still linked, it exits 1 and names availableThemes through the table; the review's nine
-planted names each exit 1 (the C6 gate exited 0 on all nine); on product images (no ua::Pintor) and on a missing file it exits 2. --selftest runs the command line's own function on a fake nm too, to see exits 0, 1 and 2 whatever the order of the ELFs, and 1 for a stale allowance (the review of C6c planted both: main( ) returning the last ELF's code, and check( ) leaving the stale ones out of the exit code). CI runs --selftest in the `gates` job and the gate itself on the ELF of each `_angulo` image in the `firmware` job (.github/workflows/build.yml).
+planted names each exit 1 (the C6 gate exited 0 on all nine); on product images (no ua::Pintor) and on a missing file it exits 2. --selftest runs the command line's own function on a fake nm too, to see exits 0, 1 and 2 whatever the order of the ELFs, and 1 for a stale allowance (the review of C6c planted both: main( ) returning the last ELF's code, and check( ) leaving the stale ones out of the exit code), and runs the script itself as a process on the same fakes (C6e): every case above calls main( ) in this process with a readelf that prints nothing, and the final review of S10b-1 planted three mutants that passed all of them, `sys.exit(main(...))` without the sys.exit( ) (the process exits 0 whatever the findings), `scan(..., files)` as `scan(..., set())` (an image that links Themes.cpp, with its allowance, exits 0) and `rc.count(1) == 1` in main( ) (two images with findings exit 0). CI runs --selftest in the `gates` job and the gate itself on the ELF of each `_angulo` image in the `firmware` job (.github/workflows/build.yml).
 
 Project: SIMUT
 License: MIT
@@ -345,6 +345,20 @@ def selftest():
         case('main path: no ELF (and no --selftest) is a usage error, exit 2, and not a pass', code == 2, str(code))
         rc, out = go(*tool, elfs['f']); rc2, out2 = go(*tool, '--original-units', '', elfs['f'])
         case("main path: --original-units replaces the manifest's list: a planted uiButton (an original row of UiWidgets.cpp, a unit the manifest lists) is 'a unit this image does not link' by default and a plain original row with an empty list, exit 1 both", rc == 1 and rc2 == 1 and 'does not link' in out and 'does not link' not in out2 and 'an original row of UiWidgets.cpp' in out2, '%d %d %s | %s' % (rc, rc2, out[-160:], out2[-160:]))
+        # C6e: the command line itself. The cases above call main( ) in this process, with a readelf that prints nothing, so three changes passed all 79 of them (the final review of S10b-1): `sys.exit(main(...))` as `main(...)` (the process exits 0 whatever the findings), `scan(..., files)` as `scan(..., set())` (readelf's answer is ignored: an image that links Themes.cpp, with its allowance, exits 0) and `rc.count(1) == 1` in main( ) (two images with findings exit 0).
+        # CI runs `python3 tools/check_ui_link.py ELF` and reads the exit status, so the next four cases run this file as a process, on the same fake nm and, for the third, a fake readelf that prints the FILE lines of a real `readelf -sW`; the two after them are the third change, which a call to main( ) can show.
+        def cli(*args):
+            r = subprocess.run([sys.executable, os.path.abspath(__file__)] + list(args), capture_output=True, text=True, errors='replace')
+            return r.returncode, r.stdout + r.stderr
+        t_re = text('readelf_themes.txt', ["Symbol table '.symtab' contains 3 entries:", '   Num:    Value  Size Type    Bind   Vis      Ndx Name', '     0: 00000000     0 NOTYPE  LOCAL  DEFAULT  UND ', '     1: 00000000     0 FILE    LOCAL  DEFAULT  ABS Dashboard.cpp', '     2: 00000000     0 FILE    LOCAL  DEFAULT  ABS Themes.cpp'])
+        fake_re_themes = script('readelf_themes', 'cat %s\n' % t_re)
+        themes = [k for k, v in ALLOWED.items() if v[1] == 'Themes.cpp']
+        rc, out = cli(*tool, elfs['a']); case('command line: run as a process, an image with the Angulo marker and every allowed name exits 0', rc == 0 and '0 finding(s); %d of %d allowance(s) used' % (len(ALLOWED), len(ALLOWED)) in out, '%d %s' % (rc, out[:160]))
+        rc, out = cli(*tool, elfs['b']); case('command line: run as a process, the same image with one planted draw exits 1 and prints it as a FINDING', rc == 1 and 'FINDING: DisplayManager::drawSettingsMain()' in out, '%d %s' % (rc, out[:160]))
+        rc, out = cli('--nm', fake_nm, '--readelf', fake_re_themes, elfs['a']); case("command line: run as a process, a readelf that names Themes.cpp ends the four catalogue allowances (the image links the original's unit): exit 1, exactly those four as findings", len(themes) == 4 and rc == 1 and all('FINDING: %s  <- an original row of Themes.cpp in the function table; its allowance holds only while Themes.cpp has no file symbol in the image' % k in out for k in themes) and '%d finding(s); %d of %d allowance(s) used' % (len(themes), len(ALLOWED) - len(themes), len(ALLOWED)) in out, '%d %s' % (rc, out[:200]))
+        rc, out = cli(*tool, elfs['c']); case('command line: run as a process, nm text without ua::Pintor (a product image) exits 2, the refusal, and says why', rc == 2 and 'ua::Pintor' in out and 'FINDING' not in out, '%d %s' % (rc, out[:160]))
+        rc, out = go(*tool, elfs['b'], elfs['e']); case('main path: two images that both have findings (a planted draw, a stale allowance) exit 1 and print both: the code is the worst of them, not "exactly one image had a finding"', rc == 1 and 'FINDING: DisplayManager::drawSettingsMain()' in out and 'FINDING: DisplayManager::loopCore1()' in out, '%d %s' % (rc, out[:200]))
+        rc, out = go(*tool, elfs['c'], elfs['c']); case('main path: two refused images exit 2', rc == 2, str(rc))
     print('RESULT: %d cases, %d failed' % (n, bad)); return 1 if bad else 0
 
 def main(argv):
@@ -356,7 +370,7 @@ def main(argv):
     ap.add_argument('--original-units', help='the units only the original compiles (default: [ui.original].units of tools/features.toml)')
     ap.add_argument('--selftest', action='store_true')
     a = ap.parse_args(argv)
-    if a.selftest: return selftest()
+    if a.selftest: sys.exit(selftest())   # C6e: the verdict leaves here, not through the `sys.exit(main(...))` of __main__ that the command-line cases test: with that line's sys.exit( ) dropped, a return value is lost and --selftest would exit 0 with cases FAILing
     if not a.elf: ap.error('an ELF is required (or --selftest)')
     beside = os.path.join(os.path.dirname(a.nm), 'arm-none-eabi-readelf')
     readelf = a.readelf or (beside if os.path.isfile(beside) else READELF_DEFAULT)
