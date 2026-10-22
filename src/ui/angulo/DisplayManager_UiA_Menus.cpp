@@ -76,6 +76,12 @@ int s_idiomaLic = -2;
  * panel reads zone 0: 0xA0.. are ours. */
 constexpr uint8_t ZONA_VOLTAR = 0xA0, ZONA_LINHA = 0xA1, ZONA_ANTERIOR = 0xA2, ZONA_PROXIMA = 0xA3;
 
+/* The choice the Tema screen shows: the preview while there is one (a themeIndex as ua::indiceDaEscolha( ) writes it; negative for none), else the
+ * saved one. Both the frame and the touch read it here, so what a tap changes is what the glass shows (S10c, A'3). */
+ua::Escolha escolhaNaTela( const SystemConfig *cfg, int8_t previa ) {
+  return ua::escolhaDoIndice( previa >= 0 ? previa : cfg ? cfg->themeIndex : (int8_t)0 );
+}
+
 /* The loaded pack's name as the language list reads it: the two packs the project ships by
  * their own names, any other as "name (code)" (the pack's @NAME has no accents). */
 void nomeDoPacote( const char *nome, const char *codigo, char *out, int cap ) {
@@ -128,12 +134,17 @@ bool DisplayManager::uaMontarMenus( UaQuadro &q ) {
       return true;
     }
     case MODE_SETTINGS_THEMES: {
-      /* cfg.themeIndex holds the mode and the accent (uaTema( ) decodes it with ua::escolhaDoIndice( )): 0 light, 1 dark and 2 automatic
-       * are the three modes with the stock accent, the only choice this screen offers. The screen is still the three rows (the
-       * Tema screen is S10c's A'3), so a value above 2 marks light here until then. */
+      /* The screen shows the preview while there is one (_uaPrevia, set by a tap on a mode or an accent) and the saved choice otherwise; vm.salvo is the saved
+       * one, as ua::indiceDaEscolha( ) writes it, for the screen to tell whether "Aplicar tema" has anything to apply. The panel acts when a touch lands and holds
+       * no press, so no target is drawn pressed here (the keypad's pressed key is the same). */
       VmTemas &vm = uaVm<VmTemas>( );
-      const int8_t t = _sysConfigPtr ? _sysConfigPtr->themeIndex : 0;
-      vm.atual = t == 1 ? TM_ESCURO : t == 2 ? TM_AUTOMATICO : TM_CLARO;
+      const ua::Escolha e = escolhaNaTela( _sysConfigPtr, _uaPrevia );
+      const ua::Escolha s = escolhaNaTela( _sysConfigPtr, -1 );
+      vm.modo = e.modo;
+      vm.acento = e.acento;
+      vm.salvo = ua::indiceDaEscolha( s.modo, s.acento );
+      vm.premidoTipo = TT_NADA;
+      vm.premidoIndice = -1;
       uaUsar<VmTemas, desenharTemas, alvosTemas>( q, vm );
       return true;
     }
@@ -345,16 +356,27 @@ UaToque DisplayManager::uaToqueMenus( const ua::Alvo *a, int16_t &, int16_t & ) 
         virar( _mainMenuPage, listPages( _menuCount, LISTA_FILAS ) );
       }
       break;
-    case MODE_SETTINGS_THEMES:
+    case MODE_SETTINGS_THEMES: {
+      /* A tap changes one half of the choice on show (the preview, else the saved one): a mode previews that mode with the accent on show, an accent that
+       * accent with the mode on show. Nothing is saved until "Aplicar tema", the only tap that reaches Core 0: actApplyTheme( ), the core's, with the pair on
+       * show as cfg.themeIndex holds it; Core 0 saves it and takes the panel to the dashboard (uiThemeChanged( )). A disabled "Aplicar tema" (nothing to
+       * apply) is an inert target, so a tap on it does nothing. Back drops the preview. The screen's targets say what is touchable, so no count bounds it here. */
+      const ua::Escolha e = escolhaNaTela( _sysConfigPtr, _uaPrevia );
       if ( voltar ) {
         /* The original's Back (handleTouch( ), Touch.cpp): SAIR is back to the menu, nothing applied. */
-        if ( acceptTouch( ZONA_VOLTAR ) ) showSettingsMain( );
-      } else if ( linha && i >= 0 && i < 3 && acceptTouch( ZONA_LINHA ) ) {
-        /* The original's Apply (handleTouch( ), Touch.cpp): APLICAR runs actApplyTheme( ), the core's, with the previewed index, and Core 0 saves it
-         * and takes the panel to the dashboard (uiThemeChanged( )). A tap on a row is that, at once. */
-        actApplyTheme( i );
+        if ( acceptTouch( ZONA_VOLTAR ) ) {
+          _uaPrevia = -1;
+          showSettingsMain( );
+        }
+      } else if ( a->tipo == TT_MODO ) {
+        if ( acceptTouch( ZONA_LINHA ) ) _uaPrevia = ua::indiceDaEscolha( (uint8_t)a->indice, e.acento );
+      } else if ( a->tipo == TT_COR ) {
+        if ( acceptTouch( ZONA_LINHA ) ) _uaPrevia = ua::indiceDaEscolha( e.modo, (uint8_t)a->indice );
+      } else if ( a->tipo == TT_APLICAR ) {
+        if ( acceptTouch( ZONA_LINHA ) ) actApplyTheme( ua::indiceDaEscolha( e.modo, e.acento ) );
       }
       break;
+    }
     case MODE_SETTINGS_LANG:
       if ( voltar ) {
         /* The original's Back (handleTouch( ), Touch.cpp): SAIR is back to the menu. */

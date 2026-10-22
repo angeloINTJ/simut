@@ -12,6 +12,7 @@ private:
 	 * the members, like the update screen's, so they move no other one. */
 	volatile bool _uaSujo = true;   /**< a hook or a tick said the frame may have changed: repaint if it did */
 	bool _uaTudo = true;            /**< repaint every strip (theme, alignment, a screen that drew under us) */
+	int8_t _uaPrevia = -1;          /**< the Tema screen's preview, a themeIndex as ua::indiceDaEscolha( ) writes it; -1 none. Core 1's alone, dropped when the mode is not MODE_SETTINGS_THEMES (S10c, A'3). It sits in the padding after the two flags: after _uaVisto the class grew by 8 B, which AppManager's constructor showed as sizeof( DisplayManager ) 8584 -> 8592 (2026-10-22) */
 	uint32_t _uaVisto = 0;          /**< millis of the last look at the frame */
 	void uaSujo( ) { _uaSujo = true; }
 	void uaQuadro( );
@@ -19,7 +20,7 @@ private:
 	bool uaEmpurrar( uint16_t *buf, int16_t x, int16_t y, int16_t w, int16_t h );   // DisplayManager_UiA_Empurrar.cpp
 	void uaEmpurrarEsperar( );
 	void uiTouch( int16_t x, int16_t y );   /**< the touch lands on the frame on the glass; handleTouch( ) calls it where the original runs its mode chain */
-	const ua::Tema &uaTema( );
+	const ua::Tema &uaTema( UiMode modo );
 	bool uaRelogio( char hora[6], int &h, bool &provisoria );
 	void uaVmStatus( ua::VmStatus &s );
 	bool uaMontar( UaQuadro &q );

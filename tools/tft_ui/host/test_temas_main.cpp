@@ -10,6 +10,7 @@
 #include <string.h>
 
 #include "Angulo.h"
+#include "telas/MenusConfig.h"   // the Tema screen's fixed texts and the boxes they are drawn in (S10c, A'3)
 
 namespace gerado {
 #include "kit/angulo_tokens.h"
@@ -124,6 +125,37 @@ int main( ) {
   CONFERE( !tela.repintaTudo( base ) && hashDoQuadro( tela ) != hashDoQuadro( base ), "a change of screen alone changes the hash and asks for no full repaint" );
   CONFERE( hashDoQuadro( escuro ) != hashDoQuadro( base ) && hashDoQuadro( ox ) != hashDoQuadro( base ) && hashDoQuadro( oy ) != hashDoQuadro( base ),
            "a change of mode, of ox or of oy changes the hash" );
+
+  // 5. The Tema screen's fixed texts fit the room they are drawn in: the very strings and boxes of telas/MenusConfig.h (S10c, A'3). MEDIDA lines are the
+  //    measures, echoed by test_temas.py.
+  {
+    using namespace ua::tela;
+    for ( int m = 0; m < TM_N; m++ ) {
+      const int w = ua::larguraTinta( TEMA_MODOS[m], TEMA_FONTE_SEGMENTO );
+      printf( "MEDIDA segment label \"%s\": %d px in %d\n", TEMA_MODOS[m], w, TEMA_W_ROTULO );
+      CONFERE( w <= TEMA_W_ROTULO, "the segment label \"%s\" is %d px and its room %d", TEMA_MODOS[m], w, TEMA_W_ROTULO );
+    }
+    const int linha = W_TELA - 2 * ua::ESP2;
+    for ( int m = 0; m < TM_N; m++ ) {
+      const int w = ua::larguraTinta( TEMA_FRASES[m], ua::tipo::corpo );
+      printf( "MEDIDA words line \"%s\": %d px in %d\n", TEMA_FRASES[m], w, linha );
+      CONFERE( w <= linha, "the line \"%s\" is %d px and its room %d", TEMA_FRASES[m], w, linha );
+    }
+    int pior = 0;
+    for ( int k = 0; k < TEMA_CORES_N; k++ ) {
+      char buf[64];
+      snprintf( buf, sizeof buf, TEMA_FMT_COR, TEMA_CORES[k] );
+      const int w = ua::larguraTinta( buf, ua::tipo::corpo );
+      if ( w > pior ) pior = w;
+      CONFERE( w <= linha, "the line \"%s\" is %d px and its room %d", buf, w, linha );
+    }
+    printf( "MEDIDA accent line, the widest of the %d: %d px in %d\n", TEMA_CORES_N, pior, linha );
+    const int bw = ua::larguraTinta( TEMA_APLICAR_ROTULO, ua::tipo::botao ), bsala = linha - 2 * ua::PAD;
+    printf( "MEDIDA button label \"%s\": %d px in %d\n", TEMA_APLICAR_ROTULO, bw, bsala );
+    CONFERE( bw <= bsala, "the button label is %d px and its room %d", bw, bsala );
+    // The control of the measure: a label that is too wide is refused by the same comparison.
+    CONFERE( ua::larguraTinta( "Automático Automático", TEMA_FONTE_SEGMENTO ) > TEMA_W_ROTULO, "control: a label of two words must not fit a segment" );
+  }
 
   printf( "%d checks, %d failed\n", checks, falhas );
   return falhas ? 1 : 0;

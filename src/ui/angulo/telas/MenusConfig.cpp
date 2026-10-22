@@ -3,6 +3,11 @@
 
 #include <stdio.h>
 
+#include <Arduino.h>   // the tokens header includes it: a system header first included inside the namespace below would land in it
+namespace entrega {
+#include "../kit/angulo_tokens.h"   // the palette's size, for the static_asserts below
+}  // namespace entrega
+
 namespace ua {
 namespace tela {
 
@@ -75,36 +80,96 @@ void desenharMenu( Pintor &p, const VmMenu &vm ) {
 
 int alvosMenu( const VmMenu &vm, Alvo *out ) { return alvosLista( layoutMenu( vm ).lista, out, true ); }
 
-/* Tema: three rows, no pager. */
+/* Tema: the mode, the accent, the choice in words and one primary button (S10c, A'3; S10C_A_PLANO.md section 3). Bands on the 4 px grid: the title
+ * with Back (to y 35), three 96 x 44 segments (44), the mode in words (92), six 44 px swatches (120), "Cor de destaque: <nome>" (168), the button (192). */
 
 namespace {
-constexpr int TEMAS_N = 3;
+
+static_assert( ESP2 + TM_N * TEMA_W_SEGMENTO + ( TM_N - 1 ) * ESP2 + ESP2 == W_TELA, "the segments fill the glass between its margins" );
+static_assert( TEMA_CORES_N == entrega::ACENTOS_N, "the screen names every entry of the palette, and only those" );
+static_assert( entrega::ACENTOS_N <= 6, "the swatches are one row of 44 px targets, 8 px apart" );
+static_assert( ESP2 + TEMA_CORES_N * TEMA_ALVO + ( TEMA_CORES_N - 1 ) * ESP2 <= W_TELA - ESP2, "the swatches fit the glass in one row" );
+static_assert( ESP1 + ICONE_CONTROLE + ESP1 + TEMA_H_ROTULO + ESP1 == TEMA_ALVO, "a segment holds its icon over its label" );
+static_assert( static_cast<int>( TT_NADA ) == static_cast<int>( ALVO_INERTE ), "a disabled button is listed as the inert target" );
+
+Caixa16 caixaModo( int m ) {
+  return Caixa16{ (int16_t)( ESP2 + m * ( TEMA_W_SEGMENTO + ESP2 ) ), TEMA_Y_SEGMENTOS, TEMA_W_SEGMENTO, TEMA_ALVO };
 }
+
+Caixa16 caixaCor( int k ) {
+  return Caixa16{ (int16_t)( ESP2 + k * ( TEMA_ALVO + ESP2 ) ), TEMA_Y_AMOSTRAS, TEMA_ALVO, TEMA_ALVO };
+}
+
+Caixa16 caixaAplicar( ) { return Caixa16{ ESP2, TEMA_Y_APLICAR, (int16_t)( W_TELA - 2 * ESP2 ), TEMA_H_APLICAR }; }
+
+// "Aplicar tema" has something to apply when the choice on show is not the saved one.
+bool temAplicar( const VmTemas &vm ) { return indiceDaEscolha( vm.modo, vm.acento ) != vm.salvo; }
+
+bool premido( const VmTemas &vm, uint8_t alvo, int indice ) { return vm.premidoTipo == alvo && vm.premidoIndice == indice; }
+
+// A segment: an icon over its label. The selected one is the accent's fill with acentoTinta content; the others are superficie with a linhaForte
+// edge. Pressed: the selected one turns acentoForte, another superficie2.
+void desenharModo( Pintor &p, const VmTemas &vm, int m ) {
+  const Tema &T = p.t( );
+  const Caixa16 c = caixaModo( m );
+  const bool atual = vm.modo == m;
+  uint16_t fundo = atual ? T.acento : T.superficie;
+  const uint16_t tinta = atual ? T.acentoTinta : T.tinta;
+  if ( premido( vm, TT_MODO, m ) ) fundo = atual ? T.acentoForte : T.superficie2;
+  UA_CONTROLE( c.x, c.y, c.w, c.h, true, "segmento" );
+  p.fillRoundRect( c.x, c.y, c.w, c.h, RAIO_CONTROLE, fundo );
+  if ( !atual ) p.roundRect( c.x, c.y, c.w, c.h, RAIO_CONTROLE, T.linhaForte );
+  p.icone( TEMA_ICONES[m], ICONE_CONTROLE, (int16_t)( c.x + rd2( c.w - ICONE_CONTROLE ) ), (int16_t)( c.y + ESP1 ), tinta );
+  textoCentrado( p, TEMA_MODOS[m], (int16_t)( c.x + rd2( c.w ) ), (int16_t)( c.y + ESP1 + ICONE_CONTROLE + ESP1 ), TEMA_H_ROTULO, TEMA_FONTE_SEGMENTO, tinta, 'c' );
+}
+
+// A swatch: a 36 px disc in the entry's own accent for the mode on the glass. Never colour alone: the selected one also has the check mark and a
+// 2 px ring of tinta with a 2 px gap that fills the 44 px box. Pressed: the disc turns the entry's acentoForte.
+void desenharCor( Pintor &p, const VmTemas &vm, int k ) {
+  const Tema &T = p.t( );
+  const Caixa16 c = caixaCor( k );
+  const Tema &E = ua::tema( T.escuro, (uint8_t)k );
+  const bool atual = vm.acento == k;
+  UA_CONTROLE( c.x, c.y, c.w, c.h, true, "amostra" );
+  if ( atual ) {
+    p.fillRoundRect( c.x, c.y, c.w, c.h, RAIO_TOTAL, T.tinta );
+    p.fillRoundRect( (int16_t)( c.x + TEMA_ANEL ), (int16_t)( c.y + TEMA_ANEL ), (int16_t)( c.w - 2 * TEMA_ANEL ), (int16_t)( c.h - 2 * TEMA_ANEL ), RAIO_TOTAL, T.fundo );
+  }
+  p.fillRoundRect( (int16_t)( c.x + ESP1 ), (int16_t)( c.y + ESP1 ), (int16_t)( c.w - 2 * ESP1 ), (int16_t)( c.h - 2 * ESP1 ), RAIO_TOTAL,
+                   premido( vm, TT_COR, k ) ? E.acentoForte : E.acento );
+  if ( atual )
+    p.icone( IconeNome::CHECK, ICONE_CONTROLE, (int16_t)( c.x + rd2( c.w - ICONE_CONTROLE ) ), (int16_t)( c.y + rd2( c.h - ICONE_CONTROLE ) ), E.acentoTinta );
+}
+
+}  // namespace
 
 void desenharTemas( Pintor &p, const VmTemas &vm ) {
   const Tema &T = p.t( );
-  barraTituloVoltar( p, "Tema" );
-  Item itens[TEMAS_N];
-  itens[TM_CLARO].texto = "Claro";
-  itens[TM_CLARO].icone = IconeNome::SUN;
-  itens[TM_ESCURO].texto = "Escuro";
-  itens[TM_ESCURO].icone = IconeNome::MOON;
-  // The rule is the row's second line, not a parenthesis in the label: with the mark on this
-  // row a label of 246 px would run under the check mark (the row has 232 px between the icon and
-  // the mark). Beside the label it did not fit either at 9 pt (2026-10-15): "Automático" is 86 px
-  // and "escuro das 19 às 7" 144, in the 224 px from the label's left edge to the mark's gap. So
-  // the rows are the 48 px of two lines (LISTA_H_FILA_2) and this one's two lines are laid over
-  // lista( )'s row below.
-  itens[TM_AUTOMATICO].icone = IconeNome::SUN_MOON;
-  for ( int i = 0; i < TEMAS_N; i++ ) itens[i].marcado = vm.atual == i;
-  const int16_t fim = lista( p, Y0, itens, TEMAS_N, LISTA_H_FILA_2 );
-  const Caixa16 c = layoutLista( TEMAS_N, 0, LISTA_FILAS_2, LISTA_H_FILA_2 ).linhas[TM_AUTOMATICO];
-  desenharDuasLinhas( p, c, ESP2 + PAD + ICONE_CONTROLE + ESP2, "Automático", T.tinta, "escuro das 19 às 7", tipo::apoio, T.tinta2 );
-  desenharNota( p, fim + ESP2, "A cor de destaque muda com o tema." );
+  barraTituloVoltar( p, TEMA_TITULO );
+  for ( int m = 0; m < TM_N; m++ ) desenharModo( p, vm, m );
+  // The choice in words: the selected state never rests on a colour alone.
+  textoCentrado( p, TEMA_FRASES[vm.modo < TM_N ? vm.modo : static_cast<int>( TM_CLARO )], ESP2, TEMA_Y_FRASE, TEMA_H_LINHA, tipo::corpo, T.tinta, 'l' );
+  for ( int k = 0; k < TEMA_CORES_N; k++ ) desenharCor( p, vm, k );
+  char linha[48];
+  snprintf( linha, sizeof linha, TEMA_FMT_COR, TEMA_CORES[vm.acento < TEMA_CORES_N ? vm.acento : 0] );
+  textoCentrado( p, linha, ESP2, TEMA_Y_NOME, TEMA_H_LINHA, tipo::corpo, T.tinta, 'l' );
+  // The one primary button. Disabled (its 45 % twin) while there is nothing to apply; pressed, it turns acentoForte.
+  const Caixa16 b = caixaAplicar( );
+  if ( premido( vm, TT_APLICAR, -1 ) && temAplicar( vm ) ) {
+    UA_CONTROLE( b.x, b.y, b.w, b.h, true, "botao" );
+    p.fillRoundRect( b.x, b.y, b.w, b.h, RAIO_CONTROLE, T.acentoForte );
+    textoCentrado( p, TEMA_APLICAR_ROTULO, (int16_t)( b.x + rd2( b.w ) ), b.y, b.h, tipo::botao, T.acentoTinta, 'c' );
+  } else {
+    botao( p, b.x, b.y, b.w, b.h, TEMA_APLICAR_ROTULO, Botao::PRIMARIO, !temAplicar( vm ) );
+  }
 }
 
-int alvosTemas( const VmTemas &, Alvo *out ) {
-  return alvosLista( layoutLista( TEMAS_N, 0, LISTA_FILAS_2, LISTA_H_FILA_2 ), out, true );
+int alvosTemas( const VmTemas &vm, Alvo *out ) {
+  int n = addAlvoVoltar( out, 0, alvoVoltar( ), LST_VOLTAR );
+  for ( int m = 0; m < TM_N; m++ ) n = addAlvo( out, n, caixaModo( m ), TT_MODO, (int16_t)m );
+  for ( int k = 0; k < TEMA_CORES_N; k++ ) n = addAlvo( out, n, caixaCor( k ), TT_COR, (int16_t)k );
+  // A disabled button is listed with the box it would have enabled, as the inert target: a tap on it does nothing and no other target answers it.
+  return addAlvo( out, n, caixaAplicar( ), (uint8_t)( temAplicar( vm ) ? TT_APLICAR : TT_NADA ) );
 }
 
 /* Idioma: English and the loaded pack, no pager. */

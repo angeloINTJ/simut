@@ -118,9 +118,12 @@ const TextoMsg kMensagens[] = {
  * (S10c, A'2). The mode is light, dark or automatic (dark from 19:00 to 6:59 by the panel's clock; light while there is no clock),
  * and the accent is the palette entry whose tables the mode takes. The values 0, 1 and 2 are the three modes with the stock
  * accent, as before; a value outside the palette means light with the stock accent. Core 1 reads only this byte and const
- * tables (ua::tema( ) hands out the kit's, built before it started): no copy of a theme is shared between the cores. */
-const ua::Tema &DisplayManager::uaTema( ) {
-  const ua::Escolha e = ua::escolhaDoIndice( _sysConfigPtr ? _sysConfigPtr->themeIndex : 0 );
+ * tables (ua::tema( ) hands out the kit's, built before it started): no copy of a theme is shared between the cores. The one thing that is not the saved
+ * theme is the Tema screen's preview (_uaPrevia, set by its taps and Core 1's alone): the frame of MODE_SETTINGS_THEMES is painted with it and the frame of any
+ * other mode, the update screen included, with the saved theme. `modo` is the mode of the frame being painted and not _uiMode: Core 0 paints the update
+ * screen while _uiMode may still say Tema. */
+const ua::Tema &DisplayManager::uaTema( UiMode modo ) {
+  const ua::Escolha e = ua::escolhaDoIndice( ( modo == MODE_SETTINGS_THEMES && _uaPrevia >= 0 ) ? _uaPrevia : _sysConfigPtr ? _sysConfigPtr->themeIndex : 0 );
   bool escuro = e.modo == ua::MODO_ESCURO;
   if ( e.modo == ua::MODO_AUTOMATICO ) {
     char hora[6];
@@ -184,7 +187,7 @@ void DisplayManager::uaVmStatus( ua::VmStatus &s ) {
 bool DisplayManager::uaPintar( const UaQuadro &q, UiMode modo, uint32_t hash ) {
   GFXcanvas16 *const cv = _driver.canvas;
   if ( !cv || !_driver.tft || !q.desenhar ) return false;
-  const ua::Tema &tema = uaTema( );
+  const ua::Tema &tema = uaTema( modo );
   ua::Faixa faixa( cv->getBuffer( ) );
   ua::Pintor p( faixa, tema, faixa );
   /* The record of the frame (Pintor::gravar( )) lives in the canvas's rows under the strips: the canvas is 320 x 45 (allocated in DisplayManager.cpp), the two
@@ -301,12 +304,14 @@ void DisplayManager::uaQuadro( ) {
   /* The hooks and the ticks say when the state changed (uaSujo( )); a look every 250 ms
    * catches what none of them says (a humidity, the automatic theme, the
    * web's busy flag) at the cost of building one view model. */
+  /* The preview lives with the Tema screen: any other mode, reached by Back, by the timeout or by the web, drops it, and the screen opens on the saved theme. */
+  if ( _uiMode != MODE_SETTINGS_THEMES ) _uaPrevia = -1;
   if ( !_uaSujo && !_uaTudo && agora - _uaVisto < 250 ) return;
   _uaSujo = false;
   _uaVisto = agora;
   UaQuadro q;
   if ( !uaMontar( q ) ) return;
-  const ua::Tema &tema = uaTema( );
+  const ua::Tema &tema = uaTema( _uiMode );
   const int8_t ox = _driver.tft->getOffsetX( ), oy = _driver.tft->getOffsetY( );
   uint32_t h = fnv( q.vm, q.tam );
   /* The frame's identity: the screen, the theme (the mode AND the accent: a web or CLI change of the accent alone changes no
@@ -348,7 +353,7 @@ void DisplayManager::uiPaintOta( ) {
   }
   UaQuadro q;
   if ( !uaMontarOta( q ) ) return;
-  const ua::Tema &tema = uaTema( );
+  const ua::Tema &tema = uaTema( MODE_OTA_UPDATE );
   uint32_t h = fnv( q.vm, q.tam );
   /* The update screen has never hashed the display alignment (it cannot change while the update is on): ox and oy are 0 here. */
   const ua::IdentidadeDoQuadro id = ua::identidadeDoQuadro( (uint8_t)MODE_OTA_UPDATE, tema, 0, 0 );

@@ -58,16 +58,42 @@ const VmMenu kContaLonga = menu( kAdmin, sizeof kAdmin, 0, "maria.aparecida.da.s
 /* Tema e idioma                                                        */
 /* ------------------------------------------------------------------ */
 
-VmTemas temas( int atual ) {
+// The Tema screen (S10c, A'3): each mode, with the stock accent and with the palette's last one, in the states a control can be in on this screen. The
+// saved choice is the next mode with the same accent, so "Aplicar tema" has something to apply, except in the disabled state, where the choice on show is
+// the saved one (the screen as it opens). A pressed target is the neighbour of the selected one, except for the selected segment's own state.
+enum EstadoTema : uint8_t { ET_REPOUSO, ET_COR_PREMIDA, ET_APLICAR_PREMIDO, ET_APLICAR_DESAB, ET_MODO_PREMIDO, ET_MODO_ATUAL_PREMIDO, ET_N };
+
+VmTemas temas( int modo, int acento, int estado ) {
   VmTemas vm;
   memset( &vm, 0, sizeof vm );
-  vm.atual = (uint8_t)atual;
+  vm.modo = (uint8_t)modo;
+  vm.acento = (uint8_t)acento;
+  vm.salvo = estado == ET_APLICAR_DESAB ? indiceDaEscolha( (uint8_t)modo, (uint8_t)acento ) : indiceDaEscolha( (uint8_t)( ( modo + 1 ) % TM_N ), (uint8_t)acento );
+  vm.premidoIndice = -1;
+  if ( estado == ET_COR_PREMIDA ) { vm.premidoTipo = TT_COR; vm.premidoIndice = (int8_t)( ( acento + 1 ) % TEMA_CORES_N ); }
+  if ( estado == ET_APLICAR_PREMIDO ) vm.premidoTipo = TT_APLICAR;
+  if ( estado == ET_MODO_PREMIDO ) { vm.premidoTipo = TT_MODO; vm.premidoIndice = (int8_t)( ( modo + 1 ) % TM_N ); }
+  if ( estado == ET_MODO_ATUAL_PREMIDO ) { vm.premidoTipo = TT_MODO; vm.premidoIndice = (int8_t)modo; }
   return vm;
 }
 
-const VmTemas kTemaClaro = temas( TM_CLARO );
-const VmTemas kTemaEscuro = temas( TM_ESCURO );
-const VmTemas kTemaAuto = temas( TM_AUTOMATICO );
+// [mode][0 stock accent, 1 the last][state]
+struct TabelaTemas {
+  VmTemas v[TM_N][2][ET_N];
+  TabelaTemas( ) {
+    for ( int m = 0; m < TM_N; m++ )
+      for ( int a = 0; a < 2; a++ )
+        for ( int e = 0; e < ET_N; e++ ) v[m][a][e] = temas( m, a ? TEMA_CORES_N - 1 : 0, e );
+  }
+};
+const TabelaTemas kTemas;
+
+#define TEMA_AMOSTRA( nome, m, a, e ) \
+  { nome, []( Pintor &p ) { desenharTemas( p, kTemas.v[m][a][e] ); }, []( Alvo *o ) { return alvosTemas( kTemas.v[m][a][e], o ); } }
+#define TEMA_AMOSTRAS( nome, m, a ) \
+  TEMA_AMOSTRA( nome "_repouso", m, a, ET_REPOUSO ), TEMA_AMOSTRA( nome "_cor_premida", m, a, ET_COR_PREMIDA ), \
+  TEMA_AMOSTRA( nome "_aplicar_premido", m, a, ET_APLICAR_PREMIDO ), TEMA_AMOSTRA( nome "_aplicar_desab", m, a, ET_APLICAR_DESAB ), \
+  TEMA_AMOSTRA( nome "_modo_premido", m, a, ET_MODO_PREMIDO ), TEMA_AMOSTRA( nome "_modo_atual_premido", m, a, ET_MODO_ATUAL_PREMIDO )
 
 VmIdioma idioma( int atual, const char *pacote ) {
   VmIdioma vm;
@@ -476,9 +502,12 @@ const Amostra kAmostras[] = {
   { "menu_conta_painel", []( Pintor &p ) { desenharMenu( p, kContaPainel ); }, []( Alvo *o ) { return alvosMenu( kContaPainel, o ); } },
   { "menu_conta_longa", []( Pintor &p ) { desenharMenu( p, kContaLonga ); }, []( Alvo *o ) { return alvosMenu( kContaLonga, o ); } },
 
-  { "temas_claro", []( Pintor &p ) { desenharTemas( p, kTemaClaro ); }, []( Alvo *o ) { return alvosTemas( kTemaClaro, o ); } },
-  { "temas_escuro", []( Pintor &p ) { desenharTemas( p, kTemaEscuro ); }, []( Alvo *o ) { return alvosTemas( kTemaEscuro, o ); } },
-  { "temas_automatico", []( Pintor &p ) { desenharTemas( p, kTemaAuto ); }, []( Alvo *o ) { return alvosTemas( kTemaAuto, o ); } },
+  TEMA_AMOSTRA( "temas_claro", TM_CLARO, 0, ET_APLICAR_DESAB ),
+  TEMA_AMOSTRA( "temas_escuro", TM_ESCURO, 0, ET_APLICAR_DESAB ),
+  TEMA_AMOSTRA( "temas_automatico", TM_AUTOMATICO, 0, ET_APLICAR_DESAB ),
+  TEMA_AMOSTRAS( "temas_claro_padrao", TM_CLARO, 0 ), TEMA_AMOSTRAS( "temas_claro_ultima", TM_CLARO, 1 ),
+  TEMA_AMOSTRAS( "temas_escuro_padrao", TM_ESCURO, 0 ), TEMA_AMOSTRAS( "temas_escuro_ultima", TM_ESCURO, 1 ),
+  TEMA_AMOSTRAS( "temas_automatico_padrao", TM_AUTOMATICO, 0 ), TEMA_AMOSTRAS( "temas_automatico_ultima", TM_AUTOMATICO, 1 ),
 
   { "idioma_pacote", []( Pintor &p ) { desenharIdioma( p, kIdiomaPacote ); }, []( Alvo *o ) { return alvosIdioma( kIdiomaPacote, o ); } },
   { "idioma_english", []( Pintor &p ) { desenharIdioma( p, kIdiomaIngles ); }, []( Alvo *o ) { return alvosIdioma( kIdiomaIngles, o ); } },

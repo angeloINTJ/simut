@@ -21,6 +21,7 @@ import re
 import subprocess
 import sys
 import tempfile
+import unicodedata
 
 sys.dont_write_bytecode = True
 HERE = pathlib.Path(__file__).resolve().parent
@@ -30,6 +31,10 @@ from host_ui import find_gfx  # noqa: E402  (the GFX lookup the host tools share
 
 KIT = ROOT / 'src' / 'ui' / 'angulo'
 GLUE = KIT / 'DisplayManager_UiA.cpp'
+MENUS_GLUE = KIT / 'DisplayManager_UiA_Menus.cpp'
+MENUS_H = KIT / 'telas' / 'MenusConfig.h'
+MENUS_CPP = KIT / 'telas' / 'MenusConfig.cpp'
+TEMAS_CPP = KIT / 'Temas.cpp'
 ANGULO = KIT / 'Angulo.cpp'
 
 CASOS = []
@@ -103,7 +108,8 @@ def problemas_do_glue(glue):
 
 
 def acentos_n_fora(angulo, outros):
-    """ACENTOS_N must appear only inside escolhaDoIndice and indiceDaEscolha (and in the generated header that defines it)."""
+    """ACENTOS_N must appear only inside escolhaDoIndice and indiceDaEscolha, in static_assert statements (S10c, A'3: the catalogue and the Tema screen tie their sizes to the
+    palette's) and in the generated header that defines it."""
     p = []
     dentro = 0
     for nome in ('Escolha escolhaDoIndice', 'int8_t indiceDaEscolha'):
@@ -116,8 +122,92 @@ def acentos_n_fora(angulo, outros):
     if dentro < 2:
         p.append(f'ACENTOS_N is read {dentro} time(s) inside the two encoding functions')
     for nome, texto in [('Angulo.cpp', angulo)] + outros:
-        if 'ACENTOS_N' in texto:
+        if 'ACENTOS_N' in re.sub(r'static_assert\s*\([^;]*;', '', texto):
             p.append(f'ACENTOS_N appears in {nome} outside the two encoding functions')
+    return p
+
+
+def sem_comentarios(t):
+    t = re.sub(r'/\*.*?\*/', '', t, flags=re.S)
+    return re.sub(r'//[^\n]*', '', t)
+
+
+def pedaco(texto, ini, fim):
+    i = texto.find(ini)
+    j = texto.find(fim, i + len(ini)) if i >= 0 else -1
+    return texto[i:j] if i >= 0 and j > i else None
+
+
+def blocos_do_caso(texto, rotulo='case MODE_SETTINGS_THEMES: {'):
+    """The braced bodies of `case MODE_SETTINGS_THEMES: {` in a file (the builder's and the touch's)."""
+    out, i = [], 0
+    while True:
+        i = texto.find(rotulo, i)
+        if i < 0:
+            return out
+        k, d = texto.index('{', i), 0
+        for j in range(k, len(texto)):
+            d += (texto[j] == '{') - (texto[j] == '}')
+            if d == 0:
+                break
+        out.append(texto[i:j + 1])
+        i = j
+
+
+def problemas_de_literais(mh, mc, menus, ua):  # the 6 is not looked for in uaTema( ): its `char hora[6]` is the clock's text
+    """S10c, A'3, brief restriction 3: the number of modes and the palette's size are written only in the encoding functions and in static_assert statements. The Tema
+    screen, its touch and its builder, and uaTema( ) carry no bare 3 or 6 (comments, strings and static_asserts apart)."""
+    p = []
+    blocos = [('MenusConfig.h', pedaco(mh, 'enum EscolhaTema', '/* Idioma (MODE_SETTINGS_LANG)'), '36'), ('MenusConfig.cpp', pedaco(mc, '/* Tema:', '/* Idioma:'), '36'),
+              ('DisplayManager_UiA.cpp, uaTema( )', pedaco(ua, 'const ua::Tema &DisplayManager::uaTema(', '/* "HH:MM"'), '3')]
+    g = blocos_do_caso(menus)
+    if len(g) != 2:
+        p.append(f'DisplayManager_UiA_Menus.cpp has {len(g)} bodies of case MODE_SETTINGS_THEMES: {{, expected 2 (the builder and the touch)')
+    blocos += [(f'DisplayManager_UiA_Menus.cpp, body {n + 1}', b, '36') for n, b in enumerate(g)]
+    for nome, b, algarismos in blocos:
+        if b is None:
+            p.append(f'{nome}: the block was not found')
+            continue
+        b = re.sub(r'static_assert\s*\([^;]*;', '', sem_comentarios(b))
+        b = re.sub(r'"(?:\\.|[^"\\])*"', '""', b)
+        for m in re.finditer(r'(?<![\w.])[' + algarismos + r'](?![\w.])', b):
+            p.append(f'{nome}: a bare {m.group(0)} in `{b[max(0, m.start() - 24):m.end() + 12].strip()}`')
+    return p
+
+
+def pedacos_do_catalogo(cat, mh):
+    rows = re.findall(r'TEMA\(\s*"([^"]*)"\s*,\s*"([^"]*)"\s*\)', cat)
+    cores = re.findall(r'"([^"]*)"', pedaco(mh, 'TEMA_CORES[] =', '};') or '')
+    modos = re.findall(r'"([^"]*)"', pedaco(mh, 'TEMA_MODOS[TM_N] =', '};') or '')
+    return rows, cores, modos
+
+
+def problemas_do_catalogo(cat, mh):
+    """The 18 ids and names of Temas.cpp: each row at the index ua::escolhaDoIndice( ) gives it (mode t % 3, accent t / 3), the stock accent's three unchanged, an id at most
+    15 B, a name at most 23 B of UTF-8, none repeated, and the static_assert that ties the count to the palette."""
+    p = []
+    rows, cores, modos = pedacos_do_catalogo(cat, mh)
+    ids = ['claro', 'escuro', 'auto']
+    if len(modos) != 3 or len(cores) < 2:
+        return [f'the screen header gives {len(modos)} modes and {len(cores)} accents']
+    if len(rows) != 3 * len(cores):
+        p.append(f'{len(rows)} rows, expected {3 * len(cores)} (three modes by {len(cores)} accents)')
+    for t, (i, n) in enumerate(rows):
+        m, k = t % 3, t // 3
+        if k >= len(cores):
+            break
+        chave = unicodedata.normalize('NFKD', cores[k]).encode('ascii', 'ignore').decode().lower()
+        want = (ids[m], modos[m]) if k == 0 else (f'{ids[m]}-{chave}', f'{modos[m]}, {cores[k]}')
+        if (i, n) != want:
+            p.append(f'row {t} is ({i!r}, {n!r}), expected {want}')
+        if len(i.encode('utf-8')) > 15 or not re.fullmatch(r'[a-z]+(-[a-z]+)?', i):
+            p.append(f'row {t}: the id {i!r} is {len(i.encode("utf-8"))} B or not lower-case ASCII (at most 15 B)')
+        if len(n.encode('utf-8')) > 23:
+            p.append(f'row {t}: the name {n!r} is {len(n.encode("utf-8"))} B of UTF-8 (at most 23)')
+    if len(set(i for i, _ in rows)) != len(rows) or len(set(n for _, n in rows)) != len(rows):
+        p.append('an id or a name is repeated')
+    if not re.search(r'static_assert\(\s*NUM_TEMAS\s*==\s*3\s*\*\s*entrega::ACENTOS_N', cat):
+        p.append('Temas.cpp lacks static_assert( NUM_TEMAS == 3 * entrega::ACENTOS_N )')
     return p
 
 
@@ -153,6 +243,9 @@ def main():
         caso(f'host program: mode, accent, tema( ), desab( ) and the frame identity against the generated header ({resumo})', not falhas and rc == 0 and resumo.endswith(' 0 failed'))
         for l in falhas[:6]:
             print('       ' + l)
+        for l in saida.splitlines():
+            if l.startswith('MEDIDA'):
+                print('       ' + l)
         for (nome, _, _), (exe, err) in zip(MUTANTES, feitos[1:]):
             if exe is None:
                 caso(f'control: {nome}', [f'the mutant does not build: {err.strip()[:200]}'])
@@ -174,6 +267,20 @@ def main():
     caso('sources: ACENTOS_N appears only inside the two encoding functions', acentos_n_fora(texto, outros))
     caso('control: an ACENTOS_N in a screen file is reported', bool(acentos_n_fora(texto, outros + [('telas/X.cpp', 'int n = ACENTOS_N;')])))
     caso('control: an ACENTOS_N in tema( ) is reported', bool(acentos_n_fora(texto.replace('acento < kAcentos ? acento : 0', 'acento < ACENTOS_N ? acento : 0'), outros)))
+
+    cat, mh, mc = TEMAS_CPP.read_text(encoding='utf-8'), MENUS_H.read_text(encoding='utf-8'), MENUS_CPP.read_text(encoding='utf-8')
+    menus = MENUS_GLUE.read_text(encoding='utf-8')
+    caso('catalogue: 18 ids and names, each at the index the decode gives it, ids within 15 B and names within 23 B', problemas_do_catalogo(cat, mh))
+    r0 = re.findall(r'TEMA\(\s*"[^"]*"\s*,\s*"[^"]*"\s*\)', cat)
+    caso('control: an id of 16 B is reported', bool(problemas_do_catalogo(cat.replace('"escuro-petroleo"', '"escuro-petroleos"'), mh)))
+    caso('control: a name of 24 B is reported', bool(problemas_do_catalogo(cat.replace('"Automático, Petróleo"', '"Automático, Petróleos2"'), mh)))
+    caso('control: two rows swapped are reported', bool(problemas_do_catalogo(cat.replace(r0[4], '@@').replace(r0[5], r0[4]).replace('@@', r0[5]), mh)))
+    caso('control: a catalogue of 17 rows is reported', bool(problemas_do_catalogo(cat.replace(r0[17] + ',', '', 1), mh)))
+    caso('control: a catalogue without its static_assert is reported', bool(problemas_do_catalogo(cat.replace('static_assert( NUM_TEMAS == 3 *', 'static_assert( NUM_TEMAS >= 3 *'), mh)))
+    caso('sources: the Tema screen, its touch and uaTema( ) carry no bare 3 or 6 outside static_asserts', problemas_de_literais(mh, mc, menus, glue))
+    caso('control: an `i < 3` in the touch is reported', bool(problemas_de_literais(mh, mc, menus.replace('else if ( a->tipo == TT_MODO ) {', 'else if ( a->tipo == TT_MODO && i < 3 ) {'), glue)))
+    caso('control: a 6 in the screen is reported', bool(problemas_de_literais(mh, mc.replace('for ( int k = 0; k < TEMA_CORES_N; k++ ) desenharCor', 'for ( int k = 0; k < 6; k++ ) desenharCor'), menus, glue)))
+    caso('control: a static_assert with the 3 and the 6 is not reported', not problemas_de_literais(mh, mc.replace('/* Idioma:', 'static_assert( 3 * 6 == 18, "x" );\n/* Idioma:', 1), menus, glue))
 
     falhas = [n for n, ok in CASOS if not ok]
     print(f'{len(CASOS)} cases, {len(falhas)} failed')

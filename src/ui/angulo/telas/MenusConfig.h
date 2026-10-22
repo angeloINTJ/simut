@@ -47,12 +47,55 @@ int alvosMenu( const VmMenu &vm, Alvo *out );
 /* Tema (MODE_SETTINGS_THEMES)                                          */
 /* ------------------------------------------------------------------ */
 
-enum EscolhaTema : uint8_t { TM_CLARO, TM_ESCURO, TM_AUTOMATICO };
+// The screen is one: the mode (three segments), the accent (a row of swatches), the choice in words and one primary button. A tap on a
+// segment or a swatch previews the choice on the glass (Core 1 keeps it and nothing is saved), "Aplicar tema" saves it and Back drops it
+// (S10c, A'3; S10C_A_PLANO.md section 3).
+enum EscolhaTema : uint8_t { TM_CLARO, TM_ESCURO, TM_AUTOMATICO, TM_N };
+static_assert( static_cast<int>( TM_CLARO ) == static_cast<int>( MODO_CLARO ) && static_cast<int>( TM_ESCURO ) == static_cast<int>( MODO_ESCURO ) &&
+                   static_cast<int>( TM_AUTOMATICO ) == static_cast<int>( MODO_AUTOMATICO ) && static_cast<int>( TM_N ) == MODO_AUTOMATICO + 1,
+               "the segments are the kit's modes, in the kit's order" );
+
+// The targets: AlvoLista's Back, then these. TT_MODO's indice is the EscolhaTema, TT_COR's the palette entry. A disabled "Aplicar tema" is
+// listed as ALVO_INERTE (TT_NADA), so a tap on it is answered by no live target.
+enum AlvoTema : uint8_t { TT_NADA = LST_NADA, TT_MODO = LST_PAG_PROXIMA + 1, TT_COR, TT_APLICAR };
 
 struct VmTemas {
-  uint8_t atual;                      // EscolhaTema: the one with the mark
+  uint8_t modo;            // EscolhaTema: the mode on show (the preview, or the saved one until the first tap)
+  uint8_t acento;          // the palette entry on show
+  int8_t salvo;            // the saved choice as ua::indiceDaEscolha( ) writes it: "Aplicar tema" has something to apply when it differs from ( modo, acento )
+  uint8_t premidoTipo;     // the target under the finger: TT_NADA, TT_MODO, TT_COR or TT_APLICAR. The panel acts when the touch lands and holds no press, so the glue leaves
+                           // it at TT_NADA (as the keypad's pressed key); the state is drawn all the same and the host draws it
+  int8_t premidoIndice;    // its indice (-1 for TT_NADA and TT_APLICAR)
 };
-// Targets: AlvoLista. LST_LINHA's indice is the EscolhaTema it applies.
+
+// The geometry, on the 4 px grid (S10C_A_PLANO.md section 3), and the fixed texts, here so that tools/tft_ui/test_temas.py measures the very strings and
+// boxes the screen draws. The texts are pt-BR; Stage B translates them (the commit of A'3 lists each one's English).
+constexpr int16_t TEMA_ALVO = 44;           // a finger's target: the segments' height, the swatches' box
+constexpr int16_t TEMA_W_SEGMENTO = 96;
+constexpr int16_t TEMA_H_LINHA = 20;        // the two lines of words, each in a box of this height
+constexpr int16_t TEMA_H_APLICAR = 40;
+constexpr int16_t TEMA_Y_SEGMENTOS = 44;
+constexpr int16_t TEMA_Y_FRASE = 92;
+constexpr int16_t TEMA_Y_AMOSTRAS = 120;
+constexpr int16_t TEMA_Y_NOME = 168;
+constexpr int16_t TEMA_Y_APLICAR = 192;
+constexpr int16_t TEMA_H_ROTULO = 12;       // the label's box under the icon: a segment is ESP1, icon, ESP1, label, ESP1
+constexpr int16_t TEMA_ANEL = 2;            // the selected swatch's ring, and the gap between the ring and the disc
+// 9 pt regular, the size and weight the plan measured: "Automático" is 86 px in the 88 px of a segment (tools/tft_ui/test_temas.py, 2026-10-22). The bold of the kit's
+// segmented control (tipo::rotulo) makes it 97 px, which does not fit.
+constexpr Fonte TEMA_FONTE_SEGMENTO = tipo::corpo;
+constexpr int16_t TEMA_W_ROTULO = TEMA_W_SEGMENTO - 2 * ESP1;   // the room of a segment's label
+
+constexpr const char *TEMA_TITULO = "Tema";
+constexpr const char *TEMA_MODOS[TM_N] = { "Claro", "Escuro", "Automático" };
+constexpr IconeNome TEMA_ICONES[TM_N] = { IconeNome::SUN, IconeNome::MOON, IconeNome::SUN_MOON };
+constexpr const char *TEMA_FRASES[TM_N] = { "Modo claro", "Modo escuro", "Modo automático: escuro das 19 às 7" };
+// The palette's accents in its order (entry 0 is the stock one): the names the screen and the web list say.
+constexpr const char *TEMA_CORES[] = { "Verde-azulado", "Petróleo", "Azul", "Índigo", "Violeta", "Magenta" };
+constexpr int TEMA_CORES_N = sizeof TEMA_CORES / sizeof TEMA_CORES[0];
+constexpr const char *TEMA_FMT_COR = "Cor de destaque: %s";
+constexpr const char *TEMA_APLICAR_ROTULO = "Aplicar tema";
+
 void desenharTemas( Pintor &p, const VmTemas &vm );
 int alvosTemas( const VmTemas &vm, Alvo *out );
 

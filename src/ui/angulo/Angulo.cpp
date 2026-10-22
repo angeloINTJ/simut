@@ -15,7 +15,7 @@
 
 // The delivery's headers define their fonts, icons and tokens as namespace-
 // scope consts (internal linkage): this translation unit is the only one that
-// includes them.
+// uses them; two others include angulo_tokens.h to read the palette's size.
 namespace entrega {
 #include "kit/fontes/SANS9.h"
 #include "kit/fontes/SANSB9.h"
