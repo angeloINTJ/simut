@@ -244,6 +244,14 @@ jobs:
       - name: Angulo panel tokens (generated header in sync, contrast targets)
         run: python3 tools/tft_ui/gen_tokens.py --check --report
 
+      # The accent palette of the same JSON (S10c, A'1): the list `acentos`, what gen_tokens.py derives from it and the words the
+      # header carries. The test reads the header as the firmware compiles it, with colour arithmetic of its own, and holds the
+      # golden table of contrasts, every floor, the 17 distinct roles, the hue rule, both derivations and entry 0 to the guide; it
+      # then runs the generator on specs with one violation each, which must exit 1, name the pair and leave the header alone.
+      # Standard library only.
+      - name: Angulo accent palette (golden table, floors, rules, controls)
+        run: python3 tools/tft_ui/test_acentos.py
+
       # patch.sh runs again and again: after every override that merges, and in the
       # firmware jobs on a warm ~/.platformio cache that already carries them (see
       # "Apply framework overrides" below). Each step skips itself when a grep finds

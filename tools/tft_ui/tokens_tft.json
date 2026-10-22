@@ -21,5 +21,13 @@
  "tft": {
   "claro": { "tinta2": "#4f4c46", "linha": "#85847f", "linhaForte": "#6f6b65" },
   "escuro": { "tinta2": "#b5b0a6", "linha": "#73706d", "linhaForte": "#918c86" }
- }
+ },
+ "acentos": [
+  { "id": "verde-azulado" },
+  { "id": "petroleo", "claro": "#1a6478", "escuro": "#5ab0c8" },
+  { "id": "azul", "claro": "#1f5299", "escuro": "#6a9ee8" },
+  { "id": "indigo", "claro": "#4a4aa0", "escuro": "#9a9cf0" },
+  { "id": "violeta", "claro": "#7a3f9a", "escuro": "#c08ae0" },
+  { "id": "magenta", "claro": "#9a3a78", "escuro": "#e08ac4" }
+ ]
 }
