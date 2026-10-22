@@ -35,6 +35,8 @@ unidades. Um perfil sem a chave tem o `original`, que nao emite nada: os ambient
 byte a byte os mesmos. O que a identidade deriva (SIMUT_UI_ORIGINAL, SIMUT_UI_CUSTOM_THEMES, em
 src/ui/UiCaps.h) nao vai por -D.
 
+As regras leem tambem o chip do produto (2026-10-22): `chip = "<id>"` em `when` ou `require` nomeia um [chip.*], e config_of( ) o leva ao model.json de cada produto.
+
 Cada [env:*] gerado herda `pico_base` do platformio.ini e acrescenta apenas os
 flags, o filtro de fontes e o lib_ignore que o manifesto deriva dos recursos
 ligados. O platformio.ini inclui o profiles.ini via `extra_configs` e nao define
@@ -347,8 +349,12 @@ def emit_env(name: str, c: dict) -> str:
 
 
 def config_of(prof: dict) -> dict:
-    """O que as regras enxergam de um perfil: o mostrador, o driver da rede, o driver de UI e cada chave, em bool."""
-    cfg = {"display": prof["display"], "net": prof["net"], "ui": prof.get("ui", DEFAULT_UI)}
+    """O que as regras enxergam de um perfil: o mostrador, o driver da rede, o driver de UI, o chip e cada chave, em bool.
+
+    O chip entrou em 2026-10-22, para a regra do Angulo no Pico W (angulo-cyw43-needs-rp2350): o Pico W e o Pico 2 W escolhem o mesmo mostrador, a mesma rede e a mesma UI,
+    e so o chip os separa. Sem a chave `chip`, o do Pico W (o pico_base). Ele vem do produto e nenhum `set` o muda (build_custom.parse_spec recusa a chave), e a pagina o
+    le do mesmo lugar, products[].config.chip do model.json."""
+    cfg = {"display": prof["display"], "net": prof["net"], "ui": prof.get("ui", DEFAULT_UI), "chip": prof.get("chip") or "rp2040"}
     for t in TOGGLE_ORDER:
         cfg[t] = bool(prof.get(t, False))
     return cfg
@@ -662,7 +668,7 @@ def check_manifest(M: dict) -> None:
         if not (isinstance(ui_id, str) and ui_id in uis):
             sys.exit(f"gen_features: o perfil {name} escolhe a UI {ui_id!r}, que nao e um "
                      f"[ui.*] ({', '.join(uis)})")
-    known = set(TOGGLE_ORDER) | {"display", "net", "ui"}
+    known = set(TOGGLE_ORDER) | {"display", "net", "ui", "chip"}
     for kind, parts in (("rules", ("when", "require")), ("hazards", ("when",))):
         ids = set()
         for r in M.get(kind, []):
@@ -679,7 +685,9 @@ def check_manifest(M: dict) -> None:
                         sys.exit(f"gen_features: {kind} {r['id']}.{part}: rede desconhecida '{v}'")
                     if k == "ui" and not (isinstance(v, str) and v in uis):
                         sys.exit(f"gen_features: {kind} {r['id']}.{part}: UI desconhecida '{v}'")
-                    if k not in ("display", "net", "ui") and not isinstance(v, bool):
+                    if k == "chip" and not (isinstance(v, str) and v in M.get("chip", {})):
+                        sys.exit(f"gen_features: {kind} {r['id']}.{part}: chip desconhecido '{v}'")
+                    if k not in ("display", "net", "ui", "chip") and not isinstance(v, bool):
                         sys.exit(f"gen_features: {kind} {r['id']}.{part}.{k} tem de ser true/false")
     # Nenhuma imagem que o CI constroi pode quebrar uma regra: se quebrasse, ou a
     # regra esta errada, ou o CI estaria compilando algo que nao linka.

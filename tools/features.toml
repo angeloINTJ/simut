@@ -1160,6 +1160,21 @@ why.pt   = "O visual Ângulo é desenhado na tela touch."
 why.es   = "El aspecto Ángulo se dibuja en la pantalla táctil."
 evidence = "pico_w_alpha with ui = angulo (the composed environment plus -DSIMUT_UI_ANGULO=1, built with pio run on 2026-10-14) stops on every unit that includes simut_config.h, with: src/simut_config.h:99:2: error: #error \"SIMUT_UI_ANGULO needs SIMUT_DISPLAY_TFT\". The Air (no display) stops at the same #error, pinned by tools/test_ui_caps.py. Not compiled past it: the Ângulo panel draws on the ILI9341 and reads the XPT2046, which neither the 16x2 LCD nor the headless image has, and the manifest refuses the combination before a build starts."
 
+# O Angulo no Pico W (2026-10-22). O mantenedor decidiu em 2026-10-21 que o Angulo chega primeiro ao Pico 2 W, com uma versao menor para o Pico W depois, e em 2026-10-22
+# que o construtor monta o Pico 2 W das duas formas (o Angulo e o original). O Pico W e o RP2040 com o radio CYW43 (net = "cyw43"), e e nele que o Angulo nao cabe: a regra
+# pede o RP2350 a quem junta o Angulo ao radio. O SIMUT Wire com TFT (RP2040 com o ENC28J60, o pico_wiretft_angulo) nao e atingido, porque nao tem o radio: e a imagem de
+# bancada do Angulo e continua. `chip` entrou no vocabulario das regras (config_of( )) por causa desta: sem ele nao ha como dizer "o RP2350", porque o Pico W e o Pico 2 W
+# escolhem o mesmo mostrador, a mesma rede e a mesma UI; a pagina le o chip do mesmo model.json (products[].config.chip). Nenhuma build do Angulo para o Pico W existe, entao
+# nao ha erro de compilador a citar: a evidencia e a medida de docs/analysis/UI_DRIVERS.md secao 3.6, com as datas dela.
+[[rules]]
+id       = "angulo-cyw43-needs-rp2350"
+when     = { ui = "angulo", net = "cyw43" }
+require  = { chip = "rp2350" }
+why.en   = "The Ângulo look does not fit the Pico W's Wi-Fi image. Choose the Pico 2 W, or keep the original look."
+why.pt   = "O visual Ângulo não cabe na imagem Wi-Fi do Pico W. Escolha o Pico 2 W ou mantenha o visual original."
+why.es   = "El aspecto Ángulo no cabe en la imagen Wi-Fi de la Pico W. Elija la Pico 2 W o mantenga el aspecto original."
+evidence = "No Ângulo build of the Pico W exists, so there is no compiler error to quote; the gap is measured on other images (docs/analysis/UI_DRIVERS.md section 3.6). Measured on 2026-10-14 (baseline images of 192e1ad, the study's Ângulo): 45,856 B above the plain pico_wiretft, against 5,643 B of OTA headroom in the Pico W's Wi-Fi release (PLANO_STABLE.md section 3.1), a gap of 34 to 40 kB. Rerun on 2026-10-21 (after S10b-1): pico2_w_angulo, a real Wi-Fi Ângulo build, is 31,008 B above pico2_w_release (.bin 1,029,952 against 998,944 B), and the Pico W's Wi-Fi release has 5,195 B of headroom in the same record and no Ângulo build, so a transposition of the 31 kB would not fit it. The maintainer decided on 2026-10-21 that the Ângulo ships first on the Pico 2 W only, with a smaller version for the Pico W later. The SIMUT Wire TFT (RP2040 with the ENC28J60, pico_wiretft_angulo) has no radio and is not refused: it is the Ângulo's bench image."
+
 # O que o orcamento de PIO e de pinos recusa (tools/pio_budget.py, 2026-10-13), com as
 # palavras que a pagina mostra: `why` e o problema; `fix`, o remedio, com {list} trocado
 # pelos rotulos de [ui_toggles] das chaves que, desligadas uma de cada vez, fazem caber,

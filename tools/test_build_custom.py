@@ -13,6 +13,7 @@ de saída que o workflow vê) e canonical().
 @project SIMUT
 @license MIT License
 """
+import copy
 import hashlib
 import json
 import os
@@ -164,9 +165,20 @@ CLI = [
     ('{"v":1,"base":"pico_wiretft","set":{"ui":"angulo"}}', 0, "perfil válido"),
     ('{"v":1,"base":"pico_wiretft_angulo","set":{}}', 0, "perfil válido"),
     ('{"v":1,"base":"pico_wiretft_angulo","set":{"ui":"original"}}', 0, "perfil válido"),
-    ('{"v":1,"base":"pico_w_release","set":{"ui":"angulo"}}', 0, "perfil válido"),
+    # O Angulo no Pico W (2026-10-22): o RP2040 com o radio CYW43 nao leva o Angulo (a regra angulo-cyw43-needs-rp2350, com a evidencia no manifesto), e o
+    # Pico 2 W leva. O Wire com TFT (RP2040 com o ENC28J60) continua com o Angulo: e a imagem de bancada dele.
+    ('{"v":1,"base":"pico_w_release","set":{"ui":"angulo"}}', 2, "regra angulo-cyw43-needs-rp2350"),
+    ('{"v":1,"base":"pico_w_release","set":{"ui":"angulo"}}', 2, "Choose the Pico 2 W"),
     ('{"v":1,"base":"pico2_w_release","set":{"ui":"angulo"}}', 0, "perfil válido"),
+    ('{"v":1,"base":"pico2_w_release","set":{"ui":"original"}}', 0, "perfil válido"),
+    ('{"v":1,"base":"pico2_w_angulo","set":{}}', 0, "perfil válido"),
+    ('{"v":1,"base":"pico2_w_angulo","set":{"ui":"original"}}', 0, "perfil válido"),
     ('{"v":1,"base":"pico_w_release","set":{"ui":"original"}}', 0, "perfil válido"),
+    ('{"v":1,"base":"pico_w_release","set":{"ui":"angulo","net":"enc28j60","sensor_ds18b20":false}}', 0, "perfil válido"),
+    ('{"v":1,"base":"pico_wiretft","set":{"ui":"angulo","net":"cyw43"}}', 2, "regra angulo-cyw43-needs-rp2350"),
+    ('{"v":1,"base":"pico_wiretft_angulo","set":{"net":"cyw43"}}', 2, "regra angulo-cyw43-needs-rp2350"),
+    ('{"v":1,"base":"pico_w_alpha","set":{"ui":"angulo"}}', 2, "regra angulo-cyw43-needs-rp2350"),
+    ('{"v":1,"base":"pico_w_air","set":{"ui":"angulo"}}', 2, "regra angulo-cyw43-needs-rp2350"),
     ('{"v":1,"base":"pico_w_alpha","set":{"ui":"original"}}', 0, "perfil válido"),
     ('{"v":1,"base":"pico_w_alpha","set":{"ui":"angulo"}}', 2, "regra angulo-needs-tft"),
     ('{"v":1,"base":"pico_w_air","set":{"ui":"angulo"}}', 2, "regra angulo-needs-tft"),
@@ -342,6 +354,95 @@ for text, want, needle in CLI:
     check(r.returncode == want, f"--validate-only {text!r}: saiu {r.returncode}, esperado {want}\n{out}")
     check(needle in out, f"--validate-only {text!r}: a saída não diz «{needle}»\n{out}")
 
+# O que a saida NAO pode dizer: a regra do Angulo no Pico W nao fala do Wire (so o radio a acende), nem do Pico 2 W, nem de quem fica no visual original.
+CLI_ABSENT = [
+    ('{"v":1,"base":"pico_wire","set":{"ui":"angulo"}}', "angulo-cyw43-needs-rp2350"),
+    ('{"v":1,"base":"pico_wiretft","set":{"ui":"angulo"}}', "angulo-cyw43-needs-rp2350"),
+    ('{"v":1,"base":"pico2_w_release","set":{"ui":"angulo"}}', "angulo-cyw43-needs-rp2350"),
+    ('{"v":1,"base":"pico_w_release","set":{"ui":"original"}}', "angulo-cyw43-needs-rp2350"),
+]
+for text, needle in CLI_ABSENT:
+    r = subprocess.run([sys.executable, os.path.join(HERE, "build_custom.py"), "--validate-only"],
+                       env={**os.environ, "SIMUT_PROFILE": text}, capture_output=True, text=True)
+    check(needle not in r.stdout + r.stderr, f"--validate-only {text!r}: a saída diz «{needle}», e a regra não é desta combinação\n{r.stdout}{r.stderr}")
+
+# O controle da regra (2026-10-22): sem ela, o caso que esperava a recusa deixa de ser recusado. Primeiro em memoria, pelo mesmo gf.blockers( ) que o
+# build_custom.py aplica; depois pela linha de comando, com o manifesto sem o bloco da regra (o build_custom.py sobre um gen_features que le a copia).
+NEW_RULE = "angulo-cyw43-needs-rp2350"
+M_sem = copy.deepcopy(M)
+M_sem["rules"] = [r for r in M_sem["rules"] if r["id"] != NEW_RULE]
+check(len(M_sem["rules"]) == len(M["rules"]) - 1, f"a regra {NEW_RULE} não está no manifesto: o controle não provou nada")
+for base_, set_ in (("pico_w_release", {"ui": "angulo"}), ("pico_wiretft", {"ui": "angulo", "net": "cyw43"}), ("pico_w_alpha", {"ui": "angulo"})):
+    com = [b["id"] for b in gf.blockers(bc.resolve(base_, set_, M), M)]
+    sem = [b["id"] for b in gf.blockers(bc.resolve(base_, set_, M_sem), M_sem)]
+    check(NEW_RULE in com, f"{base_} {set_}: com a regra, deveria ser recusado por {NEW_RULE}: {com}")
+    check(NEW_RULE not in sem, f"{base_} {set_}: sem a regra, ainda é recusado por ela: {sem}")
+for base_, set_ in (("pico2_w_release", {"ui": "angulo"}), ("pico_wiretft", {"ui": "angulo"}), ("pico2_w_angulo", {}), ("pico_wiretft_angulo", {})):
+    check(gf.blockers(bc.resolve(base_, set_, M), M) == [], f"{base_} {set_}: deveria passar pelas regras: {gf.blockers(bc.resolve(base_, set_, M), M)}")
+with open(gf.MANIFEST, encoding="utf-8") as fh:
+    toml_text = fh.read()
+bloco = re.search(r'\[\[rules\]\]\nid\s*=\s*"' + re.escape(NEW_RULE) + r'"\n(?:(?!\n\n).)*\n\n', toml_text, re.S)
+check(bloco is not None, f"o bloco [[rules]] de {NEW_RULE} não está no features.toml: o controle pela linha de comando não provou nada")
+if bloco:
+    with tempfile.TemporaryDirectory() as pasta:
+        copia = os.path.join(pasta, "features_sem_a_regra.toml")
+        with open(copia, "w", encoding="utf-8") as fh:
+            fh.write(toml_text.replace(bloco.group(0), ""))
+        harness = ("import sys; sys.path.insert(0, %r); import gen_features as gf; gf.MANIFEST = %r; "
+                   "import build_custom as bc; sys.argv = ['build_custom.py', '--validate-only']; sys.exit(bc.main())" % (HERE, copia))
+        # Sem a regra o perfil ainda sai 2, mas por outro motivo: o orçamento de RAM do Ângulo não tem ambiente nesse hardware (o RP2040 com o radio), a segunda guarda.
+        # O que o controle prova é o que a regra dá: o nome dela na saída. O caso que espera «regra angulo-cyw43-needs-rp2350» reprova sem ela.
+        for text in ('{"v":1,"base":"pico_w_release","set":{"ui":"angulo"}}', '{"v":1,"base":"pico_wiretft","set":{"ui":"angulo","net":"cyw43"}}'):
+            r = subprocess.run([sys.executable, "-c", harness], env={**os.environ, "SIMUT_PROFILE": text}, capture_output=True, text=True)
+            check(NEW_RULE not in r.stdout + r.stderr, f"controle: sem a regra, a saída de {text!r} ainda a nomeia\n{r.stdout}{r.stderr}")
+            check(r.returncode == 2 and "orçamento de RAM" in r.stdout + r.stderr,
+                  f"controle: sem a regra, {text!r} deveria ser recusado ainda pela segunda guarda (o orçamento de RAM), saiu {r.returncode}\n{r.stdout}{r.stderr}")
+            r = subprocess.run([sys.executable, os.path.join(HERE, "build_custom.py"), "--validate-only"], env={**os.environ, "SIMUT_PROFILE": text},
+                               capture_output=True, text=True)
+            check(r.returncode == 2 and NEW_RULE in r.stdout + r.stderr, f"com a regra, {text!r} deveria sair 2 nomeando {NEW_RULE}, saiu {r.returncode}\n{r.stdout}{r.stderr}")
+
+# O orcamento de RAM estatica do Angulo numa build do configurador (2026-10-22). O ambiente `_custom` nao tem entrada no tools/ui_ram_budget.json, e por isso
+# nenhuma build do configurador com o Angulo linkava. O build_custom.py nomeia o ambiente de verdade cuja entrada vale para ela, derivado do hardware (chip,
+# rede, mostrador) e do que o orcamento registra, e o escreve como opcao do ambiente temporario; o portao (tools/check_ui_ram.py) le a opcao, e a entrada
+# continua a de la: o numero nao e copiado para ca.
+import check_ui_ram as cur  # noqa: E402
+budgets, erro_orc = cur.ler_orcamentos(bc.UI_RAM_BUDGET)
+check(budgets is not None, f"o orçamento de RAM não leu: {erro_orc}")
+if budgets is not None:
+    for base_, set_, want in (("pico2_w_release", {"ui": "angulo"}, "pico2_w_angulo"),
+                              ("pico2_w_angulo", {}, "pico2_w_angulo"),
+                              ("pico_wiretft", {"ui": "angulo"}, "pico_wiretft_angulo"),
+                              ("pico_wiretft_angulo", {}, "pico_wiretft_angulo"),
+                              ("pico_w_release", {"ui": "angulo", "net": "enc28j60", "sensor_ds18b20": False}, "pico_wiretft_angulo")):
+        got, why = bc.ui_ram_env(bc.resolve(base_, set_, M), M, budgets)
+        check(got == want, f"{base_} {set_}: o orçamento de RAM é o de {got!r} ({why}), esperado {want!r}")
+    # Derivado, nao copiado: o nome vem do hardware, e o numero e o da entrada que existe agora.
+    mudado = {**budgets, "pico2_w_angulo": {"budget": 1}}
+    check(bc.ui_ram_env(bc.resolve("pico2_w_release", {"ui": "angulo"}, M), M, mudado)[0] == "pico2_w_angulo",
+          "o ambiente do orçamento mudou com o número da entrada: o nome deveria sair do hardware")
+    semente = {k: v for k, v in budgets.items() if k != "pico2_w_angulo"}
+    got, why = bc.ui_ram_env(bc.resolve("pico2_w_release", {"ui": "angulo"}, M), M, semente)
+    check(got is None and "ui_ram_budget.json" in why, f"sem a entrada do pico2_w_angulo, deveria recusar e dizer onde registrá-la: {got!r} {why!r}")
+    # Toda combinacao de hardware que as regras deixam passar com o Angulo tem um ambiente com orcamento (e so as duas de hoje passam).
+    cobertas = set()
+    for nome in M["profiles"]:
+        for rede in M["net"]:
+            prof = bc.resolve(nome, {"ui": "angulo", "net": rede}, M)
+            if gf.blockers(prof, M):
+                continue
+            got, why = bc.ui_ram_env(prof, M, budgets)
+            check(got is not None, f"{nome} com o Angulo e net={rede} passa nas regras e não tem orçamento de RAM: {why}")
+            cobertas.add((bc.chip_of(nome, M), rede))
+    check(cobertas == {("rp2040", "enc28j60"), ("rp2350", "cyw43")}, f"o hardware que leva o Angulo mudou: {sorted(cobertas)}")
+    # O texto do ambiente temporario: o de sempre, mais a opcao so quando a build leva o Angulo.
+    prof_a = bc.resolve("pico2_w_release", {"ui": "angulo"}, M)
+    prof_o = bc.resolve("pico2_w_release", {}, M)
+    texto_a = bc.custom_env(prof_a, gf.compose(prof_a, M), "pico2_w_angulo")
+    check(texto_a == gf.emit_env(bc.ENV, gf.compose(prof_a, M)) + f"{cur.OPCAO_ORCAMENTO} = pico2_w_angulo\n",
+          f"o ambiente temporário do Angulo não é o de sempre mais a opção do orçamento:\n{texto_a}")
+    check(bc.custom_env(prof_o, gf.compose(prof_o, M), None) == gf.emit_env(bc.ENV, gf.compose(prof_o, M)),
+          "o ambiente temporário de uma build sem o Angulo mudou")
+
 # No Actions, uma linha de log que começa com :: é um comando. Um perfil cuja
 # chave carrega uma quebra de linha e um comando não pode emitir esse comando;
 # a recusa sai como UMA anotação de erro, escapada. Vale para a chave e, desde que a
@@ -482,5 +583,7 @@ print(f"test_build_custom: {len(HOSTILE)} perfis hostis recusados, {len(M['profi
       f"iguais ao manifesto, {len(CLI)} casos pela linha de comando, a rede como escolha de "
       f"driver ({len(M['net'])} do manifesto: {', '.join(M['net'])}), a UI do painel como a outra "
       f"({len(M['ui'])}: {', '.join(M['ui'])}), log sem comando injetado; "
+      f"o Ângulo recusado no Pico W e aceito no Pico 2 W e no Wire com TFT, com o controle sem a regra, e o ambiente do "
+      f"orçamento de RAM dele derivado do hardware; "
       f"imagens e tetos de cada chip, e o acabamento depois da assinatura (Pico 2 W, Pico W, "
       f"Pico 2 W sem tabela).")

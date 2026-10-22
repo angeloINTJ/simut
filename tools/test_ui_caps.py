@@ -303,6 +303,10 @@ def main():
         want = gf.config_of(gf.resolve_profile(p["id"], M["profiles"]))["ui"]
         if p["config"].get("ui") != want:
             fails.append(f"model.json: {p['id']} tem config.ui {p['config'].get('ui')!r}, o manifesto diz {want!r}")
+        # E o chip, que as regras leem desde 2026-10-22 (a do Angulo no Pico W): o do produto, como o manifesto o diz.
+        want = gf.resolve_profile(p["id"], M["profiles"]).get("chip") or "rp2040"
+        if p["config"].get("chip") != want:
+            fails.append(f"model.json: {p['id']} tem config.chip {p['config'].get('chip')!r}, o manifesto diz {want!r}")
     if [o["id"] for o in model["ui"]["options"]] != sorted(M["ui"], key=lambda n: M["ui_panels"][n]["order"]):
         fails.append(f"model.json: as opcoes de UI {[o['id'] for o in model['ui']['options']]} nao seguem o order de [ui_panels]")
 
@@ -341,6 +345,9 @@ def main():
     def rule(t):
         return next(r for r in t["rules"] if r["id"] == "angulo-needs-tft")
 
+    def rule_chip(t):   # the Angulo on the Pico W (2026-10-22): `chip` is in the rules' vocabulary since then
+        return next(r for r in t["rules"] if r["id"] == "angulo-cyw43-needs-rp2350")
+
     # (rotulo, como estragar o manifesto, trecho da recusa). Cada uma tem de parar o check_manifest( ).
     REFUSALS = [
         ("sem o driver padrao", lambda t: t["ui"].pop(gf.DEFAULT_UI), f"falta [ui.{gf.DEFAULT_UI}]"),
@@ -357,6 +364,9 @@ def main():
         ("grupo da escolha que nao existe", lambda t: t["ui_panel"].update(group="nowhere"), "nao e um [ui_groups]"),
         ("perfil com uma UI que nao existe", lambda t: t["profiles"]["pico_wiretft_angulo"].update(ui="neon"), "nao e um [ui.*]"),
         ("regra sobre uma UI que nao existe", lambda t: rule(t)["when"].update(ui="neon"), "UI desconhecida"),
+        ("regra que exige um chip que nao existe", lambda t: rule_chip(t)["require"].update(chip="rp9999"), "chip desconhecido"),
+        ("regra que exige um chip que nao e texto", lambda t: rule_chip(t)["require"].update(chip=True), "chip desconhecido"),
+        ("regra sobre uma rede que nao existe, ao lado do chip", lambda t: rule_chip(t)["when"].update(net="w5500"), "rede desconhecida"),
     ]
     for label, mutate, token in REFUSALS:
         bad = copy.deepcopy(M)

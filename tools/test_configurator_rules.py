@@ -24,6 +24,7 @@ node, só o lado Python roda, e a saída diz isso.
 
     python3 tools/test_configurator_rules.py
 """
+import copy
 import json
 import os
 import shutil
@@ -61,9 +62,11 @@ process.stdout.write(JSON.stringify(out));
 """
 
 
-def run_node(node, table):
+def run_node(node, table, drop_rule=None):
     with open(os.path.join(ROOT, "docs", "configurador", "model.json"), encoding="utf-8") as fh:
         model = json.load(fh)
+    if drop_rule:   # the control (see main( )): the page's model without one rule
+        model["rules"] = [r for r in model["rules"] if r["id"] != drop_rule]
     with tempfile.TemporaryDirectory() as tmp:
         for f in ("rules.js", "logic.js"):
             shutil.copy(os.path.join(ROOT, "docs", "configurador", f), tmp)
@@ -91,6 +94,13 @@ def main():
     M = gf.load_manifest()
     with open(CASES, encoding="utf-8") as fh:
         table = json.load(fh)
+
+    # The chip is part of what the rules see (2026-10-22): a product's config carries it, and the page evaluates the rules over that same config.
+    with open(os.path.join(ROOT, "docs", "configurador", "model.json"), encoding="utf-8") as fh:
+        published = json.load(fh)
+    for p in published["products"]:
+        if p["config"].get("chip") != p["chip"]:
+            fails.append(f"model.json: {p['id']} tem config.chip {p['config'].get('chip')!r}, e o produto diz {p['chip']!r}")
 
     # A própria tabela tem de falar de produtos, chaves e drivers de rede que existem.
     for c in table["cases"] + table["hazard_cases"]:
@@ -166,6 +176,30 @@ def main():
                 got = js["hazards"][c["name"]]
                 if got != pyh[c["name"]]:
                     fails.append(f"JS e Python divergem no aviso '{c['name']}': JS {got}, Python {pyh[c['name']]}")
+
+    # The control of the Angulo on the Pico W (2026-10-22): without the rule, the cases that expect it fail, on both sides. A case that holds
+    # with the rule removed proves nothing about the rule.
+    new_rule = "angulo-cyw43-needs-rp2350"
+    needing = [c["name"] for c in table["cases"] if new_rule in c["violates"]]
+    if len(needing) < 3:
+        fails.append(f"a regra {new_rule} deveria ter pelo menos 3 casos que a quebram, tem {len(needing)}")
+    sem = copy.deepcopy(M)
+    sem["rules"] = [r for r in sem["rules"] if r["id"] != new_rule]
+    if len(sem["rules"]) == len(M["rules"]):
+        fails.append(f"controle: a regra {new_rule} não está no manifesto")
+    py_sem = {c["name"]: sorted(r["id"] for r in gf.rule_violations(py_config(sem, c), sem)) for c in table["cases"]}
+    for name in needing:
+        if py_sem[name] == py[name]:
+            fails.append(f"controle: sem a regra {new_rule}, o Python dá o mesmo em '{name}' ({py_sem[name]}): o caso não a exercita")
+    if node:
+        r2, _ = run_node(node, table, drop_rule=new_rule)
+        if r2.returncode != 0:
+            fails.append("node falhou no controle:\n" + r2.stderr.strip())
+        else:
+            js_sem = json.loads(r2.stdout)
+            for name in needing:
+                if js_sem["cases"][name] == py[name]:
+                    fails.append(f"controle: sem a regra {new_rule}, o JS dá o mesmo em '{name}' ({js_sem['cases'][name]}): o caso não a exercita")
 
     lit_rules = {rid for c in table["cases"] for rid in c["violates"]}
     lit_hazards = {hid for c in table["hazard_cases"] for hid in c["hazards"]}

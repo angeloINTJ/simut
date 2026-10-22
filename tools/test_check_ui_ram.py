@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """test_check_ui_ram.py -- the cases of tools/check_ui_ram.py, with the negative controls: the guard must fail when the strip's fill or hash is in flash,
 absent, or past the end of SRAM, and must not fail an image that does not carry the Angulo; and the Angulo's static RAM must fail when it is 4 B over or under its
-budget. Exit 0 when every case holds."""
+budget; on the RP2350 the end of SRAM is the RP2350's, chosen by the image's chip; and a configurator build is held to the budget of the real environment it names, as a ceiling.
+Exit 0 when every case holds."""
 import importlib.util
 import pathlib
 import sys
@@ -28,10 +29,13 @@ falhas = 0
 casos = 0
 
 
-def caso(nome, texto, esperado):
+def caso(nome, texto, esperado, chip="rp2040"):
     global falhas, casos
     casos += 1
-    estado, linhas = guarda.verificar(texto)
+    try:
+        estado, linhas = guarda.verificar(texto, chip)
+    except Exception as exc:   # a gate that does not take the chip yet fails the case, and does not hide the others behind a traceback
+        estado, linhas = type(exc).__name__, [str(exc)]
     ok = estado == esperado
     print(f"{'ok  ' if ok else 'FAIL'} {nome}: {estado}" + ("" if ok else f" (expected {esperado}): {linhas}"))
     falhas += not ok
@@ -51,6 +55,24 @@ caso("a function of the same name prefix does not count", nm(fill=None, extra="1
 caso("an image without the Angulo, the functions in flash", "10000100 T main\n10004a20 T ua::hashFaixa(unsigned short const*, unsigned int)\n", "pulado")
 caso("an empty listing", "", "pulado")
 caso("no Angulo and nothing of ours", "10000100 T main\n20000100 D x\n", "pulado")
+
+
+# ---- the RP2350 (2026-10-22). The Pico 2 W's SRAM ends at 0x20082000 (the core's pico-sdk, rp2350/.../addressmap.h: SRAM_END; its linker script: SCRATCH_Y 0x20081000 + 4k),
+# the RP2040's at 0x20042000. The chip is the image's own (the board's mcu), never read off the addresses: the same address is inside one map and outside the other.
+caso("rp2350: both in SRAM", nm(), "ok", "rp2350")
+caso("rp2350: an address above the RP2040's end and inside the RP2350's passes", nm(fill=0x20050000), "ok", "rp2350")
+caso("rp2040: the same address fails on the RP2040 (the control)", nm(fill=0x20050000), "erro", "rp2040")
+caso("rp2350: the hash in the first scratch bank (SRAM8)", nm(hash_=0x20080000), "ok", "rp2350")
+caso("rp2040: the same hash fails on the RP2040 (the control)", nm(hash_=0x20080000), "erro", "rp2040")
+caso("rp2350: first byte of SRAM", nm(hash_=0x20000000), "ok", "rp2350")
+caso("rp2350: last byte of SRAM", nm(fill=0x20081ffe), "ok", "rp2350")
+caso("rp2350: just past SRAM", nm(fill=0x20082000), "erro", "rp2350")
+caso("rp2350: the hash in flash is still a failure", nm(hash_=0x10004a20), "erro", "rp2350")
+caso("rp2350: the fill absent from an Angulo image", nm(fill=None), "erro", "rp2350")
+caso("rp2350: an image without the Angulo is skipped", "10000100 T main\n", "pulado", "rp2350")
+caso("an unknown chip with the Angulo is an error, not a guess", nm(), "erro", "rp2999")
+caso("no chip at all with the Angulo is an error, not a guess", nm(), "erro", None)
+caso("an unknown chip without the Angulo is still skipped", "10000100 T main\n", "pulado", "rp2999")
 
 
 # ---- the static RAM of the Angulo against tools/ui_ram_budget.json (2026-10-16)
@@ -112,6 +134,64 @@ confere("... and says to lower it to 116", "116" in linhas[1] and "goes down" in
 confere("an image with no budget recorded", guarda.verificar_ram(120, 5, EXIGENCIAS, "pico_wiretft_outro")[0], "erro")
 confere("no objects of the Angulo found", guarda.verificar_ram(0, 0, EXIGENCIAS, "pico_wiretft_angulo")[0], "erro")
 confere("a budget that is not a number", guarda.verificar_ram(120, 5, {"pico_wiretft_angulo": {"budget": "120"}}, "pico_wiretft_angulo")[0], "erro")
+
+# ---- the budget of a configurator build (2026-10-22). `_custom` has no entry of its own: tools/build_custom.py names the real environment whose entry it is held to
+# (the project option custom_ui_ram_budget_env), and only as a ceiling: the repository's ratchet (the mark comes down in the change that shrinks) is for its own images.
+confere("a ceiling: on the budget", guarda.verificar_ram(120, 5, EXIGENCIAS, "pico_wiretft_angulo", so_teto=True)[0], "ok")
+confere("a ceiling: 4 B under the budget passes (a configurator build may be smaller than the real image)",
+        guarda.verificar_ram(116, 5, EXIGENCIAS, "pico_wiretft_angulo", so_teto=True)[0], "ok")
+confere("... and the same 4 B under still fail the real image's exact gate (the control)", guarda.verificar_ram(116, 5, EXIGENCIAS, "pico_wiretft_angulo")[0], "erro")
+estado, linhas = guarda.verificar_ram(124, 5, EXIGENCIAS, "pico_wiretft_angulo", so_teto=True)
+confere("a ceiling: 4 B over fails (the heap pays)", estado, "erro")
+confere("... and says by how much", "4 B over" in linhas[0], True)
+confere("a ceiling with no entry for the named environment fails", guarda.verificar_ram(120, 5, EXIGENCIAS, "pico_wiretft_outro", so_teto=True)[0], "erro")
+confere("a ceiling with no objects fails", guarda.verificar_ram(0, 0, EXIGENCIAS, "pico_wiretft_angulo", so_teto=True)[0], "erro")
+confere("the ceiling's line names the environment the budget came from", "pico_wiretft_angulo" in guarda.verificar_ram(116, 5, EXIGENCIAS, "pico_wiretft_angulo", so_teto=True)[1][0], True)
+
+
+class Placa:
+    def __init__(self, mcu):
+        self.mcu = mcu
+
+    def get(self, chave, padrao=None):
+        return self.mcu if chave == "build.mcu" and self.mcu is not None else padrao
+
+
+class Ambiente:
+    """Enough of the SCons environment that check_ui_ram( ) reads: the board, the project options and $PIOENV."""
+    def __init__(self, mcu, pioenv, opcoes=None):
+        self.mcu, self.pioenv, self.opcoes = mcu, pioenv, opcoes or {}
+
+    def BoardConfig(self):
+        return Placa(self.mcu)
+
+    def GetProjectOption(self, nome, padrao=None):
+        return self.opcoes.get(nome, padrao)
+
+    def subst(self, texto):
+        return {"$PIOENV": self.pioenv}.get(texto, texto)
+
+
+confere("the chip is the board's mcu: the Pico 2 W", guarda.chip_da_placa(Ambiente("rp2350", "pico2_w_angulo")), "rp2350")
+confere("the chip is the board's mcu: the Pico W", guarda.chip_da_placa(Ambiente("rp2040", "pico_w_release")), "rp2040")
+confere("a board with no mcu has no chip", guarda.chip_da_placa(Ambiente(None, "x")), "")
+confere("a real environment is held to its own entry, exactly", guarda.orcamento_do_env(Ambiente("rp2350", "pico2_w_angulo")), ("pico2_w_angulo", False))
+confere("a configurator build is held to the named environment's entry, as a ceiling",
+        guarda.orcamento_do_env(Ambiente("rp2350", "_custom", {guarda.OPCAO_ORCAMENTO: "pico2_w_angulo"})), ("pico2_w_angulo", True))
+confere("a configurator build without the option has no entry of its own (the gate refuses, as before)",
+        guarda.orcamento_do_env(Ambiente("rp2350", "_custom")), ("_custom", False))
+confere("an empty option is no option", guarda.orcamento_do_env(Ambiente("rp2350", "_custom", {guarda.OPCAO_ORCAMENTO: ""})), ("_custom", False))
+
+# the two ends against the source they come from: the core's pico-sdk (addressmap.h, SRAM_END), when the framework is installed
+import re  # noqa: E402
+for chip_, fim_ in (("rp2040", 0x20042000), ("rp2350", 0x20082000)):
+    confere(f"the table's end of {chip_}", guarda.SRAM_END.get(chip_), fim_)
+    sdk = os.path.expanduser(f"~/.platformio/packages/framework-arduinopico/pico-sdk/src/{chip_}/hardware_regs/include/hardware/regs/addressmap.h")
+    if os.path.exists(sdk):
+        achado = re.search(r"#define SRAM_END _u\((0x[0-9a-fA-F]+)\)", open(sdk, encoding="utf-8").read())
+        confere(f"... equal to SRAM_END in the SDK's {chip_} addressmap.h", int(achado.group(1), 16) if achado else None, guarda.SRAM_END.get(chip_))
+    else:
+        print(f"skip the SDK's {chip_} addressmap.h: the framework is not installed here")
 
 with tempfile.TemporaryDirectory() as pasta:
     p = pathlib.Path(pasta)

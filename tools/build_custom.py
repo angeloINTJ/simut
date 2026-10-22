@@ -23,6 +23,10 @@ build (gen_features.blockers: as regras entre recursos, o driver que o chip não
 tem, o orçamento de PIO e de pinos) reaplicado aqui, porque a página não é a
 autoridade.
 
+O Ângulo (2026-10-22): o `_custom` não tem entrada no tools/ui_ram_budget.json, e por isso nenhuma build do configurador com o Ângulo linkava (o portão de RAM, tools/check_ui_ram.py,
+recusava). Uma build que o leva nomeia o ambiente de verdade cuja entrada a segura, derivado do hardware (chip, rede, mostrador) e do que o orçamento registra (ui_ram_env), na opção
+custom_ui_ram_budget_env do ambiente temporário; o portão lê essa entrada, como teto. O número continua o do orçamento: nada é copiado para cá.
+
 Códigos de saída: 0 compilou; 2 perfil inválido (formato ou regra — nada foi
 compilado); 3 não cabe no slot de flash; 1 falha de build.
 
@@ -42,9 +46,11 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 import gen_features as gf  # noqa: E402
 import measure_savings as ms  # noqa: E402  (TempEnvs, pio_build_full)
+import check_ui_ram as cur  # noqa: E402  (o portão de RAM do Ângulo: o nome do orçamento e a opção que ele lê)
 
 ROOT = gf.ROOT
 ENV = "_custom"
+UI_RAM_BUDGET = os.path.join(HERE, cur.ORCAMENTO)   # tools/ui_ram_budget.json: a RAM estática do Ângulo, por ambiente
 MAX_SPEC = 4096          # um perfil real tem ~200 B; isto só barra abuso
 
 
@@ -137,6 +143,41 @@ def resolve(base, changes, M):
     # (docs/analysis/OTA_ASSINADA.md).
     prof.pop("ota_trust_bench", None)
     return prof
+
+
+def ui_ram_env(prof, M, budgets=None):
+    """(o ambiente de verdade cuja entrada no tools/ui_ram_budget.json segura uma build de `prof` que leva o Ângulo, "") ou (None, por quê).
+
+    O ambiente é o do manifesto que leva o Ângulo no mesmo hardware (chip, rede e mostrador) e tem entrada no orçamento: o pico2_w_angulo para o Pico 2 W, o pico_wiretft_angulo para
+    o Wire, seja qual for o produto de que a build parte. Só o nome sai daqui; o número é o da entrada no momento em que o portão o lê (`budgets` é a tabela "envs" do orçamento,
+    lida do arquivo quando não vem)."""
+    if budgets is None:
+        budgets, erro = cur.ler_orcamentos(UI_RAM_BUDGET)
+        if budgets is None:
+            return None, erro
+    hardware = (prof.get("chip") or "rp2040", prof["net"], prof["display"])
+    mesmos = []
+    for nome in M["profiles"]:
+        real = gf.resolve_profile(nome, M["profiles"])
+        if real.get("ui", gf.DEFAULT_UI) == "angulo" and (real.get("chip") or "rp2040", real["net"], real["display"]) == hardware:
+            mesmos.append(nome)
+    com_entrada = [n for n in mesmos if n in budgets]
+    if len(com_entrada) == 1:
+        return com_entrada[0], ""
+    onde = f"chip {hardware[0]}, rede {hardware[1]}, mostrador {hardware[2]}"
+    if not com_entrada:
+        return None, (f"o Ângulo não tem orçamento de RAM estática para {onde}: nenhum ambiente do manifesto que o leva nesse hardware "
+                      f"({', '.join(mesmos) or 'nenhum o leva'}) tem entrada em tools/{cur.ORCAMENTO}")
+    return None, f"mais de um ambiente leva o Ângulo para {onde} e tem orçamento ({', '.join(com_entrada)}): qual vale para a build?"
+
+
+def custom_env(prof, c, ram_env):
+    """O texto do [env:_custom] temporário: o que o gerador escreve para qualquer perfil e, numa build que leva o Ângulo, a opção que diz ao portão de RAM de que ambiente de
+    verdade vem o orçamento dela (cur.OPCAO_ORCAMENTO)."""
+    texto = gf.emit_env(ENV, c)
+    if ram_env and prof.get("ui", gf.DEFAULT_UI) == "angulo":
+        texto += f"{cur.OPCAO_ORCAMENTO} = {ram_env}\n"
+    return texto
 
 
 def chip_of(base, M):
@@ -261,6 +302,13 @@ def main():
             else:
                 say(f"perfil recusado — {b['id']}: {b['why']['en']} ({b['detail']})", error=True)
         return 2
+    # O orçamento de RAM do Ângulo (2026-10-22): sem um ambiente de verdade com entrada para este hardware, o portão recusaria no fim do link, depois de minutos.
+    ram_env = None
+    if prof.get("ui", gf.DEFAULT_UI) == "angulo":
+        ram_env, why = ui_ram_env(prof, M)
+        if ram_env is None:
+            say(f"perfil recusado — {why}", error=True)
+            return 2
     spec = canonical(base, changes)
     tag = hashlib.sha256(spec.encode()).hexdigest()[:8]
     for h in gf.hazard_hits(gf.config_of(prof), M):
@@ -270,7 +318,7 @@ def main():
         return 0
 
     c = gf.compose(prof, M)
-    with ms.TempEnvs([gf.emit_env(ENV, c)]):
+    with ms.TempEnvs([custom_env(prof, c, ram_env)]):
         res = ms.pio_build_full(ENV, echo=True)
     if "overflow" in res:
         say(f"não cabe no slot de flash — excede em {res['overflow']} B", error=True)

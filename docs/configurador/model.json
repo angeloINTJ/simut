@@ -410,6 +410,7 @@
         "display": "tft",
         "net": "cyw43",
         "ui": "original",
+        "chip": "rp2040",
         "cli_full": false,
         "web_https": true,
         "license_stub": false,
@@ -453,6 +454,7 @@
         "display": "alpha_paralelo",
         "net": "cyw43",
         "ui": "original",
+        "chip": "rp2040",
         "cli_full": false,
         "web_https": false,
         "license_stub": false,
@@ -496,6 +498,7 @@
         "display": "nenhum",
         "net": "cyw43",
         "ui": "original",
+        "chip": "rp2040",
         "cli_full": true,
         "web_https": false,
         "license_stub": true,
@@ -544,6 +547,7 @@
         "display": "tft",
         "net": "cyw43",
         "ui": "original",
+        "chip": "rp2350",
         "cli_full": false,
         "web_https": true,
         "license_stub": false,
@@ -587,6 +591,7 @@
         "display": "tft",
         "net": "cyw43",
         "ui": "original",
+        "chip": "rp2040",
         "cli_full": true,
         "web_https": false,
         "license_stub": true,
@@ -630,6 +635,7 @@
         "display": "tft",
         "net": "cyw43",
         "ui": "original",
+        "chip": "rp2040",
         "cli_full": true,
         "web_https": true,
         "license_stub": true,
@@ -673,6 +679,7 @@
         "display": "tft",
         "net": "cyw43",
         "ui": "original",
+        "chip": "rp2040",
         "cli_full": false,
         "web_https": true,
         "license_stub": false,
@@ -716,6 +723,7 @@
         "display": "alpha_paralelo",
         "net": "enc28j60",
         "ui": "original",
+        "chip": "rp2040",
         "cli_full": false,
         "web_https": false,
         "license_stub": false,
@@ -759,6 +767,7 @@
         "display": "tft",
         "net": "enc28j60",
         "ui": "original",
+        "chip": "rp2040",
         "cli_full": false,
         "web_https": true,
         "license_stub": false,
@@ -802,6 +811,7 @@
         "display": "tft",
         "net": "enc28j60",
         "ui": "angulo",
+        "chip": "rp2040",
         "cli_full": false,
         "web_https": true,
         "license_stub": false,
@@ -850,6 +860,7 @@
         "display": "tft",
         "net": "cyw43",
         "ui": "angulo",
+        "chip": "rp2350",
         "cli_full": false,
         "web_https": true,
         "license_stub": false,
@@ -969,6 +980,21 @@
         "pt": "O visual Ângulo é desenhado na tela touch."
       },
       "evidence": "pico_w_alpha with ui = angulo (the composed environment plus -DSIMUT_UI_ANGULO=1, built with pio run on 2026-10-14) stops on every unit that includes simut_config.h, with: src/simut_config.h:99:2: error: #error \"SIMUT_UI_ANGULO needs SIMUT_DISPLAY_TFT\". The Air (no display) stops at the same #error, pinned by tools/test_ui_caps.py. Not compiled past it: the Ângulo panel draws on the ILI9341 and reads the XPT2046, which neither the 16x2 LCD nor the headless image has, and the manifest refuses the combination before a build starts."
+    },
+    {
+      "id": "angulo-cyw43-needs-rp2350",
+      "when": {
+        "ui": "angulo",
+        "net": "cyw43"
+      },
+      "require": {
+        "chip": "rp2350"
+      },
+      "why": {
+        "en": "The Ângulo look does not fit the Pico W's Wi-Fi image. Choose the Pico 2 W, or keep the original look.",
+        "pt": "O visual Ângulo não cabe na imagem Wi-Fi do Pico W. Escolha o Pico 2 W ou mantenha o visual original."
+      },
+      "evidence": "No Ângulo build of the Pico W exists, so there is no compiler error to quote; the gap is measured on other images (docs/analysis/UI_DRIVERS.md section 3.6). Measured on 2026-10-14 (baseline images of 192e1ad, the study's Ângulo): 45,856 B above the plain pico_wiretft, against 5,643 B of OTA headroom in the Pico W's Wi-Fi release (PLANO_STABLE.md section 3.1), a gap of 34 to 40 kB. Rerun on 2026-10-21 (after S10b-1): pico2_w_angulo, a real Wi-Fi Ângulo build, is 31,008 B above pico2_w_release (.bin 1,029,952 against 998,944 B), and the Pico W's Wi-Fi release has 5,195 B of headroom in the same record and no Ângulo build, so a transposition of the 31 kB would not fit it. The maintainer decided on 2026-10-21 that the Ângulo ships first on the Pico 2 W only, with a smaller version for the Pico W later. The SIMUT Wire TFT (RP2040 with the ENC28J60, pico_wiretft_angulo) has no radio and is not refused: it is the Ângulo's bench image."
     }
   ],
   "hazards": [
