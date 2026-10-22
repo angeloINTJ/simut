@@ -17,32 +17,39 @@ deste manual antes do primeiro estilo ou da primeira frase.** Parte das regras
 
 ## 1. A bancada
 
-Desde 12/10/2026, um Pico 2 W (o **alvo**, que roda o SIMUT, com os cinco
-sensores e o painel TFT) e um Pico W (a **PicoHand**, ou "mão") que aciona as
-linhas RESET (GP0) e BOOTSEL (GP1) do alvo por comando serial, mede a sonda e
-finge o carregador. A mão roda na placa que foi o alvo até 05/10; o Pico comum
-que era a mão foi para outro projeto e pode continuar ligada a este PC: não
-mande nada a ela. O alvo está em `192.168.3.33`, com a web na porta 8080.
+Desde 22/10/2026, um Pico 2 W (o **alvo**, que roda o SIMUT, com o painel TFT
+e três sensores: DS18B20 no GP0, DHT22 no GP3 e no GP10) e um Pico comum (a
+**PicoHand**, ou "mão") que aciona as linhas RESET (GP0) e BOOTSEL (GP1) do alvo
+por comando serial, mede a sonda e finge o carregador. De 12/10 a 22/10 a
+bancada foi outra: o alvo era um Pico W (o SIMUT Wire, com a rede no módulo
+ENC28J60) e a mão era este Pico 2 W. O Pico W saiu do USB. O alvo está em
+`192.168.3.33`, com a web na porta 8080, pelo Wi-Fi.
 
-**Identifique as portas pelo serial, nunca pela ordem de enumeração:**
+**Identifique as portas pelo serial, nunca pela ordem de enumeração** (lidos
+do udev em 22/10/2026):
 
-| Placa | USB | Serial (udev) |
-|---|---|---|
-| PicoHand (mão), num Pico W | `2e8a:f00a` | `ID_SERIAL_SHORT=E6642815E34C1824` |
-| Alvo SIMUT (Pico 2 W) | `2e8a:f00f` | `ID_SERIAL_SHORT=6A73539D612923CA` |
-| A mão antiga, fora da bancada | `2e8a:000a` | `ID_SERIAL_SHORT=E660C062131E3E27` |
+| Placa | USB | Porta | Serial (udev) |
+|---|---|---|---|
+| Alvo SIMUT (Pico 2 W) | `2e8a:f00f`, `ID_MODEL=Pico_2W` | 3-3.1 | `ID_SERIAL_SHORT=6A73539D612923CA` |
+| PicoHand (mão), num Pico comum | `2e8a:000a`, `ID_MODEL=Pico` | 3-3.2 | `ID_SERIAL_SHORT=E660C062131E3E27` |
+| O Pico W do Wire, fora do USB | `2e8a:f00a`, `ID_MODEL=Pico_W` | | `ID_SERIAL_SHORT=E6642815E34C1824` |
+
+Compare o `ID_MODEL` pela linha inteira: `Pico` é o começo de `Pico_2W`, e uma
+comparação por prefixo chama o alvo de mão (o manual da mão, §2).
 
 **Os roteiros de `tools/` ainda conhecem a bancada de antes.** Dez deles
 procuram o alvo como Pico W, pelo serial `E6642815E34C1824` ou pelo glob
-`usb-Raspberry_Pi_Pico_W_*`, e os dois agora dão na mão: um toque de 1200 bps
-ali põe a mão em BOOTSEL. Três (`air_test_suite.py`, `bt_auth_test.py` e
-`rig_validate_history_clock.py`) procuram a mão pelo serial da mão antiga. Até
-eles aprenderem a bancada nova, não os rode. Definir `SIMUT_TARGET_SERIAL` e
-`PICO_HAND_SERIAL` não basta: eles montam o caminho `by-id` com o modelo de
-antes (`Pico_W_` no alvo, `Pico_` na mão), e o da bancada nova não existe. O
-`pico_hand.sh` acha a mão por `PING` em toda porta, e a mão antiga responde se
-ainda tiver o firmware da mão: fixe `PICO_HAND_PORT` no caminho `by-id` da mão
-nova.
+`usb-Raspberry_Pi_Pico_W_*` (`air_soak.py`, `air_test_suite.py`,
+`factory_reset_manual_wifi.py`, `history_watch.py`, `panel_users_hw_test.py`,
+`rig_reset_admin.py`, `rig_validate_history_clock.py`, `screen_mapper.py`,
+`telemetry_bench/bench.py` e `wifi_scan_hw_test.py`): com o Pico W fora do USB,
+não acham alvo nenhum. Definir `SIMUT_TARGET_SERIAL` não basta: eles montam o
+caminho `by-id` do alvo com o modelo `Pico_W`, e o do alvo é
+`usb-Raspberry_Pi_Pico_2W_6A73539D612923CA-if00`. Até eles aprenderem a
+bancada nova, não os rode. Os três que procuram a mão pelo serial
+`E660C062131E3E27` (`air_test_suite.py`, `bt_auth_test.py` e
+`rig_validate_history_clock.py`) voltam a achá-la. O `pico_hand.sh` acha a mão
+por `PING` em toda porta: fixe `PICO_HAND_PORT` no caminho `by-id` da mão.
 
 **Fiação real** (confirmada em 06/09/2026): DS18B20 no GP0, sem chaveamento de
 energia — a linha GP16 do alvo vai ao GP2 da mão como **sonda** de
@@ -163,6 +170,13 @@ assim:
   do comando.
 - **O `/api/status` diz de que slot ela subiu:** `sys.slot` vale `A`, `B`, ou
   `-` numa placa sem tabela.
+- **Sem picotool:** o toque de 1200 bps na serial do SIMUT põe o RP2350 em
+  BOOTSEL. Ele monta o drive `RP2350`, cujo serial de BOOTSEL é o do chip, e um
+  `cp` do `firmware_factory.uf2` seguido de `sync` grava a tabela e o slot A e
+  reinicia a placa. O `.uf2` de fábrica não leva LittleFS: configuração e
+  pacotes ficam. Em 22/10/2026 a bancada gravou o Pico 2 W assim, e cada imagem
+  se provou por um efeito que só ela tinha (o número de temas em
+  `/api/themes`), não pelo retorno do `cp`.
 - **Pelo ar (passo 4),** a página Arquivos grava a imagem no slot de onde a placa
   não subiu e reinicia nele. Do A para o B a ROM apaga o primeiro setor do A
   quando a imagem nova sobe; do B para o A não apaga nada, e o B guarda a

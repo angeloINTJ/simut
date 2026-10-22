@@ -372,7 +372,7 @@ private:
 #define LOG_CODE(lvl, tag, code, ctx, msg) \
  do { LOG_TAG_CHECK(tag); LogManager::instance( ).logCode(lvl, tag, code, ctx, msg); } while (0)
 
-/** Select EN inline or translation from .lng (via hash). */
+/** The English literal, in every language: @TRL is not resident (trlLookup( )). */
 #define TRL(en) (LogManager::instance( ).tr(en))
 
 #define TRACE_MOD(core, mod) LogManager::instance( ).setModule(core, mod)

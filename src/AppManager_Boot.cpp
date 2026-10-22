@@ -1090,7 +1090,7 @@ void AppManager::setup( ) {
   * take it: a BME280's PIO I2C takes an empty pio0 whole (WirePIO, 32
   * instructions), and the module would then fail to start on every retry. The
   * address comes in the background (DHCP); the wait further down is the same.
-  * The boot line is a raw one, translated through @TRL: the dictionary's
+  * The boot line is a raw one, in English in every language (TRL( )): the dictionary's
   * TR_BOOT_START_WIFI names the radio, and a new key would cost every pack
   * already installed its dictionary. */
  _displayMgr->setBootStatusKey((LangKey)TR_KEYS_COUNT, TRL("Starting the wired network..."));

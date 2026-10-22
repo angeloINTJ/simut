@@ -1405,9 +1405,9 @@ const char* LogManager::translateCode(uint16_t code) {
  return translateCodeEn(code);
 }
 
-/* TRL via hash. In EN or without .lng, returns the EN literal
- * passed by the caller (zero-cost). In non-EN, does binary search in
- * @TRL of .lng by FNV-1a hash of EN; miss falls back to EN too. */
+/* TRL in name only since 2026-08-29 (b0799f6e): @TRL is not resident,
+ * so trlLookup( ) answers absent and every language gets the EN literal
+ * the caller passed. @TRL stays in the packs as the build's ledger. */
 const char* LogManager::tr(const char* en) const {
  if (_language == LANG_EN || !en) return en;
  const char* t = DisplayManager::trlLookup(en);

@@ -191,11 +191,15 @@ jobs:
         run: python3 tools/release_manifest.py --out release/ota --build-dir release/build
       - name: Language packs
         # The .lng packs live in the device's LittleFS, NOT in the firmware
-        # image — so an OTA leaves the old ones in place and any label added in
-        # this release stays English until somebody replaces them. Shipping
-        # them here is the only way an operator can get the matching pair
-        # without a checkout. Copied rather than globbed straight from data/ so
-        # the asset list stays explicit.
+        # image. On the Pico 2 W an OTA writes the other slot and leaves the
+        # old packs in place, so any label added in this release stays English
+        # until somebody replaces them. On the Pico W the stage shares the
+        # LittleFS partition, which the apply reformats keeping only
+        # /config/system.bin (src/ota/applier.cpp, "Known limitations"): /lang
+        # is gone and the device shows English until the packs are uploaded
+        # again. Shipping them here is the only way an operator can get the
+        # matching pair without a checkout. Copied rather than globbed straight
+        # from data/ so the asset list stays explicit.
         run: |
           set -euo pipefail
           mkdir -p release/ota
