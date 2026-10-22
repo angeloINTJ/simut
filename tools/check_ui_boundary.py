@@ -33,7 +33,8 @@ six rules over src/**/*.{c,cc,cpp,cxx,h,hh,hpp,hxx,inl,ipp,tpp}:
                      them): Themes.h, UiWidgets.h, DisplayManager_Fonts.h, and a DisplayManager_Alarm.h
                      or any other the day a unit is split, with no edit here. A unit with one original
                      row makes its header the original's until a split takes that row out (S10a split eight
-                     units; UI_DRIVERS.md section 2.14 names the ones that stay whole);
+                     units; UI_DRIVERS.md section 2.14 names the ones that stay whole). A unit that is itself a header derives
+                     nothing: the table has rows for what headers define (C6c), and which headers are the original's is told by item 3 and section 2.5;
                   3. the files the "Original driver." item of docs/analysis/UI_DRIVERS.md section 2.5
                      names in backticks, which is where the header-only files are (PasswordKeyboard.h,
                      sensors/SensorDrawing.h): they have no unit, so nothing else knows them.
@@ -283,7 +284,9 @@ def classification_units(root: str):
     if not rows or "unit" not in rows[0] or "class" not in rows[0]:
         raise CannotRead(f"{CLASSIFICATION} does not start with a header row that has the columns `unit` and `class`")
     iu, ic = rows[0].index("unit"), rows[0].index("class")
-    units = {r[iu] for r in rows[1:] if len(r) > max(iu, ic) and r[ic] in ("original", "mixed")}
+    # A unit that is itself a header derives nothing (C6c): the table has rows for what headers define, and which headers are the original's is told by the "Original driver." item and by the manifest
+    # (section 2.5 leaves out sensors/SensorPanelDispatch.h and the others that mixed units include). The header NEXT TO a unit is for the units that are source files.
+    units = {r[iu] for r in rows[1:] if len(r) > max(iu, ic) and r[ic] in ("original", "mixed") and not r[iu].endswith(HEADER_EXTS)}
     if not units:
         raise CannotRead(f"{CLASSIFICATION} has no unit with an `original` or `mixed` row: the original's headers would be none")
     return units

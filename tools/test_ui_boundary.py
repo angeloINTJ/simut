@@ -513,6 +513,12 @@ def original_cases():
     expect("cross-driver: ... and one the table gives back (Alarm turns core only) is let go",
            {ANGULO_UNIT: angulo('#include "../../DisplayManager_Alarm.h"'),
             TSV_PATH: tsv(*[r for r in TSV_ROWS if r != ("DisplayManager_Alarm.cpp", "original")])}, [])
+    expect("cross-driver: a row whose unit is itself a header does not make that header the original's (section 2.5 leaves out sensors/SensorPanelDispatch.h, which mixed units include)",
+           {ANGULO_UNIT: angulo('#include "../../sensors/SensorPanelDispatch.h"'), "src/sensors/SensorPanelDispatch.h": "#pragma once\n",
+            TSV_PATH: tsv(*TSV_ROWS, ("sensors/SensorPanelDispatch.h", "original"))}, [])
+    expect("cross-driver: ... and the same row under a unit that is a source file does (the control: the header next to a unit)",
+           {ANGULO_UNIT: angulo('#include "../../sensors/SensorPanelDispatch.h"'), "src/sensors/SensorPanelDispatch.h": "#pragma once\n",
+            TSV_PATH: tsv(*TSV_ROWS, ("sensors/SensorPanelDispatch.cpp", "original"))}, hit)
     expect("cross-driver: a mixed row is enough (the table has no original row for the unit, only a mixed one)",
            {ANGULO_UNIT: angulo('#include "../../DisplayManager_Touch.h"'),
             TSV_PATH: tsv(*TSV_ROWS, ("DisplayManager_Touch.cpp", "mixed"))}, hit)

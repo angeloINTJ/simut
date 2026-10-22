@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""check_ui_link.py -- the Angulo images must not link the original UI driver: the function table decides, the name patterns check what it does not cover (S10b: C6, 2026-10-21; C6b, 2026-10-22).
+"""check_ui_link.py -- the Angulo images must not link the original UI driver: the function table decides, the name patterns check what it does not cover (S10b: C6, 2026-10-21; C6b and C6c, 2026-10-22).
 
 usage: check_ui_link.py [--nm PATH] [--readelf PATH] [--tsv FILE] [--original-units A,B] ELF [ELF...]    each ELF an image that carries the Angulo (pico_wiretft_angulo, pico2_w_angulo)
-       check_ui_link.py --selftest                  the gate's own cases on synthetic `nm` text and synthetic table rows, and a read of the real table (no toolchain, no ELF: it can run in the gates job)
+       check_ui_link.py --selftest                  the gate's own cases on synthetic `nm` text and synthetic table rows, a read of the real table, and the command line's own function (main) on a fake nm and a fake readelf, a shell script each (no toolchain, no ELF: it can run in the gates job)
 exit 0: every ELF clean. 1: a finding (a symbol the Angulo image must not hold, or an allowance that no longer applies). 2: a refusal (no ELF, nm or readelf missing or failed, not an Angulo image, a table it cannot read).
 
 Why. After S4 to S10b the Angulo links none of the original's draws and none of the pixel primitives it drew with: --gc-sections drops the units that are still compiled, and the builds no longer compile the eight units that [ui.original].units of
@@ -14,7 +14,8 @@ pico_wiretft that the C6 Wire Angulo lacks, the patterns matched 88 and missed 1
 
 How it decides now. `nm -S -C` of the ELF, then three things.
 1. The function table (docs/analysis/UI_DRIVERS_funcoes.tsv), read with bytes_original.py's own code (key_of, row_of, the unit list, the file symbols of readelf): a symbol that falls on a row of class `original` is a finding unless ALLOWED names it. A row
-   of class core or mixed is not a finding by itself. By name for every unit, a unit that [ui.original].units lists and the image does not link included, and that is where this differs from bytes_original.py, which counts bytes: its unit rule leaves out the rows of an
+   of class `mixed` is one too (C6c): a function that holds original lines and core lines, linked into an Angulo image, carries the original's share with it; four are allowed today, each with its reason. A row of class core is not a finding: core is shared code by the table's definition. A header is a unit like
+   any other (its rows are read by the name, and the unit says which header). By name for every unit, a unit that [ui.original].units lists and the image does not link included, and that is where this differs from bytes_original.py, which counts bytes: its unit rule leaves out the rows of an
    absent unit, so a planted `uiButton` (UiWidgets.cpp, absent from both Angulo images) would pass. Here such a hit says "another unit's definition of the same name, or the original leaking in without a file symbol", and only ALLOWED can excuse it: the Angulo's
    own Temas.cpp defines the six catalogue functions that Themes.cpp does (C4a), four of them are named with the unit, and the allowance holds only while that unit has no file symbol in the image (in C0's ELF Themes.cpp is linked and the same four names are findings).
 2. The name patterns of C6 (RULES), still on every symbol, and one more: a name with a component that begins with draw, render or blit in any case (`draw`, `drawX`, `Draw3dBar`, `draw_bar`, `renderAlarmRow`, `blitTitleBar`), read on the qualified name without its parameters,
@@ -22,16 +23,23 @@ How it decides now. `nm -S -C` of the ELF, then three things.
    exist are in ALLOWED. A word inside an identifier (`uiDrawX`, `firstDraw`, `withdrawn`, `endRaw`) is not read by the patterns: the table covers those, and the near misses are cases of --selftest.
 3. ALLOWED is by exact name (demangled, with the parameter list) and each entry has its reason. An allowance that is not in the image is a finding (the mark comes down in the change that shrinks), and so is one that is in the image and that nothing flags any more.
 
-Known limits. nm lists what the linker kept: code the compiler inlined into another function has no symbol. A name that is neither a row nor matched by a pattern (a Portuguese or innocent name) is invisible to both checks; the table is the S0 scanner's classification of the original's tree and is kept
-by the C7 step that touches it. The core path that keeps a function (a keeper) is not read: that is reach.py's job, outside the repository.
+Known limits (C6c, measured on 2026-10-22 on the C6b images).
+1. nm lists what the linker kept: code the compiler inlined into another function has no symbol. The core path that keeps a function (a keeper) is not read: that is reach.py's job, outside the repository.
+2. The table is the S0 scanner's classification of the original's tree, kept by the step that touches it, and the gate knows what the table lists. A name that is neither a row nor matched by a pattern is invisible to both checks, and nothing in CI forces a row: tsv_check.py, which holds
+   the table to the code (every definition of a unit has a row, the lines are right), is a scratch script of the UI-drivers branch, outside the repository. So a function added to Dashboard.cpp, Users.cpp or Settings.cpp (units the Angulo still compiles, where no link error covers it) with no row and a name no pattern matches
+   (`tidyDashSlots`, `montarCartaoUsuario`) passes. So does a function or a table that a header defines: the header rows are the 13 original and 5 core names that the review of C6b found (below), not every definition of those headers.
+3. Core rows and library code get no rule. A symbol on a row of class core is shared code by the table's definition, and library or compiler code is linked by whoever calls it. The count that shows the size of it, the 188 symbols that pico_wiretft links and the C6b Wire Angulo does not, appended
+   to the real Wire Angulo nm text: the C6b gate flagged 140 and passed 48. Of the 48, 18 had no row (code and tables that headers define: panelDHT22, minMax*, SENSOR_PANEL_DISPATCH, PinKb::keyAt, PwdKb::*, CLOCK_COL_*, themeTint, fmtFloat1/2 ...), 2 sat on a mixed row (handleTouchPanelV24
+   and its lambda), 11 on core rows (dmaTft*, fillWindowDma, channelLabel ...) and 17 were compiler or library code (Adafruit_GFX, libgcc's veneers, switch tables). Now 155 are flagged: 13 of the 18 are the original's and have rows (15 rows were added: the other 5 are core, since their headers are
+   shared or they format text), and the 2 mixed are findings. The 33 that pass are 16 on core rows and the 17 compiler or library names.
 
-Measured on 2026-10-22 (S10b, C6b): on the C7 images (pico_wiretft_angulo and pico2_w_angulo) it exits 0 with the same 18 allowances used on both; on the images as they were before C4a (C0's Wire, C0b's Wi-Fi), with the theme table still linked, it exits 1 and names availableThemes through the table; the review's nine
-planted names each exit 1 (the C6 gate exited 0 on all nine); on product images (no ua::Pintor) and on a missing file it exits 2. CI runs --selftest in the `gates` job and the gate itself on the ELF of each `_angulo` image in the `firmware` job (.github/workflows/build.yml).
+Measured on 2026-10-22 (S10b, C6c): on the C6b images (pico_wiretft_angulo and pico2_w_angulo) it exits 0 with the same 22 allowances used on both; on the images as they were before C4a (C0's Wire, C0b's Wi-Fi), with the theme table still linked, it exits 1 and names availableThemes through the table; the review's nine
+planted names each exit 1 (the C6 gate exited 0 on all nine); on product images (no ua::Pintor) and on a missing file it exits 2. --selftest runs the command line's own function on a fake nm too, to see exits 0, 1 and 2. CI runs --selftest in the `gates` job and the gate itself on the ELF of each `_angulo` image in the `firmware` job (.github/workflows/build.yml).
 
 Project: SIMUT
 License: MIT
 """
-import argparse, csv, os, re, subprocess, sys, tempfile
+import argparse, contextlib, csv, io, os, re, subprocess, sys, tempfile
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 from elf_funcoes import TOOL  # noqa: E402  (one place says where the PlatformIO toolchain is)
@@ -56,6 +64,10 @@ ANGULO_MARK = 'ua::Pintor'                   # check_ui_ram.py's test for an ima
 _DASH = "Dashboard.cpp keeper: uaMontarPainel( ) and uaToquePainel( ) call buildDashLayout( ), so the unit stays linked; S10b-2 splits it (P4's table, docs/analysis/UI_DRIVERS.md section 2.15)"
 _CAL = "Calibration.cpp keeper: AppManager::core0Yield( ) calls showTouchCalibration( ) and showSettingsDisplayOffset( ), and WebManager::handleResetTouchCal( ) calls showTouchCalibration( ), so the unit keeps its statics; S10b-2 splits it (P4's table, docs/analysis/UI_DRIVERS.md section 2.15)"
 _THEME = "the Angulo defines it in src/ui/angulo/Temas.cpp; the original's row is Themes.cpp's, a unit this image does not compile (C4a's collision, told apart by unit)"
+_TOUCH = "mixed row, DisplayManager_Touch.cpp: the original image's body holds the original's mode chain (ui/original/UiTouchChain.h, which ui/UiDriverTouch.h includes inside the function); the Angulo images include ui/angulo/UiTouchChain.h at that place, so what is linked is the core's gates and the Angulo's chain; loopCore1( ) calls it, so it stays"
+_CORE1 = "mixed row, DisplayManager.cpp: Core 1's main loop (core1Entry( ) runs it), so every image links it; the table's note counts the first paint, the theme redraw and the mode dispatch as the original's share, and in this function they are now calls to the driver's uiBegin( ), uiThemeChanged( ) and uiPass( ); the row's ranges are 192e1ad's"
+_CALTOUCH = "mixed row, Calibration.cpp keeper: AppManager::core0Yield( ) calls it (so do WebManager::handleResetTouchCal( ) and the CLI's touchcal), so it stays linked with the original's share of its row, the reset of the file-local g_* draw caches; S10b-2 splits the unit (P4's table, docs/analysis/UI_DRIVERS.md section 2.15)"
+_CALOFF = "mixed row, Calibration.cpp keeper: AppManager::core0Yield( ) calls it (so does the CLI's offset command), so it stays linked with the original's share of its row, the _lastOffsetDraw* sentinels that force the numeric redraw; S10b-2 splits the unit (P4's table, docs/analysis/UI_DRIVERS.md section 2.15)"
 # Exact name (demangled, with the parameter list) -> (reason, unit). A unit says the allowance holds only while that unit has no file symbol in the image (the name is then another unit's).
 ALLOWED = {
     'DisplayManager::buildDashLayout(DisplayManager::DashBtn*, int*, bool*)': (_DASH, None),
@@ -76,6 +88,10 @@ ALLOWED = {
     'CommandManager::renderSystemInfo(SystemConfig const&)': ("core (CommandManager.h): the console's system report, no function of a UI driver's unit", None),
     'WebManager::RenderGuard::RenderGuard(DisplayManager*)': ("core (WebManager.h): pauses the display's rendering for the scope of a web handler (pauseRendering( true )); draws nothing", None),
     'WebManager::RenderGuard::~RenderGuard()': ("core (WebManager.h): ends that pause (pauseRendering( false )); draws nothing", None),
+    'DisplayManager::handleTouch()': (_TOUCH, None),
+    'DisplayManager::loopCore1()': (_CORE1, None),
+    'DisplayManager::showTouchCalibration()': (_CALTOUCH, None),
+    'DisplayManager::showSettingsDisplayOffset()': (_CALOFF, None),
 }
 
 class Refusal(Exception):
@@ -112,6 +128,9 @@ def flag(name, table, cls_of, gone):
         if unit in gone:
             return "an original row of %s in the function table, a unit this image does not link: another unit's definition of the same name, or the original leaking in without a file symbol" % unit
         return 'an original row of %s in the function table' % unit
+    if row is not None and cls_of[row] == 'mixed':           # C6c: a function with original and core lines in it, or rows that classify one name two ways
+        unit = table[row][0]['unit']
+        return 'a mixed row of %s in the function table (a function that holds original lines and core lines; rows that disagree on a name count as mixed)%s' % (unit, ", a unit this image does not link: another unit's definition of the same name, or the original leaking in without a file symbol" if unit in gone else '')
     for why, rx in RULES:
         if rx.search(name): return why
     if FREE.search(k) and not OWN.search(k): return FREE_WHY
@@ -160,9 +179,10 @@ def selftest():
         print('%s %s%s' % ('ok  ' if ok else 'FAIL', label, (' | ' + detail) if detail else ''))
     def row(unit, symbol, cls): return {'unit': unit, 'symbol': symbol, 'class': cls}
     ROWS = [row('Dash.cpp', 'DisplayManager::keepMe', 'original'), row('Dash.cpp', 'DisplayManager::coreOne', 'core'), row('Dash.cpp', 'DisplayManager::halfHalf', 'mixed'), row('Dash.cpp', 'kbPopupCard', 'original'),
-            row('Dash.cpp', 'DisplayManager::blitTitleBar', 'original'), row('Wid.cpp', 'uiWidget', 'original'), row('Wid.cpp', 'uiShared', 'original'), row('Wid.cpp', 'uiButton', 'original'), row('Fon.cpp', 'FreeSansBold9pt8b', 'original')]
+            row('Dash.cpp', 'DisplayManager::blitTitleBar', 'original'), row('Wid.cpp', 'uiWidget', 'original'), row('Wid.cpp', 'uiShared', 'original'), row('Wid.cpp', 'uiButton', 'original'), row('Fon.cpp', 'FreeSansBold9pt8b', 'original'),
+            row('Wid.cpp', 'uiHalf', 'mixed'), row('Dash.cpp', 'twiceNamed', 'core'), row('Wid.cpp', 'twiceNamed', 'original'), row('Kb.h', 'PwdKb::popupHit', 'original'), row('Kb.h', 'PwdKb::GROUPS', 'original'), row('Kb.h', 'PinKb::keyAt', 'core')]
     LISTED = {'Wid.cpp'}
-    ALLOW = {'DisplayManager::redrawTopPanel()': ('core, pattern side', None), 'DisplayManager::keepMe(int)': ('keeper, table side', None), 'uiShared(int)': ('collision with the Angulo\'s own', 'Wid.cpp')}
+    ALLOW = {'DisplayManager::redrawTopPanel()': ('core, pattern side', None), 'DisplayManager::keepMe(int)': ('keeper, table side', None), 'uiShared(int)': ('collision with the Angulo\'s own', 'Wid.cpp'), 'DisplayManager::halfHalf(int)': ('mixed row, table side', None)}
     BASE = ['00000100 00000010 T ua::Pintor::fillRect(int)', '00000200 00000020 T DisplayManager::uiTouch(short, short)', '00000300 00000008 W DisplayManager::redrawTopPanel()', '00000400 00000008 T DisplayManager::keepMe(int)',
             '00000500 00000008 T DisplayManager::coreOne(int)', '00000600 T DisplayManager::halfHalf(int)', '00000700 00000008 T uiShared(int)',
             '00000800 00000008 T Adafruit_GFX::drawLine(short, short, short, short, unsigned short)', '00000900 00000008 T ua::Faixa::drawPixel(short, short, unsigned short)',
@@ -170,7 +190,7 @@ def selftest():
             '00000e00 00000008 T DisplayManager::pauseRendering(bool)', '00000f00 00000008 t (anonymous namespace)::g_firstDraw', '         U DisplayManager::drawSettingsMain()', '         w DisplayManager::blitTitleBar(char const*)']
     def run(lines, rows=ROWS, files=(), allowed=ALLOW): return scan('\n'.join(lines), rows, LISTED, set(files), allowed)
     a, f, u = run(BASE)
-    case('the clean image (the near misses withdrawn, prerenderCache, endRaw, pauseRendering and g_firstDraw; the library and ua:: draws; an undefined and a weak undefined draw; core and mixed rows; the three allowances present): 0 findings, 3 used', a and not f and len(u) == 3, str(f))
+    case('the clean image (the near misses withdrawn, prerenderCache, endRaw, pauseRendering and g_firstDraw; the library and ua:: draws; an undefined and a weak undefined draw; a core row and a mixed row that ALLOW names; the four allowances present): 0 findings, 4 used', a and not f and len(u) == 4, str(f))
     plants = ['DisplayManager::drawSettingsMain()', 'DisplayManager::render()', 'DisplayManager::redrawAlarmFlash()', 'DisplayManager::fastFillRect(short, short, short, short, unsigned short)', 'DisplayManager::fastClearScreen(unsigned short)',
               'DisplayManager::blitCanvas(short, short)', 'simutFontBold', 'availableThemes', 'DisplayManager::redrawTopPanel(int)']
     for p in plants:
@@ -191,11 +211,24 @@ def selftest():
     case('an original row of a listed unit the image does not link is a finding (bytes_original.py would drop the row), and so is the same name when the unit is linked, with another reason', len(f) == 1 and len(fw) == 1 and 'does not link' in fw[0][1] and len(fw2) == 1 and 'does not link' not in fw2[0][1], str((f, f2)))
     a, f, u = run(BASE, files={'Wid.cpp'})
     case('an allowance with a unit holds only while the unit is absent: with Wid.cpp linked, uiShared( int ) is one finding and is not also reported stale', len(f) == 1 and f[0][0] == 'uiShared(int)' and 'stale' not in f[0][1], str(f))
-    for gone in ('uiShared(int)', 'DisplayManager::keepMe(int)', 'DisplayManager::redrawTopPanel()'):
+    for gone in ('uiShared(int)', 'DisplayManager::keepMe(int)', 'DisplayManager::redrawTopPanel()', 'DisplayManager::halfHalf(int)'):
         a, f, u = run([x for x in BASE if gone not in x])
         case('the allowance for %s without its symbol is a finding (stale)' % gone, len(f) == 1 and f[0][0] == gone and 'stale' in f[0][1], str(f))
     a, f, u = run(BASE, rows=[r if r['symbol'] != 'DisplayManager::keepMe' else row('Dash.cpp', 'DisplayManager::keepMe', 'core') for r in ROWS])
     case('the allowance whose symbol the table no longer calls original (the row went core) is stale too: nothing flags it', len(f) == 1 and f[0][0] == 'DisplayManager::keepMe(int)' and 'nothing flags it' in f[0][1], str(f))
+    a, f, u = run(BASE, allowed={k: v for k, v in ALLOW.items() if k != 'DisplayManager::halfHalf(int)'})
+    case('the mixed rule (C6c): a symbol on a mixed row is a finding unless ALLOWED names it (halfHalf( int ) without its allowance: one finding, that names a mixed row and Dash.cpp)', len(f) == 1 and f[0][0] == 'DisplayManager::halfHalf(int)' and 'mixed row of Dash.cpp' in f[0][1], str(f))
+    a, f, u = run(BASE, rows=[r if r['symbol'] != 'DisplayManager::halfHalf' else row('Dash.cpp', 'DisplayManager::halfHalf', 'core') for r in ROWS])
+    case('the allowance whose row went from mixed to core is stale: nothing flags it', len(f) == 1 and f[0][0] == 'DisplayManager::halfHalf(int)' and 'nothing flags it' in f[0][1], str(f))
+    a, f, u = run(BASE + ['00001000 T uiHalf(int)'])
+    case('a mixed row of a unit the image does not link is a finding, told apart like an original row of one', len(f) == 1 and f[0][0] == 'uiHalf(int)' and 'does not link' in f[0][1], str(f))
+    a, f, u = run(BASE + ['00001000 T twiceNamed(int)'])
+    case('rows that disagree on a name (a core row and an original row) make it mixed: one finding', len(f) == 1 and f[0][0] == 'twiceNamed(int)' and 'mixed row' in f[0][1], str(f))
+    for plant in ('PwdKb::popupHit(signed char, short, short)', 'PwdKb::GROUPS'):
+        a, f, u = run(BASE + ['00001000 r ' + plant])
+        case('a header is a unit (C6c): planting %s, which no pattern matches, is exactly one finding that names Kb.h' % plant, len(f) == 1 and f[0][0] == plant and 'Kb.h' in f[0][1] and not any(rx.search(plant) for w, rx in RULES) and not FREE.search(bo.key_of(plant)), str(f))
+    a, f, u = run(BASE + ['00001000 W PinKb::keyAt(PinKb::Grid const&, short, short)'])
+    case('a core row of a header is no finding (core is shared code): PinKb::keyAt( ) planted, 0 findings', not f, str(f))
     a, f, u = run([x for x in BASE if 'ua::Pintor' not in x])
     case('an image without ua::Pintor is not an Angulo image (the caller refuses)', not a)
     txt = '\n'.join(BASE + ['00001000 T DisplayManager::drawSettingsMain()', '00001100 T availableThemes', '00001200 t DisplayManager::redrawAlarmFlash()'])
@@ -216,6 +249,31 @@ def selftest():
             a, f, u = scan('\n'.join(real + ['00002000 t ' + p]), rows, listed, set())
             case("the real table: the review's plant %s is exactly one finding" % p, len(f) == 1 and f[0][0] == p, str(f))
         case('the real table: the manifest lists the eight units the Angulo does not compile, each with a row', len(listed) == 8 and all(any(r['unit'] == x for r in rows) for x in listed), str(sorted(listed)))
+        case('the real table: no unit of [ui.original].units is a header (a header has no file symbol, so the unit rule would drop its rows from every image)', all(not u.endswith(('.h', '.hpp')) for u in listed), str(sorted(listed)))
+        H_ORIG = ['CLOCK_COL_X', 'CLOCK_COL_W', 'PwdKb::GROUPS', 'PwdKb::DIGITS', 'PwdKb::SYMBOLS', 'PwdKb::popupHit(signed char, short, short)', 'themeTint(unsigned short)', 'panelDHT22(GFXcanvas16*, float)', 'panelBMP280(int)', 'minMaxDS18B20(int)', 'minMaxDHT22(int)', 'minMaxBME280(int)', 'SENSOR_PANEL_DISPATCH']
+        miss = []
+        for p in H_ORIG:
+            a, f, u = scan('\n'.join(real + ['00002000 r ' + p]), rows, listed, set())
+            if not (len(f) == 1 and f[0][0] == p and '.h in the function table' in f[0][1]): miss.append((p, f))
+        case('the real table (C6c): the %d original symbols of headers that C6b passed (pico_wiretft links them, neither Angulo image does) are each exactly one finding that names a header' % len(H_ORIG), not miss, str(miss[:2]))
+        miss, n_h = [], 0
+        for r in rows:
+            if r['class'] == 'original' and r['unit'].endswith('.h') and ' [' not in r['symbol']:
+                for nm in r['symbol'].split(', '):
+                    n_h += 1
+                    a, f, u = scan('\n'.join(real + ['00002000 r ' + nm + '(int)']), rows, listed, set())
+                    if not (len(f) == 1 and r['unit'] in f[0][1]): miss.append((nm, f))
+        case('the real table: every name of every original row of a header unit, planted, is one finding that names that header (%d names)' % n_h, not miss and n_h >= len(H_ORIG), str(miss[:2]))
+        H_MIXED = ['DisplayManager::handleTouchPanelV24(short, short)', 'DisplayManager::handleTouchPanelV24(short, short)::{lambda(int)#1}::operator()(int) const']
+        miss = [(p, f) for p in H_MIXED for a, f, u in [scan('\n'.join(real + ['00002000 t ' + p]), rows, listed, set())] if not (len(f) == 1 and f[0][0] == p and 'mixed row of DisplayManager_Users.cpp' in f[0][1])]
+        case('the real table: handleTouchPanelV24( ) and its lambda (a mixed row; C6b passed both) are each exactly one finding', not miss, str(miss[:2]))
+        H_PASS = ['PinKb::keyAt(PinKb::Grid const&, short, short)', 'fmtFloat1(char*, unsigned int, float) [clone .isra.0]', 'fmtFloat2(char*, unsigned int, float) [clone .isra.0]', 'menuLabelNoNumber(char const*)', 'sensorNthChannel(SensorType, unsigned char)', 'DisplayManager::channelLabel(unsigned char)',
+                  'dmaTftOpen(TftWithOffset*, short, short, short, short)', 'fillWindowDma(TftWithOffset*, unsigned short, short, short, short, short) [clone .constprop.0]', 'Adafruit_GFX::drawCircle(short, short, short, unsigned short)', 'Adafruit_GFX::charBounds(unsigned char, short*, short*, short*, short*, short*, short*)', 'CSWTCH.349', '__gnu_thumb1_case_si']
+        miss = [(p, f) for p in H_PASS for a, f, u in [scan('\n'.join(real + ['00002000 t ' + p]), rows, listed, set())] if f]
+        case('the real table: core rows, library and compiler code get no rule (%d of the 48 that C6b passed and C6c passes, planted: 0 findings)' % len(H_PASS), not miss, str(miss[:2]))
+        MIX = ['DisplayManager::handleTouch()', 'DisplayManager::loopCore1()', 'DisplayManager::showTouchCalibration()', 'DisplayManager::showSettingsDisplayOffset()']
+        tb, cl = bo.build_table(rows)
+        case('the real table: the four mixed-row functions that both Angulo images link are in ALLOWED, and each sits on a mixed row', all(k in ALLOWED and cl.get(bo.row_of(bo.key_of(k), tb)) == 'mixed' for k in MIX), '')
     except Refusal as e:
         case('the real table can be read', False, str(e))
     with tempfile.TemporaryDirectory() as d:
@@ -230,6 +288,38 @@ def selftest():
     rows1 = [row('A.cpp', 'x', 'original')]
     case('a refusal (exit 2): an ELF that is not there', check('/nonexistent/x.elf', NM_DEFAULT, READELF_DEFAULT, rows1, set()) == 2)
     case('a refusal (exit 2): an nm that is not there, not a traceback (this file stands for the ELF)', check(os.path.abspath(__file__), '/nonexistent/arm-none-eabi-nm', READELF_DEFAULT, rows1, set()) == 2)
+    with tempfile.TemporaryDirectory() as d:        # the command line's own function, on a fake nm and a fake readelf (a shell script each): the exits 0, 1 and 2 of main( ), which nothing above calls
+        def script(name, body):
+            p = os.path.join(d, name)
+            with open(p, 'w') as fh: fh.write('#!/bin/sh\n' + body)
+            os.chmod(p, 0o755); return p
+        def text(name, lines):
+            p = os.path.join(d, name)
+            with open(p, 'w') as fh: fh.write('\n'.join(lines) + '\n')
+            return p
+        PINT = '00000100 00000010 T ua::Pintor::fillRect(int)'
+        t_clean = text('clean.txt', [PINT] + ['00001000 00000010 T ' + k for k in ALLOWED])
+        t_one = text('one.txt', [PINT] + ['00001000 00000010 T ' + k for k in ALLOWED] + ['00002000 00000010 T DisplayManager::drawSettingsMain()'])
+        t_prod = text('prod.txt', ['00001000 00000010 T DisplayManager::drawSettingsMain()'])
+        elfs = {}
+        for k in 'abcd':
+            elfs[k] = os.path.join(d, k + '.elf'); open(elfs[k], 'w').close()
+        fake_nm = script('nm', 'case "$3" in\n  */a.elf) cat %s;;\n  */b.elf) cat %s;;\n  */c.elf) cat %s;;\n  */d.elf) cat %s; echo boom >&2; exit 3;;\n  *) echo boom >&2; exit 3;;\nesac\n' % (t_clean, t_one, t_prod, t_clean))
+        fake_re, bad_re = script('readelf', 'exit 0\n'), script('readelf_fails', 'echo boom >&2\nexit 1\n')
+        def go(*args):
+            buf = io.StringIO()
+            with contextlib.redirect_stdout(buf): rc = main(list(args))
+            return rc, buf.getvalue()
+        tool = ['--nm', fake_nm, '--readelf', fake_re]
+        rc, out = go(*tool, elfs['a']); case('main path: an image with the Angulo marker and every allowed name exits 0', rc == 0, '%d %s' % (rc, out[:100]))
+        rc, out = go(*tool, elfs['b']); case('main path: the same image with one planted draw exits 1 and prints it as a FINDING', rc == 1 and 'FINDING: DisplayManager::drawSettingsMain()' in out, '%d %s' % (rc, out[:160]))
+        rc, out = go(*tool, elfs['c']); case('main path: nm text without ua::Pintor (a product image) exits 2, the refusal, and says why', rc == 2 and 'ua::Pintor' in out and 'FINDING' not in out, '%d %s' % (rc, out[:160]))
+        rc, out = go(*tool, elfs['d']); case('main path: an nm that prints a clean image and then fails (exit 3) is a refusal, exit 2', rc == 2, '%d %s' % (rc, out[:160]))
+        rc, out = go('--nm', fake_nm, '--readelf', bad_re, elfs['a']); case('main path: a readelf that fails exits 2', rc == 2, '%d %s' % (rc, out[:160]))
+        rc, out = go(*tool, '--tsv', os.path.join(d, 'absent.tsv'), elfs['a']); case('main path: a table it cannot read exits 2', rc == 2, '%d %s' % (rc, out[:160]))
+        rc, out = go(*tool, elfs['a'], elfs['b']); case('main path: a clean image and one with a finding exit 1', rc == 1, str(rc))
+        rc, out = go(*tool, elfs['a'], elfs['c']); case('main path: a clean image and a refusal exit 2', rc == 2, str(rc))
+        rc, out = go(*tool, elfs['b'], elfs['c']); case('main path: a finding and a refusal exit 2 (the refusal wins)', rc == 2, str(rc))
     print('RESULT: %d cases, %d failed' % (n, bad)); return 1 if bad else 0
 
 def main(argv):
