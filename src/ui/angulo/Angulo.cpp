@@ -32,6 +32,7 @@ namespace entrega {
 }  // namespace entrega
 
 #include "AnguloIcones.h"
+#include "Textos.h"   // UA_TXT( ): after the unit's own headers, because its pragmas hold to the end of the unit (S10c, B3)
 
 namespace ua {
 
@@ -718,6 +719,9 @@ void Pintor::fillCircle( int16_t x, int16_t y, int16_t r, uint16_t c ) {
 // disc and the one of radius r - 1 around the same centre, the box inset by 1.
 void Pintor::roundRect( int16_t x, int16_t y, int16_t w, int16_t h, int16_t r, uint16_t c ) {
   if ( gravando_ ) gravarOp( OP_ROUND_RECT, x, y, w, h, r, c );
+#ifdef UA_HOST
+  hostSuperficie( x, y, w, h );
+#endif
   const Silencio parte( *this );
   if ( w <= 0 || h <= 0 || fora( y, h ) ) return;
   const int16_t m = ( w < h ? w : h ) / 2;
@@ -732,6 +736,9 @@ void Pintor::roundRect( int16_t x, int16_t y, int16_t w, int16_t h, int16_t r, u
 
 void Pintor::fillRoundRect( int16_t x, int16_t y, int16_t w, int16_t h, int16_t r, uint16_t c ) {
   if ( gravando_ ) gravarOp( OP_FILL_ROUND_RECT, x, y, w, h, r, c );
+#ifdef UA_HOST
+  hostSuperficie( x, y, w, h );
+#endif
   const Silencio parte( *this );
   if ( w <= 0 || h <= 0 || fora( y, h ) ) return;
   const int16_t m = ( w < h ? w : h ) / 2;
@@ -805,6 +812,21 @@ void hostAnotarTexto( const char *s, int16_t x0, int16_t x1, int16_t y0, int16_t
 }  // namespace
 void hostLimparTextos( ) { s_nTextos = 0; }
 int hostTextos( const TextoDesenhado **lista ) { *lista = s_textos; return s_nTextos; }
+
+namespace {
+constexpr int MAX_SUPERFICIES = 2048;   // the text keyboard has about 45 keys; a sample over this stops the harness, it is never cut
+SuperficieDesenhada s_superficies[MAX_SUPERFICIES];
+int s_nSuperficies = 0;
+}  // namespace
+void hostLimparSuperficies( ) { s_nSuperficies = 0; }
+int hostSuperficies( const SuperficieDesenhada **lista ) { *lista = s_superficies; return s_nSuperficies; }
+void hostSuperficie( int16_t x, int16_t y, int16_t w, int16_t h ) {
+  if ( s_nSuperficies >= MAX_SUPERFICIES ) {
+    fprintf( stderr, "more than %d surfaces in one sample\n", MAX_SUPERFICIES );
+    abort( );
+  }
+  s_superficies[s_nSuperficies++] = SuperficieDesenhada{ x, y, w, h };
+}
 
 namespace {
 constexpr int MAX_CONTROLES = 128;   // the text keyboard has about 45; a sample over this stops the harness, it is never cut
@@ -1164,7 +1186,7 @@ void barraTitulo( Pintor &p, const char *titulo, const Acao *acoes, int16_t n, C
 
 void barraTituloVoltar( Pintor &p, const char *titulo, Caixa16 *voltar ) {
   Acao a;
-  a.rotulo = "Voltar";
+  a.rotulo = UA_TXT( "Back" );
   a.tipo = Botao::DISCRETO;
   a.icone = IconeNome::ARROW_LEFT;
   barraTitulo( p, titulo, &a, 1, voltar );
@@ -1233,7 +1255,7 @@ void paginador( Pintor &p, int16_t pagina, int16_t total, const Acao *acao ) {
   botao( p, ESP2 + 48 + ESP2, y, 48, h, "", Botao::SECUNDARIO );
   p.icone( IconeNome::CHEVRON_RIGHT, 20, ESP2 + 48 + ESP2 + 14, y + 10, T.tinta );
   char buf[24];
-  snprintf( buf, sizeof buf, "%d de %d", (int)pagina, (int)total );
+  snprintf( buf, sizeof buf, "%d %s %d", (int)pagina, UA_TXT( "of" ), (int)total );
   textoCentrado( p, buf, ESP2 + 104 + ESP3, y, h, tipo::apoio, T.tinta2, 'l' );
   if ( acao ) botao( p, 320 - ESP2 - acao->w, y, acao->w, h, acao->rotulo, acao->tipo );
 }

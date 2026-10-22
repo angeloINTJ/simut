@@ -5,6 +5,7 @@
 #include <string.h>
 
 #include "PainelComum.h"
+#include "../Textos.h"   // UA_TXT( ): after every project header, because its pragmas hold to the end of the unit
 
 namespace ua {
 namespace tela {
@@ -127,12 +128,12 @@ Sit situacaoDe( const Sensor &s ) {
 
 const char *textoDe( Sit s ) {
   switch ( s ) {
-    case Sit::NA_FAIXA: return "Na faixa";
-    case Sit::NO_LIMITE: return "No limite";
-    case Sit::ACIMA: return "Acima";
-    case Sit::ABAIXO: return "Abaixo";
-    case Sit::EM_ALARME: return "Em alarme";
-    case Sit::ERRO: return "Erro no sensor";
+    case Sit::NA_FAIXA: return UA_TXT( "In range" );
+    case Sit::NO_LIMITE: return UA_TXT( "At the limit" );
+    case Sit::ACIMA: return UA_TXT( "Above" );
+    case Sit::ABAIXO: return UA_TXT( "Below" );
+    case Sit::EM_ALARME: return UA_TXT( "In alarm" );
+    case Sit::ERRO: return UA_TXT( "Sensor error" );
   }
   return "";
 }
@@ -184,7 +185,6 @@ int16_t larguraBloco( const char *valor, const char *un, Fonte f ) {
 struct Segundo {
   bool tem;
   IconeNome icone;
-  const char *rotulo;
   const char *un;
   char valor[16];
 };
@@ -206,13 +206,11 @@ Segundo segundoDe( const Sensor &s ) {
   if ( s.tipo == Tipo::DHT22 ) {
     g.tem = true;
     g.icone = IconeNome::DROPLETS;
-    g.rotulo = "umidade";
-    g.un = "%UR";
+    g.un = UA_TXT( "%RH" );
     pct( s.umid, g.valor );
   } else if ( s.tipo == Tipo::BMP280 || s.tipo == Tipo::BME280 ) {
     g.tem = true;
     g.icone = IconeNome::GAUGE;
-    g.rotulo = "pressão";
     g.un = "hPa";
     // 0 hPa is no reading (the glue sends 0 for a pressure that is not a number).
     if ( s.pres ) snprintf( g.valor, sizeof g.valor, "%u", (unsigned)s.pres );
@@ -226,11 +224,11 @@ void desenharVazio( Pintor &p, const Caixa16 &c ) {
   const Tema &T = p.t( );
   const int16_t y = c.y + rd2( c.h - ( H_TEXTO + ESP2 + H_TEXTO ) );
   const int16_t x = c.x + rd2( c.w );
-  textoCentrado( p, "Nenhum sensor ativo", x, y, H_TEXTO, tipo::subtitulo, T.tinta, 'c' );
-  textoCentrado( p, "Ative um sensor pela web.", x, y + H_TEXTO + ESP2, H_TEXTO, tipo::apoio, T.tinta2, 'c' );
+  textoCentrado( p, UA_TXT( "No active sensor" ), x, y, H_TEXTO, tipo::subtitulo, T.tinta, 'c' );
+  textoCentrado( p, UA_TXT( "Activate a sensor on the web." ), x, y + H_TEXTO + ESP2, H_TEXTO, tipo::apoio, T.tinta2, 'c' );
 }
 
-/* min/max mode: a row per extreme, "mín" and "máx", the temperature and, for a
+/* min/max mode: a row per extreme, labelled min and max ("mín" and "máx" in pt-BR), the temperature and, for a
  * sensor that has it, the humidity, in columns. The fonts are tried from the
  * biggest and the first that fits between the card's inner edges wins. */
 void desenharLinhasMinMax( Pintor &p, const Sensor &s, int16_t xEsq, int16_t xDir, int16_t base1, int16_t base2,
@@ -242,13 +240,15 @@ void desenharLinhasMinMax( Pintor &p, const Sensor &s, int16_t xEsq, int16_t xDi
   pct( s.uMax, umax );
   // The BME280 keeps its humidity for this mode; the DHT22 shows it always.
   const bool umid = s.tipo == Tipo::DHT22 || s.tipo == Tipo::BME280;
-  const int16_t wMin = larguraTinta( "mín", tipo::apoio ), wMax = larguraTinta( "máx", tipo::apoio );
+  const char *rot[2] = { UA_TXT( "min" ), UA_TXT( "max" ) };
+  const char *unUmid = UA_TXT( "%RH" );
+  const int16_t wMin = larguraTinta( rot[0], tipo::apoio ), wMax = larguraTinta( rot[1], tipo::apoio );
   const int16_t wRot = wMin > wMax ? wMin : wMax;
   Fonte f = fontes[nFontes - 1];
   int16_t wT = 0, wU = 0;
   for ( int i = 0; i < nFontes; i++ ) {
     const int16_t t1 = larguraBloco( tmin, "°C", fontes[i] ), t2 = larguraBloco( tmax, "°C", fontes[i] );
-    const int16_t u1 = larguraBloco( umin, "%UR", fontes[i] ), u2 = larguraBloco( umax, "%UR", fontes[i] );
+    const int16_t u1 = larguraBloco( umin, unUmid, fontes[i] ), u2 = larguraBloco( umax, unUmid, fontes[i] );
     wT = t1 > t2 ? t1 : t2;
     wU = u1 > u2 ? u1 : u2;
     if ( wRot + ESP3 + wT + ( umid ? ESP4 + wU : 0 ) <= xDir - xEsq ) {
@@ -261,13 +261,12 @@ void desenharLinhasMinMax( Pintor &p, const Sensor &s, int16_t xEsq, int16_t xDi
   const int16_t xT = xEsq + wRot + ESP3 + wT;
   const int16_t xU = xT + ESP4 + wU;
   const int16_t bases[2] = { base1, base2 };
-  const char *rot[2] = { "mín", "máx" };
   const char *tv[2] = { tmin, tmax };
   const char *uv[2] = { umin, umax };
   for ( int i = 0; i < 2; i++ ) {
     p.texto( rot[i], xEsq, bases[i], tipo::apoio, a.tinta2, 'l' );
     numero( p, xT, bases[i], tv[i], "°C", f, a.tinta, 'r' );
-    if ( umid ) numero( p, xU, bases[i], uv[i], "%UR", f, a.tinta, 'r' );
+    if ( umid ) numero( p, xU, bases[i], uv[i], unUmid, f, a.tinta, 'r' );
   }
 }
 
@@ -278,7 +277,7 @@ void desenharBotaoGrafico( Pintor &p, const Caixa16 &c, const Aspecto &a ) {
   UA_CONTROLE( c.x, c.y, c.w, c.h, true, "grafico" );
   p.fillRoundRect( c.x, c.y, c.w, c.h, RAIO_CONTROLE, fundo );
   p.icone( IconeNome::CHART_LINE, ICONE_G, c.x + rd2( c.w - ICONE_G ), c.y + ESP1, cor );
-  textoCentrado( p, "Gráfico", c.x + rd2( c.w ), c.y + ICONE_G + ESP1, H_TEXTO, tipo::rotulo, cor, 'c' );
+  textoCentrado( p, UA_TXT( "Chart" ), c.x + rd2( c.w ), c.y + ICONE_G + ESP1, H_TEXTO, tipo::rotulo, cor, 'c' );
 }
 
 /* ------------------------------------------------------------------ */
@@ -413,7 +412,7 @@ void desenharCartaoBaixo( Pintor &p, const VmPainel &vm, const LayoutPainel &l )
     snprintf( linhaSeg, sizeof linhaSeg, "%s %s", g.valor, g.un );
     linhas[nLinhas++] = linhaSeg;
   }
-  snprintf( linhaFaixa, sizeof linhaFaixa, "%s a %s °C", limite( s.lo, b1 ), limite( s.hi, b2 ) );
+  snprintf( linhaFaixa, sizeof linhaFaixa, "%s %s %s °C", limite( s.lo, b1 ), UA_TXT( "to" ), limite( s.hi, b2 ) );
   linhas[nLinhas++] = linhaFaixa;
   int16_t wColuna = 0;
   for ( int i = 0; i < nLinhas; i++ ) {
@@ -463,7 +462,7 @@ void desenharNav( Pintor &p, const VmPainel &vm, const LayoutPainel &l ) {
       }
       p.fillRoundRect( c.x, c.y, c.w, c.h, RAIO_CONTROLE, fundo );
       if ( borda ) p.roundRect( c.x, c.y, c.w, c.h, RAIO_CONTROLE, T.linha );
-      snprintf( rot, sizeof rot, "S%u", (unsigned)n.slot );
+      snprintf( rot, sizeof rot, "%s%u", UA_TXT( "S" ), (unsigned)n.slot );
       textoCentrado( p, rot, c.x + rd2( c.w ), c.y, c.h, tipo::botao, cor, 'c' );
       // The dark phase of an alarm: a dot at the corner, over any state.
       if ( n.alarme && !cheio ) p.fillCircle( c.x + c.w - ESP2, c.y + ESP2, RAIO_PONTO, T.perigo );
@@ -500,10 +499,10 @@ void desenharAvisoWeb( Pintor &p, const VmPainel &vm, const LayoutPainel &l ) {
   p.icone( IconeNome::USER, ICONE_M, c.x + PAD, c.y + rd2( c.h - ICONE_M ), T.tinta2 );
   // The account's name gives way so that the whole sentence fits.
   char frase[80];
-  painel::nomeComFim( frase, sizeof frase, vm.contaWeb, " está gravando pela web.", tipo::corpo,
+  painel::nomeComFim( frase, sizeof frase, vm.contaWeb, UA_TXT( "is saving through the web." ), tipo::corpo,
                       c.x + c.w - PAD - xTexto );
   textoCentrado( p, frase, xTexto, c.y + ESP2, H_TEXTO, tipo::corpo, T.tinta, 'l' );
-  textoCentrado( p, "Aguarde para tocar na tela.", xTexto, c.y + ESP2 + H_TEXTO + ESP1, H_TEXTO, tipo::apoio, T.tinta2,
+  textoCentrado( p, UA_TXT( "Wait before touching the screen." ), xTexto, c.y + ESP2 + H_TEXTO + ESP1, H_TEXTO, tipo::apoio, T.tinta2,
                  'l' );
 }
 

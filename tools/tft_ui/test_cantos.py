@@ -37,6 +37,7 @@ def build(tmp, extra):
     strict = ['-Wall', '-Wextra', '-Werror']
     units = [(gfx / 'Adafruit_GFX.cpp', ['-w']),
              (ROOT / 'src' / 'ui' / 'angulo' / 'Angulo.cpp', strict),
+             (ROOT / 'src' / 'ui' / 'angulo' / 'Textos.cpp', strict),   # the kit's UA_TXT( ): ua::txt( ) (S10c, B3)
              (HERE / 'host' / 'test_cantos_main.cpp', strict)]
     objs = []
     for src, flags in units:

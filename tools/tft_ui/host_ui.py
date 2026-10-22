@@ -50,6 +50,7 @@ def main():
                f'-I{ROOT / "src" / "ui" / "angulo"}', f'-I{HERE / "plano"}']
         units = [(gfx / 'Adafruit_GFX.cpp', ['-w']),
                  (ROOT / 'src' / 'ui' / 'angulo' / 'Angulo.cpp', ['-Wall', '-Wextra', '-Werror']),
+                 (ROOT / 'src' / 'ui' / 'angulo' / 'Textos.cpp', ['-Wall', '-Wextra', '-Werror']),   # the kit's UA_TXT( ): ua::txt( ) (S10c, B3)
                  *[(f, ['-Wall', '-Wextra', '-Werror']) for f in sorted((HERE / 'plano').glob('*.cpp'))],
                  (HERE / 'host' / 'host_main.cpp', ['-Wall', '-Wextra', '-Werror'])]
         objs = []

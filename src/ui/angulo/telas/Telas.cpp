@@ -5,6 +5,8 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "../Textos.h"   // UA_TXT( ): after every project header, because its pragmas hold to the end of the unit
+
 namespace ua {
 
 #ifdef UA_HOST
@@ -77,7 +79,6 @@ void copiar( char *dst, const char *src, int cap ) {
 namespace {
 
 const char kMarca[] = "SIMUT";
-const char kPrefixoWeb[] = "Web: ";
 
 // The words of the notice, in the widest of its forms whose ink is at most `largura` px in the badge's font; false
 // when none fits. A countdown goes whole or loses its number: "Silenciado · 12…" would say a wrong one. The web
@@ -92,14 +93,15 @@ const char kPrefixoWeb[] = "Web: ";
 // icon and 7 beside a three-character count; "Web: admin" (99) fits all three whole.
 bool textoDoAviso( const VmStatus &s, int16_t largura, char *out, int cap ) {
   if ( s.aviso == Aviso::SILENCIADO ) {
-    snprintf( out, (size_t)cap, "Silenciado \xC2\xB7 %u s", (unsigned)s.avisoSeg );
+    snprintf( out, (size_t)cap, "%s \xC2\xB7 %u s", UA_TXT( "Silenced" ), (unsigned)s.avisoSeg );
     if ( larguraTinta( out, tipo::rotulo ) <= largura ) return true;
-    snprintf( out, (size_t)cap, "Silenciado" );
+    copiar( out, UA_TXT( "Silenced" ), cap );
     return larguraTinta( out, tipo::rotulo ) <= largura;
   }
+  const char *web = UA_TXT( "Web" );
   char nome[sizeof s.avisoNome];
   copiar( nome, s.avisoNome, (int)sizeof nome );
-  snprintf( out, (size_t)cap, "%s%s", kPrefixoWeb, nome );
+  snprintf( out, (size_t)cap, "%s: %s", web, nome );
   if ( nome[0] && larguraTinta( out, tipo::rotulo ) <= largura ) return true;
   int n = (int)strlen( nome );
   while ( n > 1 ) {
@@ -107,10 +109,10 @@ bool textoDoAviso( const VmStatus &s, int16_t largura, char *out, int cap ) {
     int m = n;
     while ( m > 0 && nome[m - 1] == ' ' ) m--;
     if ( m == 0 ) break;
-    snprintf( out, (size_t)cap, "%s%.*s\xE2\x80\xA6", kPrefixoWeb, m, nome );
+    snprintf( out, (size_t)cap, "%s: %.*s\xE2\x80\xA6", web, m, nome );
     if ( larguraTinta( out, tipo::rotulo ) <= largura ) return true;
   }
-  snprintf( out, (size_t)cap, "Web" );
+  copiar( out, web, cap );
   return larguraTinta( out, tipo::rotulo ) <= largura;
 }
 

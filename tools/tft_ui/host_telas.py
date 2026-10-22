@@ -21,6 +21,10 @@ GFX 1.12.6, draws every sample in both themes, and fails when a sample:
     ordinary length; a text the screen's own copy ends with "…", such as
     "Lendo o histórico…", is not a cut), or the list accepts a cut that no
     longer happens;
+  - draws a text whose ink runs past the left or right edge of the smallest card, strip, button or badge that holds the middle of it (S10c, B3: the kit
+    records the box of every fillRoundRect( ) and roundRect( ) of a sample, in this build only). A fixed text longer than the room its layout gave it, in English or
+    Spanish, runs past its card with no "…" and no touch target to cross, and none of the checks above sees it; a user's name that is cut with "…" fits by
+    construction. Only the width is held: a language changes the width of a text, the height is the layout's, and a descender reaches a pixel below a pill;
   - lists a touch target outside the panel;
   - draws a control (a button, key, switch, segment or chip: what a finger is meant to press) that is not
     fully inside some touch target; or draws it enabled and the hit test gives some pixel of it to an inert
@@ -39,8 +43,10 @@ the targets per sample (and the list it draws, <sample>.alvos: x y w h type inde
 
 With --idioma en|pt|es (S10c, B2a) the frames are drawn in that language: the harness loads the @ANGULO section of data/lang/language_pt-BR.lng or
 language_es-ES.lng through ua::textosCarregar( ) (src/ui/angulo/Textos.cpp, the code the device runs) before it draws, so that a text a screen
-draws through UA_TXT( ) comes from the pack; en loads nothing, the English of the source. The shipped packs have no @ANGULO yet and no screen
-draws through UA_TXT( ), so the three draw what the harness drew before; --lng <file> takes another pack, for the controls. A pack the device
+draws through UA_TXT( ) comes from the pack; en loads nothing, the English of the source. The shipped packs carry the section for the Painel and Base
+screens and the kit's two texts (S10c, B3). The other four groups still draw their Portuguese literals, so --idioma pt draws them as they were drawn before (the kit's "Voltar" and "n de m" now
+come from the pack, and the pt-BR pack gives the same words); en and es draw the English and the Spanish of what is converted. tools/tft_ui/test_idiomas.py runs it in the three languages for
+the converted groups, with planted packs as controls. --lng <file> takes another pack, for the controls. A pack the device
 would refuse (a malformed line, a repeated hash, a section over UA_TEXTOS_MAX, a section after @WEBDICT) stops the run with exit 2.
 
 Usage: python3 tools/tft_ui/host_telas.py <grupo> [--out <folder>] [--idioma en|pt|es [--lng <pack>]]
@@ -252,6 +258,40 @@ def conferir_contagem(nome, dados, erros):
     return listados, maximo
 
 
+def conferir_encaixe(nome, tema, textos, superficies, erros):
+    """Each text against the surface it is drawn on (S10c, B3). `textos` is [(x0, x1, y0, y1, text)], `superficies` [(x, y, w, h)] in drawing order. A text sits on
+    the smallest surface that holds the middle of its ink; with none (the status bar's brand, a title over the page itself) there is nothing to hold it to. The ink must lie
+    between that surface's left and right edges: one failure per text. Only the width is held: a language changes it, the height is the layout's, and a descender of the 9 pt label
+    reaches a pixel below a pill (the badge check below says so too). Returns how many texts sat on a surface."""
+    sobre = 0
+    for x0, x1, y0, y1, t in textos:
+        donos = [s for s in superficies if 2 * s[0] <= x0 + x1 < 2 * (s[0] + s[2]) and 2 * s[1] <= y0 + y1 < 2 * (s[1] + s[3])]
+        if not donos:
+            continue
+        sobre += 1
+        sx, sy, sw, sh = min(donos, key=lambda s: s[2] * s[3])
+        if x0 < sx or x1 > sx + sw:
+            erros.append(f'{nome}_{tema}: "{t}" ink {x0}..{x1} runs past the edge of the surface it is drawn on, {sx}..{sx + sw} ({sw} px wide at {sx},{sy})')
+    return sobre
+
+
+def ingles_das_amostras(grupo):
+    """[problem] for the UA_TXT( ) English of the group's sample file (tools/tft_ui/amostras/<grupo>.cpp) that no screen of src/ui/angulo asks for. A sample builds the
+    texts the device's glue asks of UA_TXT( ) with the same English, because the glue cannot be built on the host; an English that differs by a letter would draw as itself
+    in every language, and the frames would look right in en and wrong in pt and es. The sources' English is the gate's (check_lang_packs.py), read as the compiler reads it."""
+    import os
+    os.environ.setdefault('LANG_GATE_NO_RUN', '1')
+    if str(ROOT / 'tools') not in sys.path:
+        sys.path.insert(0, str(ROOT / 'tools'))
+    import check_lang_packs as gate
+    import check_ui_texts as cut
+    fonte = HERE / 'amostras' / f'{grupo}.cpp'
+    vivos = gate.angulo_literals()
+    texto = fonte.read_text(encoding='utf-8')
+    return [f'{fonte.name}:{lit.line}: UA_TXT( ) English {lit.text[:60]!r} is not the English of any UA_TXT( ) in src/ui/angulo'
+            for lit in cut.texts_of(fonte.name, texto) if lit.converted and lit.text not in vivos]
+
+
 IDIOMAS = {'en': None, 'pt': 'language_pt-BR.lng', 'es': 'language_es-ES.lng'}   # en: the English of the source, no pack
 
 
@@ -366,6 +406,10 @@ def main():
         return acentos(args.out)
     if not args.grupo:
         ap.error('a group or --acentos')
+    problemas = ingles_das_amostras(args.grupo)
+    if problemas:
+        print('\n'.join(problemas), file=sys.stderr)
+        return 2
     with tempfile.TemporaryDirectory(prefix='telas_host_') as tmp:
         tmp = pathlib.Path(tmp)
         exe = build(args.grupo, tmp)
@@ -404,7 +448,7 @@ def main():
         if margem is None:
             return 2
         seguro = (margem, W - margem, margem, H - margem)    # x0, x1 (exclusive), y0, y1 (exclusive)
-        conferidos = excluidos = cobertos = pretas = 0
+        conferidos = excluidos = cobertos = pretas = encaixados = 0
         maior = (0, '', 0)
         nomes = sorted({p.name[:-len('.alvos')] for p in dados.glob('*.alvos')})
         for nome in nomes:
@@ -444,6 +488,8 @@ def main():
                     textos.append((x0, x1, y0, y1, t))
                     if x0 < seguro[0] or x1 > seguro[1] or y0 < seguro[2] or y1 > seguro[3]:
                         erros.append(f'{nome}_{tema}: "{t}" ink {x0}..{x1} x {y0}..{y1} leaves the safe area')
+                superficies = [tuple(map(int, ln.split())) for ln in (dados / f'{nome}_{tema}.superficies').read_text().splitlines()]
+                encaixados += conferir_encaixe(nome, tema, textos, superficies, erros)
                 for i in range(len(textos)):
                     for j in range(i + 1, len(textos)):
                         if textos[i] == textos[j]:
@@ -501,7 +547,7 @@ def main():
         print(f'{len(nomes)} samples, {len(erros)} failures, {len(avisos)} warnings, {cortes} accepted cuts, '
               f'{conferidos} controls checked, {excluidos} excluded at the call, {cobertos} dimmed on purpose, '
               f'largest target list {maior[0]} of {maior[2]} ({maior[1]}), '
-              f'{pretas} of {2 * len(nomes)} frames with a black margin')
+              f'{pretas} of {2 * len(nomes)} frames with a black margin, {encaixados} texts held to their surface')
         if args.out:
             from PIL import Image, ImageDraw
             out = pathlib.Path(args.out)

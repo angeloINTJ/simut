@@ -3,8 +3,8 @@
 
 UA_TXT( "English" ) gives the active language pack's text for that English, or the English itself; the pack carries the texts in a section of
 its own, @ANGULO, one line each: 8 hex digits (FNV-1a 32 of the English), a space, the text. ua::textosCarregar( ) builds one allocation from the
-section's body and publishes it through one pointer. Since S10c B2b the Angulo images call it at boot, but no text is looked up yet (B3 to B5 convert them), so the images cannot show whether
-it works: this does, with the standard library and g++ only (no Adafruit GFX).
+section's body and publishes it through one pointer. Since S10c B2b the Angulo images call it at boot, and since B3 the Painel and Base screens and the kit's two texts look theirs up (B4 and B5 convert the rest); a wrong
+table on a board shows only on a board (B7), so this proves the lookup itself, with the standard library and g++ only (no Adafruit GFX).
 
 What it runs. tools/tft_ui/host/test_textos_main.cpp, built with Textos.cpp under -fsanitize=address,undefined (a read past the section, a leak
 and an undefined shift are failures), -Wall -Wextra -Werror and malloc( ) wrapped so that one case can make it fail: a hit, a miss, no section,

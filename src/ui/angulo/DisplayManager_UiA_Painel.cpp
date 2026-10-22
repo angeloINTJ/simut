@@ -27,7 +27,8 @@
 #include "telas/PainelBoot.h"
 #include "telas/PainelPrincipal.h"
 #include "telas/Telas.h"
-#include "../../DisplayManager_Actions.h"   /* the core's touch actions, which the alarm screen's buttons run; last */
+#include "../../DisplayManager_Actions.h"   /* the core's touch actions, which the alarm screen's buttons run; the last project header */
+#include "Textos.h"   /* UA_TXT( ): after every project header, because its pragmas hold to the end of the unit */
 
 namespace {
 
@@ -130,7 +131,7 @@ bool DisplayManager::uaMontarPainel( UaQuadro &q ) {
        * the configuration. The old header printed the LOWER card's name whatever the slot
        * (DisplayManager_Alarm.cpp:76-84): opened from the upper card it named the wrong sensor. */
       if ( rec && rec->friendlyName[0] ) ua::copiar( vm.nome, rec->friendlyName, sizeof vm.nome );
-      else snprintf( vm.nome, sizeof vm.nome, "Sensor %d", slot );   // the cards' fallback (drawSlotPanel( ))
+      else snprintf( vm.nome, sizeof vm.nome, "%s %d", UA_TXT( "Sensor" ), slot );   // the cards' fallback (drawSlotPanel( ))
 
       /* The reading: only the two cards' slots have a live one in the display (setSlotsSnapshot( ) is
        * the Alpha build's). The state is read as Core 0 keeps it, not as the last render saw it:
@@ -199,7 +200,7 @@ bool DisplayManager::uaMontarPainel( UaQuadro &q ) {
           nome[0] = 0;
           if ( rec->friendlyName[0] ) ua::copiar( nome, rec->friendlyName, sizeof nome );
         }
-        if ( !nome[0] ) snprintf( nome, sizeof nome, "Sensor %d", d.idx );   // the old fallback (drawSlotPanel( ))
+        if ( !nome[0] ) snprintf( nome, sizeof nome, "%s %d", UA_TXT( "Sensor" ), d.idx );   // the old fallback (drawSlotPanel( ))
         ua::copiar( s.nome, nome, sizeof s.nome );
         s.tipo = tipoDe( tipo );
         s.erro = erro || !isfinite( d.t );

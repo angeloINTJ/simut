@@ -2,6 +2,7 @@
 #include "PainelBoot.h"
 
 #include "PainelComum.h"
+#include "../Textos.h"   // UA_TXT( ): after every project header, because its pragmas hold to the end of the unit
 
 namespace ua {
 namespace tela {
@@ -71,11 +72,11 @@ void desenharBoot( Pintor &p, const VmBoot &vm ) {
   const Tema &T = p.t( );
   const LayoutBoot l = layoutBoot( vm );
   textoCentrado( p, "SIMUT", CENTRO, Y_MARCA, H_MARCA, Fonte::DISP24, T.tinta, 'c' );
-  textoCentrado( p, "Monitor de temperatura e umidade", CENTRO, Y_SUBTITULO, H_SUBTITULO, tipo::apoio, T.tinta2, 'c' );
+  textoCentrado( p, UA_TXT( "Temperature and humidity monitor" ), CENTRO, Y_SUBTITULO, H_SUBTITULO, tipo::apoio, T.tinta2, 'c' );
 
   if ( vm.apProgressPct >= 0 ) {
     const int pct = vm.apProgressPct > 100 ? 100 : vm.apProgressPct;
-    textoCentrado( p, "Segure para o modo de configuração", CENTRO, Y_ROTULO_AP, H_ROTULO_AP, tipo::corpo, T.tinta, 'c' );
+    textoCentrado( p, UA_TXT( "Hold to enter configuration mode" ), CENTRO, Y_ROTULO_AP, H_ROTULO_AP, tipo::corpo, T.tinta, 'c' );
     progresso( p, X_BARRA, Y_BARRA, W_BARRA, H_BARRA, pct * 10 );
   } else {
     for ( int i = 0; i < l.n; i++ ) {
@@ -87,7 +88,7 @@ void desenharBoot( Pintor &p, const VmBoot &vm ) {
   }
 
   if ( l.pular.w ) {
-    botao( p, l.pular.x, l.pular.y, l.pular.w, l.pular.h, "Pular a espera", Botao::SECUNDARIO );
+    botao( p, l.pular.x, l.pular.y, l.pular.w, l.pular.h, UA_TXT( "Skip the wait" ), Botao::SECUNDARIO );
   } else {
     textoCentrado( p, vm.versao, CENTRO, Y_VERSAO, H_LINHA, tipo::dado, T.tinta2, 'c' );
     textoCentrado( p, vm.mac, CENTRO, Y_MAC, H_LINHA, tipo::dado, T.tinta2, 'c' );

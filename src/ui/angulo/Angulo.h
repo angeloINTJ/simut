@@ -133,6 +133,15 @@ struct TextoDesenhado { int16_t x0, x1, y0, y1; bool selo; char texto[64]; };
 void hostLimparTextos( );
 int hostTextos( const TextoDesenhado **lista );
 
+// Host harness only: the box of every surface drawn with fillRoundRect( ) or roundRect( ) since the last hostLimparSuperficies( ): cards, strips, buttons,
+// badges and pills, in drawing order. tools/tft_ui/host_telas.py holds each text to the smallest of them that holds the middle of its ink: a text longer than the
+// room its layout gave it runs past the edge of its card with no cut ("…") and no touch target to cross, which no other check sees (S10c, B3: a
+// translation is longer than the English the layouts were drawn for). Not compiled into the firmware.
+struct SuperficieDesenhada { int16_t x, y, w, h; };
+void hostLimparSuperficies( );
+int hostSuperficies( const SuperficieDesenhada **lista );
+void hostSuperficie( int16_t x, int16_t y, int16_t w, int16_t h );
+
 // Host harness only: every control a finger is meant to press that was drawn since the last
 // hostLimparControles( ): the kit's buttons, keys, switches, segments and chips, and the few a screen draws by
 // hand. Each carries the box it drew and whether it was drawn enabled; host_telas.py holds it to the touch

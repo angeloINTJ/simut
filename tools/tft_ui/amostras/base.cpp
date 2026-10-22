@@ -1,9 +1,17 @@
 // Samples of the result and confirmation screens (src/ui/angulo/telas/Base.h),
 // with the texts the device would show. See Amostras.h.
+//
+// A sample builds its view model when it is drawn, not at start-up (S10c, B3): the texts that the device's glue (DisplayManager_UiA.cpp) asks of UA_TXT( )
+// come from the language pack that the harness loads in main( ) before the first sample draws, and a constant built earlier would hold the English for good.
+// Each English below is the glue's own, because the glue cannot be built on the host; tools/tft_ui/host_telas.py holds every UA_TXT( ) English of a sample file to an
+// English of src/ui/angulo. A text with no UA_TXT( ) is one the glue does not say: the long message is the calibration's (Ajustes, converted in B4) and "PIN salvo."
+// is no message of the glue any more; both stay in Portuguese, as their frames were drawn.
+#include <stdio.h>
 #include <string.h>
 
 #include "Amostras.h"
 #include "Base.h"
+#include "Textos.h"   // UA_TXT( ): after the screens' headers, because its pragmas hold to the end of the unit
 
 using namespace ua;
 using namespace ua::tela;
@@ -16,13 +24,15 @@ VmMensagem mensagem( bool ok, const char *texto, const char *detalhe ) {
   vm.ok = ok;
   copiar( vm.texto, texto, sizeof vm.texto );
   copiar( vm.detalhe, detalhe, sizeof vm.detalhe );
-  copiar( vm.botao, "Entendi", sizeof vm.botao );
+  copiar( vm.botao, UA_TXT( "Got it" ), sizeof vm.botao );
   return vm;
 }
 
-const VmMensagem kMsgOk = mensagem( true, "PIN salvo.", "" );
-const VmMensagem kMsgErro = mensagem( false, "Sem permissão.", "Peça a quem administra o aparelho para liberar esta função na sua conta." );
-const VmMensagem kMsgLonga = mensagem( true, "Calibração concluída. O toque já usa os novos valores.", "" );
+VmMensagem msgOk( ) { return mensagem( true, "PIN salvo.", "" ); }
+VmMensagem msgErro( ) {
+  return mensagem( false, UA_TXT( "No permission." ), UA_TXT( "Ask whoever administers the device to allow this function on your account." ) );
+}
+VmMensagem msgLonga( ) { return mensagem( true, "Calibração concluída. O toque já usa os novos valores.", "" ); }
 
 VmDialogo dialogo( const char *titulo, const char *texto, const char *nao, const char *sim, bool destrutivo ) {
   VmDialogo vm;
@@ -35,23 +45,29 @@ VmDialogo dialogo( const char *titulo, const char *texto, const char *nao, const
   return vm;
 }
 
-const VmDialogo kMudo = dialogo( "Silenciar todos os sons?",
-                                 "Nenhum som toca, nem o do alarme, até alguém ligar os sons de novo. O mudo só vale depois de Salvar na tela de sons.",
-                                 "Voltar", "Silenciar tudo", true );
-const VmDialogo kExcluir = dialogo( "Excluir a conta maria?",
-                                    "A conta perde o acesso pelo painel e pela web. O PIN e a senha dela são apagados.",
-                                    "Cancelar", "Excluir a conta", true );
+VmDialogo mudo( ) {
+  return dialogo( UA_TXT( "Mute all sounds?" ),
+                  UA_TXT( "No sound plays, not even the alarm's, until someone turns the sounds back on. Mute only takes effect "
+                          "after you press Save on the sounds screen." ),
+                  UA_TXT( "Back" ), UA_TXT( "Mute all" ), true );
+}
+VmDialogo excluir( ) {
+  char titulo[48];
+  snprintf( titulo, sizeof titulo, "%s %s?", UA_TXT( "Delete the account" ), "maria" );
+  return dialogo( titulo, UA_TXT( "The account loses access from the panel and the web. Its PIN and password are erased." ), UA_TXT( "Cancel" ),
+                  UA_TXT( "Delete account" ), true );
+}
 
 }  // namespace
 
 namespace amostra {
 
 const Amostra kAmostras[] = {
-  { "mensagem_ok", []( Pintor &p ) { desenharMensagem( p, kMsgOk ); }, []( Alvo *o ) { return alvosMensagem( kMsgOk, o ); } },
-  { "mensagem_erro", []( Pintor &p ) { desenharMensagem( p, kMsgErro ); }, []( Alvo *o ) { return alvosMensagem( kMsgErro, o ); } },
-  { "mensagem_longa", []( Pintor &p ) { desenharMensagem( p, kMsgLonga ); }, []( Alvo *o ) { return alvosMensagem( kMsgLonga, o ); } },
-  { "dialogo_mudo", []( Pintor &p ) { desenharDialogo( p, kMudo ); }, []( Alvo *o ) { return alvosDialogo( kMudo, o ); } },
-  { "dialogo_excluir", []( Pintor &p ) { desenharDialogo( p, kExcluir ); }, []( Alvo *o ) { return alvosDialogo( kExcluir, o ); } },
+  { "mensagem_ok", []( Pintor &p ) { desenharMensagem( p, msgOk( ) ); }, []( Alvo *o ) { return alvosMensagem( msgOk( ), o ); } },
+  { "mensagem_erro", []( Pintor &p ) { desenharMensagem( p, msgErro( ) ); }, []( Alvo *o ) { return alvosMensagem( msgErro( ), o ); } },
+  { "mensagem_longa", []( Pintor &p ) { desenharMensagem( p, msgLonga( ) ); }, []( Alvo *o ) { return alvosMensagem( msgLonga( ), o ); } },
+  { "dialogo_mudo", []( Pintor &p ) { desenharDialogo( p, mudo( ) ); }, []( Alvo *o ) { return alvosDialogo( mudo( ), o ); } },
+  { "dialogo_excluir", []( Pintor &p ) { desenharDialogo( p, excluir( ) ); }, []( Alvo *o ) { return alvosDialogo( excluir( ), o ); } },
 };
 const int kAmostrasN = sizeof kAmostras / sizeof kAmostras[0];
 

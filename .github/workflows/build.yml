@@ -287,6 +287,10 @@ jobs:
         run: python3 tools/tft_ui/test_cantos.py
       - name: Angulo touch targets on the host (test_alvos.py)
         run: python3 tools/tft_ui/test_alvos.py
+      # The Painel and Base screens in English, Portuguese and Spanish (S10c, B3): the shipped packs draw with no missing glyph, no text past its card or its button, and no
+      # fixed text cut; and planted packs (an "ő", a label of 70 characters, a text wider than its card) must fail exactly the samples whose frames they change.
+      - name: Angulo screens in the device's three languages (test_idiomas.py)
+        run: python3 tools/tft_ui/test_idiomas.py
 
       # patch.sh runs again and again: after every override that merges, and in the
       # firmware jobs on a warm ~/.platformio cache that already carries them (see

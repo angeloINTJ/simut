@@ -9,8 +9,10 @@ real packs through the same entry point first, and one control checks the
 opposite: since the loader reads only @DICT, everything before @WEBDICT may
 outgrow the old 16 KB prefix ceiling without tripping anything.
 
-@ANGULO (S10c, B2a): the real tree has no UA_TXT( ) literal and the real packs no such section, so the gate passes with nothing to compare. Here
-a COPY of src/ui/angulo gets a source file with literals planted in it, and packs made from the real ones get the section, and each refusal is
+@ANGULO (S10c, B2a): the real tree had no UA_TXT( ) literal and the real packs no such section, so the gate passed with nothing to compare. Since B3 the
+real tree has literals and the real packs the section, and the real case passes with both (and with at least one literal: a gate that compares nothing proves nothing). The cases that plant
+run on a COPY of src/ui/angulo whose own UA_TXT( ) calls are renamed (UA_TXY) and whose source file gets literals planted in it, with packs made from the real ones minus the
+real section and plus the planted one, so that each compares only with what it plants. Each refusal is
 provoked with the case that passes beside it: a literal without its entry in one of two packs (the message names the pack, the hash, the English
 and the file), an orphan, two literals with one hash (a real FNV-1a collision of two short strings, found by search), the section after @WEBDICT,
 a section over UA_TEXTOS_MAX (read from a header the test writes, so that the gate is shown to read it) and at the bound, every shape of malformed
@@ -73,11 +75,22 @@ def entry(en, text="traduzido", eol=b"\n"):
     return b"%08x " % gate.fnv1a32(en) + text.encode("utf-8") + eol
 
 
+def strip_angulo(raw):
+    """The pack `raw` without its @ANGULO section: the planted cases build their own."""
+    return re.sub(rb"(?m)^@ANGULO\n(?:(?!@)[^\n]*\n)*", b"", raw)
+
+
 def angulo_tree(td, extra=None, bound=None):
     """Points the gate at a COPY of src/ui/angulo in `td` with the files of `extra` ({name: text}) added, and UA_TEXTOS_MAX set to `bound` in the
-    copy's Textos.h when given. The caller restores the real paths (restore_tree)."""
+    copy's Textos.h when given. The copy's own UA_TXT( ) calls are renamed UA_TXY (the gate reads only a file that names UA_TXT), so that the
+    planted literals are the only ones. The caller restores the real paths (restore_tree)."""
     dst = Path(td) / "angulo"
     shutil.copytree(REAL_DIR, dst)
+    for f in dst.rglob("*"):
+        if f.is_file() and f.suffix in (".cpp", ".h") and f.name != "Textos.h":
+            t = f.read_text(encoding="utf-8", errors="replace")
+            if "UA_TXT" in t:
+                f.write_text(t.replace("UA_TXT", "UA_TXY"), encoding="utf-8")
     for name, text in (extra or {}).items():
         (dst / name).write_text(text, encoding="utf-8")
     if bound is not None:
@@ -107,7 +120,7 @@ def fnv_collision():
 
 
 def angulo_cases():
-    es, pt = ES.read_bytes(), PT.read_bytes()
+    es, pt = strip_angulo(ES.read_bytes()), strip_angulo(PT.read_bytes())
     plant = {"plant.cpp": 'const char *a = UA_TXT( "Planted text" );\n'}
     line = entry("Planted text", "Texto plantado")
     h = f"{gate.fnv1a32('Planted text'):08x}"
@@ -119,9 +132,11 @@ def angulo_cases():
         return [p, e]
 
     try:
-        # the real tree: the section is absent from both packs and no literal exists, so the check has nothing to compare and passes
+        # the real tree: both packs carry the section and the sources carry the literals, one entry for each (B3), and the gate passes with something to compare
         bad, err = run_gate(sorted((ROOT / "data" / "lang").glob("*.lng")))
-        check("@ANGULO: the shipped packs pass with no section and no literal", not bad, err[-200:])
+        live = gate.angulo_literals()
+        check("@ANGULO: the shipped packs pass with their section against the sources' literals", not bad and len(live) > 0
+              and all(b"@ANGULO\n" in p.read_bytes() for p in (ES, PT)), f"{len(live)} literals; {err[-200:]}")
         check("@ANGULO: UA_TEXTOS_MAX is read from the header of the tree the gate points at", gate.textos_max() == int(
             re.search(r"(?m)^constexpr\s+size_t\s+UA_TEXTOS_MAX\s*=\s*(\d+)", REAL_H.read_text(encoding="utf-8")).group(1)))
 

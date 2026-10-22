@@ -42,16 +42,18 @@ inline void cortar( char *dst, int cap, const char *texto, Fonte f, int16_t larg
   }
 }
 
-// "<nome><fim>" in `dst`, the name cut so that the whole sentence fits in
+// "<nome> <fim>" in `dst`, the name cut so that the whole sentence fits in
 // `larg` px: the ending says what happened, the name is what gives way. The
-// ending is measured together with the name, because a leading space has no
-// ink: a width taken from the ending alone would come out short by its advance.
+// space between them is added here and the ending is a text of its own (a
+// pack's text has no leading space, S10c B3). The sentence is measured whole,
+// because a space has no ink: a width taken from the ending alone comes out
+// short by the space's advance, and the loop below makes it up.
 inline void nomeComFim( char *dst, int cap, const char *nome, const char *fim, Fonte f, int16_t larg ) {
   char cortado[40];
   int16_t orcamento = larg - larguraTinta( fim, f );
   for ( ;; ) {
     cortar( cortado, (int)sizeof cortado, nome, f, orcamento );
-    snprintf( dst, (size_t)cap, "%s%s", cortado, fim );
+    snprintf( dst, (size_t)cap, "%s %s", cortado, fim );
     if ( larguraTinta( dst, f ) <= larg || orcamento <= 0 ) return;
     orcamento--;
   }

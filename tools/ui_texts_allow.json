@@ -39,10 +39,15 @@
    }
   },
   {
-   "reason": "a format string with no word: only conversions, punctuation and the unit symbols kB and dBm; the words it joins are texts of their own",
+   "reason": "a format string with no word: only conversions, punctuation and the unit symbols kB, dBm, s and °C; the words it joins are texts of their own",
    "texts": {
     "src/ui/angulo/Angulo.cpp": [
+     "%d %s %d",
      "%s%ld,%ld"
+    ],
+    "src/ui/angulo/DisplayManager_UiA.cpp": [
+     "%s %s?",
+     "%s (%s %d) %s"
     ],
     "src/ui/angulo/DisplayManager_UiA_Menus.cpp": [
      "%s (%s)"
@@ -50,6 +55,7 @@
     "src/ui/angulo/DisplayManager_UiA_Painel.cpp": [
      "%02X:%02X:%02X:%02X:%02X:%02X",
      "%s",
+     "%s %d",
      "%s%s"
     ],
     "src/ui/angulo/telas/AjustesAlarmes.cpp": [
@@ -109,19 +115,27 @@
      "%s kB",
      "%s%d"
     ],
+    "src/ui/angulo/telas/PainelAlarme.cpp": [
+     "%s %u s",
+     "%s °C %s · %s %s °C"
+    ],
     "src/ui/angulo/telas/PainelComum.h": [
-     "%s%s"
+     "%s %s"
     ],
     "src/ui/angulo/telas/PainelPrincipal.cpp": [
      "%d",
      "%ld",
      "%s %s",
+     "%s %s %s °C",
+     "%s%u",
      "%u",
      "%u/%u"
     ],
     "src/ui/angulo/telas/Telas.cpp": [
-     "%s%.*s…",
-     "%s%s"
+     "%s · %u s",
+     "%s%s",
+     "%s: %.*s…",
+     "%s: %s"
     ]
    }
   },
@@ -277,7 +291,8 @@
    "reason": "a host-harness diagnostic: written to stderr by the host tests (UA_HOST) when a sample is wrong; it is not on the firmware and never drawn",
    "texts": {
     "src/ui/angulo/Angulo.cpp": [
-     "more than %d controls in one sample\n"
+     "more than %d controls in one sample\n",
+     "more than %d surfaces in one sample\n"
     ],
     "src/ui/angulo/telas/GraficosComum.cpp": [
      "%s: action %d is at %d,%d %dx%d in the kit's title bar, and its target was made for %d,%d %dx%d\n"

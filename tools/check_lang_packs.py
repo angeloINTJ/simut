@@ -24,9 +24,9 @@ And the Angulo's own section, @ANGULO (S10c, B2a): the touch panel of the Angulo
 language in this section, one line each, "<8 hex digits: FNV-1a 32 of the English> <the text>" (src/ui/angulo/Textos.h). The gate holds, for
 every pack: each line well formed and no hash twice (the device refuses the whole section otherwise and every text shows its English); a line
 for every UA_TXT( ) literal under src/ui/angulo, and none for a hash that matches no literal (an orphan: the English changed); no hash shared
-by two literals; the section no larger than UA_TEXTOS_MAX, read from Textos.h; and, as for every section, before @WEBDICT. The shipped packs
-have no @ANGULO yet and the sources no UA_TXT( ) literal, so the check passes with nothing to compare (2026-10-22): the conversion (B3 to
-B5) fills both sides, and the pack's size then meets LANG_FILE_MAX (the step that crosses it raises it).
+by two literals; the section no larger than UA_TEXTOS_MAX, read from Textos.h; and, as for every section, before @WEBDICT. Since S10c, B3
+(2026-10-22) both packs carry the section for the texts converted so far (the Painel and Base screens and the kit's two) and the sources the literals; B4 and B5 add
+the rest, and the pack's size then meets LANG_FILE_MAX (the step that crosses it raises it).
 
 The English of a UA_TXT( ) literal is the compiler's bytes (S10c, B2a-b): the escapes of every piece are decoded to bytes, the pieces' bytes joined
 and the join read as UTF-8, because that is what the device hashes ("a\\xE2\\x80" "\\xA6" is a and an ellipsis). An English that is not valid UTF-8 is

@@ -100,7 +100,8 @@ def base(tmp):
     strict = ['-Wall', '-Wextra', '-Werror']
     objs = [compilar(tmp, gfx / 'Adafruit_GFX.cpp', [*flags, '-w'], 'gfx'),
             compilar(tmp, ANGULO / 'Angulo.cpp', [*flags, *strict], 'angulo'),
-            compilar(tmp, HERE / 'host' / 'test_alvos_main.cpp', [*flags, *strict], 'main')]
+            compilar(tmp, HERE / 'host' / 'test_alvos_main.cpp', [*flags, *strict], 'main'),
+            compilar(tmp, ANGULO / 'Textos.cpp', [*flags, *strict], 'textos')]   # the kit's and Telas.cpp's UA_TXT( ): ua::txt( ) (S10c, B3)
     return (objs, flags + strict) if all(objs) else None
 
 
@@ -160,7 +161,7 @@ def controles_variante(tmp, nome, angulo_cpp, comum, partes):
     if not obj:
         return None
     exe = tmp / nome
-    r = subprocess.run(['g++', objs[0], obj, *partes, '-o', str(exe)], capture_output=True, text=True)
+    r = subprocess.run(['g++', objs[0], objs[3], obj, *partes, '-o', str(exe)], capture_output=True, text=True)
     if r.returncode:
         print(r.stderr, file=sys.stderr)
         return None

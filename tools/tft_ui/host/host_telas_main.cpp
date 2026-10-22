@@ -12,6 +12,7 @@
 //   <dir>/<nome>.alvos             one line per touch target: x y w h tipo indice
 //   <dir>/<nome>.contagem          the targets listed, the targets addAlvo( ) dropped because the list was full, MAX_ALVOS
 //   <dir>/<nome>_<tema>.faltam     the glyphs or icons the kit could not draw
+//   <dir>/<nome>_<tema>.superficies  one line per surface drawn with fillRoundRect( ) or roundRect( ): x y w h
 #include <Adafruit_GFX.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -89,6 +90,7 @@ int main( int argc, char **argv ) {
       p.bruto( canvas.getBuffer( ), 320, 0, 240 );
       ua::hostLimparTextos( );
       ua::hostLimparControles( );
+      ua::hostLimparSuperficies( );
       const uint32_t faltavam = ua::glifosFaltando( );
       a.desenhar( p );
       // And the margin black after it, the call uaPintar( ) makes after each strip: the frame written below is the glass's.
@@ -106,6 +108,13 @@ int main( int argc, char **argv ) {
       for ( int k = 0; k < n; k++ )
         fprintf( f, "%d %d %d %d %c %s\n", txt[k].x0, txt[k].x1, txt[k].y0, txt[k].y1, txt[k].selo ? 's' : 't',
                  txt[k].texto );
+      fclose( f );
+      snprintf( path, sizeof path, "%s/%s_%s.superficies", argv[1], a.nome, nomeTema );
+      f = fopen( path, "w" );
+      if ( !f ) { perror( path ); return 2; }
+      const ua::SuperficieDesenhada *sup;
+      const int nSup = ua::hostSuperficies( &sup );
+      for ( int k = 0; k < nSup; k++ ) fprintf( f, "%d %d %d %d\n", sup[k].x, sup[k].y, sup[k].w, sup[k].h );
       fclose( f );
       // The controls are written below, once the sample's targets are known.
       const ua::ControleDesenhado *ctl;

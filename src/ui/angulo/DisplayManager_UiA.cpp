@@ -28,7 +28,8 @@
 #include "telas/PainelBoot.h"   /* BOOT_PULAR */
 #include "telas/Telas.h"
 #include "telas/Ajustes.h"   /* SENSIB_CANCELAR and CALIB_BOTAO: the targets of the two hooks below */
-#include "../../DisplayManager_Actions.h"   /* the core's touch actions, which the confirmations' buttons run; last */
+#include "../../DisplayManager_Actions.h"   /* the core's touch actions, which the confirmations' buttons run; the last project header */
+#include "Textos.h"   /* UA_TXT( ): after every project header, because its pragmas hold to the end of the unit (SystemDefs_Records.h:962 stops it before DisplayManager.h) */
 
 alignas( 8 ) uint8_t g_uaVm[UA_VM_MAX];
 volatile int8_t g_uaNav[5] = { UA_NAV_NADA, UA_NAV_NADA, UA_NAV_NADA, UA_NAV_NADA, UA_NAV_NADA };
@@ -93,20 +94,44 @@ uint32_t fnv( const void *dados, size_t n, uint32_t h = 2166136261u ) {
  * keys come from showPanelMessage( )'s callers (AppManager_Panel.cpp,
  * AppManager_Events.cpp; grep of 2026-10-14). TR_PIN_SAVED also answers a
  * saved PIN policy and TR_NAME_INVALID the deletion of one's own account,
- * hence the neutral words. */
-struct TextoMsg { LangKey k; const char *texto, *detalhe; };
-const TextoMsg kMensagens[] = {
-  { TR_NO_PERMISSION, "Sem permissão.", "Peça a quem administra o aparelho para liberar esta função na sua conta." },
-  { TR_NAME_INVALID, "Não foi possível salvar a conta.",
-    "O nome pode estar em uso ou ser inválido. Uma conta também não pode excluir a si mesma." },
-  { TR_USER_SAVED, "Conta salva.", "" },
-  { TR_USER_DELETED, "Conta excluída.", "" },
-  { TR_PIN_SAVED, "Alteração salva.", "" },
-  { TR_USERS_FULL, "Não há vaga para outra conta.", "O aparelho guarda até 31 contas. Exclua uma para criar outra." },
-  { TR_PIN_IN_USE, "Este PIN já é de outra conta.", "Escolha outro PIN." },
-  { TR_INVALID_PIN, "PIN inválido.", "Confira o tamanho mínimo e os caracteres em Segurança do PIN." },
-  { TR_ERROR_LBL, "Não deu certo.", "Confira os valores e tente de novo." },
-};
+ * hence the neutral words. The words are looked up when a verdict is drawn and not kept in a table built at start-up: UA_TXT( ) answers from the
+ * pack that the boot loads (S10c, B3), so an initialiser would hold the English for good (Textos.h). Each text is bounded where it is copied
+ * (ua::copiar( ) into the view model's own buffer), whatever length a pack gives it. */
+struct TextoMsg { const char *texto, *detalhe; };
+bool textoDaMensagem( LangKey k, TextoMsg &t ) {
+  switch ( k ) {
+    case TR_NO_PERMISSION:
+      t = { UA_TXT( "No permission." ), UA_TXT( "Ask whoever administers the device to allow this function on your account." ) };
+      return true;
+    case TR_NAME_INVALID:
+      t = { UA_TXT( "Could not save the account." ),
+            UA_TXT( "The name may be in use or invalid. An account also cannot delete itself." ) };
+      return true;
+    case TR_USER_SAVED:
+      t = { UA_TXT( "Account saved." ), "" };
+      return true;
+    case TR_USER_DELETED:
+      t = { UA_TXT( "Account deleted." ), "" };
+      return true;
+    case TR_PIN_SAVED:
+      t = { UA_TXT( "Change saved." ), "" };
+      return true;
+    case TR_USERS_FULL:
+      t = { UA_TXT( "No room for another account." ), UA_TXT( "The device holds up to 31 accounts. Delete one to create another." ) };
+      return true;
+    case TR_PIN_IN_USE:
+      t = { UA_TXT( "This PIN belongs to another account." ), UA_TXT( "Choose another PIN." ) };
+      return true;
+    case TR_INVALID_PIN:
+      t = { UA_TXT( "Invalid PIN." ), UA_TXT( "Check the minimum length and the characters in PIN security." ) };
+      return true;
+    case TR_ERROR_LBL:
+      t = { UA_TXT( "That did not work." ), UA_TXT( "Check the values and try again." ) };
+      return true;
+    default:
+      return false;
+  }
+}
 
 }  // namespace
 
@@ -427,9 +452,15 @@ void DisplayManager::uiPass( SystemState &snap ) {
     tickMinMaxIdle( );
     C1_PHASE( C1P_SNAPSHOT );
     if ( pullSnapshot( snap ) ) {
-      /* The boot screen counts _langChanged for Core 0. The frame is painted from _lastRenderedState, which is the
-       * snapshot itself: the mirror rules of render( ) are applied by the panel's own model. */
-      if ( snap.isBooting ) _langChanged = false;
+      /* The frame is painted from _lastRenderedState, which is the snapshot itself: the mirror rules of render( ) are applied by the
+       * panel's own model. setLanguage( ) (Core 0, right after uiLangLoaded( ) published the texts) raises _langChanged, and the original's boot
+       * render answers it with a full redraw, to retranslate the status lines it drew in English before the pack loaded (DisplayManager_Render.cpp:
+       * 176-190; until then tr( ) gives DICTIONARY_EN, DisplayManager_i18n.cpp:148-163). The Ângulo says the same: the hash of a frame covers its view
+       * model, whose status lines are tr( ) text, and not the texts UA_TXT( ) looks up when the frame is drawn, so the flag repaints every strip (S10c, B3). */
+      if ( snap.isBooting && _langChanged ) {
+        _langChanged = false;
+        _uaTudo = true;
+      }
       _lastRenderedState = snap;
       uaSujo( );
     }
@@ -548,9 +579,11 @@ bool DisplayManager::uiCalVerdictHit( int16_t x, int16_t y ) {
 bool DisplayManager::uaMontarPendente( UaQuadro &q ) {
   ua::tela::VmMensagem &vm = uaVm<ua::tela::VmMensagem>( );
   vm.ok = false;
-  snprintf( vm.texto, sizeof vm.texto, "Esta tela (modo %d) ainda não existe nesta build.", (int)_uiMode );
-  ua::copiar( vm.detalhe, "Volte ao painel e use a web para esta função.", sizeof vm.detalhe );
-  ua::copiar( vm.botao, "Voltar ao painel", sizeof vm.botao );
+  /* The mode's number sits inside the sentence: three texts and a literal format around the number (Textos.h: a looked-up text is never a format). */
+  snprintf( vm.texto, sizeof vm.texto, "%s (%s %d) %s", UA_TXT( "This screen" ), UA_TXT( "mode" ), (int)_uiMode,
+            UA_TXT( "is not in this build yet." ) );
+  ua::copiar( vm.detalhe, UA_TXT( "Go back to the panel and use the web for this function." ), sizeof vm.detalhe );
+  ua::copiar( vm.botao, UA_TXT( "Back to the panel" ), sizeof vm.botao );
   uaUsar<ua::tela::VmMensagem, ua::tela::desenharMensagem, ua::tela::alvosMensagem>( q, vm );
   return true;
 }
@@ -570,28 +603,26 @@ bool DisplayManager::uaMontarBase( UaQuadro &q ) {
     case MODE_PANEL_MESSAGE: {
       VmMensagem &vm = uaVm<VmMensagem>( );
       vm.ok = _msgOk;
-      const TextoMsg *t = nullptr;
-      for ( const TextoMsg &m : kMensagens )
-        if ( m.k == _msgKey ) t = &m;
-      if ( t ) {
-        ua::copiar( vm.texto, t->texto, sizeof vm.texto );
-        ua::copiar( vm.detalhe, t->detalhe, sizeof vm.detalhe );
+      TextoMsg t;
+      if ( textoDaMensagem( _msgKey, t ) ) {
+        ua::copiar( vm.texto, t.texto, sizeof vm.texto );
+        ua::copiar( vm.detalhe, t.detalhe, sizeof vm.detalhe );
       } else if ( _msgKey < TR_KEYS_COUNT ) {
         uaLatin1ParaUtf8( tr( _msgKey ), vm.texto, sizeof vm.texto );
       }
-      ua::copiar( vm.botao, "Entendi", sizeof vm.botao );
+      ua::copiar( vm.botao, UA_TXT( "Got it" ), sizeof vm.botao );
       uaUsar<VmMensagem, desenharMensagem, alvosMensagem>( q, vm );
       return true;
     }
     case MODE_CONFIRM_MUTE_ALL: {
       VmDialogo &vm = uaVm<VmDialogo>( );
-      ua::copiar( vm.titulo, "Silenciar todos os sons?", sizeof vm.titulo );
+      ua::copiar( vm.titulo, UA_TXT( "Mute all sounds?" ), sizeof vm.titulo );
       ua::copiar( vm.texto,
-                  "Nenhum som toca, nem o do alarme, até alguém ligar os sons de novo. O mudo só vale "
-                  "depois de Salvar na tela de sons.",
+                  UA_TXT( "No sound plays, not even the alarm's, until someone turns the sounds back on. Mute only takes effect "
+                          "after you press Save on the sounds screen." ),
                   sizeof vm.texto );
-      ua::copiar( vm.nao, "Voltar", sizeof vm.nao );
-      ua::copiar( vm.sim, "Silenciar tudo", sizeof vm.sim );
+      ua::copiar( vm.nao, UA_TXT( "Back" ), sizeof vm.nao );
+      ua::copiar( vm.sim, UA_TXT( "Mute all" ), sizeof vm.sim );
       vm.destrutivo = true;
       uaUsar<VmDialogo, desenharDialogo, alvosDialogo>( q, vm );
       return true;
@@ -606,11 +637,12 @@ bool DisplayManager::uaMontarBase( UaQuadro &q ) {
         memcpy( nome, u, n );
         nome[n] = 0;
       }
-      snprintf( vm.titulo, sizeof vm.titulo, "Excluir a conta %s?", nome );
-      ua::copiar( vm.texto, "A conta perde o acesso pelo painel e pela web. O PIN e a senha dela são apagados.",
+      /* The name closes the question: the words are a text of their own (a pack may open the question with its own mark) and the "?" belongs to the literal format. */
+      snprintf( vm.titulo, sizeof vm.titulo, "%s %s?", UA_TXT( "Delete the account" ), nome );
+      ua::copiar( vm.texto, UA_TXT( "The account loses access from the panel and the web. Its PIN and password are erased." ),
                   sizeof vm.texto );
-      ua::copiar( vm.nao, "Cancelar", sizeof vm.nao );
-      ua::copiar( vm.sim, "Excluir a conta", sizeof vm.sim );
+      ua::copiar( vm.nao, UA_TXT( "Cancel" ), sizeof vm.nao );
+      ua::copiar( vm.sim, UA_TXT( "Delete account" ), sizeof vm.sim );
       vm.destrutivo = true;
       uaUsar<VmDialogo, desenharDialogo, alvosDialogo>( q, vm );
       return true;

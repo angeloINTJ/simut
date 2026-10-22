@@ -4,6 +4,7 @@
 #include <stdio.h>
 
 #include "PainelComum.h"
+#include "../Textos.h"   // UA_TXT( ): after every project header, because its pragmas hold to the end of the unit
 
 namespace ua {
 namespace tela {
@@ -40,28 +41,28 @@ LayoutAcao layoutAcao( const VmAcaoAlarme &vm ) {
 
   // What happened, in words, and the numbers that say it. The name gives way
   // to the rest of the title, so that the cause is never the part that is cut.
-  const char *fim = " em alarme";
+  const char *fim = UA_TXT( "in alarm" );
   char b1[16], b2[16];
   l.detalhe[0] = 0;
   switch ( vm.causa ) {
     case Causa::ACIMA:
-      fim = " acima do limite";
-      snprintf( l.detalhe, sizeof l.detalhe, "%s °C agora · máx %s °C", n1( vm.temp, b1 ), n1( vm.limite, b2 ) );
+      fim = UA_TXT( "above the limit" );
+      snprintf( l.detalhe, sizeof l.detalhe, "%s °C %s · %s %s °C", n1( vm.temp, b1 ), UA_TXT( "now" ), UA_TXT( "max" ), n1( vm.limite, b2 ) );
       break;
     case Causa::ABAIXO:
-      fim = " abaixo do limite";
-      snprintf( l.detalhe, sizeof l.detalhe, "%s °C agora · mín %s °C", n1( vm.temp, b1 ), n1( vm.limite, b2 ) );
+      fim = UA_TXT( "below the limit" );
+      snprintf( l.detalhe, sizeof l.detalhe, "%s °C %s · %s %s °C", n1( vm.temp, b1 ), UA_TXT( "now" ), UA_TXT( "min" ), n1( vm.limite, b2 ) );
       break;
     case Causa::ERRO:
-      fim = " com erro no sensor";
-      snprintf( l.detalhe, sizeof l.detalhe, "Sem leitura. Confira o cabo." );
+      fim = UA_TXT( "with a sensor error" );
+      copiar( l.detalhe, UA_TXT( "No reading. Check the cable." ), (int)sizeof l.detalhe );
       break;
     case Causa::FORA:
-      snprintf( l.detalhe, sizeof l.detalhe, "Um valor passou do limite." );
+      copiar( l.detalhe, UA_TXT( "A value went past the limit." ), (int)sizeof l.detalhe );
       break;
   }
   painel::nomeComFim( l.titulo, sizeof l.titulo, vm.nome, fim, tipo::subtitulo, X_BLOCO + W_BLOCO - PAD - l.xTexto );
-  snprintf( l.rotuloSilenciar, sizeof l.rotuloSilenciar, "Silenciar por %u s", (unsigned)vm.silencioSeg );
+  snprintf( l.rotuloSilenciar, sizeof l.rotuloSilenciar, "%s %u s", UA_TXT( "Silence for" ), (unsigned)vm.silencioSeg );
   return l;
 }
 
@@ -77,10 +78,10 @@ void desenharAcaoAlarme( Pintor &p, const VmAcaoAlarme &vm ) {
   textoCentrado( p, l.detalhe, l.xTexto, l.faixa.y + ESP2 + 24, 16, tipo::apoio, T.perigo, 'l' );
   botao( p, l.silenciar.x, l.silenciar.y, l.silenciar.w, l.silenciar.h, l.rotuloSilenciar, Botao::PRIMARIO, false,
          IconeNome::BELL_OFF );
-  botao( p, l.minmax.x, l.minmax.y, l.minmax.w, l.minmax.h, "Ver mínimo e máximo", Botao::SECUNDARIO, false,
+  botao( p, l.minmax.x, l.minmax.y, l.minmax.w, l.minmax.h, UA_TXT( "View minimum and maximum" ), Botao::SECUNDARIO, false,
          IconeNome::HISTORY );
   // The label says what the button will ask for; the PIN keypad is next.
-  botao( p, l.desativar.x, l.desativar.y, l.desativar.w, l.desativar.h, "Desativar os alarmes (pede o PIN)",
+  botao( p, l.desativar.x, l.desativar.y, l.desativar.w, l.desativar.h, UA_TXT( "Deactivate alarms (asks for PIN)" ),
          Botao::DESTRUTIVO );
 }
 

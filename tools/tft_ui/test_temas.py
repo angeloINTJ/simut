@@ -816,11 +816,19 @@ def main():
     with tempfile.TemporaryDirectory(prefix='temas_host_') as t:
         tmp = pathlib.Path(t)
         gfx_obj, main_obj = tmp / 'Adafruit_GFX.o', tmp / 'test_temas_main.o'
-        for src, obj, estrito in ((gfx / 'Adafruit_GFX.cpp', gfx_obj, False), (HERE / 'host' / 'test_temas_main.cpp', main_obj, True)):
+        textos_obj = tmp / 'Textos.o'
+        for src, obj, estrito in ((gfx / 'Adafruit_GFX.cpp', gfx_obj, False), (KIT / 'Textos.cpp', textos_obj, True),
+                                  (HERE / 'host' / 'test_temas_main.cpp', main_obj, True)):
             rc, err = compila(src, obj, inc, estrito)
             if rc:
                 print(err, file=sys.stderr)
                 return 2
+        # The kit's UA_TXT( ) calls ua::txt( ) (S10c, B3): the library and the text lookup are the one object every program of this test shares.
+        r = subprocess.run(['ld', '-r', str(gfx_obj), str(textos_obj), '-o', str(tmp / 'Biblioteca.o')], capture_output=True, text=True)
+        if r.returncode:
+            print(r.stderr, file=sys.stderr)
+            return 2
+        gfx_obj = tmp / 'Biblioteca.o'
         texto = ANGULO.read_text(encoding='utf-8')
         for nome, velho, novo in MUTANTES:
             if texto.count(velho) != 1:
