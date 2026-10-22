@@ -15,7 +15,6 @@
  */
 
 #include "Themes.h"
-#include "simut_config.h"   /* SIMUT_UI_ANGULO is tested below: included here, not left to Themes.h */
 
 /* Theme pack selection → see src/simut_config.h Section 7.
  * Uncomment the SIMUT_THEMES_* lines there to include theme packs.
@@ -44,27 +43,10 @@ ThemePalette currentTheme;
  */
 const ThemePalette availableThemes[] = {
 
-#if SIMUT_UI_ANGULO
- /* The Ângulo build (src/ui/angulo/) paints with its own two palettes and
-  * keeps cfg.themeIndex as the choice among three; these rows only give the
-  * index its names where the web (/api/themes) and the console list them,
-  * and let both accept 0..2. The colours are the default's: nothing that
-  * build puts on the glass is drawn with them. */
- { "claro", "Claro",
- RGB565(18, 18, 20), RGB565(35, 38, 45), RGB565(245, 245, 245), RGB565(180, 180, 185), RGB565(90, 90, 100), RGB565(0, 150, 255), RGB565(50, 200, 255), RGB565(50, 50, 60),
- RGB565(255, 60, 60), RGB565(255, 170, 0), RGB565(0, 255, 2), RGB565(0, 200, 255), RGB565(0, 121, 255) , RGB565(180, 180, 185), RGB565(245, 245, 245), RGB565(245, 245, 245) , RGB565(0, 0, 0) , THM_STATE_DARK },
- { "escuro", "Escuro",
- RGB565(18, 18, 20), RGB565(35, 38, 45), RGB565(245, 245, 245), RGB565(180, 180, 185), RGB565(90, 90, 100), RGB565(0, 150, 255), RGB565(50, 200, 255), RGB565(50, 50, 60),
- RGB565(255, 60, 60), RGB565(255, 170, 0), RGB565(0, 255, 2), RGB565(0, 200, 255), RGB565(0, 121, 255) , RGB565(180, 180, 185), RGB565(245, 245, 245), RGB565(245, 245, 245) , RGB565(0, 0, 0) , THM_STATE_DARK },
- { "auto", "Automático",
- RGB565(18, 18, 20), RGB565(35, 38, 45), RGB565(245, 245, 245), RGB565(180, 180, 185), RGB565(90, 90, 100), RGB565(0, 150, 255), RGB565(50, 200, 255), RGB565(50, 50, 60),
- RGB565(255, 60, 60), RGB565(255, 170, 0), RGB565(0, 255, 2), RGB565(0, 200, 255), RGB565(0, 121, 255) , RGB565(180, 180, 185), RGB565(245, 245, 245), RGB565(245, 245, 245) , RGB565(0, 0, 0) , THM_STATE_DARK },
-#else
  /* ------ CORE (always included) ------ */
  { "simut_def", "Simut Default",
  RGB565(18, 18, 20), RGB565(35, 38, 45), RGB565(245, 245, 245), RGB565(180, 180, 185), RGB565(90, 90, 100), RGB565(0, 150, 255), RGB565(50, 200, 255), RGB565(50, 50, 60),
  RGB565(255, 60, 60), RGB565(255, 170, 0), RGB565(0, 255, 2), RGB565(0, 200, 255), RGB565(0, 121, 255) , RGB565(180, 180, 185), RGB565(245, 245, 245), RGB565(245, 245, 245) , RGB565(0, 0, 0) , THM_STATE_DARK },
-#endif
 
 #ifdef SIMUT_THEMES_HEALTH
  /* ------ HEALTH: 12 awareness-month campaigns ------ */
@@ -451,10 +433,6 @@ static bool parseThm(const char* path, CustomTheme* dest) {
 void scanCustomThemes( ) {
  _customCount = 0;
  for (int i = 0; i < MAX_CUSTOM_THEMES; i++) _customThemes[i].used = false;
-#if SIMUT_UI_ANGULO
- /* No .thm in the Ângulo build: its three choices are the whole list. */
- return;
-#endif
 
  /* mkdir REMOVED from here — caused hang in post-OTA boot.
  * LittleFS.mkdir uses internal flash_safe_execute that triggered

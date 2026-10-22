@@ -346,19 +346,19 @@ DisplayManager_Fonts.cpp	22	22	FreeSansBold24pt7b	original			data pulled in by t
 DisplayManager_Fonts.cpp	24	24	simutFont9pt	original			external reference to the 9 pt font; fonts belong to the look
 DisplayManager_Fonts.cpp	25	25	simutFont12pt	original			external reference to the 12 pt font; fonts belong to the look
 DisplayManager_Fonts.cpp	26	26	simutFont24pt	original			external reference to the 24 pt font; fonts belong to the look
-Themes.cpp	25	25	currentTheme	original			The active ThemePalette that every C_* colour macro reads (Themes.h:93-128); palette storage.
-Themes.cpp	45	286	availableThemes	original			Static const table of the built-in palettes (simut_def always, the other packs behind SIMUT_THEMES_*); pure colour data.
-Themes.cpp	288	288	NUM_THEMES	original			Element count of availableThemes, computed from the table.
-Themes.cpp	309	309	_customThemes	original			Static RAM array of up to 8 custom themes loaded from /themes/*.thm (the UI_CUSTOM_THEMES capability).
-Themes.cpp	310	310	_customCount	original			Static count of the custom themes currently loaded.
-Themes.cpp	313	333	parseHexRgb565	original			File-local parser of #RRGGBB or 0xRRGGBB into RGB565 for the .thm loader; theme data only.
-Themes.cpp	339	449	parseThm	original			File-local .thm loader: reads a /themes file from LittleFS into a CustomTheme (24 colour fields, stock defaults, fallbacks); flash access, no drawing.
-Themes.cpp	451	476	scanCustomThemes	original			Rescans /themes for .thm files into _customThemes; flash access, called at boot (AppManager_Boot.cpp:996) and after a .thm delete or upload (WebManager_Files.cpp:148 and 519).
-Themes.cpp	478	484	getThemePalette	original			Maps a theme index to a palette (built-in table or custom slot); also called by the CLI, the web API and DisplayManager_Settings.cpp.
-Themes.cpp	487	490	loadTheme	original			Copies the chosen palette into currentTheme; called by AppManager (boot, EVT_APPLY_THEME at AppManager_Events.cpp:363, CLI) and WebManager_Commit.cpp:140, not by the display itself.
-Themes.cpp	492	492	getThemeCount	original			Built-in count plus loaded custom themes; used by the CLI, the web API/commit and the settings screen.
-Themes.cpp	494	497	getThemeId	original			Returns the idName string of a theme index; used by the CLI theme list.
-Themes.cpp	500	509	getThemeIndexByName	original			Exact then substring match of a theme id; used only by the CLI conf system theme command (AppManager_Commands.cpp:223).
+Themes.cpp	24	24	currentTheme	original			The active ThemePalette that every C_* colour macro reads (Themes.h:93-128); palette storage.
+Themes.cpp	44	268	availableThemes	original			Static const table of the built-in palettes (simut_def always, the other packs behind SIMUT_THEMES_*); pure colour data.
+Themes.cpp	270	270	NUM_THEMES	original			Element count of availableThemes, computed from the table.
+Themes.cpp	291	291	_customThemes	original			Static RAM array of up to 8 custom themes loaded from /themes/*.thm (the UI_CUSTOM_THEMES capability).
+Themes.cpp	292	292	_customCount	original			Static count of the custom themes currently loaded.
+Themes.cpp	295	315	parseHexRgb565	original			File-local parser of #RRGGBB or 0xRRGGBB into RGB565 for the .thm loader; theme data only.
+Themes.cpp	321	431	parseThm	original			File-local .thm loader: reads a /themes file from LittleFS into a CustomTheme (24 colour fields, stock defaults, fallbacks); flash access, no drawing.
+Themes.cpp	433	454	scanCustomThemes	original			Rescans /themes for .thm files into _customThemes; flash access, called at boot (AppManager_Boot.cpp:996) and after a .thm delete or upload (WebManager_Files.cpp:148 and 519).
+Themes.cpp	456	462	getThemePalette	original			Maps a theme index to a palette (built-in table or custom slot); also called by the CLI, the web API and DisplayManager_Settings.cpp.
+Themes.cpp	465	468	loadTheme	original			Copies the chosen palette into currentTheme; called by AppManager (boot, EVT_APPLY_THEME at AppManager_Events.cpp:363, CLI) and WebManager_Commit.cpp:140, not by the display itself.
+Themes.cpp	470	470	getThemeCount	original			Built-in count plus loaded custom themes; used by the CLI, the web API/commit and the settings screen.
+Themes.cpp	472	475	getThemeId	original			Returns the idName string of a theme index; used by the CLI theme list.
+Themes.cpp	478	487	getThemeIndexByName	original			Exact then substring match of a theme id; used only by the CLI conf system theme command (AppManager_Commands.cpp:223).
 UiWidgets.cpp	20	26	uiCenteredText	original			File-local helper: prints a label centred in a rect with the font and colour already set.
 UiWidgets.cpp	28	44	uiTitleBar	original			Draws the title bar (312 px card at x=4, accent tab, 9pt title, optional page dots) with hard-coded radii and insets.
 UiWidgets.cpp	46	53	uiPageDots	original			Draws up to eight page dots right-aligned at x=304.

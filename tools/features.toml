@@ -227,8 +227,9 @@ lib_deps = ["https://github.com/angeloINTJ/pico-enc28j60.git#4984e2f55727c81cfd6
 #             sai do build (-<unidade> no build_src_filter), como a de um driver de rede.
 # ---------------------------------------------------------------------------
 [ui.original]
-# O painel que toda release leva, o padrao: nada a emitir. Sem `units` ainda: o desenho dele mora em
-# DisplayManager_*.cpp, que as duas imagens linkam por enquanto.
+# O painel que toda release leva, o padrao: nada a emitir. `units`: as unidades so dele, que a imagem do Angulo nao compila
+# (Themes.cpp, o catalogo de temas; o Angulo define o dele em ui/angulo/Temas.cpp).
+units = ["Themes.cpp"]
 
 [ui.angulo]
 flags = ["-DSIMUT_UI_ANGULO=1"]
@@ -241,6 +242,7 @@ flags = ["-DSIMUT_UI_ANGULO=1"]
 include = [
     "ui/angulo/Angulo.cpp",
     "ui/angulo/DisplayManager_UiA*.cpp",
+    "ui/angulo/Temas.cpp",
     "ui/angulo/WebManager_UiA.cpp",
     "ui/angulo/telas/*.cpp",
 ]

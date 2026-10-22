@@ -7,10 +7,6 @@
   "src/DisplayManager_Panel.cpp": {
    "count": 3,
    "reason": "transitional hook of the Ângulo driver (S2a); removed in S4–S10b: the `#if` around the `_uaPintando` guard of fastFillRect, fastClearScreen and blitCanvas, so that only the Ângulo's renderer pushes pixels; ends in S10b (the Ângulo image stops linking the original)"
-  },
-  "src/Themes.cpp": {
-   "count": 2,
-   "reason": "transitional hook of the Ângulo driver (S2a); removed in S4–S10b: the `#if` around the Ângulo's three-row catalogue (claro, escuro, auto) and the one that skips the .thm scan; ends in S10b (the theme catalogue hooks)"
   }
  },
  "driver-hook": {
