@@ -305,9 +305,10 @@ Leia `inventario/pin_usuarios_alarmes.md` inteiro e `tools/tft_ui/plano/PlanoTec
   texto e o cursor, contador "5 de 15", as 4 camadas (abc, ABC, 123, #+=), Shift (uma letra) e Caps
   (travado), apagar, espaço, **Salvar**/OK e **Cancelar** na barra. Alvos por tecla (`indice` = posição
   na camada) e os de função. Amostras: vazio; digitando; Shift; Caps; 123; #+=; cheio (15 de 15);
-  as quatro recusas do nome da conta, numa fileira de 296 px (`TXT_ERRO_*`): "Digite um nome, não só
-  espaços.", "Tire as aspas e a barra invertida.", "O nome admin é reservado. Use outro." e "Esse nome já
-  existe. Use outro.".
+  as quatro recusas do nome da conta, numa fileira de 296 px (`erroSoEspacos( )`, `erroCaracteres( )`,
+  `erroReservado( )` e `erroRepetido( )`, que dão o texto do idioma do aparelho desde a S10c B5b; em
+  pt-BR): "Digite um nome, não só espaços.", "Tire as aspas e a barra invertida.", "O nome admin é
+  reservado. Use outro." e "Esse nome já existe. Use outro.".
 - **Usuários (`VmUsuarios`)**: título "Usuários", voltar e a ação **Nova conta** na barra
   (desabilitada sem permissão de gerir contas); linhas de 48 px, 3 por página (`ident::LINHAS_2`; o
   paginador aparece a partir da quarta conta): na primeira linha o nome e o selo "Sem PIN" (alerta) quando

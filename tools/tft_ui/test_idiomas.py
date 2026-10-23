@@ -70,8 +70,11 @@ PISO_LEGENDA, PISO_VOLTAR, PISO_RODAPE = 4, 168, 86
 # The bar's "Cancel" of the PIN keypad and of the text keyboard (a target of the bar that is not dead), and the rows of the account picker and of the user list whose name is cut beside a badge,
 # counted on 2026-10-23 (B5b). PISO_SEM_DADO: the Painel's and the charts' placeholders for a missing value ("--,-"), the same day.
 PISO_CANCELAR, PISO_SELOS, PISO_SEM_DADO = 43, 9, 12
-FOLGA_CORTE = 16        # a name cut beside a badge ends at most this far past the room the layout leaves it (the cut stops at the last whole character: 0 to 8 px for these names, measured 2026-10-23);
-                        # so the case sees a badge measured from another text only when the two widths differ by a character or more, about 8 px ("Locked" and "Bloqueada" differ by 29)
+FOLGA_CORTE = 16        # a name cut beside a badge ends at most this far past the room the layout leaves it (the cut stops at the last whole character: 0 to 8 px for these names, measured 2026-10-23).
+                        # So the case sees only what moves one of the two cut names by a character or more. Measured the same day (review of B5b; stages/s10c_b5bb/varredura, the room each
+                        # layout gives its badge changed by s px): measured wider than drawn, it fails from s = +10 in the user list (English only) and from +12 in the account picker (pt-BR
+                        # and es-ES), and +2 to +8 pass in both; narrower, -2 fails in the user list (English) and passes in the picker, and -1 passes in both. The defect it is for, a badge
+                        # measured from another word, is wider than that: "Locked" and "Bloqueada" differ by 29 px.
 # The numbers with one decimal that the samples of all the groups draw in each language, counted on 2026-10-22 (B5a: 109 in graficos, 36 in menus, 101 in painel, 16 in ajustes): the separator check holds this many in every language.
 PISO_DECIMAIS = 262
 CHAVE_SEPARADOR = 'Decimal separator'                            # the English key of the separator (Angulo.cpp, separadorDecimal( )); English has no line for it and draws the point

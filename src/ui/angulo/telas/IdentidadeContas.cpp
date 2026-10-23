@@ -264,7 +264,10 @@ void desenharConta( Pintor &p, const VmConta &vm ) {
   const LayoutConta l = layoutConta( vm );
   desenharBarra( p, l.barra, vm.nome[0] ? vm.nome : UA_TXT( "New account" ) );
 
-  const char *const rotulos[3] = { UA_TXT( "Edit limits" ), UA_TXT( "Block alarms" ), UA_TXT( "Maintenance" ) };   // looked up here: UA_TXT( ) cannot initialise a static table
+  // Looked up here: UA_TXT( ) cannot initialise a static table. "Maintenance mode" and not "Maintenance": one English has one
+  // translation, and the shared key's es-ES is "Mantenim." for the alarm list's badge, where "Mantenimiento" cut the sensor's
+  // name (S10c B4a-b). This row has the width for the whole word, which the original panel's es-ES row shows (review of B5b).
+  const char *const rotulos[3] = { UA_TXT( "Edit limits" ), UA_TXT( "Block alarms" ), UA_TXT( "Maintenance mode" ) };
   static const uint8_t bits[3] = { CTA_PERM_LIMITES, CTA_PERM_ALARMES, CTA_PERM_MANUT };
   Item perms[3];
   for ( int i = 0; i < 3; i++ ) {

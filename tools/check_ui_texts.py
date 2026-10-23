@@ -61,14 +61,18 @@ THE ALLOWANCES. tools/ui_texts_allow.json lists what has letters and is not pane
     {"groups": [{"reason": "a unit: ...", "texts": {"src/ui/angulo/telas/X.cpp": ["hPa", "min"]}}]}
 
 An entry is a file, the decoded literal and (through its group) the reason. It covers every occurrence of that literal in that file, and
-only there. The groups of the file today: the brand, a unit, a format string with no word (conversions, punctuation and the unit symbols
-kB and dBm only), an icon name, an identifier passed to another API (a language tag, a theme id), a name compared with what the user typed,
-the bench endpoint's own route, headers and JSON, a linker section, a host-harness tag or diagnostic, a measurement probe, and the message
-of a static_assert. The last five go beyond the usual non-text categories (a log tag, a JSON key, a unit, the brand, a format string, an
-icon name, an identifier passed to another API): each is plainly not drawn, and each is a group of its own so that it can be reviewed, or
-made structural, on its own. What is drawn on the panel is NEVER allowed, even when it is the same in every language (an endonym, a
-keypad legend, a protocol name, a weekday initial): B3 to B5 decide those, one by one, with UA_TXT( ) or with an entry and its reason. So
-the count of --report is the work left, and nothing in the allowance file makes it look smaller. Two things are findings of their own: an
+only there. The file's 16 groups (2026-10-23): the brand, a unit, a format string with no word (conversions, punctuation, the unit
+symbols kB, dBm, s, °C, h, min and d and the time standard GMT), an icon name, an identifier passed to another API (a language tag, a theme
+id), a name compared with what the user typed, the bench endpoint's own route, headers and JSON, a linker section, a host-harness tag, a
+host-harness diagnostic, a measurement probe, the message of a static_assert, a file mode, the option a #pragma names, a name the web
+lists and a key's face. Nine go beyond the usual non-text categories (a log tag, a JSON key, a unit, the brand, a format string, an icon
+name, an identifier passed to another API), each a group of its own so that it can be reviewed, or made structural, on its own: seven are
+plainly not drawn (from the linker section to the #pragma), and two were decided one by one. A name the web lists (S10c B4a) is the theme
+catalogue that GET /api/themes serves as it is; the panel draws words of its own for it, and whether the web shows it in the device's
+language is the maintainer's to decide. A key's face (S10c B5b) is the characters a PIN keypad's group or a text keyboard's layer types:
+data, which a pack must not relabel. What is drawn on the panel is NEVER allowed by its kind, even when it is the same in every language (an
+endonym, a keypad legend, a protocol name, a weekday initial): each one was decided with UA_TXT( ) or with an entry and its reason. So the
+count of --report is the work left, and nothing in the allowance file makes it look smaller. Two things are findings of their own: an
 allowance that matches nothing ("unused allowance": the text was converted, moved, or never had a letter) and the same file and text
 allowed in two groups ("allowed twice"). A group with no reason, or an entry that is not a string, is a refusal (exit 2). A missing
 allowance file is an empty one.
