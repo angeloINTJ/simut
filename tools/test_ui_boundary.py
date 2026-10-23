@@ -878,8 +878,8 @@ def real_tree_cases():
     derived = cub.original_headers(ROOT, set(real_files), cub.read_manifest(ROOT))
     five = {"src/Themes.h", "src/UiWidgets.h", "src/DisplayManager_Fonts.h", "src/PasswordKeyboard.h", "src/sensors/SensorDrawing.h"}
     check("the original's headers derived from the S0 table and section 2.5 include the five (Themes.h, UiWidgets.h, "
-          "DisplayManager_Fonts.h, PasswordKeyboard.h, sensors/SensorDrawing.h) and DisplayManager_Alarm.h, and not the class",
-          five <= derived and "src/DisplayManager_Alarm.h" in derived and "src/DisplayManager.h" not in derived
+          "DisplayManager_Fonts.h, PasswordKeyboard.h, sensors/SensorDrawing.h) and DisplayManager_AlarmUi.h, and not the class",
+          five <= derived and "src/DisplayManager_AlarmUi.h" in derived and "src/DisplayManager.h" not in derived
           and "src/DisplayManager_Auth.h" not in derived, str(sorted(derived))[:300])
     fonts = {"src/FreeSansBold9pt8b_latin1.h", "src/FreeSansBold12pt8b_latin1.h", "src/FreeSansBold24pt7b_subset.h"}
     left_out = {"src/DisplayManager_FmtFloat.h", "src/OtaScreen.h", "src/TextWrap.h", "src/display/ClockEntry.h",
@@ -1015,7 +1015,7 @@ def real_tree_cases():
                 f"real tree + an include of Themes.h in the Angulo unit {angulo_any}: one finding")
         mutated(angulo_any, '\n#include "../../sensors/SensorDrawing.h"\n', "cross-driver",
                 f"real tree + an include of SensorDrawing.h in the Angulo unit {angulo_any}: one finding")
-        for h in ("DisplayManager_Alarm.h", "PasswordKeyboard.h", "UiWidgets.h", "DisplayManager_Fonts.h", "FreeSansBold9pt8b_latin1.h",
+        for h in ("DisplayManager_AlarmUi.h", "PasswordKeyboard.h", "UiWidgets.h", "DisplayManager_Fonts.h", "FreeSansBold9pt8b_latin1.h",
                   "FreeSansBold12pt8b_latin1.h", "FreeSansBold24pt7b_subset.h"):
             mutated(angulo_any, f'\n#include "../../{h}"\n', "cross-driver",
                     f"real tree + an include of {h} in the Angulo unit {angulo_any}: one finding")

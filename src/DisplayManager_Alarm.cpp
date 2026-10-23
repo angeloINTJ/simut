@@ -1,11 +1,11 @@
 /**
  * @file DisplayManager_Alarm.cpp
- * @brief Alarm rendering: state setters, drawAlarmAction, slot helpers, flash.
- * @details Provides alarm-related rendering: alarm action screen with
- * silence/deactivate/min-max buttons, per-slot alarm state queries,
- * and alarm flash animation on dashboard panels.
- * drawAlarmAction uses fixCardCorners (Dashboard) — called
- * cross-file via this-> (member method).
+ * @brief Alarm state: the setters, the per-slot queries, the silence and the
+ * entry to the alarm action screen.
+ * @details The state both UIs read: which slots are in alarm or in sensor
+ * error, the per-slot error mute and the silence. The original's draws of
+ * the alarm (the action screen, the card background, the flash repaint)
+ * are in DisplayManager_AlarmUi.cpp since S10c D5.
  *
  * @project SIMUT — Integrated Universal Monitoring and Telemetry System
  * @author Ângelo Moisés Alves
@@ -59,127 +59,10 @@ void DisplayManager::showAlarmAction(int8_t slotIdx) {
 }
 
 
-/* drawAlarmAction via strips (header + 3 buttons).
- * "Draw everything with offset per strip" pattern — each strip draws ALL
- * elements on the canvas (320x40), with appropriate Y offset per strip.
- * Adafruit_GFX auto-clips pixels outside the canvas -> each strip
- * shows only its corresponding portion. ~5x more CPU vs single-pass but eliminates
- * top-down visual tearing (~80ms total render). */
-void DisplayManager::drawAlarmAction( ) {
-	if (!_driver.canvas) return;
-	if (!_forceSettingsRedraw) return;
-	_forceSettingsRedraw = false;
-
-	/* Header text — computed once, used in all strips. */
-	char headerBuf[40];
-	mutex_enter_blocking(&_stateMutex);
-	char friendlyName[32];
-	safeCopy(friendlyName, _sharedState.slotName, sizeof(friendlyName));
-	mutex_exit(&_stateMutex);
-	if (strlen(friendlyName) > 0) {
-		snprintf(headerBuf, sizeof(headerBuf), "! %s", friendlyName);
-	} else {
-		snprintf(headerBuf, sizeof(headerBuf), "! Slot %d", _alarmActionSlot);
-	}
-	String silTxt = tr(TR_SILENCE_120S);
-	String deactTxt = tr(TR_DEACTIVATE);
-	String mmTxt = tr(TR_MINMAX);
-
-	const int btnX = 20, btnW = 280, btnH = 45, btnR = 10;
-
-	GFXcanvas16* cv = beginScreenRender( );
-	if (!cv) return;
-
-	int16_t bx, by; uint16_t bw, bh;
-
-	for (int strip = 0; strip < 6; strip++) {
-		cv->fillScreen(C_BG_MAIN);
-		const int16_t yOff = -strip * RENDER_STRIP_H;
-
-		/* Header (y_screen=4..52) — visible in strips 0 and 1 */
-		cv->fillRect(4, 4 + yOff, 312, 48, C_ALARM_BG);
-		cv->setFont(&simutFont12pt);
-		cv->setTextColor(C_ALARM_TEXT);
-		cv->getTextBounds(headerBuf, 0, 0, &bx, &by, &bw, &bh);
-		cv->setCursor((320 - bw) / 2, 32 + yOff);
-		cv->print(headerBuf);
-
-		/* Silence button (y_screen=60..105) — visible in strips 1 and 2.
-		 * cautionBg é laranja-escuro: usa o branco do erro (C_ALARM_ERR_TEXT),
-		 * não o alarmText (que virou PRETO para o fundo amarelo). */
-		cv->fillRoundRect(btnX, 60 + yOff, btnW, btnH, btnR, C_CAUTION_BG);
-		cv->setFont(&simutFont12pt);
-		cv->setTextColor(C_ALARM_ERR_TEXT);
-		cv->getTextBounds(silTxt, 0, 0, &bx, &by, &bw, &bh);
-		cv->setCursor(btnX + (btnW - bw) / 2, 90 + yOff);
-		cv->print(silTxt);
-
-		/* Deactivate button (y_screen=115..160) — visible in strips 2 and 3 */
-		cv->fillRoundRect(btnX, 115 + yOff, btnW, btnH, btnR, C_ALARM_BG);
-		cv->getTextBounds(deactTxt, 0, 0, &bx, &by, &bw, &bh);
-		cv->setCursor(btnX + (btnW - bw) / 2, 145 + yOff);
-		cv->print(deactTxt);
-
-		/* Main menu button (y_screen=170..215) — visible in strips 4 and 5 */
-		cv->fillRoundRect(btnX, 170 + yOff, btnW, btnH, btnR, C_ACCENT);
-		cv->setTextColor(C_BG_MAIN);
-		cv->getTextBounds(mmTxt, 0, 0, &bx, &by, &bw, &bh);
-		cv->setCursor(btnX + (btnW - bw) / 2, 200 + yOff);
-		cv->print(mmTxt);
-
-		commitScreenStrip(strip);
-	}
-	endScreenRender( );
-}
-
 bool DisplayManager::isSlotAlarming(int slotIdx) const {
 	return (slotIdx >= 0 && slotIdx < MAX_SENSORS) && (_alarmSlotMask & (1 << slotIdx));
 }
 
-uint16_t DisplayManager::slotAlarmBg(int slotIdx) const {
-	if (_alarmSilenced) return C_CARD_BG;
-
-	/* Erro de sensor tem prioridade visual: âmbar brilhante no lugar do
-	 * vermelho de limite. Um slot não está nos dois ao mesmo tempo —
-	 * inErrorState sobrepõe os limites. */
-	if (isSlotErrAlarming(slotIdx)) {
-		return _alarmFlashPhase ? C_ALARM_ERR_BG : C_CARD_BG;
-	}
-	if (!isSlotAlarming(slotIdx)) return C_CARD_BG;
-	return _alarmFlashPhase ? C_ALARM_BG : C_CARD_BG;
-}
-
 bool DisplayManager::isAnyAlarmActive( ) const {
 	return (_alarmSlotMask != 0) || (_alarmErrMask != 0);
-}
-
-
-void DisplayManager::redrawAlarmFlash( ) {
-	if (!_driver.tft || !_driver.canvas) return;
-
-	if (isSlotAlarming(_lastRenderedState.topSlotIdx) ||
-	    isSlotErrAlarming(_lastRenderedState.topSlotIdx)) {
-		drawSlotPanel(_lastRenderedState.topSlotTemp, _lastRenderedState.topSlotHum,
-		                 _lastRenderedState.topSlotType, _lastRenderedState.topSlotValid,
-		                 _lastRenderedState.topSlotIdx, _lastRenderedState.topSlotName, true, _topPanel);
-	}
-
-	int sel = _lastRenderedState.selectedSlotIdx;
-	if (isSlotAlarming(sel) || isSlotErrAlarming(sel)) {
-		drawSlotPanel(_lastRenderedState.slotTemp, _lastRenderedState.slotHum, _lastRenderedState.slotType, _lastRenderedState.slotValid,
-		              sel, _lastRenderedState.slotName, true, _bottomPanel);
-	}
-
-
-	bool pageHasAlarm = false;
-	bool otherPageHasAlarm = false;
-	for (int i = 0; i < 10; i++) {
-		if (!isSlotAlarming(i) && !isSlotErrAlarming(i)) continue;
-		int slotPage = (i < 4) ? 0 : (i < 8) ? 1 : 2;
-		if (slotPage == _currentPage) pageHasAlarm = true;
-		else otherPageHasAlarm = true;
-	}
-	if (pageHasAlarm || otherPageHasAlarm) {
-		drawBottomButtons(sel);
-	}
 }

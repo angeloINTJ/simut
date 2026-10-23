@@ -30,7 +30,7 @@ six rules over src/**/*.{c,cc,cpp,cxx,h,hh,hpp,hxx,inl,ipp,tpp}:
                   2. the header next to each unit that docs/analysis/UI_DRIVERS_funcoes.tsv, the S0
                      classification, gives at least one `original` or `mixed` row, and next to each
                      unit [ui.original] of the manifest lists in `units` or `include` (S10b fills
-                     them): Themes.h, UiWidgets.h, DisplayManager_Fonts.h, and a DisplayManager_Alarm.h
+                     them): Themes.h, UiWidgets.h, DisplayManager_Fonts.h, and a DisplayManager_AlarmUi.h
                      or any other the day a unit is split, with no edit here. A unit with one original
                      row makes its header the original's until a split takes that row out (S10a split eight
                      units; UI_DRIVERS.md section 2.14 names the ones that stay whole). A unit that is itself a header derives

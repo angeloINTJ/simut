@@ -5,8 +5,8 @@ usage: check_ui_link.py [--nm PATH] [--readelf PATH] [--tsv FILE] [--original-un
        check_ui_link.py --selftest                  the gate's own cases on synthetic `nm` text and synthetic table rows, a read of the real table, and the command line's own function (main) on a fake nm and a fake readelf, a shell script each, then the script itself run as a process, the way CI runs it (no toolchain, no ELF: it can run in the gates job)
 exit 0: every ELF clean. 1: a finding (a symbol the Angulo image must not hold, or an allowance that no longer applies). 2: a refusal (no ELF, nm or readelf missing or failed, not an Angulo image, a table it cannot read).
 
-Why. After S4 to S10b the Angulo links none of the original's draws and none of the pixel primitives it drew with: --gc-sections drops the units that are still compiled, and the builds no longer compile the nine units that [ui.original].units of
-tools/features.toml lists (Themes.cpp since C4a, seven more since C6, Dashboard.cpp since S10c D1). Nothing else in CI holds that: the flash budget counts bytes, not names, and the checks the S10b steps ran by hand (nm, a reachability script) lived in scratch space. One original draw reached again by a
+Why. After S4 to S10b the Angulo links none of the original's draws and none of the pixel primitives it drew with: --gc-sections drops the units that are still compiled, and the builds no longer compile the ten units that [ui.original].units of
+tools/features.toml lists (Themes.cpp since C4a, seven more since C6, Dashboard.cpp since S10c D1, DisplayManager_AlarmUi.cpp since S10c D5). Nothing else in CI holds that: the flash budget counts bytes, not names, and the checks the S10b steps ran by hand (nm, a reachability script) lived in scratch space. One original draw reached again by a
 core path, or a primitive by a hook, would put the original's pixels on the Angulo's panel with no gate saying so.
 
 The first version (C6) was a grep of the names `DisplayManager::(draw[A-Z]\\w*|render|redraw\\w*)`, simutFont and availableThemes. Its review (2026-10-21) planted nine draw functions under other names in a real symbol table and the gate passed all nine; of the 188 symbols of
@@ -246,7 +246,7 @@ def selftest():
         for p in review:
             a, f, u = scan('\n'.join(real + ['00002000 t ' + p]), rows, listed, set())
             case("the real table: the review's plant %s is exactly one finding" % p, len(f) == 1 and f[0][0] == p, str(f))
-        case('the real table: the manifest lists the nine units the Angulo does not compile, each with a row', len(listed) == 9 and all(any(r['unit'] == x for r in rows) for x in listed), str(sorted(listed)))
+        case('the real table: the manifest lists the ten units the Angulo does not compile, each with a row', len(listed) == 10 and all(any(r['unit'] == x for r in rows) for x in listed), str(sorted(listed)))
         case('the real table: no unit of [ui.original].units is a header (a header has no file symbol, so the unit rule would drop its rows from every image)', all(not u.endswith(('.h', '.hpp')) for u in listed), str(sorted(listed)))
         H_ORIG = ['CLOCK_COL_X', 'CLOCK_COL_W', 'PwdKb::GROUPS', 'PwdKb::DIGITS', 'PwdKb::SYMBOLS', 'PwdKb::popupHit(signed char, short, short)', 'themeTint(unsigned short)', 'panelDHT22(GFXcanvas16*, float)', 'panelBMP280(int)', 'minMaxDS18B20(int)', 'minMaxDHT22(int)', 'minMaxBME280(int)', 'SENSOR_PANEL_DISPATCH',
                   'PinKb::keyAt(PinKb::Grid const&, short, short)', 'fmtFloat1(char*, unsigned int, float) [clone .isra.0]', 'fmtFloat2(char*, unsigned int, float) [clone .isra.0]']

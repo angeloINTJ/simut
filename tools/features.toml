@@ -72,7 +72,7 @@ flags   = ["-DSIMUT_DISPLAY_TFT=0", "-DSIMUT_DISPLAY_ALPHA=1", "-DHD44780_MODE_P
 exclude = [
   "DisplayManager_Touch.cpp", "DisplayManager_Settings.cpp", "DisplayManager_SettingsCore.cpp", "DisplayManager_Graph.cpp", "DisplayManager_GraphCore.cpp",
   "DisplayManager_Dashboard.cpp", "DisplayManager_Panel.cpp", "DisplayManager_Calibration.cpp", "DisplayManager_CalibrationCore.cpp", "DisplayManager_Auth.cpp",
-  "DisplayManager_Alarm.cpp", "DisplayManager_Calendar.cpp", "DisplayManager_CalendarCore.cpp", "DisplayManager_Fonts.cpp",
+  "DisplayManager_Alarm.cpp", "DisplayManager_AlarmUi.cpp", "DisplayManager_Calendar.cpp", "DisplayManager_CalendarCore.cpp", "DisplayManager_Fonts.cpp",
   "DisplayManager_i18n.cpp", "DisplayManager_i18nUi.cpp", "DisplayManager_LangParser.cpp", "AppManager_Graph.cpp",
   "DisplayManager_Ota.cpp", "DisplayManager_OtaCore.cpp", "DisplayManager_Render.cpp",
 ]
@@ -86,7 +86,7 @@ flags   = ["-DSIMUT_DISPLAY_TFT=0", "-DSIMUT_DISPLAY_ALPHA=0"]
 exclude = [
   "DisplayManager_Touch.cpp", "DisplayManager_Settings.cpp", "DisplayManager_SettingsCore.cpp", "DisplayManager_Graph.cpp", "DisplayManager_GraphCore.cpp",
   "DisplayManager_Dashboard.cpp", "DisplayManager_Panel.cpp", "DisplayManager_Calibration.cpp", "DisplayManager_CalibrationCore.cpp", "DisplayManager_Auth.cpp",
-  "DisplayManager_Alarm.cpp", "DisplayManager_Calendar.cpp", "DisplayManager_CalendarCore.cpp", "DisplayManager_Fonts.cpp",
+  "DisplayManager_Alarm.cpp", "DisplayManager_AlarmUi.cpp", "DisplayManager_Calendar.cpp", "DisplayManager_CalendarCore.cpp", "DisplayManager_Fonts.cpp",
   "AppManager_Graph.cpp", "DisplayManager.cpp", "DisplayManager_Render.cpp", "DisplayManager_Alpha.cpp",
   "DisplayManager_Ota.cpp", "DisplayManager_OtaCore.cpp", "DisplayManager_i18nUi.cpp",
 ]
@@ -236,6 +236,11 @@ lib_deps = ["https://github.com/angeloINTJ/pico-enc28j60.git#4984e2f55727c81cfd6
 # que o Angulo chamava (uaMontarPainel e uaToquePainel), foi para o Panel.cpp, que as duas imagens compilam e onde a tabela a classifica como
 # core. Medido nesse dia, as duas imagens do Angulo de zero sem a unidade: o mesmo .bin (826752 e 1035632 B), nenhuma funcao mudada (V-ELF) e
 # os bytes do original nelas caem de 293 e 269 B para 17 B (a buildDashLayout tem 276 e 252 B).
+# A DisplayManager_AlarmUi.cpp entrou em 2026-10-23 (S10c, D5): as tres funcoes de desenho da tela de alarme (drawAlarmAction, slotAlarmBg e
+# redrawAlarmFlash), que so o original chama, sairam do Alarm.cpp (o estado do alarme, core) para ela. Medido nesse dia, as duas imagens do
+# Angulo de zero sem a unidade: o mesmo .bin (826752 e 1035632 B), nenhuma funcao mudada (V-ELF) e os mesmos 17 B do original; as tres
+# funcoes ja nao entravam nelas (o --gc-sections as descartava), entao a lista traz o erro de link de uma dependencia nova, e nao bytes. As
+# duas listas de exclusao do LCD trazem a unidade tambem: os tres .bin do LCD3 (alpha, air e wire) mantem o sha256 da base.
 # Ainda NAO estao aqui, cada uma com o que a segura (tabela da P4; o S10b-2 as separa): Settings (so na imagem com Wi-Fi:
 # core0Yield( ) chama showApConfirm( )), Calibration (core0Yield( ) chama
 # showTouchCalibration e showSettingsDisplayOffset, e handleResetTouchCal so showTouchCalibration), Auth (fastRandom, readRect*, convert3to565 e readRow,
@@ -251,6 +256,7 @@ units = [
     "DisplayManager_i18nUi.cpp",
     "UiWidgets.cpp",
     "DisplayManager_Dashboard.cpp",
+    "DisplayManager_AlarmUi.cpp",
 ]
 
 [ui.angulo]
