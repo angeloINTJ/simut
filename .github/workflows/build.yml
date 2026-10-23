@@ -268,6 +268,23 @@ jobs:
       - name: Language-pack gate (positive controls, the @ANGULO section)
         run: python3 tools/test_lang_gate.py
 
+      # The Angulo's texts outside UA_TXT( ) (S10c, B6). Every text the Angulo draws is UA_TXT( "<English>" ), looked up in the pack's @ANGULO
+      # section (the two steps above). A literal with a letter outside it, which tools/ui_texts_allow.json does not name with its reason, draws
+      # the same words in every language. B1 wrote the gate in report mode and B3 to B5b converted the screens: 523 texts outside UA_TXT( ) in
+      # 33 files on 2026-10-22, 0 on 2026-10-23. From here it blocks. Its selftest runs 92 cases in temporary trees (in a copy of the real tree,
+      # a planted literal adds exactly one finding), then 10 controls, each a part of the gate turned off, and each must make a case fail. The
+      # first control, the lexer turned off, runs again as a process: its exit status and its RESULT line must both say that cases failed, or
+      # a selftest that cannot fail would pass here. Standard library only: 4 s on 2026-10-23.
+      - name: Angulo texts outside UA_TXT( ) (the gate, its cases and controls)
+        run: |
+          python3 tools/check_ui_texts.py --selftest
+          if out=$(python3 tools/check_ui_texts.py --selftest --no-strip); then
+            echo "check_ui_texts.py --selftest --no-strip exited 0: its cases pass with the lexer turned off" >&2
+            exit 1
+          fi
+          grep -qE '^RESULT: [0-9]+ cases, [1-9][0-9]* failed' <<< "$out"
+          python3 tools/check_ui_texts.py
+
       # The Angulo's host tests (S10c, A'2c). They build the kit, and the glue's theme and paint path, with g++ against Adafruit GFX and
       # run them. No workflow ran them until now, because the gates job had no GFX; three reviews in a row (A'2, A'3, A'2b) then found
       # mutants of the glue that a local run would have caught. The library is fetched at the version platformio.ini pins for the firmware
@@ -288,9 +305,11 @@ jobs:
       - name: Angulo touch targets on the host (test_alvos.py)
         run: python3 tools/tft_ui/test_alvos.py
       # Every group of screens in English, Portuguese and Spanish (S10c, B3; every group since B3-b, because the kit's texts reach them all): the shipped packs draw with no
-      # missing glyph, no text past its card or its button, and no fixed text cut; what a screen places by a translated text's width keeps its place
-      # in the three languages (the back button's target, the charts' page name: S10c B3-c); and planted packs (an "ő", a label of 74 characters, a text of 102 wider than its card, a text
-      # whose "í" the host recorder cuts in two) must fail exactly the samples whose frames they change. 18 s on 2026-10-22 here, 3 min 43 s of CPU.
+      # missing glyph, no text past its card or its button, and no fixed text cut but the cuts each language accepts. What a screen places by a translated text's width keeps
+      # its place in the three languages, each check with a floor: the back button's target, the pager's count, the footers' boxes, the identity bar's Cancel, the room a
+      # badge leaves a cut name, the decimal separator, the calendar's names and the placeholder of a missing value (S10c B3-c to B5b). Planted packs (an "ő", a label of 74
+      # characters, a text of 102 wider than its card, a text whose "í" the host recorder cuts in two) must fail exactly the samples whose frames they change. 121 checks;
+      # 19.6 s here on 2026-10-23, 4 min of CPU.
       - name: Angulo screens in the device's three languages (test_idiomas.py)
         run: python3 tools/tft_ui/test_idiomas.py
 

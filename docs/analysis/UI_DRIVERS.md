@@ -1074,6 +1074,141 @@ Reading the palette from flash on Core 1 (A'2b) costs nothing measurable at this
 
 **A'6, the documentation.** No function and no byte of an image changes. The documents are this section, the sentence added to C4b's paragraph in section 2.15, section 4.4's block for S10c A' and the two S10b-1 lines it closes (with two other statements of that block marked as superseded), the `_doc` string of `tools/tft_ui/tokens_tft.json` (the header does not change: `gen_tokens.py --check` still matches), the eleventh environment's sentence in `CLAUDE.md` (it said nothing runs `pico2_w_angulo` on a board; the Pico 2 W on the bench has since 2026-10-22), and `tools/README.md`: the rows of `gen_tokens.py`, `test_acentos.py`, `test_temas.py` and `host_telas.py` brought to the tree of A'2c, and `test_temas.py`, `test_cantos.py` and `test_alvos.py` moved from "Referenced elsewhere" to "Called by CI", since A'2c made the `gates` job run them (the group header said 66 for 67 rows since A'2). The manual is not changed: `docs/MANUAL.md` ("Themes") and `docs/MANUAL.pt-BR.md` ("Temas") describe the shipping images, which draw the original, and the Ângulo is not approved for products. **Proved,** on the working tree before the commit. Nothing was built: no file under `src/` changes (`git diff` of `src/` against A'2c is empty), so no image can. `git diff --stat` against A'2c names the four files and no other. `python3 tools/tft_ui/gen_tokens.py --check` exits 0 ("the header matches the JSON") with the longer `_doc`, which the generator never reads. The figures this section and `tools/README.md` quote were read again from the tools on 2026-10-22: `gen_tokens.py --report` exits 0 with every pair at or over its target; `test_acentos.py` 54 cases and `test_temas.py` 160 cases (91 on A'2c's tree, where A'6 was written), 0 failed in both; `host_telas.py` exits 0 on the six groups, and its `--acentos` draws 36 frames with 67,056 accent pixels. `python3 tools/check_angulo.py` exits 0 (92 documents without emoji). The proof kit's `ci_gates_local.py`, which reads `build.yml` and runs CI's gate steps on the tree, passes 58 of 58 steps and skips 1 (the sanitizer pass, which only CI runs), the count A'2c recorded. **The one gate that reads `docs/README.md` and `tools/README.md` is `check_angulo.py`:** it takes the Living documents from the first and scans both, `CLAUDE.md` and this document for emoji; `check_readme_numbers.py` reads the three product READMEs and not these two.
 
+### 2.17 The Ângulo speaks the device's language (S10c, B)
+
+**S10c B (2026-10-22 and 2026-10-23, branch `feat/ui-drivers-s10c`, after Stage A' and Stage C1's first commits) did this.** Until B3, every text the Ângulo drew was a pt-BR literal in `src/ui/angulo/`, so the panel spoke Portuguese whatever language the device ran. Now every text it draws is written once, in English, in the code, as `UA_TXT( "<English>" )`. The active language pack (`/lang/language_<code>.lng`) gives the text that stands for that English. A device in English, which has no pack, and a pack that lacks the text both draw the English. Eighteen commits changed the repository, in this order on the branch:
+
+- B1, the gate, in report mode;
+- B2a, the lookup, on the host; B2a-b, a looked-up text is never a format; B2b, the load at boot; B2b-b, three comments;
+- B3, the Painel and Base screens; B3-b, one back action for the kit, a host recorder that cuts on a character, and every group in three languages; B3-c, the pager's count, and what a screen places by a translated text;
+- B4a, the Menus screens; B4b-0, `LANG_FILE_MAX`; B4a-b, the accepted cuts by language, and floors for the cross-language checks; B4b-0-b, the gate's reader of `TV_CAP`; B4b, the Ajustes screens;
+- B5a, the Gráficos screens, the decimal separator, and the names of the months and weekdays; B5a-b, the ellipsis exemption and the separator's guard; B5b, the Identidade screens; B5b-b, the review of B5b answered;
+- B6, which makes the gate block in CI and writes this section.
+
+B7, the bench in the three languages, has not run yet. The plan (`S10C_PLANO.md`, section 6) is not in the repository. The commits are named by step and not by hash, for the reason section 2.15 gives.
+
+- **The maintainer's words of 2026-10-22, and what "the same way" kept.** "Quero que Ângulo tenha traduções da mesma forma que a interface original." The original translates its panel from the pack's `@DICT`, a positional list that the products load whole into the heap. Its bound is `LANG_DICT_MAX`, 6,144 B; on 2026-10-23 the list is 3,292 B in pt-BR and 3,393 B in es-ES, and stage B did not change it. The original reads a pack only at boot, and a text the pack lacks shows the English. The Ângulo keeps all three: the same packs, the same moment, and the same fallback. It adds a section of its own. A language chosen on the Idioma screen is saved at once and takes effect at the next restart; since B4a the screen says so. `TRL( )` is not this mechanism: nothing on the device reads `@TRL`, and `DisplayManager::trlLookup( )` has answered "absent" since 2026-08-29.
+- **B2a, the section and the lookup.** `@ANGULO` holds one line per text: the FNV-1a 32 hash of the English's UTF-8 bytes in 8 hex digits, a space, and the text. The section comes before `@WEBDICT`, which must stay the file's suffix. The texts would not fit under `@DICT`'s bound, and in `@DICT` they would cost every product that heap. The products' scanner (`LangPackScanner`, `src/LangPackIndex.h`) takes an unknown directive as the end of the body before it and reads on. It knows `@ANGULO` only in the Ângulo images, under the capability `SIMUT_UI_PACK_TEXTS` (B2b), so the products' heap does not grow. The hash is computed when a text is asked for, not stored at each call site. Measured on 2026-10-22 with the project's flags, 100 call sites are 4,146 B with the hash at run time and 4,750 B with a constant per site on the Cortex-M0+ (4,142 and 4,738 B on the Cortex-M33).
+- **The table.** `ua::txt( )` (`src/ui/angulo/Textos.cpp`) answers from one table: an 8 B header, the hashes in ascending order (4 B each), the offsets into the text area (2 B each), and the texts, each with its NUL. A binary search finds the hash. No table, or no entry, gives the English.
+- **B2b, the load at boot.** `AppManager::setup( )` (`AppManager_Boot.cpp`) calls `DisplayManager::uiLangLoaded( )` (`DisplayManager_UiA_Textos.cpp`) once, right after the pack loads. The call:
+  1. reads the section's byte range, which the device's own scanner found, into one buffer of exactly that length;
+  2. builds the table with one allocation;
+  3. frees the buffer;
+  4. publishes the table by one release store.
+
+  Core 1 sees either no table or the whole one. A section over `UA_TEXTOS_MAX` (16,384 B) is refused before anything is allocated. A refusal is `I18N_PACK_FAILED` at `LOG_WARN`, with the context 100 plus the result (101 to 107), and every text then shows its English. The original's hook returns 0. Core 1 starts painting before the pack loads, so the first boot frames are in English, as the original's are. B3 made `uiPass( )` repaint every strip when the language changes, as the original's boot render does.
+- **The sizes**, measured on 2026-10-23 on the tree of B5b-b. The table's size is the loader's own arithmetic over the section: 8 B, plus 6 B per entry, plus the texts with their NULs. The host's loader reports the same figure, 8,230 B for pt-BR. The heap figures are what the board should show; B7 measures them there.
+
+| | pt-BR | es-ES | English |
+|---|---:|---:|---:|
+| texts in `@ANGULO` | 373 | 373 | no pack |
+| their UTF-8 | 5,611 B | 5,860 B | — |
+| the section (of `UA_TEXTOS_MAX`, 16,384 B) | 9,341 B (57.0 %) | 9,590 B (58.5 %) | — |
+| the table, kept in the heap | 8,230 B | 8,479 B | 0 |
+| the heap at boot, buffer and table at once | 17,571 B | 18,069 B | 0 |
+| the pack file (of `LANG_FILE_MAX`, 65,536 B) | 51,387 B | 53,371 B | — |
+| `@DICT` (of `LANG_DICT_MAX`, 6,144 B), unchanged | 3,292 B | 3,393 B | — |
+
+- **The flash.** Over the stage, flash used grew by 3,416 B on the Wire's Ângulo image (`pico_wiretft_angulo`, 811,300 to 814,716 B) and by 3,208 B on the Pico 2 W's (`pico2_w_angulo`, 1,032,400 to 1,035,608 B). Of that, the loader and its hook are 944 and 904 B (B2b). The steps from B3 to B5b-b, which converted the 454 call sites, add 2,472 and 2,304 B, with B4b-0's -40 and +8 B among them. Static RAM stayed at 115,912 and 131,572 B from B2b to B5b-b. Each step's figures are its own measurement, recorded in `tools/flash_budget.json`; the steps that moved no byte are left out. Wire / Pico 2 W, in bytes:
+
+| step | B2b | B3 | B3-b | B3-c | B4a | B4b-0 | B4b | B5a | B5a-b | B5b | B5b-b |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| flash used | +944 / +904 | +728 / +672 | -48 / -56 | +16 / +16 | +648 / +608 | -40 / +8 | +480 / +456 | +328 / +384 | +8 / +8 | +336 / +192 | +16 / +16 |
+
+- **The rules every conversion followed (B3 to B5b-b), and what holds each one.**
+  1. **English, Portuguese and Spanish.** The English follows ANGULO.md section 7. The pt-BR is today's approved text, byte for byte. V-PIX held the pt-BR frames equal at every step: 948 of 948 at the end. Two deliberate changes were listed before their steps: B4a's Idioma note, and B4b's PIN-policy keypad, whose touch zone starts 4 px lower because the English "Keypad"'s descenders crossed it. The es-ES is new, in the Spanish of Spain. Where a text did not fit, es-ES was shortened, and those wordings wait for a native review (section 4.4).
+  2. **A looked-up text is never a format** (B2a-b). A pack is a file that anyone with `PERM_FILE_UPLOAD` can put on the device, and the loader keeps only hashes, so it cannot compare a translation's conversions with the English's. The words go in as arguments of a literal format: `snprintf( b, n, "%d %s", v, UA_TXT( "min" ) )`. The gate refuses `UA_TXT( )` as the format of a printf-family call. From the end of `Textos.h`, `-Wformat-nonliteral` and `-Wformat-security` are errors (B2b).
+  3. **No `UA_TXT( )` in an initialiser.** A table built at start-up would hold the English for good, because the pack is not loaded yet. So the tables became switches or functions at draw time: `kMensagens` (B3), `kMotivos` and the months and weekdays (B5a), and the identity bar's `kVoltar` and `kCancelar` (B5b).
+  4. **One source for a label that a layout measures and a draw draws.** If the two read different texts, a translation moves a box and leaves its target, or its ink, behind. The single sources are:
+     - the kit's `acaoVoltar( )` (B3-b);
+     - `contagemDoPaginador( )` (B3-c);
+     - `CaixasRodape`, which keeps the labels its boxes were measured from (B4b);
+     - `separadorDecimal( )` (B5a);
+     - the identity bar's actions, the footer's labels, and one function per badge (B5b).
+  5. **One English, one translation.** Where a language needs two forms of one English, the English must differ:
+     - English weekday initials repeat ("S" is both Sunday and Saturday), so the keys are "Su" to "Sa" (B5a);
+     - the account's permission row is "Maintenance mode", so that es-ES can say "Mantenimiento" there and keep "Mantenim." on the alarm list's badge (B5b-b).
+  6. **The decimal separator follows the language** (B5a, B5a-b). It is the pack's text for "Decimal separator". Only "," or "." is accepted, and anything else gives ".". pt-BR and es-ES write ",", and English writes ".". The original writes "." in every language (`fmtFloat1`). The placeholder of a missing value follows the separator too: "--,-" in pt-BR, "--.-" in English (B5a for the charts, B5b for the Painel). Dates stay DD/MM and times 24-hour in every language, as in the original.
+  7. **Every copy is bounded, and numbers stay in literal formats.**
+- **The gate, `tools/check_ui_texts.py`** (B1; blocking since B6). Any string literal under `src/ui/angulo/` that holds a letter and is not the whole argument of `UA_TXT( )` is a finding, unless `tools/ui_texts_allow.json` names it with a reason. The gate reads what the compiler reads. Comments are removed by `check_net_boundary.py`'s lexer, escapes are decoded, adjacent literals are joined, and raw strings are read as written. Other findings are an allowance that matches nothing, a text allowed twice, an English that is not UTF-8, and a looked-up text used as a format. Its `--selftest` runs 92 cases in temporary trees, then 10 controls, each a part of the gate turned off; every control must fail a case. On a copy of the real tree, a planted literal adds exactly one finding. The work left, by step, as the gate of the tip counts it on each step's tree:
+
+| step | texts outside `UA_TXT( )` | files | in `UA_TXT( )` | allowed (groups) |
+|---|---:|---:|---:|---:|
+| B1 | 523 (408 distinct) | 33 of 80 | 0 | 213 (12) |
+| B2b-b | 523 | 33 of 83 | 0 | 216 (14) |
+| B3, Painel and Base | 451 | 26 | 69 | 228 (14) |
+| B3-b, B3-c | 447 | 25 | 69 | 229 (14) |
+| B4a, Menus | 316 | 18 | 181 | 262 (15) |
+| B4b, Ajustes | 191 | 12 | 290 | 267 (15) |
+| B5a, Gráficos | 103 | 5 | 377 | 274 (15) |
+| B5b, Identidade | 0 | 0 of 83 | 454 | 307 (16) |
+
+  The allowed literals grew by 94 over the stage, in these groups:
+  - 48 are formats left with no word, because their words went into `UA_TXT( )`;
+  - 22 are the keys' faces: the letters a PIN keypad's group or a text keyboard's layer types;
+  - 18 are the theme catalogue's names, which the web lists;
+  - 6 are host-harness diagnostics, a `static_assert`'s message, the `#pragma` options and a file mode.
+
+  Two groups were decided one by one, because their texts are drawn or served. **A key's face** (B5b) is data that a pack must not relabel. **A name the web lists** (B4a) is the 18 names that `GET /api/themes` serves as they are, in pt-BR, in every language. The panel's Tema screen draws words of its own for them. Whether the web should show them in the device's language is the maintainer's to decide (section 4.4).
+- **The pack gate, `tools/check_lang_packs.py`** (every firmware build; B2a onward). It requires one entry per `UA_TXT( )` literal in both packs. It refuses an orphan, a hash shared by two literals, a section after `@WEBDICT`, a section over `UA_TEXTOS_MAX`, and every malformed line. Since B4b-0 it also holds `LANG_FILE_MAX` at or under the web text viewer's cap (`TV_CAP` in `WebUI.h`): a pack the device accepts stays one the web can show. `LANG_FILE_MAX` went from 49,152 B to 65,536 B in that step, because es-ES had reached 97 % of the old ceiling with three groups of screens still to translate. `tools/test_lang_gate.py` holds the gate's cases: 52 on 2026-10-23.
+- **The host checks, `tools/tft_ui/test_idiomas.py`** (B3 onward; every group since B3-b). Every group of screens is drawn in English, pt-BR and es-ES from the shipped packs. Each language must show no missing glyph, no text past its card or its button, and no fixed text cut, apart from the cuts `cortes_aceitos.txt` accepts for that language. The cross-language checks hold what a screen places by a translated text's width, each with a floor so that a step cannot quietly draw fewer:
+  - the back button's target, in 168 samples;
+  - the pager's count beside its legend;
+  - the footers' boxes against their labels' ink, 86 buttons;
+  - the identity bar's "Cancel", 43 samples;
+  - the room a badge leaves a cut name, 9 rows;
+  - the decimal separator, over 262 numbers per language;
+  - the calendar's month and weekday names;
+  - the update screens' paragraphs, which must end 12 px or more above the foot;
+  - the placeholder of a missing value, 12 per language.
+
+  Planted packs must fail exactly the samples whose frames they change: an "ő", a label of 74 characters, a text of 102 characters wider than its card, and a text whose "í" the host recorder would cut in two. On 2026-10-23 the suite ran 121 checks, 0 failed, in 19.6 s (4 min of CPU).
+- **The proofs that run, and where.** CI's `gates` job runs:
+  - `test_textos.py`, the lookup and the loader under ASan and UBSan with their mutants (105 checks);
+  - `test_lang_gate.py`;
+  - since B6, `check_ui_texts.py` with its selftest and its first control run as a process;
+  - after the Adafruit GFX fetch, `test_idiomas.py`.
+
+  `check_lang_packs.py` runs in every firmware build. Each step also ran, outside the repository:
+  - V-PIX: the pt-BR frames against the previous step's;
+  - V-SHA9: the nine product images rebuilt from scratch and byte-identical, apart from B4b-0's re-stamp of the web pages and B5b-b, which built none;
+  - V-P2W: every changed function of the two Ângulo images named, by `tools/elf_funcoes.py` and the kit's `reloc_only.py`.
+
+  B4b-0's proof was redone by decomposition, after its review showed that the reader of the first difference had proved only the first difference.
+- **The reviews.** A read-only session reviewed each step before the next one built on it. It rebuilt the images, re-ran the proofs and planted mutants. Nine reviews covered stage B, and all nine returned COM RESSALVAS with nothing blocking. Eight were answered by a step named after them: B2a-b, B2b-b, B3-b, B3-c, B4a-b, B4b-0-b, B5a-b and B5b-b. B4b's needed no commit of its own: its first point closes with B6, which makes blocking the gate that sees it; the others went to the proof kit, the native review, the bench and B5a's brief. The records are `rev_s10c_*`, outside the repository.
+
+**Where `S10C_PLANO.md` was wrong or incomplete** (section 6; the plan is not in the repository):
+
+1. Its inventory was a grep upper bound: 774 lines in 65 files. B1's gate counted 523 texts in 33 files. The grep's 819 lines on that tree held 358 that were only a comment or an `#include`, and it missed 36 findings on lines with runs shorter than three letters.
+2. It planned two groups of screens per step. B4 and B5 were each split in two (B4a and B4b, B5a and B5b), one group per step.
+3. It did not foresee the file ceiling. es-ES reached 47,697 B, 97 % of `LANG_FILE_MAX` (49,152 B), after B4a. B4b-0 raised the ceiling to 64 KiB, the web viewer's cap, and the gate holds the two in that order.
+4. It gave the decimal separator as `ua::n1( )` alone. `kb( )` (`telas/MenusStatus.cpp`) wrote the comma too (B5a), and so did the placeholders of a missing value: `"--%s-"` in the charts (B5a) and the Painel's `dec( )` (B5b).
+5. It named V-PIX "840/840" and "`ci_gates_local.py` (54/54)". The groups' samples grew to 948 pt-BR frames. The runner reads `build.yml`, which had 61 steps at B5b and has 62 after B6. B6 also found that the runner ran each multi-line step without errexit, while CI runs `bash -e` (the `gates` job's log prints `shell: /usr/bin/bash -e {0}`). A step whose first line failed and whose last passed was reported ok. Five steps that the runner runs have more than one line. The runner is fixed: B5b-b's run was the first with `-e`, and B6's the first full one.
+6. It did not say when the hook runs against Core 1. The call is right after the pack loads, and Core 1 starts painting before it, so the first boot frames are in English, as the original's are (B3).
+
+**B6, the gate blocks.** The `gates` job of `.github/workflows/build.yml` runs `check_ui_texts.py --selftest`, then the first control as a process: `--selftest --no-strip` must exit non-zero with failed cases. Then it runs the gate on the tree. Besides this section, B6 changes these places:
+- the gate's docstring, which said it was not in CI;
+- its row in `tools/README.md`, moved from "Referenced elsewhere" to "Called by CI" (and the page's count of scripts, 197 since B3 for 198 rows);
+- the comment of the `test_idiomas.py` step, which named only the checks of B3-c;
+- three comments of `src/ui/angulo/Textos.h`, one of which said the load runs "before the first paint", and one of `src/DisplayManager_LangParser.cpp`, which counted two groups of screens left where there were three;
+- section 4.4's block for S10c A', where F9's items (c) and (d) are closed and (b) is handed to the maintainer;
+- a new block in section 4.4 for S10c B.
+
+**Proved**, on the working tree before the commit (`stages/s10c_b6/`):
+- `check_ui_texts.py` on the tree exits 0, with 0 findings.
+- On a copy of the real tree, a planted panel literal gives exit 1 and exactly one finding, at its file and line. An allowance that matches nothing gives exit 1 and one finding. The same literal inside `UA_TXT( )` gives exit 0.
+- `--selftest` passes 102 cases and controls, 0 failed, in 4.1 s. `--selftest --no-strip` exits 1: 92 cases, 52 failed.
+- The step itself, read from `build.yml` and run with `bash -e` as CI runs it, exits 0 on the tree. It exits 1 on three copies: one with a planted literal (the gate's finding), one whose `--no-strip` control was made to return 0 (the step's own message), and one whose control raises (no RESULT line).
+- The proof kit's runner, which reads `build.yml` and runs CI's gate steps on the tree, now with `bash -e`, passes 62 of 62 steps, the new one among them, and skips 1: the sanitizer pass, which only CI runs.
+- `check_angulo.py` exits 0 (92 documents without emoji), and so does `check_readme_numbers.py`. The README's four groups hold 60, 17, 63 and 58 rows, 198 in all.
+- The eleven images were built from scratch in an export of the tree, with the comments of `src/` in. The nine are byte-identical to B5b's, and the two Ângulo images to B5b-b's.
+
+**What B7 is for.** The bench, on the Pico 2 W, is where these are proved:
+- the two cores' order (the release store against Core 1's acquire load), which the host cannot show;
+- the heap: against English, the table should cost 8,230 B in pt-BR and 8,479 B in es-ES, within the allocator's slack;
+- the boot frames, repainted in the pack's language;
+- every screen on the glass in the three languages, and the paint time in each.
+
 ## 3. The audit
 
 ### 3.1 (a) Members written inside draw bodies
@@ -2043,10 +2178,46 @@ numbers come from CI.
 - **F8, recorded and not fixed.** The rescan after an upload and after a delete (`WebManager_Files.cpp`) runs outside `RenderGuard` while Core 1 may be reading the custom palettes, and after a rescan nothing re-applies the theme, so a deleted theme stays on the glass until the next apply or boot. In the Ângulo neither runs any more: A'4 put both under `#if SIMUT_UI_CUSTOM_THEMES`, and the Ângulo has no custom palette to read (A'5 saw no rescan record after an upload or a delete). It stays the original's, and a fix to it moves the nine product images.
 - **F4's rule, as the encoding now holds it, and what stays open.** `themeIndex = modo + 3 x acento`; 0, 1 and 2 keep their meaning; an `int8_t` outside [0, 18) decodes as light with the stock accent; the number 3 and `ACENTOS_N` live in `ua::escolhaDoIndice( )` and `ua::indiceDaEscolha( )`, and the `static_assert` statements of `Temas.cpp` and `MenusConfig.cpp` tie the catalogue and the screen to the count (section 2.16). **Open:** the original reads the same byte as a built-in or custom theme (0 is simut_def, 1 to 8 is custom theme `t - 1` when that file is loaded, anything else is simut_def), so after an image switch the Ângulo's pairs read as custom themes or simut_def, and what the original wrote reads as pairs. Nothing has crossed the two images in a test. Stage C owns it: C5 compares `themeIndex`, the mode and the accent both ways and checks that the original shows simut_def or a loaded custom theme, and C6 documents what a field device shows after the switch. That the OTA keeps the byte is the plan's reading of the code (the UI is not part of the OTA variant), not an observation.
 - **The paint cost under TLS load is unmeasured.** A'2b moved the palette from RAM to flash, which Core 1 reads through the XIP cache. A'5 ran the A/B the bench allowed (section 2.16): 40 rounds per screen, the S10b tip against A'2c's, eight screens on plain HTTP, no Tema step and no XIP counters, every median within 1 ms. That bounds the cost at the 1 ms resolution for those screens without TLS load. It is not the worst case that the review of A'2b named: A'3 against A'2b, 200 or more paints, Core 0 under TLS load, the Tema screen among them, XIP counters around `uaPintar( )`. A bench item for when a board has a TLS pair; if it costs, the review's fallback is to copy the live theme and its twin (about 70 B) to Core 1's stack per frame.
-- **F9's four minor findings** (the S10c plan's), each against the tree of A'2c. (a) The Tema screen's touch accepted only rows `i < 3`: **gone** in A'3 (one rule per kind of target; `test_temas.py` refuses a bare 3 or 6 in the touch). (b) `/api/themes` names a theme with no name "Tema %d", in Portuguese: **still there** (`WebManager_Api.cpp:422`). The Ângulo's 18 entries all carry names, so only the original reaches it, and the names of the 18 stay const pt-BR (A'3); it waits for Stage B, which decides the language of the catalogue's names. (c) `ua::n1( )` writes the pt-BR decimal comma in every language: **still there** (`Angulo.cpp`, the format `"%ld,%ld"`); it waits for B5. (d) The Idioma screen says "Esta build mostra o painel em português.": **still there** (`telas/MenusConfig.cpp:199`, moved from :134 by A'3); it waits for B4, where the note becomes "takes effect at the next restart".
+- **F9's four minor findings** (the S10c plan's), each against the tree of A'2c. (a) The Tema screen's touch accepted only rows `i < 3`: **gone** in A'3 (one rule per kind of target; `test_temas.py` refuses a bare 3 or 6 in the touch). (b) `/api/themes` names a theme with no name "Tema %d", in Portuguese: **still there** (`WebManager_Api.cpp:422`). The Ângulo's 18 entries all carry names, so only the original reaches it, and the names of the 18 stay const pt-BR (A'3); it waited for Stage B, which decides the language of the catalogue's names. **Stage B left both as they are** (2026-10-23): the 18 names are the text gate's allowance group "a name the web lists", and whether the catalogue follows the device's language is the maintainer's to decide (the S10c B block below). (c) `ua::n1( )` writes the pt-BR decimal comma in every language: **still there** (`Angulo.cpp`, the format `"%ld,%ld"`); it waited for B5. **Closed in B5a** (section 2.17): the separator is the pack's text for "Decimal separator", and English writes ".". (d) The Idioma screen says "Esta build mostra o painel em português.": **still there** (`telas/MenusConfig.cpp:199`, moved from :134 by A'3); it waited for B4, where the note becomes "takes effect at the next restart". **Closed in B4a**: the note is "Takes effect at the next restart.", in the device's language.
 - **F-g (S10b-1's line above) still holds.** `StorageManager.cpp:275` and `:308` still describe `.thm` files in the `/themes/` folder (the filesystem's note and the folder's note), on every image, the Ângulo's included, and nothing the Ângulo links reads them. A'4 makes the Ângulo's case plainer and not different: it stores an uploaded `.thm` at the maintainer's word and uses none, so the notes are the original's. Recorded, not changed: the strings are core and every image has them.
 - **The CI steps of A'2c have not run on GitHub.** The `gates` job fetches Adafruit GFX and runs `test_temas.py`, `test_cantos.py` and `test_alvos.py` since A'2c; the steps were run in CI's form from a clean export, and the first pull request shows the runner's time and whether the fetch holds there.
 - **The manual's theme section** (`docs/MANUAL.md`, "Themes"; `docs/MANUAL.pt-BR.md`, "Temas") describes the shipping images, which draw the original: up to eight custom `.thm` themes of 24 roles, written with the editor in `tools/theme-editor/`. The Ângulo is not approved for products, so the manual is not changed here. It changes when a shipping image draws the Ângulo (Stage C, C6).
+
+**S10c B: what it found and left open (2026-10-23).** None of these is this stage's to change, or each was left on purpose; section 2.17 has the numbers.
+
+- **The Spanish waits for a native review.** es-ES was written for this stage, in the Spanish of Spain, and nobody who speaks it natively has read it. Where a text did not fit, it was shortened:
+  - "Maintenance" is "Mantenim." on the alarm list's badge, the sensor menu, the status page and the maintenance screen's title, because "Mantenimiento" cut the sensor's name; the pack's web dictionary abbreviates it too ("Mant. (panel)", a permission's label);
+  - "Start maintenance" is "Iniciar mantenim.", beside "Cancelar" in the footer;
+  - "Touch click" is "Clic al tocar";
+  - "Touch sensitivity" is "Sensibilidad del toque", where the original's pack says "Sensibilidad Táctil", whose accent crossed the safe area by 1 px;
+  - "Add account" is "Añadir" on the account list's bar;
+  - "The PINs do not match. Start over." became "Los PIN no coinciden. Pruebe otra vez." ("try again", a shift of sense the review of B5b noted).
+
+  In es-ES, 5 of the calendar's 12 month titles (Mar, May, Ago, Sep and Nov) fall to the smaller title font in some years, because "Volver" leaves the title 109 px. The update screen's title "Actualización de firmware" falls to it as well.
+- **One pt-BR text is English.** The board's chart is titled "Board Temp" in pt-BR, as it was before the stage. It stays byte for byte; es-ES says "Temp. de la placa". Translating it changes pt-BR frames, and that change is to be listed when it is made.
+- **The web's theme names stay pt-BR in every language.** `GET /api/themes` serves the catalogue's 18 names as `Temas.cpp` holds them, and the web writes them into its select without translating them. The panel's Tema screen draws its own words. Whether the catalogue follows the device's language is the maintainer's decision, asked on 2026-10-22 and not answered on 2026-10-23. Until then the names are the gate's allowance group "a name the web lists". F9 (b)'s "Tema %d" (`WebManager_Api.cpp:422`) waits for the same answer.
+- **One English, one translation.** The lookup keys by the English, so a later screen that reuses a generic English in another sense gets the first sense's word, with no warning. Today, for example:
+  - "Low" is the sound's "Grave";
+  - "Drop", "Rise", "Decline", "Alarm", "Click" and "Pulse" are also sounds (the review of B4b).
+
+  The rule for a new text: look for its English in the packs' `@ANGULO` first. Where the sense differs, the English must differ, as "Maintenance mode" does (B5b-b).
+- **The badge case sees 10 to 12 px, not 1.** Measured by B5b-b: the room a badge leaves a cut name, held in 9 rows of which 2 carry a cut name, fails when the measured badge is 10 px wider than drawn (the user list, English) or 12 px (the account picker, pt-BR and es-ES), and when it is 2 px narrower in one of the two. That is what it is for: a badge measured from another word is wider ("Locked" and "Bloqueada" differ by 29 px). A host record of the limit each cut is given would see 1 px.
+- **What only the bench can show (B7).** These need a board:
+  - the release store against Core 1's acquire load;
+  - the heap against the sizes of section 2.17;
+  - the boot frames repainted in the pack's language;
+  - B4b's PIN-policy keypad, whose touch zone starts 4 px lower;
+  - the frames in the three languages.
+
+  Nothing in stage B ran on a board.
+- **The stack frames grew, and Core 1's stack was not measured.** The draw functions run on Core 1, whose stack is 8,192 B (`s_core1Stack`, `src/DisplayManager.cpp:200`). B4b's frames grew the most: `desenharAlinhar( )` went from 288 to 392 B on the Wire (+104 B), and the rest by up to 64 B. B5b's grew by 0 to 24 B. The figures are read from the code, 4 B per pushed register plus the prologue's `sub sp`. No step measured the stack under load.
+- **The gate is lexical.** What it cannot see is in its docstring (KNOWN LIMITS):
+  - a text a program builds at run time;
+  - `#if 0` code, which it scans as code;
+  - a text that a header outside `src/ui/angulo/` defines and the Ângulo only passes along;
+  - a looked-up text that reaches a printf through a variable.
+
+  The last is `-Wformat-nonliteral`'s, which is an error from the end of `Textos.h` (B2b).
 
 ### 4.5 Product defects fixed for the Ângulo's bench image
 

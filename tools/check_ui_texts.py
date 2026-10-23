@@ -9,12 +9,14 @@
 Exit status: 0 no finding, 1 a finding, 2 the tree cannot be read (no src/ui/angulo, no source in it, an allowance file that is not
 what this script reads): a gate that cannot look must not pass.
 
-WHY. The maintainer asked on 2026-10-22 for the Ângulo to have translations the way the original panel has them. Today every text the
-Ângulo draws is a pt-BR literal in src/ui/angulo/**. Stage B of the S10c plan turns each into UA_TXT( "<English>" ), looked up in an @ANGULO
-section of the device's language pack (B2 builds the mechanism, B3 to B5 convert the screens, B6 makes this gate block in CI). TRL( ) is
-not that mechanism: nothing on the device reads @TRL (S10c plan, F1: DisplayManager::trlLookup( ) returns nullptr,
-src/DisplayManager_LangParser.cpp:255-258). B1, this file, is the gate in REPORT MODE: it is not in CI yet, so that B3 to B5 start from the
-real inventory, and B6 only has to switch it on.
+WHY. The maintainer asked on 2026-10-22 for the Ângulo to have translations the way the original panel has them. Until S10c B3 every text
+the Ângulo drew was a pt-BR literal in src/ui/angulo/**. Stage B of the S10c plan turned each into UA_TXT( "<English>" ), looked up in an
+@ANGULO section of the device's language pack: B2 built the mechanism, and B3 to B5b converted the screens, from 523 texts outside UA_TXT( )
+in 33 files on 2026-10-22 to 0 on 2026-10-23. TRL( ) is not that mechanism: nothing on the device reads @TRL (S10c plan, F1:
+DisplayManager::trlLookup( ) returns nullptr, src/DisplayManager_LangParser.cpp:270-273). B1 wrote this file in report mode, so that B3 to
+B5b started from the real inventory. Since B6 (2026-10-23) the gates job of .github/workflows/build.yml runs --selftest, then the --no-strip
+control as a process (its exit status and its RESULT line must say that cases failed), then the gate on the tree: a finding fails the pull
+request. Section 2.17 of docs/analysis/UI_DRIVERS.md describes the mechanism and its numbers.
 
 THE RULE. A string literal that holds a letter (any Unicode letter, category L*) and is not the whole argument of UA_TXT( ) is a
 finding, unless tools/ui_texts_allow.json names it. What the gate sees is what the compiler sees:
@@ -559,7 +561,7 @@ def _run(*argv):
 
 
 def _cli(*args):
-    """The script as a process, the way CI will run it (B6): (exit status, stdout + stderr)."""
+    """The script as a process, the way CI runs it (since B6): (exit status, stdout + stderr)."""
     r = subprocess.run([sys.executable, os.path.abspath(__file__), *args], capture_output=True, text=True, errors="replace")
     return r.returncode, r.stdout + r.stderr
 

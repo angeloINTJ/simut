@@ -80,6 +80,13 @@ locally. When one fires, it is usually right:
   block of both `data/lang/*.lng` packs, keyed by a hash of the English. The
   gate prints the hash it wants. A missing entry is not a visible failure at
   runtime: that one line silently stays in English.
+- **The Ângulo's texts** — a text the Ângulo draws (`src/ui/angulo/`) is
+  `UA_TXT( "<English>" )`, and each one needs a line in the `@ANGULO` section
+  of both packs, keyed by the FNV-1a of the English (the language-pack gate
+  prints the hash it wants). A literal with a letter outside `UA_TXT( )`
+  fails `tools/check_ui_texts.py` in CI unless `tools/ui_texts_allow.json`
+  names it with a reason. Section 2.17 of `docs/analysis/UI_DRIVERS.md`
+  says why, and what each rule holds.
 - **Authorization matrix** — every new HTTP route needs a gate or an
   allowlist entry with a reason (`docs/AUTHORIZATION.md`).
 

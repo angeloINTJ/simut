@@ -9,7 +9,8 @@
 //
 // Why a section of its own. The TRL macro is not a mechanism: DisplayManager::trlLookup( ) answers "absent" since 2026-08-29, so a text under it
 // is the English on the device (src/DisplayManager_LangParser.cpp). The original panel reads @DICT, a positional dictionary the products load whole into
-// the heap (LANG_DICT_MAX, 6,144 B), and the Ângulo's 408 distinct texts would not fit there and would cost every product that heap. The
+// the heap (LANG_DICT_MAX, 6,144 B), and the Ângulo's texts would not fit there and would cost every product that heap (S10c B1 counted 408
+// distinct literals; once every screen was converted, 2026-10-23, the packs hold 373 texts, 5,611 B of pt-BR UTF-8, beside @DICT's 3,292 B). The
 // loader of the products does not know @ANGULO: LangPackScanner (src/LangPackIndex.h) takes an unknown directive as the end of the body before it
 // and reads on, so the products' heap does not grow. @ANGULO has to come before @WEBDICT, which has to be the file's suffix.
 //
@@ -49,7 +50,8 @@ namespace ua {
 // UTF-8; a line is its text plus 10 B (8 hex digits, a space, the newline), so the section is 10,413 B, and the table textosCarregar( ) builds
 // from it 9,197 B (an 8 B header, 6 B an entry, each text with its NUL). 16,384 B is 1.57 times the section: room for the texts that are still
 // to be written (es-ES is longer than pt-BR) and the gate warns at 95 %, while a hostile pack cannot make the device hold more than this plus
-// the 8 B header. Offsets into the text area are 16 bits, so the bound stays under 65,536.
+// the 8 B header. Offsets into the text area are 16 bits, so the bound stays under 65,536. Measured again on 2026-10-23, every screen converted
+// (S10c B5b-b): 373 texts, the sections 9,341 B (pt-BR) and 9,590 B (es-ES), the tables 8,230 and 8,479 B; 16,384 B is 1.71 times the larger.
 constexpr size_t UA_TEXTOS_MAX = 16384;
 static_assert( UA_TEXTOS_MAX < 0x10000 );
 
@@ -80,8 +82,9 @@ enum TextosResultado : uint8_t {
 // Builds the table from the body of an @ANGULO section: `n` bytes at `secao`, lines ended by '\n' with a '\r' before it allowed, blank lines
 // skipped, the last line needing no end. One allocation: an 8 B header, the hashes in ascending order, the offsets of the texts and the texts
 // (UTF-8, byte for byte), copied, so the caller may free `secao` at once. All or nothing: a malformed line, a repeated hash or a section over
-// UA_TEXTOS_MAX refuses the whole section and keeps nothing, so every text shows its English. Core 0, once, before the first paint: a table is
-// never replaced or freed while the device runs, because Core 1 may hold a text of it (a second call returns TEXTOS_JA_CARREGADO).
+// UA_TEXTOS_MAX refuses the whole section and keeps nothing, so every text shows its English. Core 0, once, at boot right after the pack loads,
+// when Core 1 may already be drawing (it sees no table or the whole one, and the first boot frames are English, as the original's are): a table
+// is never replaced or freed while the device runs, because Core 1 may hold a text of it (a second call returns TEXTOS_JA_CARREGADO).
 TextosResultado textosCarregar( const char *secao, size_t n );
 
 #ifdef UA_HOST
