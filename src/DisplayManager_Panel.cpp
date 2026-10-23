@@ -1,6 +1,6 @@
 /**
  * @file DisplayManager_Panel.cpp
- * @brief The panel's DMA bus primitives: the core share of DisplayManager_Dashboard.cpp, moved word for word in S10a (docs/analysis/UI_DRIVERS.md).
+ * @brief The panel's DMA bus primitives (the core share of DisplayManager_Dashboard.cpp, S10a) and buildDashLayout( ) (S10c D1, so that the Ângulo stops compiling Dashboard.cpp); docs/analysis/UI_DRIVERS.md.
  */
 
 #include "DisplayManager.h"
