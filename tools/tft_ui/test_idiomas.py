@@ -42,14 +42,14 @@ os.environ.setdefault('LANG_GATE_NO_RUN', '1')   # tools/check_lang_packs.py run
 import check_lang_packs as gate  # noqa: E402
 import host_telas  # noqa: E402
 
-GRUPOS = ('base', 'painel', 'menus')              # the groups whose texts are converted: a group joins here when its step lands (B4b, B5)
+GRUPOS = ('base', 'painel', 'menus', 'ajustes')   # the groups whose texts are converted: a group joins here when its step lands (B5: identidade, graficos)
 TODOS = tuple(sorted(p.stem for p in (HERE / 'amostras').glob('*.cpp')))   # every group the harness draws, read from its samples
 IDIOMAS = ('en', 'pt', 'es')
 PACOTES = {'pt': ROOT / 'data' / 'lang' / 'language_pt-BR.lng', 'es': ROOT / 'data' / 'lang' / 'language_es-ES.lng'}
 CASOS = []                                        # (name, ok, detail)
-# The samples the two cross-language checks below hold, counted on 2026-10-22 (B4a-b, after the review of B4a found that losing most of them
-# stayed green): a step that draws fewer must lower these on purpose, and say why.
-PISO_LEGENDA, PISO_VOLTAR = 4, 127
+# The samples the cross-language checks below hold, counted on 2026-10-22 (B4a-b, after the review of B4a found that losing most of them
+# stayed green; B4b added the 78 footer buttons of the Ajustes samples): a step that draws fewer must lower these on purpose, and say why.
+PISO_LEGENDA, PISO_VOLTAR, PISO_RODAPE = 4, 127, 78
 
 
 def caso(nome, ok, detalhe=''):
@@ -141,6 +141,37 @@ def voltar_e_alvo(pasta, rotulo, inerte):
     return out
 
 
+def espaco_do_kit(nome):
+    """A spacing token of the kit (ESP2, ESP4), read from src/ui/angulo/Angulo.h, not copied here."""
+    texto = (ROOT / 'src' / 'ui' / 'angulo' / 'Angulo.h').read_text(encoding='utf-8')
+    m = re.search(rf'\b{nome} = (\d+)\b', texto)
+    return int(m.group(1)) if m else None
+
+
+def rodape_e_alvos(pasta):
+    """{sample/target: slack} for the footer buttons of one group's samples in one language: the targets 40 px tall in the bottom rows (y 190 and below) that hold
+    exactly one text of the light theme, and the slack is the target's width less the text's ink width. A footer button is its label's ink plus twice the kit's padding
+    (the primary 2 * ESP4, the discreet one 2 * ESP2), and the group's layouts measure each label where it is drawn (AjustesComum.h: caixasRodape( ) keeps the label it
+    measured), so the slack is the layout's and must not change with the language. A box measured from another text than the one drawn (S10c B3-b and B3-c found it
+    for the back button and the pager's count) shifts it by the difference of the two widths, in every language whose word is not that text, and a wider box than the
+    label needs, in English, is something no other check sees: the text stays inside it and centred."""
+    out = {}
+    for f in sorted(pasta.glob('*_claro.textos')):
+        nome = f.name[:-len('_claro.textos')]
+        if not (pasta / f'{nome}.alvos').exists():
+            continue
+        recs = [ln.split(' ', 5) for ln in f.read_text(encoding='utf-8').splitlines()]
+        textos = [tuple(map(int, r[:4])) for r in recs if len(r) > 5 and r[4] == 't']
+        alvos = [tuple(map(int, ln.split()[:6])) for ln in (pasta / f'{nome}.alvos').read_text().splitlines()]
+        for i, (x, y, w, h, _tipo, _ind) in enumerate(alvos):
+            if h != 40 or y < 190:
+                continue
+            dentro = [t for t in textos if x <= (t[0] + t[1]) // 2 < x + w and y <= (t[2] + t[3]) // 2 < y + h]
+            if len(dentro) == 1:
+                out[f'{nome}/{i}'] = w - (dentro[0][1] - dentro[0][0])
+    return out
+
+
 def quadros_diferentes(a, b):
     """The samples whose frame differs between two --out folders of the same group."""
     nomes = sorted({p.name[:-len('_escuro.png')] for p in a.glob('*_escuro.png')})
@@ -199,6 +230,19 @@ def main():
         movidos = [n for n in comuns if len({voltas[i][n] for i in IDIOMAS}) != 1]
         caso('back button: the gap from its target to its label is the same in the three languages', not movidos,
              '; '.join(f'{n}: ' + ', '.join(f'{i} {voltas[i][n]} px' for i in IDIOMAS) for n in movidos[:4]))
+
+        # the Ajustes footers: each button's box is its label's ink and the kit's padding, in every language (S10c B4b)
+        esp2, esp4 = espaco_do_kit('ESP2'), espaco_do_kit('ESP4')
+        folgas = {i: rodape_e_alvos(limpo / i / 'ajustes') for i in IDIOMAS}
+        caso(f'footer buttons: the same buttons in every language ({len(folgas["pt"])} in pt-BR)',
+             esp2 and esp4 and len(folgas['pt']) >= PISO_RODAPE and all(set(folgas[i]) == set(folgas['pt']) for i in IDIOMAS),
+             f'{ {i: len(v) for i, v in folgas.items()} } of at least {PISO_RODAPE}; ESP2 {esp2}, ESP4 {esp4}')
+        fora = sorted((i, k, v) for i in IDIOMAS for k, v in folgas[i].items() if v not in (2 * (esp2 or 0), 2 * (esp4 or 0)))
+        caso(f'footer buttons: every box is its label\'s ink and the kit\'s padding ({2 * (esp2 or 0)} or {2 * (esp4 or 0)} px of slack)', not fora,
+             '; '.join(f'{i} {k}: {v} px' for i, k, v in fora[:4]))
+        mudou = [k for k in folgas['pt'] if len({folgas[i].get(k) for i in IDIOMAS}) != 1]
+        caso('footer buttons: the slack is the same in the three languages', not mudou,
+             '; '.join(f'{k}: ' + ', '.join(f'{i} {folgas[i].get(k)} px' for i in IDIOMAS) for k in mudou[:4]))
 
         # 2. the plants fail exactly where their frames change
         limpo_es = limpo / 'es' / 'painel'

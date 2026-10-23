@@ -4,6 +4,7 @@
 #include <stdio.h>
 
 #include "AjustesComum.h"
+#include "../Textos.h"   // UA_TXT( ): after every project header, because its pragmas hold to the end of the unit
 
 namespace ua {
 namespace tela {
@@ -12,24 +13,80 @@ namespace {
 
 using namespace ajustes;
 
-// What the sounds list says: the label of each row, which is also the name of
-// the sound in the melody screen's title.
-const char *const kSons[SOM_N] = {
-  "Toque na tela", "Confirmação", "Erro", "Alarme", "Atenção", "Acessos pela web", "Silenciar tudo",
-};
+// What the sounds list says: the label of each row, which is also the name of the sound in the melody screen's title. Looked up where it is drawn
+// (UA_TXT( ) cannot initialise a table); the switch is on the enum, so that a row without a text does not build (-Wswitch is an error).
+const char *rotuloDoSom( int som ) {
+  switch ( static_cast<LinhaSom>( som ) ) {
+    case SOM_TOQUE: return UA_TXT( "Touch click" );
+    case SOM_CONFIRMACAO: return UA_TXT( "Confirmation" );
+    case SOM_ERRO: return UA_TXT( "Error" );
+    case SOM_ALARME: return UA_TXT( "Alarm" );
+    case SOM_ATENCAO: return UA_TXT( "Attention" );
+    case SOM_WEB: return UA_TXT( "Web access" );
+    case SOM_MUDO: return UA_TXT( "Mute all" );
+    case SOM_N: break;
+  }
+  return "";
+}
 
-// The six melodies of each sound that has them, in the order of the old
-// selector (DisplayManager_Settings.cpp, drawMelodySelect), translated.
-const char *const kMelodias[SOM_COM_MELODIA][MELODIAS_POR_SOM] = {
-  { "Clique", "Bolha", "Tique", "Estalo", "Gota", "Gorjeio" },
-  { "Subida", "Fanfarra", "Carrilhão", "Triunfo", "Brilho", "Resolução" },
-  { "Descida", "Zumbido", "Grave", "Áspero", "Queda", "Bip" },
-  { "Bipe duplo", "Sirene", "Rápido", "Pulso", "Crescente", "Staccato" },
-  { "Aviso", "Sino", "Pulso", "Carrilhão grave", "Subida", "Toque suave" },
-};
-
+// The six melodies of each sound that has them, in the order of the old selector (DisplayManager_Settings.cpp, drawMelodySelect): the English is that
+// selector's own names, without their numbers; the pack gives the others. One lookup per name drawn, where it is drawn.
 const char *nomeMelodia( int som, int melodia ) {
-  return som >= 0 && som < SOM_COM_MELODIA && melodia >= 0 && melodia < MELODIAS_POR_SOM ? kMelodias[som][melodia] : "";
+  if ( som < 0 || som >= SOM_COM_MELODIA || melodia < 0 || melodia >= MELODIAS_POR_SOM ) return "";
+  switch ( static_cast<LinhaSom>( som ) ) {
+    case SOM_TOQUE:
+      switch ( melodia ) {
+        case 0: return UA_TXT( "Click" );
+        case 1: return UA_TXT( "Bubble" );
+        case 2: return UA_TXT( "Tick" );
+        case 3: return UA_TXT( "Snap" );
+        case 4: return UA_TXT( "Drop" );
+        case 5: return UA_TXT( "Chirp" );
+      }
+      break;
+    case SOM_CONFIRMACAO:
+      switch ( melodia ) {
+        case 0: return UA_TXT( "Ascending" );
+        case 1: return UA_TXT( "Fanfare" );
+        case 2: return UA_TXT( "Chime" );
+        case 3: return UA_TXT( "Triumph" );
+        case 4: return UA_TXT( "Sparkle" );
+        case 5: return UA_TXT( "Resolve" );
+      }
+      break;
+    case SOM_ERRO:
+      switch ( melodia ) {
+        case 0: return UA_TXT( "Descending" );
+        case 1: return UA_TXT( "Buzz" );
+        case 2: return UA_TXT( "Low" );
+        case 3: return UA_TXT( "Harsh" );
+        case 4: return UA_TXT( "Decline" );
+        case 5: return UA_TXT( "Blip" );
+      }
+      break;
+    case SOM_ALARME:
+      switch ( melodia ) {
+        case 0: return UA_TXT( "Dual beep" );
+        case 1: return UA_TXT( "Siren" );
+        case 2: return UA_TXT( "Rapid" );
+        case 3: return UA_TXT( "Pulse" );
+        case 4: return UA_TXT( "Escalate" );
+        case 5: return UA_TXT( "Staccato" );
+      }
+      break;
+    case SOM_ATENCAO:
+      switch ( melodia ) {
+        case 0: return UA_TXT( "Notify" );
+        case 1: return UA_TXT( "Bell" );
+        case 2: return UA_TXT( "Pulse" );
+        case 3: return UA_TXT( "Low chime" );
+        case 4: return UA_TXT( "Rise" );
+        case 5: return UA_TXT( "Soft ding" );
+      }
+      break;
+    case SOM_WEB: case SOM_MUDO: case SOM_N: break;
+  }
+  return "";
 }
 
 /* ------------------------------------------------------------------ */
@@ -80,7 +137,7 @@ LayoutSons layoutSons( const VmSons &vm ) {
   }
   l.anteriorAtivo = l.pagina > 0;
   l.proximaAtivo = l.pagina < SONS_PAGINAS - 1;
-  l.salvar.rotulo = "Salvar sons";
+  l.salvar.rotulo = UA_TXT( "Save sounds" );   // looked up once: its width below and the pager's button both come from this pointer
   l.salvar.tipo = Botao::PRIMARIO;
   // paginador( ) draws its action as wide as `w`: the primary's width, as rodapeAcoes( ) has it.
   l.salvar.w = larguraTinta( l.salvar.rotulo, tipo::botao ) + 2 * ESP4;
@@ -92,7 +149,7 @@ LayoutSons layoutSons( const VmSons &vm ) {
 void desenharLinha( Pintor &p, const Caixa16 &c, int som, const VmSons &vm, bool primeira ) {
   const Tema &T = p.t( );
   if ( !primeira ) p.hline( c.x + PAD, c.y, c.w - 2 * PAD, T.linha );
-  textoCentrado( p, kSons[som], c.x + PAD, c.y, c.h, tipo::corpo, T.tinta, 'l' );
+  textoCentrado( p, rotuloDoSom( som ), c.x + PAD, c.y, c.h, tipo::corpo, T.tinta, 'l' );
   if ( som < SOM_COM_MELODIA && vm.ligado[som] ) {
     const int16_t xc = X_CHAVE - ESP2 - L_ICONE;
     p.icone( IconeNome::CHEVRON_RIGHT, L_ICONE, xc, c.y + rd2( c.h - L_ICONE ), T.tinta2 );
@@ -141,7 +198,7 @@ LayoutMelodia layoutMelodia( ) {
   for ( int i = 0; i < MELODIAS_POR_SOM; i++ )
     l.tecla[i] = Caixa16{ (int16_t)( ESP2 + ( i % 2 ) * ( W_TECLA + ESP2 ) ), (int16_t)( Y0 + ( i / 2 ) * ( H_TECLA + ESP2 ) ),
                           W_TECLA, H_TECLA };
-  l.rodape = caixasRodape( "Usar esta melodia", "Cancelar" );
+  l.rodape = caixasRodape( UA_TXT( "Use this melody" ), UA_TXT( "Cancel" ) );   // looked up once: the draw takes the labels from these boxes
   return l;
 }
 
@@ -153,13 +210,13 @@ LayoutMelodia layoutMelodia( ) {
 
 void desenharSons( Pintor &p, const VmSons &vm ) {
   const LayoutSons l = layoutSons( vm );
-  barraTituloVoltar( p, "Sons" );
+  barraTituloVoltar( p, UA_TXT( "Sounds" ) );
   if ( l.n ) {
     superficie( p, l.cartao.x, l.cartao.y, l.cartao.w, l.cartao.h );
     for ( int i = 0; i < l.n; i++ ) desenharLinha( p, l.linha[i], l.primeira + i, vm, i == 0 );
   } else {
-    desenharDeslizante( p, l, 0, "Volume do sistema", vm.volumeSistema, vm.foco == 0 );
-    desenharDeslizante( p, l, 1, "Volume do alarme", vm.volumeAlarme, vm.foco == 1 );
+    desenharDeslizante( p, l, 0, UA_TXT( "System volume" ), vm.volumeSistema, vm.foco == 0 );
+    desenharDeslizante( p, l, 1, UA_TXT( "Alarm volume" ), vm.volumeAlarme, vm.foco == 1 );
   }
   // The kit's pager draws both arrows alive; the one with no page behind it is
   // painted over, disabled, by the very same boxes.
@@ -203,7 +260,7 @@ void desenharMelodia( Pintor &p, const VmMelodia &vm ) {
   const LayoutMelodia l = layoutMelodia( );
   const int som = vm.som < SOM_COM_MELODIA ? vm.som : 0;
   char titulo[48];
-  snprintf( titulo, sizeof titulo, "Melodia · %s", kSons[som] );
+  snprintf( titulo, sizeof titulo, "%s · %s", UA_TXT( "Melody" ), rotuloDoSom( som ) );
   barraTituloVoltar( p, titulo );
   for ( int i = 0; i < MELODIAS_POR_SOM; i++ ) {
     TeclaOpts o;
@@ -214,7 +271,7 @@ void desenharMelodia( Pintor &p, const VmMelodia &vm ) {
     o.estado = i == vm.escolhida ? TeclaEstado::TRAVADA : TeclaEstado::REPOUSO;
     tecla( p, l.tecla[i].x, l.tecla[i].y, l.tecla[i].w, l.tecla[i].h, o );
   }
-  desenharRodape( p, l.rodape, "Usar esta melodia", Botao::PRIMARIO, false, "Cancelar" );
+  desenharRodape( p, l.rodape, Botao::PRIMARIO, false );
 }
 
 int alvosMelodia( const VmMelodia &, Alvo *out ) {

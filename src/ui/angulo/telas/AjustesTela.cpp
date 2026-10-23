@@ -6,6 +6,7 @@
 
 #include "AjustesComum.h"
 #include "Base.h"
+#include "../Textos.h"   // UA_TXT( ): after every project header, because its pragmas hold to the end of the unit
 
 namespace ua {
 namespace tela {
@@ -56,7 +57,7 @@ LayoutAlinhar layoutAlinhar( const VmAlinhar &vm ) {
   l.baixoAtiva = vm.y < (int)vm.limite;
   l.esquerdaAtiva = vm.x > -(int)vm.limite;
   l.direitaAtiva = vm.x < (int)vm.limite;
-  l.rodape = caixasRodape( "Salvar", "Redefinir", Y_RODAPE_ALINHAR );
+  l.rodape = caixasRodape( UA_TXT( "Save" ), UA_TXT( "Reset" ), Y_RODAPE_ALINHAR );   // looked up once: the draw takes the labels from these boxes
   return l;
 }
 
@@ -86,6 +87,7 @@ constexpr int16_t Y_DADOS = Y0 + ESP1 + 2 * H_LINHA_TEXTO + ESP3;
 
 struct LayoutSensibilidade {
   Caixa16 cancelar;
+  const char *rotuloCancelar;       // looked up once, here: measured for the button's width and drawn from this pointer
   Caixa16 dados;                    // the card of figures
   Caixa16 barra;
 };
@@ -96,7 +98,8 @@ LayoutSensibilidade layoutSensibilidade( ) {
   // `sy > 195 && sx < 125`): the button, on the footer's row and at the left (its
   // label lined up with the 12 px the rest of the page is inset by), is wholly
   // inside that zone: x 4..95, y 196..235.
-  const int16_t w = larguraTinta( "Cancelar", tipo::botao ) + 2 * ESP2;
+  l.rotuloCancelar = UA_TXT( "Cancel" );
+  const int16_t w = larguraTinta( l.rotuloCancelar, tipo::botao ) + 2 * ESP2;
   l.cancelar = Caixa16{ PAD - ESP2, Y_RODAPE, w, H_RODAPE };
   l.dados = Caixa16{ ESP2, Y_DADOS, (int16_t)( X_ESTAB - 2 * ESP2 ), (int16_t)( N_DADOS * H_LINHA_DADO ) };
   l.barra = Caixa16{ X_ESTAB, Y0, L_ESTAB, H_ESTAB };
@@ -128,14 +131,14 @@ VmMensagem veredito( uint8_t resultado ) {
   memset( &m, 0, sizeof m );
   if ( resultado == CALRES_CONCLUIDA ) {
     m.ok = true;
-    copiar( m.texto, "Calibração concluída.", sizeof m.texto );
-    copiar( m.botao, "Entendi", sizeof m.botao );
+    copiar( m.texto, UA_TXT( "Calibration complete." ), sizeof m.texto );
+    copiar( m.botao, UA_TXT( "Got it" ), sizeof m.botao );
   } else {
     // The old button, on a refusal, starts the eight captures again.
     m.ok = false;
-    copiar( m.texto, "Toques imprecisos.", sizeof m.texto );
-    copiar( m.detalhe, "Toque de novo, devagar, no centro de cada mira.", sizeof m.detalhe );
-    copiar( m.botao, "Refazer a calibração", sizeof m.botao );
+    copiar( m.texto, UA_TXT( "Imprecise touches." ), sizeof m.texto );
+    copiar( m.detalhe, UA_TXT( "Touch again, slowly, at the center of each crosshair." ), sizeof m.detalhe );
+    copiar( m.botao, UA_TXT( "Redo calibration" ), sizeof m.botao );
   }
   return m;
 }
@@ -149,7 +152,7 @@ VmMensagem veredito( uint8_t resultado ) {
 void desenharAlinhar( Pintor &p, const VmAlinhar &vm ) {
   const Tema &T = p.t( );
   const LayoutAlinhar l = layoutAlinhar( vm );
-  barraTituloVoltar( p, "Alinhar a tela" );
+  barraTituloVoltar( p, UA_TXT( "Align the screen" ) );
   botaoIcone( p, l.cima, IconeNome::CHEVRON_UP, l.cimaAtiva );
   botaoIcone( p, l.esquerda, IconeNome::CHEVRON_LEFT, l.esquerdaAtiva );
   botaoIcone( p, l.direita, IconeNome::CHEVRON_RIGHT, l.direitaAtiva );
@@ -159,12 +162,17 @@ void desenharAlinhar( Pintor &p, const VmAlinhar &vm ) {
   p.hline( cx - BRACO_CRUZ, cy, 2 * BRACO_CRUZ, T.tinta2 );
   p.vline( cx, cy - BRACO_CRUZ, 2 * BRACO_CRUZ, T.tinta2 );
 
-  // The instruction at the top left, the offset at the bottom left (by "Redefinir", which
-  // zeroes it) and the warning at the bottom right (by "Salvar", which it is about).
+  // The instruction at the top left, the offset at the bottom left (by "Reset", which
+  // zeroes it) and the warning at the bottom right (by "Save", which it is about).
   // "A moldura deve / encostar na borda." ran to x 162 at 9 pt, 22 px into the up arrow's
   // box (its second line is 142 px); "tocar a borda." is 106 px, and the first line 119.
-  textoCentrado( p, "A moldura deve", X_TEXTO, Y0 + ESP2, ESP4, tipo::apoio, T.tinta2, 'l' );
-  textoCentrado( p, "tocar a borda.", X_TEXTO, Y0 + ESP2 + PASSO_APOIO, ESP4, tipo::apoio, T.tinta2, 'l' );
+  // The sentence is one text, wrapped to the column's 120 px (from X_TEXTO to 8 px short of
+  // the up arrow) in every language: the pt-BR breaks where it was broken by hand.
+  char instrucao[2][48];
+  const int nInstrucao = quebrar( UA_TXT( "The frame must touch the edge." ), tipo::apoio, X_SETA_MEIO - ESP2 - X_TEXTO,
+                                  &instrucao[0][0], sizeof instrucao[0], 2 );
+  for ( int i = 0; i < nInstrucao; i++ )
+    textoCentrado( p, instrucao[i], X_TEXTO, Y0 + ESP2 + i * PASSO_APOIO, ESP4, tipo::apoio, T.tinta2, 'l' );
   // The two axes one under the other, centred on the lower arrow's row: on one line "x −4
   // · y +4" is 119 px of the mono face, 1 px under the 120 the column has.
   char valores[2][8];
@@ -172,7 +180,7 @@ void desenharAlinhar( Pintor &p, const VmAlinhar &vm ) {
   comSinal( vm.y, valores[1], sizeof valores[1] );
   for ( int i = 0; i < 2; i++ ) {
     const int16_t y = l.baixo.y + rd2( L_BOTAO - ( PASSO_APOIO + ESP4 ) ) + i * PASSO_APOIO;
-    textoCentrado( p, i ? "y" : "x", X_TEXTO, y, ESP4, tipo::dado, T.tinta2, 'l' );
+    textoCentrado( p, i ? UA_TXT( "y" ) : UA_TXT( "x" ), X_TEXTO, y, ESP4, tipo::dado, T.tinta2, 'l' );
     textoCentrado( p, valores[i], X_TEXTO + L_VALOR_EIXO, y, ESP4, tipo::dado, T.tinta, 'r' );
   }
   // The warning: three lines of the column's 120 px ("Salvar refaz a / calibração do /
@@ -181,12 +189,12 @@ void desenharAlinhar( Pintor &p, const VmAlinhar &vm ) {
   // the first line would start 2 px under the right arrow's box.
   char aviso[3][48];
   const int16_t xAviso = l.baixo.x + l.baixo.w + ESP2;
-  const int n = quebrar( "Salvar refaz a calibração do toque.", tipo::apoio, FRAME_X + FRAME_W - ESP2 - xAviso, &aviso[0][0],
+  const int n = quebrar( UA_TXT( "Saving redoes the touch calibration." ), tipo::apoio, FRAME_X + FRAME_W - ESP2 - xAviso, &aviso[0][0],
                          sizeof aviso[0], 3 );
   for ( int i = 0; i < n; i++ )
     textoCentrado( p, aviso[i], xAviso, l.baixo.y + i * PASSO_APOIO, ESP4, tipo::apoio, T.alerta, 'l' );
 
-  desenharRodape( p, l.rodape, "Salvar", Botao::PRIMARIO, false, "Redefinir" );
+  desenharRodape( p, l.rodape, Botao::PRIMARIO, false );
   // Last, so that nothing paints over it.
   p.rect( FRAME_X, FRAME_Y, FRAME_W, FRAME_H, T.acento );
 }
@@ -211,21 +219,21 @@ void desenharSensibilidade( Pintor &p, const VmSensibilidade &vm ) {
   const LayoutSensibilidade l = layoutSensibilidade( );
   // No "Voltar" in the bar: only the old CANCEL zone leaves this screen, every
   // other touch is a sample, so a button there would count as one.
-  barraTitulo( p, "Sensibilidade do toque", nullptr, 0 );
+  barraTitulo( p, UA_TXT( "Touch sensitivity" ), nullptr, 0 );
 
   if ( vm.concluido ) {
-    textoCentrado( p, "Pronto.", PAD, Y0 + ESP1, H_LINHA_TEXTO, tipo::subtitulo, T.positivo, 'l' );
-    textoCentrado( p, "Agora a posição do toque.", PAD, Y0 + ESP1 + H_LINHA_TEXTO, H_LINHA_TEXTO, tipo::corpo, T.tinta, 'l' );
+    textoCentrado( p, UA_TXT( "Done." ), PAD, Y0 + ESP1, H_LINHA_TEXTO, tipo::subtitulo, T.positivo, 'l' );
+    textoCentrado( p, UA_TXT( "Now the touch position." ), PAD, Y0 + ESP1 + H_LINHA_TEXTO, H_LINHA_TEXTO, tipo::corpo, T.tinta, 'l' );
   } else {
     char linhas[2][64];
-    const int n = quebrar( "Toque na tela várias vezes, como faria no dia a dia.", tipo::corpo, L_TEXTO, &linhas[0][0], sizeof linhas[0], 2 );
+    const int n = quebrar( UA_TXT( "Touch the screen several times, as you would every day." ), tipo::corpo, L_TEXTO, &linhas[0][0], sizeof linhas[0], 2 );
     for ( int i = 0; i < n; i++ )
       textoCentrado( p, linhas[i], PAD, Y0 + ESP1 + H_LINHA_TEXTO * i, H_LINHA_TEXTO, tipo::corpo, T.tinta, 'l' );
   }
 
   // The figures: the readings counted, how steady the touch is, the threshold so far.
   superficie( p, l.dados.x, l.dados.y, l.dados.w, l.dados.h );
-  const char *const rotulos[N_DADOS] = { "Leituras", "Estabilidade", "Limiar" };
+  const char *const rotulos[N_DADOS] = { UA_TXT( "Readings" ), UA_TXT( "Stability" ), UA_TXT( "Threshold" ) };   // looked up at each draw, never at start-up
   char valores[N_DADOS][16];
   snprintf( valores[0], sizeof valores[0], "%u", (unsigned)vm.leituras );
   snprintf( valores[1], sizeof valores[1], "%u %%", (unsigned)vm.estabilidade );
@@ -248,7 +256,7 @@ void desenharSensibilidade( Pintor &p, const VmSensibilidade &vm ) {
     p.fillRoundRect( l.barra.x + ESP1, l.barra.y + ESP1 + alturaInterna - cheio, l.barra.w - 2 * ESP1, cheio, RAIO_CONTROLE,
                      pct >= ESTAVEL_PCT ? T.positivo : T.acento );
 
-  botao( p, l.cancelar.x, l.cancelar.y, l.cancelar.w, l.cancelar.h, "Cancelar", Botao::DISCRETO );
+  botao( p, l.cancelar.x, l.cancelar.y, l.cancelar.w, l.cancelar.h, l.rotuloCancelar, Botao::DISCRETO );
 }
 
 int alvosSensibilidade( const VmSensibilidade &, Alvo *out ) {
@@ -269,11 +277,13 @@ void desenharCalibrar( Pintor &p, const VmCalibrar &vm ) {
   const int passo = vm.passo < PONTOS ? vm.passo : 0;
   mira( p, MIRA_X[passo], MIRA_Y[passo], vm.segurando ? T.positivo : T.acento );
   if ( vm.segurando )
-    textoCentrado( p, "Pode soltar.", X_MEIO, Y_INSTRUCAO, ESP4, tipo::corpo, T.positivo, 'c' );
+    textoCentrado( p, UA_TXT( "You can let go." ), X_MEIO, Y_INSTRUCAO, ESP4, tipo::corpo, T.positivo, 'c' );
   else
-    textoCentrado( p, "Toque no centro da mira e segure.", X_MEIO, Y_INSTRUCAO, ESP4, tipo::corpo, T.tinta, 'c' );
-  char posicao[40];
-  snprintf( posicao, sizeof posicao, "Ponto %d de %d · volta %d de %d", passo + 1, PONTOS, vm.volta < VOLTAS ? 1 : VOLTAS, VOLTAS );
+    textoCentrado( p, UA_TXT( "Touch the crosshair's center and hold." ), X_MEIO, Y_INSTRUCAO, ESP4, tipo::corpo, T.tinta, 'c' );
+  char posicao[48];
+  const char *de = UA_TXT( "of" );
+  snprintf( posicao, sizeof posicao, "%s %d %s %d · %s %d %s %d", UA_TXT( "Point" ), passo + 1, de, PONTOS, UA_TXT( "pass" ),
+            vm.volta < VOLTAS ? 1 : VOLTAS, de, VOLTAS );
   textoCentrado( p, posicao, X_MEIO, Y_POSICAO, ESP4, tipo::apoio, T.tinta2, 'c' );
 }
 

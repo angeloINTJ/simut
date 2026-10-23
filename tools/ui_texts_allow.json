@@ -49,6 +49,9 @@
      "%s %s?",
      "%s (%s %d) %s"
     ],
+    "src/ui/angulo/DisplayManager_UiA_Ajustes.cpp": [
+     "%s %d"
+    ],
     "src/ui/angulo/DisplayManager_UiA_Menus.cpp": [
      "%s (%s)"
     ],
@@ -61,6 +64,7 @@
     "src/ui/angulo/telas/AjustesAlarmes.cpp": [
      "%02lu",
      "%lu",
+     "%s · ",
      "%u"
     ],
     "src/ui/angulo/telas/AjustesComum.cpp": [
@@ -69,12 +73,15 @@
     "src/ui/angulo/telas/AjustesSistema.cpp": [
      "%02u",
      "%04u",
-     "%u"
+     "%u",
+     "%u %s %u %s"
     ],
     "src/ui/angulo/telas/AjustesSons.cpp": [
-     "%d %%"
+     "%d %%",
+     "%s · %s"
     ],
     "src/ui/angulo/telas/AjustesTela.cpp": [
+     "%s %d %s %d · %s %d %s %d",
      "%s%d",
      "%u",
      "%u %%"

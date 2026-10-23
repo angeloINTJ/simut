@@ -44,8 +44,8 @@ identidade | usuarios_nomes_longos | administradora | 31-character account names
 
 ajustes | limites_nome_31 | Sala de coleta | a 31-character sensor name in the title
 ajustes | limites_nome_largo | WWWWWWW | 31 of the widest letter in the title
-ajustes | manut_nome_31 | Manutenção · Sala de | a 31-character sensor name in the title
-ajustes | manut_nome_largo | Manutenção · WWW | 31 of the widest letter in the title, beside the bar's back button: one W fewer in Spanish ("Volver" is 4 px wider)
+ajustes | manut_nome_31 | Manutenção · Sala de ¦ Maintenance · Sala de c ¦ Mantenim. · Sala de c | a 31-character sensor name in the title, after the screen's word in the language
+ajustes | manut_nome_largo | Manutenção · WWW ¦ Maintenance · WWWW ¦ Mantenim. · WWWW | 31 of the widest letter in the title, after the screen's word, beside the bar's back button ("Voltar", "Back" and "Volver" differ in width)
 
 graficos | carregando_nome_31 | Geladeira de vacinas | a 31-character sensor name; the period is whole
 graficos | grafico_nome_31 | Geladeira de | a 31-character sensor name in the title

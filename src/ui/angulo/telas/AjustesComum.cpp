@@ -40,20 +40,22 @@ CaixasRodape caixasRodape( const char *primaria, const char *secundaria, int16_t
   // discreet action its label and 8 px each side, both 8 px from the edge and each other.
   const int16_t wP = larguraTinta( primaria, tipo::botao ) + 2 * ESP4;
   c.primaria = Caixa16{ (int16_t)( L_TELA - ESP2 - wP ), y, wP, H_RODAPE };
+  c.rotuloPrimaria = primaria;
   if ( secundaria ) {
     const int16_t wS = larguraTinta( secundaria, tipo::botao ) + 2 * ESP2;
     c.secundaria = Caixa16{ (int16_t)( L_TELA - ESP2 - wP - ESP2 - wS ), y, wS, H_RODAPE };
+    c.rotuloSecundaria = secundaria;
   }
   return c;
 }
 
-void desenharRodape( Pintor &p, const CaixasRodape &c, const char *primaria, Botao tipoPrimaria, bool primariaDesabilitada,
-                     const char *secundaria ) {
+void desenharRodape( Pintor &p, const CaixasRodape &c, Botao tipoPrimaria, bool primariaDesabilitada ) {
   // rodapeAcoes( ) cannot draw its primary disabled, which the screens that
-  // need a permission do; the look is otherwise the same call it makes.
-  botao( p, c.primaria.x, c.primaria.y, c.primaria.w, c.primaria.h, primaria, tipoPrimaria, primariaDesabilitada );
-  if ( secundaria )
-    botao( p, c.secundaria.x, c.secundaria.y, c.secundaria.w, c.secundaria.h, secundaria, Botao::DISCRETO );
+  // need a permission do; the look is otherwise the same call it makes. The labels
+  // are the ones the boxes were measured from (CaixasRodape).
+  botao( p, c.primaria.x, c.primaria.y, c.primaria.w, c.primaria.h, c.rotuloPrimaria, tipoPrimaria, primariaDesabilitada );
+  if ( c.rotuloSecundaria )
+    botao( p, c.secundaria.x, c.secundaria.y, c.secundaria.w, c.secundaria.h, c.rotuloSecundaria, Botao::DISCRETO );
 }
 
 void botaoIcone( Pintor &p, const Caixa16 &c, IconeNome ic, bool ativo ) {

@@ -442,9 +442,10 @@ Caixa16 paginadorEsquerda( );
 Caixa16 paginadorDireita( );
 Caixa16 paginadorAcao( const Acao &acao );
 
-// Footer with the secondary (discreet) and the primary action.
+// Footer with the secondary (discreet) and the primary action. `secundaria` null is the pack's "Cancel", looked up inside: a default argument would need
+// Textos.h in this header (S10c, B4b).
 void rodapeAcoes( Pintor &p, const char *primaria, Botao primariaTipo = Botao::PRIMARIO,
-                  const char *secundaria = "Cancelar", Caixa16 *cxPrimaria = nullptr, Caixa16 *cxSecundaria = nullptr );
+                  const char *secundaria = nullptr, Caixa16 *cxPrimaria = nullptr, Caixa16 *cxSecundaria = nullptr );
 
 // Number with unit: digits in a display font, unit in botao, same baseline.
 // Returns the x after the unit.

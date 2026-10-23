@@ -1282,6 +1282,7 @@ void paginador( Pintor &p, int16_t pagina, int16_t total, const Acao *acao ) {
 void rodapeAcoes( Pintor &p, const char *primaria, Botao primariaTipo, const char *secundaria, Caixa16 *cxP,
                   Caixa16 *cxS ) {
   const int16_t y = 196, h = 40;
+  if ( !secundaria ) secundaria = UA_TXT( "Cancel" );   // the default (Angulo.h): looked up once, measured and drawn from this one pointer below
   const int16_t wP = larguraTinta( primaria, tipo::botao ) + 2 * ESP4;
   botao( p, 320 - ESP2 - wP, y, wP, h, primaria, primariaTipo );
   if ( cxP ) *cxP = Caixa16{ (int16_t)( 320 - ESP2 - wP ), y, wP, h };

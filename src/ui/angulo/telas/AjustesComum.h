@@ -61,11 +61,18 @@ void montarTitulo( char *dst, int cap, const char *antes, const char *nome, cons
 
 // The footer's two actions: the primary at the right and the discreet one to
 // its left (secundaria == nullptr: the primary alone, whose box then stands
-// alone and `secundaria` is all zeros: not a target).
-struct CaixasRodape { Caixa16 primaria, secundaria; };
+// alone and `secundaria` is all zeros: not a target). The struct keeps the very
+// labels its boxes were measured from, and desenharRodape( ) draws those and no
+// other: a label is looked up once, in the layout, and a box cannot be made for
+// one text while another is drawn. B3-b and B3-c found that defect twice (a label
+// translated where it is drawn and measured from a copy of the literal elsewhere,
+// so that in English or Spanish the target was made for another text); B4b closes
+// it for the footer by construction. The pointers are the caller's: a UA_TXT( )
+// answer lives as long as the pack's table, which is never replaced or freed while
+// the device runs (Textos.h).
+struct CaixasRodape { Caixa16 primaria, secundaria; const char *rotuloPrimaria, *rotuloSecundaria; };
 CaixasRodape caixasRodape( const char *primaria, const char *secundaria, int16_t y = Y_RODAPE );
-void desenharRodape( Pintor &p, const CaixasRodape &c, const char *primaria, Botao tipo, bool primariaDesabilitada,
-                     const char *secundaria );
+void desenharRodape( Pintor &p, const CaixasRodape &c, Botao tipo, bool primariaDesabilitada );
 
 /* ------------------------------------------------------------------ */
 /* Buttons and cards                                                    */

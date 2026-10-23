@@ -4,6 +4,7 @@
 #include <stdio.h>
 
 #include "AjustesComum.h"
+#include "../Textos.h"   // UA_TXT( ): after every project header, because its pragmas hold to the end of the unit
 
 namespace ua {
 namespace tela {
@@ -26,12 +27,16 @@ constexpr int16_t Y_PAG = Y0 + 2 * ( H_CARTAO + ESP2 ), H_PAG = 28;
 Caixa16 alvoPagina( const Caixa16 &c ) { return Caixa16{ c.x, (int16_t)( c.y - ESP1 ), c.w, (int16_t)( c.h + 2 * ESP1 ) }; }
 
 // Each page names its quantity in the card's label, so a page says what it
-// edits even where the pager is not drawn (a sensor with one quantity).
-const char *const kRotulos[3][2] = {
-  { "Temperatura mínima", "Temperatura máxima" },
-  { "Umidade mínima", "Umidade máxima" },
-  { "Pressão mínima", "Pressão máxima" },
-};
+// edits even where the pager is not drawn (a sensor with one quantity). The label is
+// looked up where the card is drawn, because UA_TXT( ) cannot initialise a table: `g`
+// is the GrandezaLimites and `r` the row, 0 the minimum and 1 the maximum.
+const char *rotuloLimite( int g, int r ) {
+  switch ( g ) {
+    case GLIM_UMIDADE: return r ? UA_TXT( "Maximum humidity" ) : UA_TXT( "Minimum humidity" );
+    case GLIM_PRESSAO: return r ? UA_TXT( "Maximum pressure" ) : UA_TXT( "Minimum pressure" );
+    default: return r ? UA_TXT( "Maximum temperature" ) : UA_TXT( "Minimum temperature" );
+  }
+}
 const char *const kUnidades[3] = { "°C", "%", "hPa" };
 
 struct LayoutLimites {
@@ -60,7 +65,7 @@ LayoutLimites layoutLimites( const VmLimites &vm ) {
   const Caixa16 e = paginadorEsquerda( ), d = paginadorDireita( );
   l.pagAnterior = Caixa16{ e.x, Y_PAG, e.w, H_PAG };
   l.pagProxima = Caixa16{ d.x, Y_PAG, d.w, H_PAG };
-  l.rodape = caixasRodape( "Salvar limites", "Cancelar" );
+  l.rodape = caixasRodape( UA_TXT( "Save limits" ), UA_TXT( "Cancel" ) );   // looked up once: the draw takes the labels from these boxes
   return l;
 }
 
@@ -88,7 +93,7 @@ LayoutManutencao layoutManutencao( const VmManutencao &vm ) {
     l.yNota = Y0 + H_RESTANTE + ESP2;
     // Ending a window needs the same permission as opening one.
     l.primariaAtiva = vm.permitido;
-    l.rodape = caixasRodape( "Encerrar manutenção", nullptr );
+    l.rodape = caixasRodape( UA_TXT( "End maintenance" ), nullptr );
   } else {
     l.cartao[0] = caixasStepper( Y0 );
     l.cartao[1] = caixasStepper( Y0 + H_CARTAO + ESP2 );
@@ -100,7 +105,7 @@ LayoutManutencao layoutManutencao( const VmManutencao &vm ) {
     l.menosAtivo[1] = l.maisAtivo[1] = vm.permitido;
     // Starting a window of zero minutes would do nothing (the old screen only beeped).
     l.primariaAtiva = vm.permitido && ( vm.horas > 0 || vm.minutos > 0 );
-    l.rodape = caixasRodape( "Iniciar manutenção", "Cancelar" );
+    l.rodape = caixasRodape( UA_TXT( "Start maintenance" ), UA_TXT( "Cancel" ) );
   }
   return l;
 }
@@ -128,9 +133,10 @@ void tempoRestante( Pintor &p, int16_t cx, int16_t base, uint32_t minutos ) {
 }
 
 // The notes under the content, in the quiet type, one row of PASSO_APOIO each, from
-// the card's left edge: the longest, "Os alarmes ficam suspensos até o fim.", is 293 px
-// of ink at 9 pt, under the 304 of the cards' width (2026-10-15: with "deste sensor"
-// it was 394, and the title already names the sensor).
+// the card's left edge: the longest in pt-BR, "Os alarmes ficam suspensos até o fim.", is
+// 293 px of ink at 9 pt, under the 304 of the cards' width (2026-10-15: with "deste
+// sensor" it was 394, and the title already names the sensor). The English and Spanish
+// notes are held to the safe area, in every sample, by tools/tft_ui/test_idiomas.py.
 void nota( Pintor &p, int16_t y, const char *texto, Tom tom ) {
   ajuda( p, ESP2, y, ESP4, texto, tom );
 }
@@ -148,24 +154,25 @@ void desenharLimites( Pintor &p, const VmLimites &vm ) {
   // The title is the sensor's name alone, as in the sensor's menu it comes from: with " · limites"
   // after it, "Ultracongelador" (15 characters, an ordinary length) was cut to "Ultracongelad… ·
   // limites" at the 9 pt floor (2026-10-15). The screen still says what it is: the cards read
-  // "Temperatura mínima" and "Temperatura máxima", and the footer "Salvar limites".
+  // "Minimum temperature" and "Maximum temperature" (pt-BR "Temperatura mínima", "Temperatura máxima")
+  // and the footer "Save limits" ("Salvar limites").
   montarTitulo( titulo, sizeof titulo, "", vm.sensor, "" );
   barraTituloVoltar( p, titulo );
   const int g = vm.grandeza <= GLIM_PRESSAO ? (int)vm.grandeza : (int)GLIM_TEMPERATURA;
   for ( int r = 0; r < 2; r++ ) {
     char valor[16];
     n1( r ? vm.maximo : vm.minimo, valor );
-    desenharStepper( p, l.cartao[r], kRotulos[g][r], valor, kUnidades[g], vm.foco == r, l.menosAtivo[r], l.maisAtivo[r] );
+    desenharStepper( p, l.cartao[r], rotuloLimite( g, r ), valor, kUnidades[g], vm.foco == r, l.menosAtivo[r], l.maisAtivo[r] );
   }
   if ( l.temPag ) {
     botaoIcone( p, l.pagAnterior, IconeNome::CHEVRON_LEFT, l.anteriorAtivo );
     botaoIcone( p, l.pagProxima, IconeNome::CHEVRON_RIGHT, l.proximaAtivo );
     char n[24];
-    snprintf( n, sizeof n, "%d de %d", (int)vm.pagina + 1, (int)vm.total );
-    // The kit's pager puts "n de m" 12 px after its second arrow.
+    contagemDoPaginador( n, (int)sizeof n, (int16_t)( vm.pagina + 1 ), (int16_t)vm.total );   // the kit's own count, in the pack's words
+    // The kit's pager puts "n of m" ("n de m") 12 px after its second arrow.
     textoCentrado( p, n, l.pagProxima.x + l.pagProxima.w + ESP3, Y_PAG, H_PAG, tipo::apoio, T.tinta2, 'l' );
   }
-  desenharRodape( p, l.rodape, "Salvar limites", Botao::PRIMARIO, false, "Cancelar" );
+  desenharRodape( p, l.rodape, Botao::PRIMARIO, false );
 }
 
 int alvosLimites( const VmLimites &vm, Alvo *out ) {
@@ -190,31 +197,31 @@ int alvosLimites( const VmLimites &vm, Alvo *out ) {
 void desenharManutencao( Pintor &p, const VmManutencao &vm ) {
   const Tema &T = p.t( );
   const LayoutManutencao l = layoutManutencao( vm );
-  char titulo[64];
-  montarTitulo( titulo, sizeof titulo, "Manutenção · ", vm.sensor, "" );
+  char titulo[64], antes[24];
+  snprintf( antes, sizeof antes, "%s · ", UA_TXT( "Maintenance" ) );   // the screen's name, then the sensor's name, cut to fit
+  montarTitulo( titulo, sizeof titulo, antes, vm.sensor, "" );
   barraTituloVoltar( p, titulo );
   if ( vm.aberta ) {
     // The border says what the card is about: the alarms are off for this time.
     superficie( p, l.restante.x, l.restante.y, l.restante.w, l.restante.h, false, 0, true, T.alerta );
-    textoCentrado( p, "Tempo restante", l.restante.x + PAD, l.restante.y + ESP2, ESP4, tipo::rotulo, T.tinta2, 'l' );
+    textoCentrado( p, UA_TXT( "Time left" ), l.restante.x + PAD, l.restante.y + ESP2, ESP4, tipo::rotulo, T.tinta2, 'l' );
     tempoRestante( p, X_MEIO, l.restante.y + Y_BASE_RESTANTE, vm.restanteMin );
   } else {
     char h[12], m[12];
     snprintf( h, sizeof h, "%u", (unsigned)vm.horas );
     snprintf( m, sizeof m, "%u", (unsigned)vm.minutos );
-    desenharStepper( p, l.cartao[0], "Horas", h, "h", vm.foco == 0, l.menosAtivo[0], l.maisAtivo[0] );
-    desenharStepper( p, l.cartao[1], "Minutos", m, "min", vm.foco == 1, l.menosAtivo[1], l.maisAtivo[1] );
+    desenharStepper( p, l.cartao[0], UA_TXT( "Hours" ), h, "h", vm.foco == 0, l.menosAtivo[0], l.maisAtivo[0] );
+    desenharStepper( p, l.cartao[1], UA_TXT( "Minutes" ), m, "min", vm.foco == 1, l.menosAtivo[1], l.maisAtivo[1] );
   }
   // The alarms' note explains the state of a window that is open, and what starting
   // one does. Closed and without the permission nothing can start, so the account's
   // note has the row to itself: a second row, 18 px under the first (which starts at
   // y 160), would have its ink end at y 197, 1 px into the footer's buttons (y 196).
-  if ( vm.permitido || vm.aberta ) nota( p, l.yNota, "Os alarmes ficam suspensos até o fim.", Tom::NEUTRO );
+  if ( vm.permitido || vm.aberta ) nota( p, l.yNota, UA_TXT( "Alarms stay suspended until the end." ), Tom::NEUTRO );
   if ( !vm.permitido )
     nota( p, vm.aberta ? l.yNota + PASSO_APOIO : l.yNota,
-          vm.aberta ? "Sua conta não pode encerrar." : "Sua conta não pode abrir manutenção.", Tom::ALERTA );
-  desenharRodape( p, l.rodape, vm.aberta ? "Encerrar manutenção" : "Iniciar manutenção",
-                  vm.aberta ? Botao::DESTRUTIVO : Botao::PRIMARIO, !l.primariaAtiva, vm.aberta ? nullptr : "Cancelar" );
+          vm.aberta ? UA_TXT( "Your account cannot end maintenance." ) : UA_TXT( "Your account cannot start maintenance." ), Tom::ALERTA );
+  desenharRodape( p, l.rodape, vm.aberta ? Botao::DESTRUTIVO : Botao::PRIMARIO, !l.primariaAtiva );
 }
 
 int alvosManutencao( const VmManutencao &vm, Alvo *out ) {

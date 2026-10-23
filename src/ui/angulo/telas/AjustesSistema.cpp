@@ -4,6 +4,7 @@
 #include <stdio.h>
 
 #include "AjustesComum.h"
+#include "../Textos.h"   // UA_TXT( ): after every project header, because its pragmas hold to the end of the unit
 
 namespace ua {
 namespace tela {
@@ -34,9 +35,18 @@ constexpr int16_t W_VALOR = 40;                           // the room the steppe
 // under the last two, whose room is what "Caracteres" (85 px of ink) leaves.
 constexpr int16_t W_TECLADO = X_DIR - X_ESQ;
 
-const char *const kTeclado09[3] = { "Ordenado", "6 cartões", "4 cartões" };
-const char *const kTecladoAz[3] = { "Ordenado", "18 cartões", "12 cartões" };
-const char *const kCaracteres[2] = { "0-9", "0-9 e A-Z" };
+// The labels of the keypad's three segments and the alphabet's two, looked up where the controls are drawn (UA_TXT( ) cannot initialise a table).
+// The card counts are fixed by the policy (4 or 6 with digits, 12 or 18 with A-Z), so each is a text of its own. The segments are 90 px wide and the
+// widest label in the regular face is 78 px of ink in pt-BR: tools/tft_ui/test_idiomas.py holds the English and the Spanish to the same room.
+void rotulosDoTeclado( bool alfabeto, const char **out ) {
+  out[0] = UA_TXT( "Ordered" );
+  out[1] = alfabeto ? UA_TXT( "18 cards" ) : UA_TXT( "6 cards" );
+  out[2] = alfabeto ? UA_TXT( "12 cards" ) : UA_TXT( "4 cards" );
+}
+void rotulosDosCaracteres( const char **out ) {
+  out[0] = "0-9";                          // no letter: the same in every language
+  out[1] = UA_TXT( "0-9, A-Z" );
+}
 
 struct LayoutPolitica {
   Caixa16 linha[3];                 // the three rows' cards
@@ -68,10 +78,13 @@ LayoutPolitica layoutPolitica( const VmPoliticaPin &vm ) {
   l.grupoTeclado = Caixa16{ X_ESQ, (int16_t)( y1 + Y_CONTROLE_TECLADO ), W_TECLADO, H_SEG };
   const Caixa16 sob = segmento( X_ESQ, 0, W_TECLADO, 0, 3, 1 );   // the keypad's second segment
   l.grupoCaracteres = Caixa16{ sob.x, (int16_t)( y2 + ESP1 ), (int16_t)( X_DIR - sob.x ), H_SEG };
-  const int16_t yDedo = y1 + Y_CONTROLE_TECLADO - ESP1;
+  // The finger's zone over the keypad's segments starts where the control does, under the label: it began 4 px higher, where the label's box ends (y 112), and the
+  // descenders of the English "Keypad" (ink to y 115) crossed its edge. A text may not cross the edge of a target in any language (tools/tft_ui/host_telas.py,
+  // S10c B4b); the pt-BR and Spanish labels have no descender, so for them only the overlay of the zone changes, 4 px less above the control.
+  const int16_t yDedo = y1 + Y_CONTROLE_TECLADO;
   segmentos( l.grupoTeclado, 3, yDedo, y1 + H_LINHA_TECLADO - yDedo, l.teclado );
   segmentos( l.grupoCaracteres, 2, y2, H_LINHA_SEG, l.caracteres );
-  l.rodape = caixasRodape( "Salvar", "Cancelar" );
+  l.rodape = caixasRodape( UA_TXT( "Save" ), UA_TXT( "Cancel" ) );   // looked up once: the draw takes the labels from these boxes
   return l;
 }
 
@@ -81,7 +94,8 @@ LayoutPolitica layoutPolitica( const VmPoliticaPin &vm ) {
 // at 9 pt, on a glass that leaves 312, and no line of its own below the taller keypad
 // row, 2026-10-15), which also named the keypad, and the segment that is lit does.
 void textoFaixa( const VmPoliticaPin &vm, char *dst, int cap ) {
-  snprintf( dst, (size_t)cap, "%u a %u %s", (unsigned)vm.piso, (unsigned)vm.teto, vm.alfabeto ? "caracteres" : "dígitos" );
+  snprintf( dst, (size_t)cap, "%u %s %u %s", (unsigned)vm.piso, UA_TXT( "to" ), (unsigned)vm.teto,
+            vm.alfabeto ? UA_TXT( "characters" ) : UA_TXT( "digits" ) );
 }
 
 // A row's label: the row's main text, in the body type.
@@ -124,7 +138,7 @@ LayoutRelogio layoutRelogio( const VmRelogio &vm ) {
     if ( i < RELOG_COLUNAS - 1 && i != 2 ) l.xSep[s++] = x + LARGURAS[i] + rd2( GAPS[i] );
     x += LARGURAS[i] + ( i < RELOG_COLUNAS - 1 ? GAPS[i] : 0 );
   }
-  l.rodape = caixasRodape( "Salvar hora", vm.boot ? "Pular" : "Voltar" );
+  l.rodape = caixasRodape( UA_TXT( "Save time" ), vm.boot ? UA_TXT( "Skip" ) : UA_TXT( "Back" ) );   // looked up once: the draw takes them from these boxes
   return l;
 }
 
@@ -137,13 +151,13 @@ LayoutRelogio layoutRelogio( const VmRelogio &vm ) {
 void desenharPoliticaPin( Pintor &p, const VmPoliticaPin &vm ) {
   const Tema &T = p.t( );
   const LayoutPolitica l = layoutPolitica( vm );
-  barraTituloVoltar( p, "Segurança do PIN" );
+  barraTituloVoltar( p, UA_TXT( "PIN security" ) );
   for ( int i = 0; i < 3; i++ ) superficie( p, l.linha[i].x, l.linha[i].y, l.linha[i].w, l.linha[i].h );
 
   // The stepper's row: the label, and under it the range the minimum can take.
   const Caixa16 &passo = l.linha[0];
   const int16_t yRotulo = passo.y + rd2( passo.h - ( PASSO_APOIO + ESP4 ) );
-  rotuloDaLinha( p, yRotulo, ESP4, "Tamanho mínimo" );
+  rotuloDaLinha( p, yRotulo, ESP4, UA_TXT( "Minimum length" ) );
   char faixa[24];
   textoFaixa( vm, faixa, sizeof faixa );
   ajuda( p, X_ESQ, yRotulo + PASSO_APOIO, ESP4, faixa );
@@ -155,14 +169,17 @@ void desenharPoliticaPin( Pintor &p, const VmPoliticaPin &vm ) {
 
   // The keypad's segments: 1 ordered, 2 six cards, 3 four cards (the old values).
   // The label of 2 and 3 follows the alphabet, which has more cards to the keypad.
-  rotuloDaLinha( p, l.linha[1].y + ESP1, ESP4, "Teclado" );
-  segmentadoLeve( p, l.grupoTeclado.x, l.grupoTeclado.y, l.grupoTeclado.w, l.grupoTeclado.h, vm.alfabeto ? kTecladoAz : kTeclado09, 3,
+  const char *teclado[3], *caracteres[2];
+  rotulosDoTeclado( vm.alfabeto != 0, teclado );
+  rotulosDosCaracteres( caracteres );
+  rotuloDaLinha( p, l.linha[1].y + ESP1, ESP4, UA_TXT( "Keypad" ) );
+  segmentadoLeve( p, l.grupoTeclado.x, l.grupoTeclado.y, l.grupoTeclado.w, l.grupoTeclado.h, teclado, 3,
                   vm.teclado >= 1 && vm.teclado <= 3 ? vm.teclado - 1 : -1 );
-  rotuloDaLinha( p, l.linha[2].y, l.linha[2].h, "Caracteres" );
-  segmentadoLeve( p, l.grupoCaracteres.x, l.grupoCaracteres.y, l.grupoCaracteres.w, l.grupoCaracteres.h, kCaracteres, 2,
+  rotuloDaLinha( p, l.linha[2].y, l.linha[2].h, UA_TXT( "Characters" ) );
+  segmentadoLeve( p, l.grupoCaracteres.x, l.grupoCaracteres.y, l.grupoCaracteres.w, l.grupoCaracteres.h, caracteres, 2,
                   vm.alfabeto ? 1 : 0 );
 
-  desenharRodape( p, l.rodape, "Salvar", Botao::PRIMARIO, false, "Cancelar" );
+  desenharRodape( p, l.rodape, Botao::PRIMARIO, false );
 }
 
 int alvosPoliticaPin( const VmPoliticaPin &vm, Alvo *out ) {
@@ -185,7 +202,7 @@ void desenharRelogio( Pintor &p, const VmRelogio &vm ) {
   const LayoutRelogio l = layoutRelogio( vm );
   // No "Voltar" in the bar: the footer's left button is it (or "Pular" at boot),
   // as the old screen had it.
-  barraTitulo( p, "Data e hora", nullptr, 0 );
+  barraTitulo( p, UA_TXT( "Date and time" ), nullptr, 0 );
   char v[RELOG_COLUNAS][8];
   snprintf( v[0], sizeof v[0], "%02u", (unsigned)vm.dia );
   snprintf( v[1], sizeof v[1], "%02u", (unsigned)vm.mes );
@@ -199,8 +216,8 @@ void desenharRelogio( Pintor &p, const VmRelogio &vm ) {
   }
   static const char *const separador[3] = { "/", "/", ":" };
   for ( int s = 0; s < 3; s++ ) textoCentrado( p, separador[s], l.xSep[s], Y_VALOR, H_VALOR, tipo::dadoGrande, T.tinta2, 'c' );
-  if ( vm.boot ) textoCentrado( p, "Sem rede: os registros usam esta hora.", X_MEIO, Y_DICA, ESP4, tipo::apoio, T.alerta, 'c' );
-  desenharRodape( p, l.rodape, "Salvar hora", Botao::PRIMARIO, false, vm.boot ? "Pular" : "Voltar" );
+  if ( vm.boot ) textoCentrado( p, UA_TXT( "No network: records use this time." ), X_MEIO, Y_DICA, ESP4, tipo::apoio, T.alerta, 'c' );
+  desenharRodape( p, l.rodape, Botao::PRIMARIO, false );
 }
 
 int alvosRelogio( const VmRelogio &vm, Alvo *out ) {

@@ -34,7 +34,8 @@
 #include "telas/Ajustes.h"
 #include "telas/Telas.h"
 #include "../../display/SettingsSteps.h"   /* DISPLAY_OFFSET_LIMIT: the alignment's scale */
-#include "../../DisplayManager_Actions.h"   /* the core's touch actions, which the clock, the alignment and the sounds run; last */
+#include "../../DisplayManager_Actions.h"   /* the core's touch actions, which the clock, the alignment and the sounds run; the last project header */
+#include "Textos.h"   /* UA_TXT( ): after every project header, because its pragmas hold to the end of the unit */
 
 namespace {
 
@@ -100,7 +101,7 @@ bool DisplayManager::uaMontarAjustes( UaQuadro &q ) {
       const float hi = channelValid( ch ) ? _tempAlarmConfig.chMax[ch] : 0.0f;
       VmLimites &vm = uaVm<VmLimites>( );
       if ( _tempAlarmConfig.friendlyName[0] ) ua::copiar( vm.sensor, _tempAlarmConfig.friendlyName, sizeof vm.sensor );
-      else snprintf( vm.sensor, sizeof vm.sensor, "Sensor %d", _editSensorIdx );
+      else snprintf( vm.sensor, sizeof vm.sensor, "%s %d", UA_TXT( "Sensor" ), _editSensorIdx );   // the word is the pack's, the number a literal format (Textos.h)
       vm.grandeza = ch == CH_HUM ? GLIM_UMIDADE : ch == CH_PRESS ? GLIM_PRESSAO : GLIM_TEMPERATURA;
       vm.pagina = (uint8_t)pagina;
       vm.total = (uint8_t)( nLim / 2 );
