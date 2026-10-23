@@ -568,11 +568,13 @@ time <AAAA-MM-DD> <HH:MM:SS>
 0ac4cc14 Endereço IP
 0ac4dd09 O texto legal fica no original (inglês).
 0ac8a560 Redefinir
+0b4a6ff2 Baixe o arquivo de novo.
 0c3fca28 Cor de destaque
 0db9cc3e Pulso
 0dc6b4aa Desligado
 0f29c2a6 e mais
 108524ac Gota
+11d1f3e9 Out
 11fa9858 Pressão máxima
 124aec70 restantes
 12c0095c Aviso
@@ -583,47 +585,75 @@ time <AAAA-MM-DD> <HH:MM:SS>
 17897598 Limiar
 17b41876 Ordenado
 17f5bedf 1 pendente
+1832712a Continua na versão atual.
+1a238a97 Mínimo
 1a954e05 Tamanho mínimo
+1b668244 Lendo o histórico…
 1b9ae0bb English
 1ba210bd Estalo
+1e66046b média
 1f67430f 0-9 e A-Z
 1f89134f Ativos
 224fb3b8 Agora a posição do toque.
+22de1e5e Imagem conferida
 23065661 1 registro
 23f81076 Alterar meu PIN
 25ef3135 Aguarde para tocar na tela.
 261bb4ad registros
+275e7a73 Dez
+278d4b82 Fev
 28836604 Segure para o modo de configuração
 28b19af7 agora
 2b7495ff Sem nome
+2cb1a4ef Set
 2d1072ca Desconectado
 2ef71258 Silenciado
 2fce4529 Sinal
 3159b388 MAC
 31fe130e Silenciar todos os sons?
 3214bb64 Alteração salva.
+32be4a29 Não é uma imagem de firmware válida.
 3325be3e Status do sistema
 3352afdc Pendentes
+344473b4 Detalhe
 3469ed90 Umidade mínima
 35afca3b Cancelar
 362e89a9 Rápido
 36803858 No limite
 36d9968e Minutos
 37f5f626 Toque no centro da mira e segure.
+38025279 S
 3893e946 Cabo
 38e70ee4 Licença
 3aa1e990 Não há vaga para outra conta.
+3ba7e226 Mai
+3cee9df2 7 d
 3dc65d2f A moldura deve tocar a borda.
+3f5aa514 1 h
 3f66417a Segurança do PIN
+3fdd08f8 Conferindo a assinatura
+40f594b1 Q
 42454824 a
+42a52251 Use o arquivo feito para este aparelho.
+42a7ed2b Mar
 42b2d7ab O nome pode estar em uso ou ser inválido. Uma conta também não pode excluir a si mesma.
 42d976f9 Tempo ligado
+44c12ebc Jul
 45570065 Escuro
 4648dda7 Na faixa
+46c131e2 Jun
+46f2ceae Jan
+479e33a2 12 h
+48078dc8 Média
+494a00ce dispersão
+4954229d Dia
 49a2b2e3 Sem alarme
 49de40aa Acima
 49e40ec1 Wi-Fi
 4b058728 Configurações
+4bf5a602 T
+4c0271f5 D
+4c4896a4 Atualização recusada
 4c891c6a Entendi
 4d1a6724 Não sincronizado
 4d2d5d68 Salvar
@@ -633,29 +663,40 @@ time <AAAA-MM-DD> <HH:MM:SS>
 4ef0ddc5 Sons
 4f55a00d 12 cartões
 50ecb85b Silenciar por
+514933f1 Instalando a nova versão
 51990443 Nenhum som toca, nem o do alarme, até alguém ligar os sons de novo. O mudo só vale depois de Salvar na tela de sons.
+51b708f1 Assinada com a chave de bancada.
+5252a5b8 Assinada com uma chave aposentada.
+53d7073d O envio parou antes do fim.
+5423cb18 leituras
 55411ec9 Flash
+56442c80 A imagem é de outro modelo.
+56d32511 S
 58eaaa8b Toque de novo, devagar, no centro de cada mira.
 58eaef39 Queda
 590033ed Salvar refaz a calibração do toque.
 59f8a2fc Conta
 5a7b4d74 Confirmação
 5ad24b8d está gravando pela web.
+5bf7fdc9 Q
 5cc3ba38 4 cartões
 5ce055c7 Monitor de temperatura e umidade
 5cec6caf Um valor passou do limite.
 60e47df0 Ligado
 616a6784 Automático
 618e56b3 Conta salva.
+61e00255 S
 63e629e8 magenta
 644fd692 Abaixo
 6557cd00 Subida
+65eadee0 início→fim
 672d856c Salvar sons
 6796a220 Telemetria
 68edf2a4 Calibração concluída.
 6919a853 Sem cabo
 69343c68 de
 6974ad65 Rede
+6a8e75aa fim
 6c1d561e Vale na próxima reinicialização.
 6d7302f2 Servidor
 6d8bbfdf Temperatura máxima
@@ -671,23 +712,29 @@ time <AAAA-MM-DD> <HH:MM:SS>
 7621bc38 Desativar os alarmes (pede o PIN)
 76a85421 Excluir a conta
 78166b20 Manutenção
+78a091ac A imagem não é assinada.
 796f05b0 Sua conta não pode encerrar.
 7a78b5c5 Data e hora
 7b6d57f2 violeta
 7b7a7318 volta
 7bf69370 Conectado
+7d818448 O aparelho reinicia sozinho em cerca de 30 s.
 7f46ae76 Aplicar tema
 819b178f Bolha
 82633a27 sensores
 82fbf5cd azul
 837cbabd Tempo restante
 839a7acc Confira os valores e tente de novo.
+839e9db6 Sem dados neste período.
+83f51df2 Abr
 84d27e20 Toque na tela
 85b7c6b2 Transporte
 887224c2 com erro no sensor
 88b85025 Bipe duplo
 89e4b18c Firmware
+8a3dc404 Nov
 8ad2f8cf Claro
+8b3dc597 Agora
 8bd66f86 Nenhum sensor ativo
 8befa93c Servidor NTP
 8c6879ca acima do limite
@@ -698,6 +745,7 @@ time <AAAA-MM-DD> <HH:MM:SS>
 905580d9 caracteres
 90817d38 Sensores
 9303cf47 Sua conta não pode abrir manutenção.
+96988845 Atualização do firmware
 99b03583 Toques imprecisos.
 99bf7f3c pendentes
 9a73db9b Idioma
@@ -706,16 +754,24 @@ time <AAAA-MM-DD> <HH:MM:SS>
 9f27c3af Ver mínimo e máximo
 9f437a6e Pular a espera
 a07d372c Usar esta melodia
+a0ee8fd4 Ago
 a1744a31 Teclado
+a1de2fdd Variação
+a2a56501 Use um arquivo de release ou do configurador.
 a3243e23 Este PIN já é de outra conta.
 a3fd7e9f verde-azulado
 a42c532b Alarmes
+a60871bb Não desligue o aparelho.
 a62f7b22 abaixo do limite
+a6aa3dab Use uma release mais nova.
+a7f2ed7e Atualização interrompida
 a8d3e6e7 Carrilhão
 a9ee83bb Pode soltar.
+aadfad4b Ponto = dia com histórico.
 ab34e1d4 Horas
 ab620aab 18 cartões
 abb4be0f Os alarmes ficam suspensos até o fim.
+b07506d9 6 h
 b1dd9521 Grave
 b46141ac Triunfo
 bac7c481 Ligar ou desligar alarmes vale na hora.
@@ -723,16 +779,25 @@ bb4ba06a Excluir a conta
 bd2abdbe Fanfarra
 bdcbb413 Aparelho
 be2d76ae Voltar ao painel
+bebabd13 24 h
+befc722e Volte ao gráfico e escolha outro período.
+bf2fc81d Use a versão atual ou uma mais nova.
+c1301998 Envie o arquivo de novo.
 c13cc707 Modo automático: escuro das 19 às 7
 c18f13cb Placa
 c197c7e2 Pular
 c221c77a Alarme
+c28841e5 Toque na tela para voltar.
 c2914989 1 min restante
 c2954bc2 Voltar
+c2e27654 Recebendo a nova versão
+c510bb5b A assinatura não confere.
 c54c6e41 Subida
 c5905db7 Staccato
 c60e1f48 Sem leitura. Confira o cabo.
+c6204cc2 Pressão
 c691454b Sincronizado
+c6ded4c0 Umidade
 c852666a Limites de alarme
 c98f4557 mín
 c9c9b09b Sensor
@@ -741,17 +806,22 @@ cac6cded petróleo
 cb4df5ce Umidade máxima
 cbbdf20a 6 cartões
 cc97cdc2 Bip
+cca66207 σ
 ccede1ec Zumbido
 cead783f dígitos
+cf17dcf6 Use um arquivo de release.
+cf93764a Fim
 d29223ed Carrilhão grave
 d2ed4b04 Español (España)
 d5372de5 Temperatura mínima
 d5ef4d30 Volume do alarme
 d60c1322 S
 d611415b Descida
+d6159e2b Nenhum dia com histórico.
 d7958fc6 Não definido
 d7a2e319 máx
 d8cececf Esta tela
+dd20b251 Desvio σ
 ddfce5c4 Tique
 de1d5f79 Acessos pela web
 dee04507 Em alarme
@@ -759,21 +829,30 @@ e19e5a06 Confira o tamanho mínimo e os caracteres em Segurança do PIN.
 e1c168e8 Iniciar manutenção
 e1d0be1a %UR
 e2166103 Resolução
+e234e32b Board Temp
 e29483e7 em alarme
+e2955e21 Máximo
 e35e8699 Calibrar o toque
+e7aa5e1f Δ
+e7c0775e Hoje
 e8cd6ff9 Melodia
 e94dad58 Sino
 e974ac92 Escolha outro PIN.
 ea2e9485 Erro no sensor
 eaa8ef31 Ponto
+ead8d822 Abaixo do nível de segurança atual.
 eaeeb4c6 Sem endereço
+eb0c3431 n
 ec6ee012 modo
+ec7b89db ,
 eeed6bfb Sensibilidade do toque
+efd604d5 Temperatura
 f113cab4 Volte ao painel e use a web para esta função.
 f318c3e6 Volume do sistema
 f34f59c3 PIN inválido.
 f38d9cf1 Erro
 f405fce3 O aparelho guarda até 31 contas. Exclua uma para criar outra.
+f4b43dfa Escolha outro período ou outro dia.
 f56bf788 Sem rede: os registros usam esta hora.
 f6f132e8 Salvar limites
 f78eba1d Sem permissão.

@@ -9,6 +9,8 @@
 #include "Graficos.h"
 #include "GraficosComum.h"
 
+#include "../Textos.h"   // UA_TXT( ): after every project header, because its pragmas hold to the end of the unit
+
 namespace ua {
 namespace tela {
 
@@ -110,10 +112,10 @@ struct LayoutGrafico : PlotGrafico, GeometriaGrafico {
 int32_t chao( int32_t a, int32_t b ) { return a >= 0 ? a / b : -( ( -a + b - 1 ) / b ); }   // floor( a / b ), b > 0
 
 // "5,8 °C" with its unit, or "--,-" alone for what is not known, as the
-// dashboard writes a sensor in error.
+// dashboard writes a sensor in error (the separator is the language's: "5.8 °C" and "--.-" in English).
 void comUnidade( int16_t v, const char *un, char *buf, int cap ) {
   char t[16];
-  if ( v == SEM_DADO ) snprintf( buf, (size_t)cap, "--,-" );
+  if ( v == SEM_DADO ) snprintf( buf, (size_t)cap, "--%s-", separadorDecimal( ) );
   else snprintf( buf, (size_t)cap, "%s%s", n1( v, t ), un );
 }
 
@@ -221,7 +223,7 @@ void montarStats( const VmGrafico &vm, LayoutGrafico &l ) {
     char texto[16];
     char quando[8];
     auto novo = [&]( const char *nome ) {
-      strcpy( d[k].k, nome );
+      copiar( d[k].k, nome, sizeof d[k].k );   // the pack's word, bounded whatever it gives
       copiar( d[k].v, texto, sizeof d[k].v );
       copiar( d[k].t, quando, sizeof d[k].t );
       k++;
@@ -236,25 +238,25 @@ void montarStats( const VmGrafico &vm, LayoutGrafico &l ) {
       else horaMin( t, quando, sizeof quando );
     };
     extremo( vm.maximo, vm.tMaximo, " °C" );
-    novo( "máx" );
+    novo( UA_TXT( "max" ) );
     extremo( vm.minimo, vm.tMinimo, tentativa == 0 ? " °C" : "" );
-    novo( "mín" );
+    novo( UA_TXT( "min" ) );
     const int linha1 = k;
     quando[0] = 0;
     comUnidade( vm.media, "", texto, sizeof texto );
-    novo( "média" );
+    novo( UA_TXT( "avg" ) );
     comUnidade( vm.desvio, "", texto, sizeof texto );
-    novo( "σ" );
+    novo( UA_TXT( "σ" ) );
     if ( vm.variacao > 0 ) {
       char t[16];
       snprintf( texto, sizeof texto, "+%s", n1( vm.variacao, t ) );
     } else {
       comUnidade( vm.variacao, "", texto, sizeof texto );
     }
-    novo( "Δ" );
+    novo( UA_TXT( "Δ" ) );
     comUnidade( vm.agora, "", texto, sizeof texto );
     // "agora" is the last reading of the window; in the past it is not now.
-    novo( vm.passado ? "fim" : "agora" );
+    novo( vm.passado ? UA_TXT( "end" ) : UA_TXT( "now" ) );
     l.nStat = k;
     const bool coube1 = linha( d, linha1, Y_STAT1 );
     const bool coube2 = linha( d + linha1, k - linha1, Y_STAT2 );
@@ -263,8 +265,8 @@ void montarStats( const VmGrafico &vm, LayoutGrafico &l ) {
 }
 
 void geometria( GeometriaGrafico &g ) {
-  g.acoes[0] = Acao{ "Dia", Botao::SECUNDARIO, IconeNome::CALENDAR, 0 };
-  g.acoes[1] = Acao{ "Voltar", Botao::DISCRETO, IconeNome::ARROW_LEFT, 0 };
+  g.acoes[0] = Acao{ UA_TXT( "Day" ), Botao::SECUNDARIO, IconeNome::CALENDAR, 0 };   // looked up once: caixasDasAcoes( ) below measures this label and the draw takes it from the same struct
+  g.acoes[1] = acaoVoltar( );                                                         // the kit's own, the label barraTitulo( ) draws
   caixasDasAcoes( g.acoes, 2, g.cxAcao );
   // The footer.
   const int16_t xChips = ESP2 + W_SETA + ESP2;
@@ -310,7 +312,7 @@ LayoutGrafico layoutGrafico( const VmGrafico &vm ) {
       l.temV2 = true;
       l.lo2 = lo2;
       l.hi2 = hi2;
-      l.un2 = vm.serie2 == Serie2::UMIDADE ? "%UR" : "hPa";
+      l.un2 = vm.serie2 == Serie2::UMIDADE ? UA_TXT( "%RH" ) : "hPa";
       snprintf( l.rot2Cima, sizeof l.rot2Cima, "%d", (int)( hi2 / 10 ) );
       snprintf( l.rot2Baixo, sizeof l.rot2Baixo, "%d", (int)( lo2 / 10 ) );
       larguraDir = larguraTinta( l.rot2Cima, tipo::apoio );
@@ -624,7 +626,7 @@ void desenharGrafico( Pintor &p, const VmGrafico &vm ) {
 
   superficie( p, l.cartao.x, l.cartao.y, l.cartao.w, l.cartao.h );
   if ( l.temDados ) desenharPlot( p, vm, l );
-  else semDados( p, l.cartao, "Escolha outro período ou outro dia." );
+  else semDados( p, l.cartao, UA_TXT( "Choose another period or another day." ) );
 
   // The time axis, inside the card's foot, on the plot's own columns.
   static const char alinha[3] = { 'l', 'c', 'r' };

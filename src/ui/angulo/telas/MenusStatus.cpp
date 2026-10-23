@@ -78,10 +78,10 @@ LinhaStatus &anexar( LayoutStatus &l, const char *k, const char *v, Tom tom = To
 }
 
 // kB with one decimal from bytes, SI (1 kB = 1000 B: the unit of the 20000-byte
-// heap threshold): 112400 is "112,4".
+// heap threshold): 112400 is "112,4" ("112.4" in English: the language's separator, as n1( ) writes it).
 void kb( uint32_t bytes, char *out, int cap ) {
   const uint64_t decimos = ( (uint64_t)bytes + 50 ) / 100;
-  snprintf( out, (size_t)cap, "%lu,%lu", (unsigned long)( decimos / 10 ), (unsigned long)( decimos % 10 ) );
+  snprintf( out, (size_t)cap, "%lu%s%lu", (unsigned long)( decimos / 10 ), separadorDecimal( ), (unsigned long)( decimos % 10 ) );
 }
 
 // "−58": the typographic minus the plan uses beside dBm and GMT.

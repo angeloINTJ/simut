@@ -76,7 +76,7 @@ void paginadorComEstados( Pintor &p, int16_t pagina, int16_t total, const char *
 // DisplayManager_Graph.cpp), which in this build only marks the frame dirty.
 void linhaOcupado( Pintor &p );
 
-// "Sem dados neste período." centred in `area`, a line of what to do under it.
+// "No data in this period." ("Sem dados neste período." in pt-BR) centred in `area`, a line of what to do under it.
 void semDados( Pintor &p, const Caixa16 &area, const char *dica );
 
 }  // namespace graficos

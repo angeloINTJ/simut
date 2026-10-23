@@ -18,9 +18,10 @@ GFX 1.12.6, draws every sample in both themes, and fails when a sample:
   - draws a text across the edge of one of its touch targets;
   - draws a text cut with "…" that tools/tft_ui/cortes_aceitos.txt does not
     accept for that sample (fixed copy must fit, and so must data of an
-    ordinary length; a text the screen's own copy ends with "…", such as
-    "Lendo o histórico…", is not a cut), or the list accepts a cut that no
-    longer happens;
+    ordinary length; a text the screen's own copy ends with "…", such as the
+    loading screen's "Lendo o histórico…", is not a cut: it is a literal of the
+    source or, since S10c B5a, a text of the @ANGULO section in use), or the
+    list accepts a cut that no longer happens;
   - draws a text whose ink runs past the left or right edge of the smallest card, strip, button or badge that holds the middle of it (S10c, B3: the kit
     records the box of every fillRoundRect( ) and roundRect( ) of a sample, in this build only). A fixed text longer than the room its layout gave it, in English or
     Spanish, runs past its card with no "…" and no touch target to cross, and none of the checks above sees it; a user's name that is cut with "…" fits by
@@ -44,8 +45,8 @@ the targets per sample (and the list it draws, <sample>.alvos: x y w h type inde
 With --idioma en|pt|es (S10c, B2a) the frames are drawn in that language: the harness loads the @ANGULO section of data/lang/language_pt-BR.lng or
 language_es-ES.lng through ua::textosCarregar( ) (src/ui/angulo/Textos.cpp, the code the device runs) before it draws, so that a text a screen
 draws through UA_TXT( ) comes from the pack; en loads nothing, the English of the source. The shipped packs carry the section for the Painel and Base
-screens and the kit's two texts (S10c, B3). The other four groups still draw their Portuguese literals, so --idioma pt draws them as they were drawn before (the kit's "Voltar" and "n de m" now
-come from the pack, and the pt-BR pack gives the same words); en and es draw the English and the Spanish of what is converted. tools/tft_ui/test_idiomas.py runs it in the three languages for
+screens and the kit's two texts (S10c, B3), and for the Menus, Ajustes and Graficos screens (B4a, B4b, B5a). The Identidade group still draws its Portuguese literals, so --idioma pt draws it as it was drawn before (the kit's
+"Voltar" and "n de m" come from the pack, and the pt-BR pack gives the same words); en and es draw the English and the Spanish of what is converted. tools/tft_ui/test_idiomas.py runs it in the three languages for
 every group (the kit's texts reach them all: S10c B3-b), with planted packs as controls. --lng <file> takes another pack, for the controls. A pack the device
 would refuse (a malformed line, a repeated hash, a section over UA_TEXTOS_MAX, a section after @WEBDICT) stops the run with exit 2.
 
@@ -370,6 +371,16 @@ def secao_angulo(pacote):
     return dados[idx['ANGULO'][0]:idx['ANGULO'][1]], None
 
 
+def textos_da_secao(secao):
+    """{text} for the texts of an @ANGULO section, as the gate reads them (angulo_entries( )). A drawn text equal to one of them is the screen's own copy: the pack's, which the source asks for by its English (S10c, B5a)."""
+    import os
+    os.environ.setdefault('LANG_GATE_NO_RUN', '1')   # tools/check_lang_packs.py runs its gate on import otherwise
+    if str(ROOT / 'tools') not in sys.path:
+        sys.path.insert(0, str(ROOT / 'tools'))
+    import check_lang_packs as gate
+    return set(gate.angulo_entries(secao)[0].values())
+
+
 # --acentos (S10c, A'2): the three screens the palette is judged on, as (group, sample, what it is)
 ACENTOS_TELAS = (('painel', 'painel_dht22', 'the dashboard'), ('menus', 'menu_admin_p1', 'a menu'), ('graficos', 'grafico_24h', 'a chart'))
 
@@ -473,6 +484,7 @@ def main():
         dados = tmp / 'dados'
         dados.mkdir()
         comando = [str(exe), str(dados)]
+        do_pacote = set()   # the texts of the pack in use: one of them that holds "…" is the screen's own copy, not a cut
         if args.idioma:
             nome = IDIOMAS[args.idioma]
             pacote = pathlib.Path(args.lng) if args.lng else (ROOT / 'data' / 'lang' / nome if nome else None)
@@ -486,6 +498,7 @@ def main():
                 arq = tmp / 'angulo.secao'
                 arq.write_bytes(secao)
                 comando += ['0', str(arq)]   # argv[2] is the palette entry (0, the stock one), argv[3] the section
+                do_pacote = textos_da_secao(secao)
         r = subprocess.run(comando, capture_output=True, text=True)
         print(r.stdout.strip())
         if r.returncode:
@@ -495,7 +508,7 @@ def main():
         regras = aceitos(args.grupo, args.idioma or 'en')
         if regras is None:
             return 2
-        proprios, usadas, cortes = literais(), set(), 0
+        proprios, usadas, cortes = literais() | do_pacote, set(), 0
         inerte = alvo_inerte()
         if inerte is None:
             return 2

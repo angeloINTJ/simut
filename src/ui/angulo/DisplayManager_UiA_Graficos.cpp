@@ -23,6 +23,7 @@
 #include "telas/Graficos.h"
 #include "../../display/GraphNav.h"   /* calDayHasHistory( ): the calendar's day test */
 #include "../../DisplayManager_Actions.h"   /* the core's touch actions, which the graph screens' buttons run; last */
+#include "Textos.h"   /* UA_TXT( ): after every project header, because its pragmas hold to the end of the unit */
 
 namespace {
 
@@ -121,7 +122,7 @@ bool DisplayManager::uaMontarGraficos( UaQuadro &q ) {
         }
       }
       VmCarregando &vm = uaVm<VmCarregando>( );
-      ua::cola::nomeDoSensor( _sysConfigPtr, s_sensor, vm.sensor, sizeof vm.sensor );
+      ua::cola::nomeDoSensor( _sysConfigPtr, s_sensor, vm.sensor, sizeof vm.sensor, UA_TXT( "Board Temp" ), UA_TXT( "Sensor" ) );
       vm.periodo = (uint8_t)s_periodo;
       /* The segment of the bar moves every 250 ms: whole steps, not millis( ),
        * so the model changes four times a second and no faster. */

@@ -9,6 +9,8 @@
 #include "Graficos.h"
 #include "GraficosComum.h"
 
+#include "../Textos.h"   // UA_TXT( ): after every project header, because its pragmas hold to the end of the unit
+
 namespace ua {
 namespace tela {
 
@@ -43,13 +45,48 @@ constexpr int16_t Y_PE = 196, H_PE = 40, W_HOJE = 64;
 // font, the room is about 120). The letters also let the title stay in the
 // larger font in every month, which the bar decides by width (barraTitulo( ):
 // the title must end 2 * ESP2 short of the first action).
-const char *const kMeses[12] = { "Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez" };
+// The names are the pack's, asked for when the title is built: English "Jan" .. "Dec", pt-BR "Jan Fev Mar Abr Mai Jun Jul Ago Set Out Nov Dez" as before, es-ES "Ene Feb
+// Mar Abr May Jun Jul Ago Sep Oct Nov Dic". A table of them made at start-up would hold the English for good (Textos.h). layoutCalendario( ) keeps the month in 1..12.
+const char *nomeDoMes( int mes ) {
+  switch ( mes ) {
+    case 1: return UA_TXT( "Jan" );
+    case 2: return UA_TXT( "Feb" );
+    case 3: return UA_TXT( "Mar" );
+    case 4: return UA_TXT( "Apr" );
+    case 5: return UA_TXT( "May" );
+    case 6: return UA_TXT( "Jun" );
+    case 7: return UA_TXT( "Jul" );
+    case 8: return UA_TXT( "Aug" );
+    case 9: return UA_TXT( "Sep" );
+    case 10: return UA_TXT( "Oct" );
+    case 11: return UA_TXT( "Nov" );
+    default: return UA_TXT( "Dec" );
+  }
+}
+
+// The weekday of column i (0 = Sunday), by the English two-letter names: the initials repeat in a language ("S" is Sunday and Saturday in English, Monday, Friday and Saturday
+// in Portuguese) and one English gives one translation, so the key is the unambiguous name. pt-BR draws "D S T Q Q S S" as before, es-ES "D L M X J V S", English its two letters.
+const char *inicialDaSemana( int i ) {
+  switch ( i ) {
+    case 0: return UA_TXT( "Su" );
+    case 1: return UA_TXT( "Mo" );
+    case 2: return UA_TXT( "Tu" );
+    case 3: return UA_TXT( "We" );
+    case 4: return UA_TXT( "Th" );
+    case 5: return UA_TXT( "Fr" );
+    default: return UA_TXT( "Sa" );
+  }
+}
 
 // The arrows are 32 px wide, not the plan's 36: with 36 the widest titles
 // ("Mar 2026", "Ago 2026", "Nov 2026", 107 to 108 px measured 2026-10-14) are 2
 // to 3 px too wide for the larger font and fall to the smaller, so the title
 // would change size from month to month. With 32 they all fit, up to "Mar 2000"
-// (111 px of 113).
+// (111 px of 113). That is the pt-BR names' measure; with the pack's names (2026-10-22, every year
+// 2000 to 2099): English fits in every month ("May 2000", the widest, is 115 px of the 123 that
+// its "Back" leaves); Spanish has "Volver" 4 px wider than "Voltar", leaves 109 px, and draws "May 2026"
+// (112 px) in the smaller title font, as "Mar" and "Ago" in 3 of the years 2020 to 2099. Only a
+// narrower arrow would hold them, and that moves the pt-BR frames.
 constexpr int16_t W_SETA = 32;
 
 struct LayoutCalendario {
@@ -90,9 +127,11 @@ LayoutCalendario layoutCalendario( const VmCalendario &vm ) {
   const int mes = vm.mes < 1 ? 1 : vm.mes > 12 ? 12 : vm.mes;
   l.acoes[0] = Acao{ "", Botao::SECUNDARIO, IconeNome::CHEVRON_LEFT, W_SETA };
   l.acoes[1] = Acao{ "", Botao::SECUNDARIO, IconeNome::CHEVRON_RIGHT, W_SETA };
-  l.acoes[2] = Acao{ "Voltar", Botao::DISCRETO, IconeNome::ARROW_LEFT, 0 };
+  l.acoes[2] = acaoVoltar( );   // the kit's own, the label barraTitulo( ) draws and caixasDasAcoes( ) measures
   caixasDasAcoes( l.acoes, 3, l.cxAcao );
-  snprintf( l.titulo, sizeof l.titulo, "%s %u", kMeses[mes - 1], (unsigned)vm.ano );
+  char nome[16];   // the month in the pack's words, bounded whatever a pack gives: the title below then never cuts a character
+  copiar( nome, nomeDoMes( mes ), sizeof nome );
+  snprintf( l.titulo, sizeof l.titulo, "%s %u", nome, (unsigned)vm.ano );
 
   l.dias = diasNoMes( vm.ano, mes );
   l.primeiro = diaDaSemana( vm.ano, mes, 1 );
@@ -117,9 +156,8 @@ void desenharCalendario( Pintor &p, const VmCalendario &vm ) {
     botao( p, l.cxAcao[1].x, l.cxAcao[1].y, l.cxAcao[1].w, l.cxAcao[1].h, "", Botao::SECUNDARIO, true, IconeNome::CHEVRON_RIGHT );
 
   superficie( p, X_CARTAO, Y_CARTAO, W_CARTAO, H_CARTAO );
-  static const char *const kSemana[DIAS_SEMANA] = { "D", "S", "T", "Q", "Q", "S", "S" };
   for ( int i = 0; i < DIAS_SEMANA; i++ )
-    textoCentrado( p, kSemana[i], (int16_t)( X_CARTAO + i * W_CEL + rd2( W_CEL ) ), Y_CARTAO, H_CABECALHO, tipo::rotulo, T.tinta2, 'c' );
+    textoCentrado( p, inicialDaSemana( i ), (int16_t)( X_CARTAO + i * W_CEL + rd2( W_CEL ) ), Y_CARTAO, H_CABECALHO, tipo::rotulo, T.tinta2, 'c' );
   p.hline( X_CARTAO + PAD, Y_FIO, W_CARTAO - 2 * PAD, T.linha );
 
   for ( int d = 1; d <= l.dias; d++ ) {
@@ -136,9 +174,9 @@ void desenharCalendario( Pintor &p, const VmCalendario &vm ) {
   // The empty month's note is the legend's own words: "Nenhum dia com histórico
   // neste mês." was 280 px of ink in 9 pt, under "Hoje" (the title already says
   // which month it is).
-  textoCentrado( p, l.temAlgum ? "Ponto = dia com histórico." : "Nenhum dia com histórico.", ESP2, Y_PE, H_PE, tipo::apoio, T.tinta2,
+  textoCentrado( p, l.temAlgum ? UA_TXT( "Dot = day with history." ) : UA_TXT( "No days with history." ), ESP2, Y_PE, H_PE, tipo::apoio, T.tinta2,
                  'l' );
-  botao( p, l.hoje.x, l.hoje.y, l.hoje.w, l.hoje.h, "Hoje", Botao::SECUNDARIO );
+  botao( p, l.hoje.x, l.hoje.y, l.hoje.w, l.hoje.h, UA_TXT( "Today" ), Botao::SECUNDARIO );
 }
 
 int alvosCalendario( const VmCalendario &vm, Alvo *out ) {

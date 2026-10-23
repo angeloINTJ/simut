@@ -21,6 +21,13 @@ Spanish, and the source gives the English. This runs tools/tft_ui/host_telas.py 
   3. The surface check's own cases (host_telas.conferir_encaixe( )) on synthetic boxes, edge by edge; the reader of a sample's texts (host_telas.ler_textos( ))
      on a file that is not UTF-8, and on records at the recorder's field and under it; and the English of a sample file (host_telas.ingles_das_amostras( ))
      against the sources: the right English passes and one letter off is named.
+  4. The numbers are written the language's way (S10c, B5a). The decimal separator is the pack's text for "Decimal separator" (ua::separadorDecimal( ), the kit's one place, which n1( ) and kb( )
+     both call): "," in pt-BR and es-ES, and in English, which has no line for it, the point of the original panel (fmtFloat1). Every number with one decimal in the records of every group's samples carries the language's
+     separator, and the control is that a mutant n1( ) with a literal "," passes the checks above and fails only this one.
+  6. What the translated paragraphs of the update screens leave of the foot (S10c, B5a): a refusal's two paragraphs wrap to as many lines as the language needs, and in es-ES one of them took four lines and ended
+     2 px above the foot note, where nothing else came nearer than 18 px. The paragraphs must end 12 px or more above the first foot line, in every language.
+  5. The calendar's names (S10c, B5a): the month of the title and the seven weekday letters of the header are the language's (English "Jan".."Dec" and "Su".."Sa", pt-BR as before, es-ES "Ene".."Dic" and
+     "D L M X J V S"), each weekday centred in its column, in every calendar sample.
 
 Usage: python3 tools/tft_ui/test_idiomas.py   exit 0 when all hold, 1 when not, 2 when it cannot build (no Adafruit GFX 1.12.6 in .pio/libdeps: run pio once).
 """
@@ -42,14 +49,30 @@ os.environ.setdefault('LANG_GATE_NO_RUN', '1')   # tools/check_lang_packs.py run
 import check_lang_packs as gate  # noqa: E402
 import host_telas  # noqa: E402
 
-GRUPOS = ('base', 'painel', 'menus', 'ajustes')   # the groups whose texts are converted: a group joins here when its step lands (B5: identidade, graficos)
+GRUPOS = ('base', 'painel', 'menus', 'ajustes', 'graficos')   # the groups whose texts are converted: a group joins here when its step lands (B5b: identidade)
 TODOS = tuple(sorted(p.stem for p in (HERE / 'amostras').glob('*.cpp')))   # every group the harness draws, read from its samples
 IDIOMAS = ('en', 'pt', 'es')
 PACOTES = {'pt': ROOT / 'data' / 'lang' / 'language_pt-BR.lng', 'es': ROOT / 'data' / 'lang' / 'language_es-ES.lng'}
 CASOS = []                                        # (name, ok, detail)
 # The samples the cross-language checks below hold, counted on 2026-10-22 (B4a-b, after the review of B4a found that losing most of them
-# stayed green; B4b added the 78 footer buttons of the Ajustes samples): a step that draws fewer must lower these on purpose, and say why.
-PISO_LEGENDA, PISO_VOLTAR, PISO_RODAPE = 4, 127, 78
+# stayed green; B4b added the 78 footer buttons of the Ajustes samples; B5a the 21 samples of the chart and the calendar, whose bars draw the kit's back action):
+# a step that draws fewer must lower these on purpose, and say why.
+PISO_LEGENDA, PISO_VOLTAR, PISO_RODAPE = 4, 148, 78
+# The numbers with one decimal that the samples of all the groups draw in each language, counted on 2026-10-22 (B5a: 109 in graficos, 36 in menus, 101 in painel, 16 in ajustes): the separator check holds this many in every language.
+PISO_DECIMAIS = 262
+CHAVE_SEPARADOR = 'Decimal separator'                            # the English key of the separator (Angulo.cpp, separadorDecimal( )); English has no line for it and draws the point
+SEPARADOR = {'en': '.', 'pt': ',', 'es': ','}                    # each language's decimal separator
+# The calendar's names, as the brief for B5a fixes them. The keys are the English the screen asks for (GraficosCalendario.cpp: nomeDoMes( ), inicialDaSemana( )); the weekday keys are two letters
+# because the initials repeat in a language and one English gives one translation.
+CHAVES_MES = 'Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec'.split()
+CHAVES_SEMANA = 'Su Mo Tu We Th Fr Sa'.split()
+MESES = {'en': 'Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec', 'pt': 'Jan Fev Mar Abr Mai Jun Jul Ago Set Out Nov Dez', 'es': 'Ene Feb Mar Abr May Jun Jul Ago Sep Oct Nov Dic'}
+SEMANA = {'en': 'Su Mo Tu We Th Fr Sa', 'pt': 'D S T Q Q S S', 'es': 'D L M X J V S'}
+# The update screens that end with the two foot lines (the seven refusals and the interrupted upload) and the room the paragraphs must leave above them: 18 px is the least any language leaves (2026-10-22, B5a, three lines
+# of paragraph), and the layout that was fixed by number left 2.
+PISO_OTA, FOLGA_OTA = 8, 12
+PISO_CALENDARIO = 7   # the calendar samples (amostras/graficos.cpp, counted 2026-10-22): October, July, a month being read, February, six weeks, a leap February, September
+DECIMAL = re.compile(r'(?<![\d.,])(?<![A-Za-z]-)\d+([.,])\d(?!\d|[.,]\d)')   # a number with one decimal; a version ("2.11.1") or an address ("192.168.4.1") has another digit or separator beside it, a licence id ("GPL-3.0") a letter and a hyphen before it
 
 
 def caso(nome, ok, detalhe=''):
@@ -172,6 +195,71 @@ def rodape_e_alvos(pasta):
     return out
 
 
+def decimais(pasta):
+    """[(sample, text, separator)] for every number with one decimal in the texts of one group's samples (the light theme's records that host_telas.py keeps in --out). n1( ) and kb( ) write one
+    decimal; a version or an address does not match (DECIMAL). The separator is read from what the screen drew, and the expectation from the language (SEPARADOR) and from the shipped pack."""
+    out = []
+    for f in sorted(pasta.glob('*_claro.textos')):
+        nome = f.name[:-len('_claro.textos')]
+        for ln in f.read_text(encoding='utf-8').splitlines():
+            r = ln.split(' ', 5)
+            if len(r) > 5 and r[4] == 't':
+                out += [(nome, r[5], m.group(1)) for m in DECIMAL.finditer(r[5])]
+    return out
+
+
+def meses_das_amostras():
+    """{sample: (year, month)} of the calendar samples, read from tools/tft_ui/amostras/graficos.cpp: the table's `{ "calendario_x", desCl<kVar>, ...` and the `calendario( year, month, ...` that builds kVar, directly or
+    in the lambda that marks it busy. The month a screen is asked for comes from the sample's data and not from another run's drawing: a key that is wrong in the code is wrong in every language alike."""
+    texto = (HERE / 'amostras' / 'graficos.cpp').read_text(encoding='utf-8')
+    por_var = {m.group(1): (int(m.group(2)), int(m.group(3)))
+               for m in re.finditer(r'const VmCalendario (\w+) = (?:\[\] \{\s*VmCalendario v = )?calendario\( (\d{4}), (\d+),', texto)}
+    return {m.group(1): por_var[m.group(2)] for m in re.finditer(r'\{ "(calendario_\w+)", desCl<(\w+)>', texto) if m.group(2) in por_var}
+
+
+def calendarios(pasta):
+    """{sample: (title or None, [(x0, x1, text)])} for the calendar samples of one group folder and language: the bar's title ("Out 2026") and the weekday header, left to right, read
+    from the light theme's records. The header is the texts whose ink lies between the bar (y 28) and the first week (y 50), and the title the one text of the bar that is a name and a year."""
+    out = {}
+    for f in sorted(pasta.glob('calendario_*_claro.textos')):
+        nome = f.name[:-len('_claro.textos')]
+        recs = [ln.split(' ', 5) for ln in f.read_text(encoding='utf-8').splitlines()]
+        recs = [(int(r[0]), int(r[1]), int(r[2]), int(r[3]), r[5]) for r in recs if len(r) > 5 and r[4] == 't']
+        titulo = [t for x0, x1, y0, y1, t in recs if y1 <= 28 and re.fullmatch(r'\S+ \d{4}', t)]
+        out[nome] = (titulo[0] if len(titulo) == 1 else None, sorted((x0, x1, t) for x0, x1, y0, y1, t in recs if 30 <= y0 and y1 < 50))
+    return out
+
+
+def chaves_da_fonte(funcao, primeiro, quantos):
+    """[key] the source's `funcao` ( ) of src/ui/angulo/telas/GraficosCalendario.cpp asks the pack for, for the arguments primeiro .. primeiro + quantos - 1: the `case N: return UA_TXT( "key" );` that answers
+    each, the `default:` answering the last. None where the source does not say. The calendar's samples draw five months (October, July, August, February, September), so this is the check of the others."""
+    texto = (ROOT / 'src' / 'ui' / 'angulo' / 'telas' / 'GraficosCalendario.cpp').read_text(encoding='utf-8')
+    m = re.search(r'const char \*' + funcao + r'\( int \w+ \) \{\n(.*?)\n\}\n', texto, re.S)
+    if not m:
+        return None
+    casos = {int(n): k for n, k in re.findall(r'case (\d+): return UA_TXT\( "([^"]+)" \);', m.group(1))}
+    padrao = re.findall(r'default: return UA_TXT\( "([^"]+)" \);', m.group(1))
+    if len(padrao) != 1:
+        return None
+    casos[primeiro + quantos - 1] = padrao[0]
+    return [casos.get(primeiro + i) for i in range(quantos)]
+
+
+def folga_do_pe_da_ota(pasta, idioma):
+    """{sample: px} for the update screens that end with the two foot lines ("Still on the current version." and "Tap the screen to go back.", the language's words): the distance from the lowest ink of what
+    stands between the status line and the foot (the paragraphs) to the top of the foot's first line, read from the light theme's records."""
+    pes = {traducao(idioma, 'Still on the current version.'), traducao(idioma, 'Tap the screen to go back.')}
+    out = {}
+    for f in sorted(pasta.glob('ota_*_claro.textos')):
+        recs = [ln.split(' ', 5) for ln in f.read_text(encoding='utf-8').splitlines()]
+        recs = [(int(r[2]), int(r[3]), r[5]) for r in recs if len(r) > 5 and r[4] == 't']
+        pe = [r for r in recs if r[2] in pes]
+        corpo = [r for r in recs if r[0] >= 100 and r[2] not in pes]
+        if len(pe) == 2 and corpo:
+            out[f.name[:-len('_claro.textos')]] = min(r[0] for r in pe) - max(r[1] for r in corpo)
+    return out
+
+
 def quadros_diferentes(a, b):
     """The samples whose frame differs between two --out folders of the same group."""
     nomes = sorted({p.name[:-len('_escuro.png')] for p in a.glob('*_escuro.png')})
@@ -243,6 +331,57 @@ def main():
         mudou = [k for k in folgas['pt'] if len({folgas[i].get(k) for i in IDIOMAS}) != 1]
         caso('footer buttons: the slack is the same in the three languages', not mudou,
              '; '.join(f'{k}: ' + ', '.join(f'{i} {folgas[i].get(k)} px' for i in IDIOMAS) for k in mudou[:4]))
+
+        # the decimal separator: the pack's text for "." in every language, in every group (S10c, B5a)
+        achados = {i: [(f'{g}/{n}', t, s) for g in TODOS for n, t, s in decimais(limpo / i / g)] for i in IDIOMAS}
+        caso(f'decimal separator: the packs\' text for "{CHAVE_SEPARADOR}" is "," in pt-BR and in es-ES',
+             all(traducao(i, CHAVE_SEPARADOR) == SEPARADOR[i] for i in ('pt', 'es')), str({i: traducao(i, CHAVE_SEPARADOR) for i in ('pt', 'es')}))
+        caso(f'decimal separator: the samples draw numbers with a decimal in every language ({len(achados["pt"])} in pt-BR)',
+             all(len(achados[i]) >= PISO_DECIMAIS for i in IDIOMAS), str({i: len(v) for i, v in achados.items()}) + f' of at least {PISO_DECIMAIS}')
+        for i in IDIOMAS:
+            errados = [(n, t, s) for n, t, s in achados[i] if s != SEPARADOR[i]]
+            caso(f'decimal separator in {i}: every number with a decimal is written with "{SEPARADOR[i]}" ({len(achados[i])} found)', not errados,
+                 '; '.join(f'{n} "{t}" has "{s}"' for n, t, s in errados[:4]) + f' ({len(errados)} of {len(achados[i])})')
+
+        # the calendar's names: the months of the title and the weekday header, in every language (S10c, B5a)
+        caso('calendar names: the packs give the months and the weekday letters of the brief',
+             all([traducao(i, k) for k in CHAVES_MES] == MESES[i].split() and [traducao(i, k) for k in CHAVES_SEMANA] == SEMANA[i].split() for i in IDIOMAS),
+             str({i: ([traducao(i, k) for k in CHAVES_MES], [traducao(i, k) for k in CHAVES_SEMANA]) for i in IDIOMAS}))
+        cal = {i: calendarios(limpo / i / 'graficos') for i in IDIOMAS}
+        caso(f'calendar names: the same calendar samples in every language ({len(cal["pt"])} in pt-BR)',
+             len(cal['pt']) >= PISO_CALENDARIO and all(set(cal[i]) == set(cal['pt']) for i in IDIOMAS), str({i: sorted(v) for i, v in cal.items()}))
+        meses_fonte, semana_fonte = chaves_da_fonte('nomeDoMes', 1, 12), chaves_da_fonte('inicialDaSemana', 0, 7)
+        caso('calendar names: the source asks the pack for the twelve months and the seven weekdays by the brief\'s keys, in order (the samples draw five months)',
+             meses_fonte == CHAVES_MES and semana_fonte == CHAVES_SEMANA, f'months {meses_fonte}, weekdays {semana_fonte}')
+        espaco2 = espaco_do_kit('ESP2')
+        datas = meses_das_amostras()
+        caso(f'calendar names: the samples\' own months are read from the sample file ({len(datas)} of the {len(cal["pt"])} samples)',
+             set(datas) == set(cal['pt']), f'{sorted(datas)} against {sorted(cal["pt"])}')
+        for i in IDIOMAS:
+            ruins = []
+            for nome, (titulo, cab) in sorted(cal[i].items()):
+                ano, mes = datas.get(nome, (None, None))   # what the sample asks the screen for, not what another run drew
+                esperado = f'{MESES[i].split()[mes - 1]} {ano}' if mes else None
+                if titulo != esperado:
+                    ruins.append(f'{nome}: title "{titulo}", expected "{esperado}"')
+                if [t for _, _, t in cab] != SEMANA[i].split():
+                    ruins.append(f'{nome}: header {[t for _, _, t in cab]}, expected {SEMANA[i].split()}')
+                    continue
+                for k, (x0, x1, t) in enumerate(cab):
+                    centro = (espaco2 or 0) + 43 * k + 21.5   # the card starts ESP2 in, in columns of 43 px (GraficosCalendario.cpp: W_CEL)
+                    if abs((x0 + x1) / 2 - centro) > 2:
+                        ruins.append(f'{nome}: "{t}" ink {x0}..{x1} is not centred in its column (centre {centro})')
+            caso(f'calendar names in {i}: the title\'s month and the seven weekday letters ({MESES[i].split()[9]} .. , {SEMANA[i]}) in every calendar sample, centred in their columns',
+                 not ruins and espaco2, '; '.join(ruins[:4]) + f' ({len(ruins)})')
+
+        # the update screens: the paragraphs stay clear of the foot in every language (S10c, B5a)
+        ota = {i: folga_do_pe_da_ota(limpo / i / 'graficos', i) for i in IDIOMAS}
+        caso(f'update screens: the same screens with a foot in every language ({len(ota["pt"])} in pt-BR)',
+             len(ota['pt']) >= PISO_OTA and all(set(ota[i]) == set(ota['pt']) for i in IDIOMAS), str({i: sorted(v) for i, v in ota.items()}))
+        for i in IDIOMAS:
+            apertados = sorted((n, v) for n, v in ota[i].items() if v < FOLGA_OTA)
+            caso(f'update screens in {i}: the paragraphs end {FOLGA_OTA} px or more above the foot note (the least is {min(ota[i].values(), default=None)} px)', not apertados,
+                 '; '.join(f'{n} {v} px' for n, v in apertados[:4]))
 
         # 2. the plants fail exactly where their frames change
         limpo_es = limpo / 'es' / 'painel'
@@ -338,6 +477,13 @@ def main():
                 caso('accepted cuts: a language the lines do not list is refused and named, not a traceback', False, f'ValueError: {e}')
         finally:
             host_telas.ACEITOS = orig
+
+    # a screen's own ellipsis: the loading message is the pack's text since B5a, and is no cut (host_telas.textos_da_secao( ))
+    for i in ('pt', 'es'):
+        proprios = host_telas.textos_da_secao(host_telas.secao_angulo(PACOTES[i])[0])
+        inteiro = traducao(i, 'Reading the history…')
+        caso(f'own ellipsis in {i}: the loading message "{inteiro}" is a text of the pack, and a cut of it is not',
+             inteiro.endswith('…') and inteiro in proprios and inteiro[:-2] + '…' not in proprios, inteiro)
 
     # the English of a sample file against the sources
     with tempfile.TemporaryDirectory(prefix='idiomas_amostra_') as t:

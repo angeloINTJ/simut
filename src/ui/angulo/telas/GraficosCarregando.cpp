@@ -2,6 +2,8 @@
 #include "Graficos.h"
 #include "GraficosComum.h"
 
+#include "../Textos.h"   // UA_TXT( ): after every project header, because its pragmas hold to the end of the unit
+
 namespace ua {
 namespace tela {
 
@@ -36,7 +38,7 @@ void desenharCarregando( Pintor &p, const VmCarregando &vm ) {
   const int16_t x = (int16_t)( X_BARRA + 3 * ESP5 + kPasso[fase] * ESP5 );
   p.fillRoundRect( x, Y_BARRA, W_TRECHO, H_BARRA_PROG, RAIO_TOTAL, T.acento );
 
-  textoCentrado( p, "Lendo o histórico…", X_CENTRO, Y_MENSAGEM, H_CORPO, tipo::corpo, T.tinta2, 'c' );
+  textoCentrado( p, UA_TXT( "Reading the history…" ), X_CENTRO, Y_MENSAGEM, H_CORPO, tipo::corpo, T.tinta2, 'c' );
 }
 
 int alvosCarregando( const VmCarregando &, Alvo * ) {

@@ -8,6 +8,8 @@
 #include "Graficos.h"
 #include "GraficosComum.h"
 
+#include "../Textos.h"   // UA_TXT( ): after every project header, because its pragmas hold to the end of the unit
+
 namespace ua {
 namespace tela {
 
@@ -70,17 +72,17 @@ struct LayoutDetalhe {
 
 void unidadeENome( Grandeza g, const char **unidade, const char **nome ) {
   switch ( g ) {
-    case Grandeza::UMIDADE: *unidade = "%UR"; *nome = "Umidade"; break;
-    case Grandeza::PRESSAO: *unidade = "hPa"; *nome = "Pressão"; break;
-    default: *unidade = "°C"; *nome = "Temperatura"; break;
+    case Grandeza::UMIDADE: *unidade = UA_TXT( "%RH" ); *nome = UA_TXT( "Humidity" ); break;
+    case Grandeza::PRESSAO: *unidade = "hPa"; *nome = UA_TXT( "Pressure" ); break;
+    default: *unidade = "°C"; *nome = UA_TXT( "Temperature" ); break;
   }
 }
 
 // The number of readings behind the mean, in the longest wording that fits.
 void leituras( uint16_t n, char *buf, int cap ) {
-  snprintf( buf, (size_t)cap, "%u leituras", (unsigned)n );
+  snprintf( buf, (size_t)cap, "%u %s", (unsigned)n, UA_TXT( "readings" ) );
   if ( larguraTinta( buf, tipo::apoio ) <= LARGURA_TEXTO ) return;
-  snprintf( buf, (size_t)cap, "n = %u", (unsigned)n );
+  snprintf( buf, (size_t)cap, "%s = %u", UA_TXT( "n" ), (unsigned)n );
 }
 
 // The two things the targets need from the layout, apart from the cards: the back button's box and the pager's state. alvosDetalhe( ) takes only these (the
@@ -99,7 +101,7 @@ void paginacao( const VmDetalhe &vm, int *paginas, int *pagina ) {
 
 LayoutDetalhe layoutDetalhe( const VmDetalhe &vm ) {
   LayoutDetalhe l{ };
-  snprintf( l.titulo, sizeof l.titulo, "Detalhe · %s", rotuloPeriodo( vm.periodo ) );
+  snprintf( l.titulo, sizeof l.titulo, "%s · %s", UA_TXT( "Detail" ), rotuloPeriodo( vm.periodo ) );
   l.cxVoltar = caixaVoltar( );
   l.area = Caixa16{ ESP2, Y0, 320 - 2 * ESP2, ( N_CARTOES / COLUNAS ) * H_CARTAO + ESP2 };
 
@@ -110,7 +112,8 @@ LayoutDetalhe layoutDetalhe( const VmDetalhe &vm ) {
   unidadeENome( e.grandeza, &unidade, &l.nome );
 
   // "Desvio (σ)" is 86 px in 9 pt bold, over the card's 80.
-  const char *const rotulos[N_CARTOES] = { "Máximo", "Mínimo", "Média", "Desvio σ", "Variação", vm.passado ? "Fim" : "Agora" };
+  const char *const rotulos[N_CARTOES] = { UA_TXT( "Maximum" ), UA_TXT( "Minimum" ), UA_TXT( "Average" ), UA_TXT( "Std dev σ" ), UA_TXT( "Change" ),
+                                           vm.passado ? UA_TXT( "End" ) : UA_TXT( "Now" ) };   // looked up here, in the layout: the draw takes them from the cards it holds
   const int16_t v[N_CARTOES] = { e.maximo, e.minimo, e.media, e.desvio, e.variacao, e.agora };
   for ( int i = 0; i < N_CARTOES; i++ ) {
     Cartao &c = l.cartao[i];
@@ -118,7 +121,7 @@ LayoutDetalhe layoutDetalhe( const VmDetalhe &vm ) {
                        W_CARTAO, H_CARTAO };
     c.rotulo = rotulos[i];
     c.unidade = unidade;
-    if ( v[i] == SEM_DADO ) strcpy( c.valor, "--,-" );
+    if ( v[i] == SEM_DADO ) snprintf( c.valor, sizeof c.valor, "--%s-", separadorDecimal( ) );
     else if ( i == C_VARIACAO && v[i] > 0 ) { char t[16]; snprintf( c.valor, sizeof c.valor, "+%s", n1( v[i], t ) ); }   // the change keeps its sign
     else n1( v[i], c.valor );
   }
@@ -136,8 +139,8 @@ LayoutDetalhe layoutDetalhe( const VmDetalhe &vm ) {
     else horaMin( e.tMinimo, l.cartao[C_MINIMO].sub, sizeof l.cartao[C_MINIMO].sub );
   }
   leituras( e.leituras, l.cartao[C_MEDIA].sub, sizeof l.cartao[C_MEDIA].sub );
-  strcpy( l.cartao[C_DESVIO].sub, "dispersão" );
-  strcpy( l.cartao[C_VARIACAO].sub, "início→fim" );   // "início → fim" is 83 px
+  copiar( l.cartao[C_DESVIO].sub, UA_TXT( "spread" ), sizeof l.cartao[C_DESVIO].sub );
+  copiar( l.cartao[C_VARIACAO].sub, UA_TXT( "start→end" ), sizeof l.cartao[C_VARIACAO].sub );   // "início → fim" is 83 px
   if ( e.tAgora.dia ) {
     // In the past the date says which day "Fim" is (the time of a window's last
     // reading is the window's end, the same every day); now, the time is enough.
@@ -157,7 +160,7 @@ void desenharDetalhe( Pintor &p, const VmDetalhe &vm ) {
   conferirCaixas( "detalhe", &doKit, &l.cxVoltar, 1 );
 
   if ( l.vazio ) {
-    semDados( p, l.area, "Volte ao gráfico e escolha outro período." );
+    semDados( p, l.area, UA_TXT( "Go back and choose another period." ) );
   } else {
     for ( int i = 0; i < N_CARTOES; i++ ) {
       const Cartao &c = l.cartao[i];

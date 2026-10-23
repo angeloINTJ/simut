@@ -10,6 +10,8 @@
 #include "Graficos.h"
 #include "GraficosComum.h"
 
+#include "../Textos.h"   // UA_TXT( ): after every project header, because its pragmas hold to the end of the unit
+
 namespace ua {
 namespace tela {
 
@@ -47,20 +49,24 @@ uint16_t cor( const Tema &T, Cor c ) {
 // (OtaScreen.h, otaWhyFor). The first half is the old panel's sentence, each
 // kept to one line of the panel; the second is the advice the web page gives
 // for the same verdict (fil_fw_v7 to fil_fw_v12), in short.
+// The words are looked up when the layout is made and not kept in a table built at start-up: UA_TXT( ) answers from the pack the boot loads, so an
+// initialiser would hold the English for good (Textos.h; S10c B5a made this table a switch, as B3 did with the panel's messages).
 struct Motivo {
   const char *oQue;
   const char *comoResolver;
 };
-const Motivo kMotivos[8] = {
-  { "", "" },   // NENHUM
-  { "A imagem é de outro modelo.", "Use o arquivo feito para este aparelho." },
-  { "A imagem não é assinada.", "Use um arquivo de release ou do configurador." },
-  { "A assinatura não confere.", "Baixe o arquivo de novo." },
-  { "Assinada com uma chave aposentada.", "Use uma release mais nova." },
-  { "Abaixo do nível de segurança atual.", "Use a versão atual ou uma mais nova." },
-  { "Assinada com a chave de bancada.", "Use um arquivo de release." },
-  { "Não é uma imagem de firmware válida.", "Envie o arquivo de novo." },
-};
+Motivo motivoDe( MotivoOta m ) {
+  switch ( m ) {
+    case MotivoOta::MODELO: return { UA_TXT( "The image is for another model." ), UA_TXT( "Use the file made for this device." ) };
+    case MotivoOta::SEM_ASSINATURA: return { UA_TXT( "The image is not signed." ), UA_TXT( "Use a release file or one from the configurator." ) };
+    case MotivoOta::ASSINATURA: return { UA_TXT( "The signature does not match." ), UA_TXT( "Download the file again." ) };
+    case MotivoOta::CHAVE_APOSENTADA: return { UA_TXT( "Signed with a retired key." ), UA_TXT( "Use a newer release." ) };
+    case MotivoOta::VERSAO_BLOQUEADA: return { UA_TXT( "Below the current security level." ), UA_TXT( "Use the current version or a newer one." ) };
+    case MotivoOta::CHAVE_DE_BANCADA: return { UA_TXT( "Signed with the bench key." ), UA_TXT( "Use a release file." ) };
+    case MotivoOta::DANIFICADA: return { UA_TXT( "Not a valid firmware image." ), UA_TXT( "Send the file again." ) };
+    default: return { "", "" };   // NENHUM, or a number the validator never gives
+  }
+}
 
 // A paragraph wrapped to at most two lines of the body's width.
 struct Paragrafo {
@@ -124,7 +130,7 @@ LayoutOta layoutOta( const VmOta &vm ) {
   switch ( vm.fase ) {
     case FaseOta::RECEBENDO:
       l.icone = IconeNome::DOWNLOAD;
-      l.status = "Recebendo a nova versão";
+      l.status = UA_TXT( "Receiving the new version" );
       l.barra = true;
       l.milesimos = pct * MIL_POR_PCT;
       l.porcentagem = true;
@@ -133,7 +139,7 @@ LayoutOta layoutOta( const VmOta &vm ) {
       break;
     case FaseOta::CONFERINDO:
       l.icone = IconeNome::SHIELD_CHECK;
-      l.status = "Conferindo a assinatura";
+      l.status = UA_TXT( "Checking the signature" );
       l.barra = true;
       l.milesimos = 100 * MIL_POR_PCT;   // all of it is in
       l.aviso = true;
@@ -141,23 +147,23 @@ LayoutOta layoutOta( const VmOta &vm ) {
     case FaseOta::CONFERIDA:
       l.icone = IconeNome::CIRCLE_CHECK;
       l.corIcone = Cor::POSITIVO;
-      l.status = "Imagem conferida";
+      l.status = UA_TXT( "Image verified" );
       l.barra = true;
       l.milesimos = 100 * MIL_POR_PCT;
       l.aviso = true;
       break;
     case FaseOta::INSTALANDO:
       l.icone = IconeNome::REFRESH_CW;
-      l.status = "Instalando a nova versão";
-      quebrarEquilibrado( l.par[0], "O aparelho reinicia sozinho em cerca de 30 s.", tipo::corpo );
+      l.status = UA_TXT( "Installing the new version" );
+      quebrarEquilibrado( l.par[0], UA_TXT( "The device restarts by itself in about 30 s." ), tipo::corpo );
       l.yPar[0] = Y_CORPO;
       l.aviso = true;
       break;
     case FaseOta::RECUSADA: {
       l.icone = IconeNome::CIRCLE_X;
       l.corIcone = l.corStatus = Cor::PERIGO;
-      l.status = "Atualização recusada";
-      const Motivo &m = kMotivos[(int)vm.motivo < 8 ? (int)vm.motivo : 0];
+      l.status = UA_TXT( "Update refused" );
+      const Motivo m = motivoDe( vm.motivo );
       doisParagrafos( l, m.oQue, m.comoResolver );
       l.pe = true;
       break;
@@ -165,8 +171,8 @@ LayoutOta layoutOta( const VmOta &vm ) {
     case FaseOta::INTERROMPIDA:
       l.icone = IconeNome::CIRCLE_ALERT;
       l.corIcone = l.corStatus = Cor::ALERTA;
-      l.status = "Atualização interrompida";
-      doisParagrafos( l, "O envio parou antes do fim.", "Envie o arquivo de novo." );
+      l.status = UA_TXT( "Update interrupted" );
+      doisParagrafos( l, UA_TXT( "The upload stopped before the end." ), UA_TXT( "Send the file again." ) );
       l.pe = true;
       break;
     case FaseOta::NENHUMA:
@@ -182,7 +188,7 @@ LayoutOta layoutOta( const VmOta &vm ) {
 void desenharOta( Pintor &p, const VmOta &vm ) {
   const Tema &T = p.t( );
   const LayoutOta l = layoutOta( vm );
-  barraTitulo( p, "Atualização do firmware", nullptr, 0 );
+  barraTitulo( p, UA_TXT( "Firmware update" ), nullptr, 0 );
   if ( !l.tudo ) return;
 
   p.icone( l.icone, ICONE_G, (int16_t)( X_CENTRO - ICONE_G / 2 ), Y_ICONE, cor( T, l.corIcone ) );
@@ -199,15 +205,15 @@ void desenharOta( Pintor &p, const VmOta &vm ) {
   if ( l.aviso ) {
     // The one thing to remember while it goes on, in a strip of the warning colour.
     p.fillRoundRect( ESP2, Y_PE, 320 - 2 * ESP2, H_AVISO, RAIO_CARTAO, T.alertaSuave );
-    static const char kAviso[] = "Não desligue o aparelho.";
-    const int16_t w = (int16_t)( ICONE_P + ESP2 + larguraTinta( kAviso, tipo::corpo ) );
+    const char *const aviso = UA_TXT( "Do not switch the device off." );   // looked up once: the width below and the draw read this one pointer
+    const int16_t w = (int16_t)( ICONE_P + ESP2 + larguraTinta( aviso, tipo::corpo ) );
     const int16_t x = (int16_t)( X_CENTRO - rd2( w ) );
     p.icone( IconeNome::POWER, ICONE_P, x, (int16_t)( Y_PE + rd2( H_AVISO - ICONE_P ) ), T.alerta );
-    textoCentrado( p, kAviso, (int16_t)( x + ICONE_P + ESP2 ), Y_PE, H_AVISO, tipo::corpo, T.alerta, 'l' );
+    textoCentrado( p, aviso, (int16_t)( x + ICONE_P + ESP2 ), Y_PE, H_AVISO, tipo::corpo, T.alerta, 'l' );
   }
   if ( l.pe ) {
-    textoCentrado( p, "Continua na versão atual.", X_CENTRO, Y_MANTIDA, H_CORPO, tipo::corpo, T.tinta, 'c' );
-    textoCentrado( p, "Toque na tela para voltar.", X_CENTRO, Y_TOQUE, H_APOIO, tipo::apoio, T.tinta2, 'c' );
+    textoCentrado( p, UA_TXT( "Still on the current version." ), X_CENTRO, Y_MANTIDA, H_CORPO, tipo::corpo, T.tinta, 'c' );
+    textoCentrado( p, UA_TXT( "Tap the screen to go back." ), X_CENTRO, Y_TOQUE, H_APOIO, tipo::apoio, T.tinta2, 'c' );
   }
 }
 

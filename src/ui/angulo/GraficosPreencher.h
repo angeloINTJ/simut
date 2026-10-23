@@ -61,14 +61,16 @@ inline void fimDaJanela( time_t fim, tela::Instante &out ) {
  * AppManager_Graph.cpp:168-191): the board's own temperature, the slot's name,
  * or "Sensor n" for a slot that is not active. Empty for no slot at all, which
  * the screens call "Sensor". The names are raw UTF-8, as typed on the web
- * page: the kit draws UTF-8 (tr( ) is Latin-1 and is not used here). */
-inline void nomeDoSensor( const SystemConfig *cfg, int idx, char *out, int cap ) {
+ * page: the kit draws UTF-8 (tr( ) is Latin-1 and is not used here).
+ * `placa` and `sensor` are the pack's words for "Board Temp" and "Sensor", which the glue looks up with UA_TXT( ) (S10c B5a): this header includes
+ * no Textos.h, whose pragmas hold to the end of the unit that includes it. The number goes through a literal format (Textos.h). */
+inline void nomeDoSensor( const SystemConfig *cfg, int idx, char *out, int cap, const char *placa, const char *sensor ) {
   if ( idx == (int)MINMAX_SLOT_BOARD_TEMP ) {
-    copiar( out, "Board Temp", cap );
+    copiar( out, placa, cap );
   } else if ( idx >= 0 && idx < (int)MAX_SENSORS && cfg && cfg->sensors[idx].active ) {
     copiar( out, cfg->sensors[idx].friendlyName, cap );
   } else if ( idx >= 0 && idx < (int)MAX_SENSORS ) {
-    snprintf( out, (size_t)cap, "Sensor %d", idx + 1 );
+    snprintf( out, (size_t)cap, "%s %d", sensor, idx + 1 );
   } else {
     out[0] = 0;
   }

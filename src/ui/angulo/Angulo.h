@@ -456,10 +456,16 @@ void progresso( Pintor &p, int16_t x, int16_t y, int16_t w, int16_t h, int32_t m
 void tracejada( Pintor &p, int16_t x0, int16_t x1, int16_t y, uint16_t cor );
 
 /* ------------------------------------------------------------------ */
-/* Number formatting (pt-BR: comma, one decimal, sign kept)            */
+/* Number formatting (the language's separator, one decimal, sign kept) */
 /* ------------------------------------------------------------------ */
 
-// n1: Math.round(v * 10) / 10 with toFixed(1), the comma for the point.
+// The decimal separator of the language the device runs: the pack's text for "Decimal separator", which pt-BR and es-ES give as "," and English as ".". The original panel
+// writes "." in every language (fmtFloat1, DisplayManager_FmtFloat.h); the Ângulo wrote "," in every language until S10c B5a, and in pt-BR it still does, byte for byte. This
+// is the one place that says it: n1( ) and the kB of the system page (kb( ), telas/MenusStatus.cpp) both call it. Dates stay DD/MM and times 24-hour in every language,
+// as the original prints them: only the separator and the names change. Never longer than 4 bytes, one character of UTF-8.
+const char *separadorDecimal( );
+
+// n1: Math.round(v * 10) / 10 with toFixed(1), the language's separator for the point.
 // v in tenths. Writes into buf (at least 16 bytes) and returns it.
 char *n1( int32_t decimos, char *buf );
 

@@ -5,13 +5,22 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "../Textos.h"   // UA_TXT( ): after every project header, because its pragmas hold to the end of the unit
+
 namespace ua {
 namespace tela {
 namespace graficos {
 
+// A switch and not a table of pointers: UA_TXT( ) answers from the pack the boot loads, so a table made at start-up would hold the English for good (Textos.h).
+static_assert( N_PERIODOS == 5, "rotuloPeriodo( ) names the five periods" );
 const char *rotuloPeriodo( int periodo ) {
-  static const char *const kRotulos[N_PERIODOS] = { "1 h", "6 h", "12 h", "24 h", "7 d" };
-  return kRotulos[periodo < 0 ? 0 : periodo >= N_PERIODOS ? N_PERIODOS - 1 : periodo];
+  switch ( periodo < 0 ? 0 : periodo >= N_PERIODOS ? N_PERIODOS - 1 : periodo ) {
+    case 0: return UA_TXT( "1 h" );
+    case 1: return UA_TXT( "6 h" );
+    case 2: return UA_TXT( "12 h" );
+    case 3: return UA_TXT( "24 h" );
+    default: return UA_TXT( "7 d" );
+  }
 }
 
 void tituloComPeriodo( char *dst, int cap, const char *nome, int periodo, const Acao *acoes, int n, bool periodoPodeSair ) {
@@ -31,7 +40,7 @@ void tituloComPeriodo( char *dst, int cap, const char *nome, int periodo, const 
   // A request the glue could not name (a loading screen with no slot) is just
   // "Sensor": an accented word like "Histórico" puts the acute 1 px above the
   // safe area in the larger title font (the harness caught it).
-  copiar( curto, nome && nome[0] ? nome : "Sensor", sizeof curto );
+  copiar( curto, nome && nome[0] ? nome : UA_TXT( "Sensor" ), sizeof curto );
   snprintf( dst, (size_t)cap, "%s%s", curto, sufixo );
   if ( larguraTinta( dst, tipo::subtitulo ) <= maxW ) return;
   if ( periodoPodeSair ) sufixo[0] = 0;
@@ -133,7 +142,7 @@ void semDados( Pintor &p, const Caixa16 &area, const char *dica ) {
   const int16_t alto = H_CORPO + ESP1 + H_APOIO;
   const int16_t y = (int16_t)( area.y + rd2( area.h - alto ) );
   const int16_t cx = (int16_t)( area.x + rd2( area.w ) );
-  textoCentrado( p, "Sem dados neste período.", cx, y, H_CORPO, tipo::corpo, T.tinta, 'c' );
+  textoCentrado( p, UA_TXT( "No data in this period." ), cx, y, H_CORPO, tipo::corpo, T.tinta, 'c' );
   textoCentrado( p, dica, cx, (int16_t)( y + H_CORPO + ESP1 ), H_APOIO, tipo::apoio, T.tinta2, 'c' );
 }
 

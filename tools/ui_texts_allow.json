@@ -43,7 +43,7 @@
    "texts": {
     "src/ui/angulo/Angulo.cpp": [
      "%d %s %d",
-     "%s%ld,%ld"
+     "%s%ld%s%ld"
     ],
     "src/ui/angulo/DisplayManager_UiA.cpp": [
      "%s %s?",
@@ -60,6 +60,9 @@
      "%s",
      "%s %d",
      "%s%s"
+    ],
+    "src/ui/angulo/GraficosPreencher.h": [
+     "%s %d"
     ],
     "src/ui/angulo/telas/AjustesAlarmes.cpp": [
      "%02lu",
@@ -100,13 +103,18 @@
      "· %s"
     ],
     "src/ui/angulo/telas/GraficosDetalhe.cpp": [
-     "+%s"
+     "%s = %u",
+     "%s · %s",
+     "%u %s",
+     "+%s",
+     "--%s-"
     ],
     "src/ui/angulo/telas/GraficosGrafico.cpp": [
      "%d",
      "%ld",
      "%s%s",
-     "+%s"
+     "+%s",
+     "--%s-"
     ],
     "src/ui/angulo/telas/GraficosOta.cpp": [
      "%u"
@@ -129,7 +137,7 @@
     "src/ui/angulo/telas/MenusStatus.cpp": [
      "%lu %s",
      "%lu d %02lu:%02lu:%02lu",
-     "%lu,%lu",
+     "%lu%s%lu",
      "%s %s %s kB",
      "%s %u %s",
      "%s dBm",
@@ -382,6 +390,9 @@
     ],
     "src/ui/angulo/telas/GraficosCarregando.cpp": [
      "the segment travels three steps each side of the middle"
+    ],
+    "src/ui/angulo/telas/GraficosComum.cpp": [
+     "rotuloPeriodo( ) names the five periods"
     ],
     "src/ui/angulo/telas/GraficosGrafico.cpp": [
      "two arrows and five chips fill the footer between its ESP2 margins"
