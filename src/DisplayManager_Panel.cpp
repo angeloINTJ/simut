@@ -207,3 +207,46 @@ void DisplayManager::blitCanvas(GFXcanvas16* canvas, int16_t dstX, int16_t dstY,
  }
  _driver.tft->setOffsetBypass(false);
 }
+
+int DisplayManager::buildDashLayout(DashBtn out[5], int *totalPages, bool *hasPaging) {
+ /* Builds layout of 5 fixed slots (left->right). kind=-1 = empty.
+ * The pagination button ALWAYS stays at position 4 (right corner) when
+ * it exists; partial page slots leave gaps instead of pushing
+ * the page button left. */
+ for (int i = 0; i < 5; i++) { out[i].kind = -1; out[i].slotId = -1; }
+
+ if (!_sysConfigPtr) return 0;
+ SystemConfig &cfg = *_sysConfigPtr;
+ DashBtn all[MAX_SENSORS + 2]; /* the slots + 1 CFG + 1 margin */
+ int total = 0;
+ for (int i = 0; i < MAX_SENSORS; i++) {
+ if (cfg.sensors[i].active) {
+ /* Hide button when top panel is fixed on this sensor */
+ if (_topPanel.fixed && _topPanel.fixedIdx == i) continue;
+ all[total].kind = 0;
+ all[total].slotId = (int8_t)i;
+ total++;
+ }
+ }
+ all[total].kind = 1; /* CFG always present */
+ all[total].slotId = -1;
+ total++;
+
+ const int LINE_CAP = 5;
+ bool paging = (total > LINE_CAP);
+ int perPage = paging ? 4 : LINE_CAP; /* paging reserves pos 4 for page btn */
+ int pages = (total + perPage - 1) / perPage;
+ if (_currentPage >= pages) _currentPage = 0; /* clamp after config change */
+
+ int firstIdx = _currentPage * perPage;
+ int lastIdx = firstIdx + perPage;
+ if (lastIdx > total) lastIdx = total;
+
+ int pos = 0;
+ for (int i = firstIdx; i < lastIdx; i++) out[pos++] = all[i];
+ if (paging) { out[4].kind = 2; out[4].slotId = -1; } /* always position 4 */
+
+ if (totalPages) *totalPages = pages;
+ if (hasPaging) *hasPaging = paging;
+ return paging ? 5 : pos;
+}

@@ -229,11 +229,15 @@ lib_deps = ["https://github.com/angeloINTJ/pico-enc28j60.git#4984e2f55727c81cfd6
 [ui.original]
 # O painel que toda release leva, o padrao: nada a emitir. `units`: as unidades so dele que as duas imagens do Angulo (a do Wire e a do
 # Pico 2 W) nao linkam e que a imagem do Angulo, por isso, nao compila: Themes.cpp (o catalogo de temas; o Angulo define o dele em
-# ui/angulo/Temas.cpp), o calendario, as fontes, o grafico, a tela de atualizacao, o desenho (Render), os textos do painel (i18nUi) e
-# os widgets (UiWidgets). Medido em 2026-10-21 (S10b, sonda P4, sobre o C5b): as sete juntas linkam nas duas imagens com o mesmo .bin e a
-# mesma folga (o --gc-sections ja as descartava); o que a lista traz e que uma dependencia nova delas vira erro de link, e nao bytes
-# calados. Ainda NAO estao aqui, cada uma com o que a segura (tabela da P4; o S10b-2 as separa): Settings (so na imagem com Wi-Fi:
-# core0Yield( ) chama showApConfirm( )), Dashboard (buildDashLayout( ), de uaMontarPainel e uaToquePainel), Calibration (core0Yield( ) chama
+# ui/angulo/Temas.cpp), o calendario, as fontes, o grafico, a tela de atualizacao, o desenho (Render), os textos do painel (i18nUi), os
+# widgets (UiWidgets) e o Dashboard (os cartoes e a barra de botoes). Medido em 2026-10-21 (S10b, sonda P4, sobre o C5b): as sete juntas
+# linkam nas duas imagens com o mesmo .bin e a mesma folga (o --gc-sections ja as descartava); o que a lista traz e que uma dependencia
+# nova delas vira erro de link, e nao bytes calados. O Dashboard entrou em 2026-10-23 (S10c, D1): a buildDashLayout( ), a unica funcao dele
+# que o Angulo chamava (uaMontarPainel e uaToquePainel), foi para o Panel.cpp, que as duas imagens compilam e onde a tabela a classifica como
+# core. Medido nesse dia, as duas imagens do Angulo de zero sem a unidade: o mesmo .bin (826752 e 1035632 B), nenhuma funcao mudada (V-ELF) e
+# os bytes do original nelas caem de 293 e 269 B para 17 B (a buildDashLayout tem 276 e 252 B).
+# Ainda NAO estao aqui, cada uma com o que a segura (tabela da P4; o S10b-2 as separa): Settings (so na imagem com Wi-Fi:
+# core0Yield( ) chama showApConfirm( )), Calibration (core0Yield( ) chama
 # showTouchCalibration e showSettingsDisplayOffset, e handleResetTouchCal so showTouchCalibration), Auth (fastRandom, readRect*, convert3to565 e readRow,
 # que o nucleo chama), Touch (loopCore1 chama handleTouch), Users, Alarm e DisplayManager.cpp (funcoes de estado e de show que o nucleo
 # e o Angulo chamam) e Panel.cpp (sem linha de original na tabela, nao sondada). Uma unidade entra aqui com a prova das duas imagens.
@@ -246,6 +250,7 @@ units = [
     "DisplayManager_Render.cpp",
     "DisplayManager_i18nUi.cpp",
     "UiWidgets.cpp",
+    "DisplayManager_Dashboard.cpp",
 ]
 
 [ui.angulo]

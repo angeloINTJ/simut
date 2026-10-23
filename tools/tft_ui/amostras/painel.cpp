@@ -71,7 +71,7 @@ Sensor comErro( Sensor s ) {
   return s;
 }
 
-/* buildDashLayout( ) of DisplayManager_Dashboard.cpp: a button per active slot
+/* buildDashLayout( ) of DisplayManager_Panel.cpp: a button per active slot
  * but the pinned one, then the gear; up to five in a row, or four per page and
  * the page button at position 4. */
 void montarNav( VmPainel &vm, uint16_t ativos, int fixado, int pagina, int selecionado, uint16_t alarmes ) {
