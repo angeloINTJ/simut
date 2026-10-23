@@ -24,10 +24,10 @@ Spanish, and the source gives the English. This runs tools/tft_ui/host_telas.py 
   4. The numbers are written the language's way (S10c, B5a). The decimal separator is the pack's text for "Decimal separator" (ua::separadorDecimal( ), the kit's one place, which n1( ) and kb( )
      both call): "," in pt-BR and es-ES, and in English, which has no line for it, the point of the original panel (fmtFloat1). Every number with one decimal in the records of every group's samples carries the language's
      separator, and the control is that a mutant n1( ) with a literal "," passes the checks above and fails only this one.
-  6. What the translated paragraphs of the update screens leave of the foot (S10c, B5a): a refusal's two paragraphs wrap to as many lines as the language needs, and in es-ES one of them took four lines and ended
-     2 px above the foot note, where nothing else came nearer than 18 px. The paragraphs must end 12 px or more above the first foot line, in every language.
   5. The calendar's names (S10c, B5a): the month of the title and the seven weekday letters of the header are the language's (English "Jan".."Dec" and "Su".."Sa", pt-BR as before, es-ES "Ene".."Dic" and
      "D L M X J V S"), each weekday centred in its column, in every calendar sample.
+  6. What the translated paragraphs of the update screens leave of the foot (S10c, B5a): a refusal's two paragraphs wrap to as many lines as the language needs, and in es-ES one of them took four lines and ended
+     2 px above the foot note, where nothing else came nearer than 18 px. The paragraphs must end 12 px or more above the first foot line, in every language.
 
 Usage: python3 tools/tft_ui/test_idiomas.py   exit 0 when all hold, 1 when not, 2 when it cannot build (no Adafruit GFX 1.12.6 in .pio/libdeps: run pio once).
 """
@@ -279,11 +279,19 @@ def main():
             'cartao': ('No active sensor', 'Ningun sensor esta activo en este momento, ni uno solo, y el equipo no tiene nada que mostrar aqui hoy'),
             # The review of B3, word for word: 84 bytes, the "í" at bytes 62 and 63, where the recorder's field of 63 cuts.
             'acento': ('Activate a sensor on the web.', 'Active un sensor desde la interfaz web del equipo para ver aquí todas sus lecturas.'),
+            # The review of B5a: a "…" the translator wrote into a text whose English has none is a cut to the reader, not the screen's own copy
+            # (B5a exempted every pack text that ends in "…"). Drawn in the base group's dialogs.
+            'reticencia': ('Cancel', 'Cancelar…', 'base'),
         }
-        packs = {nome: plantar(PACOTES['es'], en, novo, tmp / f'es_{nome}.lng') for nome, (en, novo) in plantados.items()}
+        grupo_da_planta = {n: (v[2] if len(v) > 2 else 'painel') for n, v in plantados.items()}
+        packs = {nome: plantar(PACOTES['es'], v[0], v[1], tmp / f'es_{nome}.lng') for nome, v in plantados.items()}
         trabalhos = {('limpo', g, i): (g, i, None, limpo / i / g) for g in TODOS for i in IDIOMAS}
         for nome, pacote in packs.items():
-            trabalhos[(nome, 'painel', 'es')] = ('painel', 'es', pacote, tmp / nome / 'es' / 'painel')
+            g = grupo_da_planta[nome]
+            trabalhos[(nome, g, 'es')] = (g, 'es', pacote, tmp / nome / 'es' / g)
+        # The review of B5a: a separator line that is not "," or "." ("5" turned 13,8 into 1358) must draw the point
+        separador_planta = plantar(PACOTES['es'], CHAVE_SEPARADOR, '5', tmp / 'es_separador.lng')
+        trabalhos[('separador', 'graficos', 'es')] = ('graficos', 'es', separador_planta, tmp / 'separador' / 'es' / 'graficos')
         with concurrent.futures.ThreadPoolExecutor(max_workers=min(len(trabalhos), os.cpu_count() or 4)) as ex:
             feitos = {k: ex.submit(rodar, *v) for k, v in trabalhos.items()}
             res = {k: f.result() for k, f in feitos.items()}
@@ -384,18 +392,18 @@ def main():
                  '; '.join(f'{n} {v} px' for n, v in apertados[:4]))
 
         # 2. the plants fail exactly where their frames change
-        limpo_es = limpo / 'es' / 'painel'
         esperado_check = {'glifo': 'glyphs or icons missing', 'rotulo': 'target', 'cartao': 'runs past the edge of the surface',
-                          'acento': 'runs past the edge of the surface'}
+                          'acento': 'runs past the edge of the surface', 'reticencia': 'is cut with "…"'}
         campo = host_telas.campo_do_registro()
         caso('the recorder\'s field is read from Angulo.h', campo is not None and campo > 3, str(campo))
         bruto = plantados['acento'][1].encode('utf-8')
         caso(f'plant "acento": the recorder\'s cut at byte {campo} falls inside a character (else it tests nothing)',
              campo is not None and len(bruto) > campo and (bruto[campo] & 0xC0) == 0x80, f'{bruto[campo - 2:campo + 2]!r}' if campo else '')
         for nome in plantados:
-            rc, saida = res[(nome, 'painel', 'es')]
+            g = grupo_da_planta[nome]
+            rc, saida = res[(nome, g, 'es')]
             falhou, soltas = falhas(saida)
-            mudou = quadros_diferentes(limpo_es, tmp / nome / 'es' / 'painel') if (tmp / nome / 'es' / 'painel').is_dir() else set()
+            mudou = quadros_diferentes(limpo / 'es' / g, tmp / nome / 'es' / g) if (tmp / nome / 'es' / g).is_dir() else set()
             caso(f'plant "{nome}": the run fails', rc == 1, f'exit {rc}')
             caso(f'plant "{nome}": the samples that fail are exactly the samples whose frames changed ({sorted(mudou)})',
                  mudou and set(falhou) == mudou and not soltas, f'failing {sorted(falhou)}, changed {sorted(mudou)}, loose {soltas[:2]}')
@@ -405,6 +413,13 @@ def main():
             longo = campo is not None and len(plantados[nome][1].encode('utf-8')) > campo
             caso(f'plant "{nome}": ' + ('the run says the recorder\'s field was full' if longo else 'the run does not say the field was full'),
                  cheio == longo, f'{len(plantados[nome][1].encode("utf-8"))} bytes, field {campo}')
+
+        # the separator's planted line: the point, on the same numbers the shipped pack draws (before the review of B5a, "5" was taken)
+        rc, saida = res[('separador', 'graficos', 'es')]
+        lidos, limpos = decimais(tmp / 'separador' / 'es' / 'graficos'), decimais(limpo / 'es' / 'graficos')
+        caso(f'decimal separator: a pack line that is not "," or "." (planted "5") draws the point, on every number the shipped pack draws ({len(limpos)})',
+             rc == 0 and limpos and len(lidos) == len(limpos) and all(s == '.' for _, _, s in lidos),
+             f'exit {rc}, {len(lidos)} numbers against {len(limpos)}, separators {sorted({s for _, _, s in lidos})}')
 
     # 3. the surface check's own cases, edge by edge
     conferir = host_telas.conferir_encaixe

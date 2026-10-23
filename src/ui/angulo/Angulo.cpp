@@ -1318,9 +1318,10 @@ void tracejada( Pintor &p, int16_t x0, int16_t x1, int16_t y, uint16_t cor ) {
 const char *separadorDecimal( ) {
   // The key is words and the English separator is what an unknown key gives back: tools/check_ui_texts.py and tools/check_lang_packs.py read only the literals that
   // hold a letter, so a UA_TXT( "." ) would be none of their texts and the pack's line for it would match nothing (measured 2026-10-22, B5a). With no pack, or a
-  // pack with no line for it, txt( ) returns the 17 bytes of the key itself, and a separator is one character (4 bytes of UTF-8 at most): anything longer is the point.
+  // pack with no line for it, txt( ) returns the 17 bytes of the key itself. A pack gives "," or "."; anything else is the point: the review of B5a planted "5",
+  // which a guard by length took, and 13,8 drew as 1358.
   const char *s = UA_TXT( "Decimal separator" );
-  return strlen( s ) <= 4 ? s : ".";
+  return ( s[0] == ',' || s[0] == '.' ) && s[1] == 0 ? s : ".";
 }
 
 char *n1( int32_t d, char *buf ) {

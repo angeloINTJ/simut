@@ -372,13 +372,16 @@ def secao_angulo(pacote):
 
 
 def textos_da_secao(secao):
-    """{text} for the texts of an @ANGULO section, as the gate reads them (angulo_entries( )). A drawn text equal to one of them is the screen's own copy: the pack's, which the source asks for by its English (S10c, B5a)."""
+    """{text} for the texts of an @ANGULO section whose English, as the sources ask for it, ends in "…": a drawn text equal to one of them is the screen's own
+    copy (the pack's translation of a text that ends in "…" in every language, "Reading the history…"), not a cut (S10c, B5a). Only those: a "…" the translator
+    wrote into a text whose English has none reads as a cut, and is one to the check (the review of B5a: "Cancel" planted as "Cancelar…" passed)."""
     import os
     os.environ.setdefault('LANG_GATE_NO_RUN', '1')   # tools/check_lang_packs.py runs its gate on import otherwise
     if str(ROOT / 'tools') not in sys.path:
         sys.path.insert(0, str(ROOT / 'tools'))
     import check_lang_packs as gate
-    return set(gate.angulo_entries(secao)[0].values())
+    reticentes = {gate.fnv1a32(en) for en in gate._angulo_scan()[0] if en.endswith('…')}
+    return {texto for h, texto in gate.angulo_entries(secao)[0].items() if h in reticentes}
 
 
 # --acentos (S10c, A'2): the three screens the palette is judged on, as (group, sample, what it is)
