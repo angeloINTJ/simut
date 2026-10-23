@@ -523,17 +523,24 @@ ota_trust_bench = true
 #   DOIS numeros e o teto de OTA e o mais apertado: so ALARMS_PAGE fora deixou o .bin
 #   1.420 B acima do teto de 1.040.384 B mesmo com a regiao cabendo. Sao as duas paginas
 #   que um soak HTTPS menos toca; TEL_PAGE entra por folga (com duas fora o .bin ficava
-#   3.732 B sob o teto, menos de um setor de 4 KiB). Suba data/web/{alarms,files,tel}.
+#   3.732 B sob o teto, menos de um setor de 4 KiB). Suba data/web/{alarms,files,tel,license}.
 #   html.gz para /web/ antes de uma suite, ou as rotas dao "Page asset missing" (POST
 #   /api/upload, nunca uploadfs). Isenta do teto de OTA desde 2026-10-02 (ota_exempt em
 #   tools/flash_budget.json, B6 do PLANO_STABLE.md). O limite que sobra e o fim do slot do
 #   programa, onde o linker recusa a imagem: no #233 o .bin (1.039.996 B) estava a 4.484 B
 #   dele, menos que a menor das tres paginas (alarms, 4.490 B gz). Trazer uma de volta pede
-#   medir de novo.
+#   medir de novo. LICENSE_PAGE (2026-10-22, a opcao (a) do mantenedor para o S10b-2 do
+#   feat/ui-drivers): a regiao FLASH tinha 44 B de folga (o ultimo LOAD terminava em
+#   0x100FEFD4 contra 0x100FF000, readelf -l) e o S10b-2 cresce esta imagem ~160 B. Das
+#   paginas que a regra do build_webui_gz.py deixa sair (grande, pouco aberta, dispensavel
+#   para subir o aparelho), medidas neste env no mesmo dia em gz: DASH 6.237 B e a mais
+#   aberta; NET 4.304 B pode ser a que poe um aparelho novo no Wi-Fi; LICENSE 4.260 B; USR
+#   3.140 B. Suba tambem data/web/license.html.gz: o web_test_suite.py abre /license e
+#   acusa "Page asset missing" sem ele.
 [profiles.pico_w_test_https]
 extends         = "pico_w_test"
 web_https       = true
-custom_fs_pages = ["ALARMS_PAGE", "FILE_PAGE", "TEL_PAGE"]
+custom_fs_pages = ["ALARMS_PAGE", "FILE_PAGE", "TEL_PAGE", "LICENSE_PAGE"]
 
 # pico_w_asserts — release com o invariante 3 de concorrencia armado (T1.6). Nao publicada.
 #   -DSIMUT_CONCURRENCY_ASSERTS transforma FLASH_OP num tripwire que loga quem entra nele

@@ -55,20 +55,23 @@ when the target is hung too hard to service USB at all.
 
 ### Fastest and most reliable: ask udev
 
-The hand is a plain **Pico**; the SIMUT target is a **Pico W**. USB descriptors
-say so directly, with no serial traffic and no risk of sending a command to the
-wrong board:
+The hand is a plain **Pico**; since 2026-10-22 the SIMUT target is a
+**Pico 2 W** (before, a Pico W). USB descriptors say so directly, with no serial
+traffic and no risk of sending a command to the wrong board. Match the whole
+line: `ID_MODEL=Pico` is also the start of `ID_MODEL=Pico_2W` and
+`ID_MODEL=Pico_W`, so a prefix match calls the target the hand:
 
 ```bash
 for p in /dev/ttyACM*; do
-  udevadm info -q property -n "$p" | grep -q 'ID_MODEL=Pico_W' && echo "$p target" && continue
-  udevadm info -q property -n "$p" | grep -q 'ID_MODEL=Pico'   && echo "$p hand"
+  m=$(udevadm info -q property -n "$p" | sed -n 's/^ID_MODEL=//p')
+  case "$m" in Pico_2W|Pico_W) echo "$p target" ;; Pico) echo "$p hand" ;; esac
 done
 ```
 
-On this bench: hand `ID_SERIAL_SHORT=E660C062131E3E27`, target
-`E6642815E34C1824`. Serial numbers are stable across re-enumeration, so they
-are the safest anchor of all if you need to pin one board.
+On this bench (2026-10-22): hand `ID_SERIAL_SHORT=E660C062131E3E27`
+(`ID_MODEL=Pico`), target `6A73539D612923CA` (`ID_MODEL=Pico_2W`). Serial
+numbers are stable across re-enumeration, so they are the safest anchor of all
+if you need to pin one board.
 
 ### Or use the wrapper
 

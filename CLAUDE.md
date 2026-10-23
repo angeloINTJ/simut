@@ -12,7 +12,7 @@ substance lives there, not here.
 |---|---|
 | Firmware source | `src/` — ~56k lines, C++17, RP2040 / arduino-pico |
 | Web UI source | `WebUI.h` at the repository root, written in English. The other language comes from the device: `GET /api/lang` serves the `@WEBDICT` of the active `.lng` pack (`data/lang/` has pt-BR and es-ES), and a key the pack lacks shows the English text. `tools/build_webui_gz.py` compresses it into `src/WebUI_GZ.h` on every build — never edit the generated header |
-| Tools | `tools/` — [`tools/README.md`](tools/README.md) says which of the 198 scripts are live |
+| Tools | `tools/` — [`tools/README.md`](tools/README.md) says which of the 199 scripts are live |
 | Documentation | `docs/` — [`docs/README.md`](docs/README.md) marks each document **Living** or **Snapshot** |
 | Interface standard | [`ANGULO.md`](ANGULO.md) — the Ângulo guide for anything with a screen or a reader: web UI, site, README, docs, brand. [`AGENTS.md`](AGENTS.md) §7 says how it applies here and what `tools/check_angulo.py` enforces in CI |
 | Tests | `test/` — eleven native environments, `pio test -e native…` |
@@ -78,8 +78,12 @@ locally. When one fires, it is usually right:
   running `tools/gen_logcodes.py`, never the generated `.h`.
 - **Language packs** — a new `TRL("…")` literal must be added to the `@TRL`
   block of both `data/lang/*.lng` packs, keyed by a hash of the English. The
-  gate prints the hash it wants. A missing entry is not a visible failure at
-  runtime: that one line silently stays in English.
+  gate prints the hash it wants. That block is a ledger kept for the build:
+  nothing on the device reads it (`trlLookup( )` has answered "absent" since
+  b0799f6e, 2026-08-29, which kept only `@DICT` in the heap), so every `TRL( )`
+  text shows in English on the device, with or without its entry. The device
+  translates the panel from `@DICT`, the web page from `@WEBDICT` and the CLI's
+  help from `@HELP`.
 - **The Ângulo's texts** — a text the Ângulo draws (`src/ui/angulo/`) is
   `UA_TXT( "<English>" )`, and each one needs a line in the `@ANGULO` section
   of both packs, keyed by the FNV-1a of the English (the language-pack gate

@@ -2,10 +2,12 @@ name: SIMUT savings watermark
 
 # O portão de economia (docs/analysis/ECONOMIA_DE_RECURSOS.md): prova que
 # desligar um recurso ainda devolve pelo menos o que devolvia — que nenhum
-# recurso vazou para o caminho sempre-ligado. Constrói ~13 imagens (base +
-# variante por recurso), caro demais para o job `gates` de todo PR, então roda
-# à noite e sob demanda. Um `--check --only <recurso>` local é o passo barato
-# para conferir um recurso ao mexer no que ele guarda.
+# recurso vazou para o caminho sempre-ligado. Constrói 21 imagens (as 5 bases e
+# uma variante por recurso do piso, em 2026-10-22), caro demais para o job
+# `gates` de todo PR, então roda à noite e sob demanda. Um `--check --only
+# <recurso>` local é o passo barato para conferir um recurso ao mexer no que ele
+# guarda. Um vermelho daqui não aparece em PR nenhum: de 2026-10-02 a 2026-10-22
+# ele reprovou todas as noites sem ninguém ver.
 on:
   schedule:
     - cron: '0 6 * * *'   # 06:00 UTC diariamente

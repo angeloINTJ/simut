@@ -340,8 +340,9 @@ def web_keys():
 
 def check_trl(pack, live):
     """@TRL is keyed by a hash of the ENGLISH string, so editing the English
-    silently orphans the translation — the lookup misses and the line comes
-    out in English with nothing logged."""
+    silently orphans the translation. It is a ledger kept for the build:
+    nothing on the device reads @TRL since 2026-08-29 (trlLookup( ) answers
+    absent), so a TRL() line shows in English with or without its entry."""
     have = {}
     for ln in section(pack, "TRL"):
         if not ln.strip():
@@ -360,7 +361,7 @@ def check_trl(pack, live):
     orphan = [h for h in have if h not in live_hashes]
     for t, where in sorted(missing):
         print(f"[lang-packs] FAIL {pack.name}: @TRL has no {fnv1a32(t):08x} for "
-              f"{t[:60]!r} ({where}) — that line logs in English", file=sys.stderr)
+              f"{t[:60]!r} ({where}) — the ledger misses it", file=sys.stderr)
     for h in sorted(orphan):
         print(f"[lang-packs] WARN {pack.name}: @TRL {h:08x} matches no live "
               f"TRL() — the English changed and {have[h][:48]!r} is dead weight",
@@ -625,9 +626,9 @@ def main():
             print(f"[lang-packs] OK {pack.name}: {len(lines)} strings")
             if not check_markers(pack, lines, english, keys):
                 failed = True
-        # @DICT is the only section the count check can see. @TRL and
-        # @WEBDICT rot differently — a key goes missing and just that one
-        # string falls back to English, which no count catches.
+        # @DICT is the only section the count check can see. @WEBDICT rots
+        # differently — a key goes missing and just that one string falls
+        # back to English, which no count catches. @TRL is held as a ledger.
         if not check_trl(pack, trl_live):
             failed = True
         if not check_webdict(pack, wkeys, wprefixes):
@@ -638,8 +639,8 @@ def main():
         print("[lang-packs] None of these failures is visible at runtime: a short "
               "pack is rejected whole and the UI reverts to English, a blank line "
               "makes the keys after it draw the wrong string or nothing at all, "
-              "and a missing @TRL/@WEBDICT/@ANGULO entry silently leaves that one "
-              "line in English.", file=sys.stderr)
+              "and a missing @WEBDICT/@ANGULO entry silently leaves that one "
+              "line in English. (@TRL is a ledger the device never reads.)", file=sys.stderr)
         raise SystemExit(1)
 
 

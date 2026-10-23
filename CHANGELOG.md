@@ -11,7 +11,8 @@ All notable changes to SIMUT firmware.
 carry the same clock code and were not measured. A radio that stops answering is no longer joined blind, which held
 Core 0 past the hardware watchdog: it is restarted by the planned path (#266). The language pack's log records carry
 their own tag and codes: they were persisted as `?`, two warnings as "OK" and the pack loaded at boot as a language
-changed through the UI (#283).**
+changed through the UI (#283). An alpha or a Wire set to a language other than English names its events on the
+console and in the syslog again: both left the name out.**
 
 ### The panel's bus
 
@@ -120,6 +121,20 @@ changed through the UI (#283).**
 - **Host tests:** 711 cases in 11 suites, up from 706. Three in `native` pin the `I18N` tag, a walk of the whole name
   table and the names the check refuses; two in `native_logpolicy` pin the language change outside the wake's list and
   the failed pack outside the history family.
+
+### The console and syslog of an alpha or a Wire
+
+- **Events have their names again outside English.** The log asks the display code for a translation of each event's
+  name and detail, and takes a null pointer as "none, use the English". The alpha's display code, which the SIMUT Wire
+  shares, answered with an empty string instead, and the log printed it. The factory language is Portuguese, so on
+  every alpha and every Wire not set to English, each line the console prints with `debug on` had no event name, a
+  detail written through `TRL( )` came out empty too, and the syslog's lines lacked the same. The flash log was not
+  affected: it keeps codes. Both answers are a null pointer now, so names and details come out in English, as on the
+  other images. The alpha answered that way from its first build (2026-06-06), the Wire from its first (2026-10-12).
+- **The manual** said the console and the syslog speak the pack's language. They speak English on every image, and
+  chapters 14, 16 and 25 say so; their example lines are now the text the device sends (`Login failed`, `Show IP`).
+- Checked in the images, not yet on the rig: the alpha's two lookups returned the address of an empty string and now
+  return 0. The seven images that do not build that code are byte-identical.
 
 ## v2.11.1 (2026-10-12)
 
