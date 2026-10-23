@@ -84,9 +84,11 @@ locally. When one fires, it is usually right:
   `UA_TXT( "<English>" )`, and each one needs a line in the `@ANGULO` section
   of both packs, keyed by the FNV-1a of the English (the language-pack gate
   prints the hash it wants). A literal with a letter outside `UA_TXT( )`
-  fails `tools/check_ui_texts.py` in CI unless `tools/ui_texts_allow.json`
-  names it with a reason. Section 2.17 of `docs/analysis/UI_DRIVERS.md`
-  says why, and what each rule holds.
+  fails `tools/check_ui_texts.py` unless `tools/ui_texts_allow.json` names
+  it with a reason. Like the flash budget, that gate runs in CI and not in
+  a local `pio run`: run `python3 tools/check_ui_texts.py` yourself.
+  Section 2.17 of `docs/analysis/UI_DRIVERS.md` says why, and what each
+  rule holds.
 - **Authorization matrix** — every new HTTP route needs a gate or an
   allowlist entry with a reason (`docs/AUTHORIZATION.md`).
 

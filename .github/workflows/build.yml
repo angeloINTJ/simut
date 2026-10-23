@@ -282,7 +282,8 @@ jobs:
             echo "check_ui_texts.py --selftest --no-strip exited 0: its cases pass with the lexer turned off" >&2
             exit 1
           fi
-          grep -qE '^RESULT: [0-9]+ cases, [1-9][0-9]* failed' <<< "$out"
+          grep -qE '^RESULT: [0-9]+ cases, [1-9][0-9]* failed' <<< "$out" ||
+            { echo "check_ui_texts.py --selftest --no-strip printed no RESULT line with failed cases" >&2; exit 1; }
           python3 tools/check_ui_texts.py
 
       # The Angulo's host tests (S10c, A'2c). They build the kit, and the glue's theme and paint path, with g++ against Adafruit GFX and

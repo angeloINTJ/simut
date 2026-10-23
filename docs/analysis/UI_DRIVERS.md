@@ -1127,7 +1127,7 @@ B7, the bench in the three languages, has not run yet. The plan (`S10C_PLANO.md`
      - the identity bar's actions, the footer's labels, and one function per badge (B5b).
   5. **One English, one translation.** Where a language needs two forms of one English, the English must differ:
      - English weekday initials repeat ("S" is both Sunday and Saturday), so the keys are "Su" to "Sa" (B5a);
-     - the account's permission row is "Maintenance mode", so that es-ES can say "Mantenimiento" there and keep "Mantenim." on the alarm list's badge (B5b-b).
+     - the account's permission row and the sensor menu's maintenance row are "Maintenance mode", so that es-ES can say "Mantenimiento" there and keep "Mantenim." where the room is short (B5b-b, B6-b).
   6. **The decimal separator follows the language** (B5a, B5a-b). It is the pack's text for "Decimal separator". Only "," or "." is accepted, and anything else gives ".". pt-BR and es-ES write ",", and English writes ".". The original writes "." in every language (`fmtFloat1`). The placeholder of a missing value follows the separator too: "--,-" in pt-BR, "--.-" in English (B5a for the charts, B5b for the Painel). Dates stay DD/MM and times 24-hour in every language, as in the original.
   7. **Every copy is bounded, and numbers stay in literal formats.**
 - **The gate, `tools/check_ui_texts.py`** (B1; blocking since B6). Any string literal under `src/ui/angulo/` that holds a letter and is not the whole argument of `UA_TXT( )` is a finding, unless `tools/ui_texts_allow.json` names it with a reason. The gate reads what the compiler reads. Comments are removed by `check_net_boundary.py`'s lexer, escapes are decoded, adjacent literals are joined, and raw strings are read as written. Other findings are an allowance that matches nothing, a text allowed twice, an English that is not UTF-8, and a looked-up text used as a format. Its `--selftest` runs 92 cases in temporary trees, then 10 controls, each a part of the gate turned off; every control must fail a case. On a copy of the real tree, a planted literal adds exactly one finding. The work left, by step, as the gate of the tip counts it on each step's tree:
@@ -1137,7 +1137,8 @@ B7, the bench in the three languages, has not run yet. The plan (`S10C_PLANO.md`
 | B1 | 523 (408 distinct) | 33 of 80 | 0 | 213 (12) |
 | B2b-b | 523 | 33 of 83 | 0 | 216 (14) |
 | B3, Painel and Base | 451 | 26 | 69 | 228 (14) |
-| B3-b, B3-c | 447 | 25 | 69 | 229 (14) |
+| B3-b | 448 | 25 | 69 | 229 (14) |
+| B3-c | 447 | 25 | 69 | 229 (14) |
 | B4a, Menus | 316 | 18 | 181 | 262 (15) |
 | B4b, Ajustes | 191 | 12 | 290 | 267 (15) |
 | B5a, Gráficos | 103 | 5 | 377 | 274 (15) |
@@ -1203,6 +1204,19 @@ B7, the bench in the three languages, has not run yet. The plan (`S10C_PLANO.md`
 - `check_angulo.py` exits 0 (92 documents without emoji), and so does `check_readme_numbers.py`. The README's four groups hold 60, 17, 63 and 58 rows, 198 in all.
 - The eleven images were built from scratch in an export of the tree, with the comments of `src/` in. The nine are byte-identical to B5b's, and the two Ângulo images to B5b-b's.
 
+**B6-b, the review of B6 answered** (2026-10-23). The review returned COM RESSALVAS. One point would have failed in CI: `test_textos.py` read the products' scanner of before B2b with `git show e2adcc27:src/LangPackIndex.h`, and CI checks out at depth 1, where that object is absent. In a depth-1 clone the suite gave 105 checks and 1 failed; in the full worktree, where the proof kit's runner ran, 0 failed. A hash can also vanish when the branch is amended before it is integrated. The scanner of e2adcc27 is now a committed copy, `tools/tft_ui/host/LangPackIndex_antes_B2b.h`, held by its sha256 (a planted byte fails the case). The proof kit's runner gained a mode that runs in a depth-1 clone with the working tree laid over it. The other points:
+- the sensor menu's maintenance row moved to "Maintenance mode", so es-ES says "Mantenimiento" there. The status page keeps "Maintenance": with "Maintenance mode" its English cut a sensor's name;
+- the README's count of the pack gate's cases said 48 for 52;
+- the inventory row of B3-b;
+- CLAUDE.md's bullet now says the gate runs in CI and not in a local build;
+- the step now prints a message when the RESULT line is missing.
+
+**Proved** (`stages/s10c_b6b/`):
+- In a depth-1 clone of B6's tree, `test_textos.py` gave 105 checks with 1 failed, the history read. With this commit's two files laid over the same clone, it gives 105 with 0 failed. With one byte appended to the copy, the case fails on the sha256.
+- The proof kit's runner, in a depth-1 clone of B6's tree with `--quick`, passed 49 of 50 steps; the one FAIL was the text lookup. With `--raso`, on this tree, it passes 62 of 62 steps and skips 1, the sanitizer pass, which only CI runs.
+- The sensor menu's row is drawn as "Manutenção" in pt-BR (x 48 to 141, unchanged), "Maintenance mode" in English (48 to 191) and "Mantenimiento" in es-ES (48 to 158). The badge and the status page are unchanged. `test_idiomas.py` gives 121 checks, 0 failed; V-PIX holds 948 pt-BR frames equal, 0 different; en and es exit 0 in every group.
+- The step, read from `build.yml` and run with `bash -e`, exits 0 on the tree. On a copy whose `--no-strip` prints "0 failed" and exits 1, it exits 1 with its message.
+- The nine images from scratch are byte-identical to B5b's. The two Ângulo images keep their sizes (814,716 and 1,035,608 B used). V-P2W against B6's images finds one changed function in each: `desenharSensorAlarme( )`, whose literal's word now points at "Maintenance mode".
 **What B7 is for.** The bench, on the Pico 2 W, is where these are proved:
 - the two cores' order (the release store against Core 1's acquire load), which the host cannot show;
 - the heap: against English, the table should cost 8,230 B in pt-BR and 8,479 B in es-ES, within the allocator's slack;
@@ -2186,7 +2200,7 @@ numbers come from CI.
 **S10c B: what it found and left open (2026-10-23).** None of these is this stage's to change, or each was left on purpose; section 2.17 has the numbers.
 
 - **The Spanish waits for a native review.** es-ES was written for this stage, in the Spanish of Spain, and nobody who speaks it natively has read it. Where a text did not fit, it was shortened:
-  - "Maintenance" is "Mantenim." on the alarm list's badge, the sensor menu, the status page and the maintenance screen's title, because "Mantenimiento" cut the sensor's name; the pack's web dictionary abbreviates it too ("Mant. (panel)", a permission's label);
+  - "Maintenance" is "Mantenim." on the alarm list's badge and the maintenance screen's title, where "Mantenimiento" cut the sensor's name (a planted pack, 2026-10-23: 4 samples of the badge and 22 lines of the title fail), and on the status page, which shares the key because its English must stay short for the sensor names beside it, though "Mantenimiento" fits there in es-ES. The sensor menu's row and the account's permission row say "Mantenimiento" (the key "Maintenance mode", B5b-b and B6-b). The pack's web dictionary abbreviates it too ("Mant. (panel)", a permission's label);
   - "Start maintenance" is "Iniciar mantenim.", beside "Cancelar" in the footer;
   - "Touch click" is "Clic al tocar";
   - "Touch sensitivity" is "Sensibilidad del toque", where the original's pack says "Sensibilidad Táctil", whose accent crossed the safe area by 1 px;

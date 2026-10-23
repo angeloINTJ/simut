@@ -47,13 +47,14 @@ planted packs go through the scanner, the loader's store, the hook and UA_TXT( )
 opened, nothing allocated) and exactly at it; the section B2a projected for pt-BR (the boot's peak, buffer plus table, is asserted); a directive after @WEBDICT; six spellings of the
 directive name (the scanner and the gate agree on each); a section twice (the last wins); a malformed line; a repeated hash; a read that comes short; a file that does not open; no
 memory for the buffer and for the table; a range kept with no pack active; a second call. Where the gate has a rule (check_lang_packs.pack_index and check_angulo) it must say the
-same. The products' scanner, built with SIMUT_UI_ANGULO=0, prints for seven packs the index (its sizeof included) of the stage tip's src/LangPackIndex.h (git show e2adcc27) and knows
+same. The products' scanner, built with SIMUT_UI_ANGULO=0, prints for seven packs the index (its sizeof included) of the stage tip's src/LangPackIndex.h (e2adcc27's, the committed copy host/LangPackIndex_antes_B2b.h, held by its sha256) and knows
 no @ANGULO. The format rule: Textos.h's two pragmas make a looked-up text as a printf format an error on g++ and on the cross-compiler, and the same plants compile without them.
 Controls: 15 mutants of the three cuts and of the scanner, each stopped by the case it names, and 3 of the scanner and the capability on the products' side.
 
 Usage: python3 tools/tft_ui/test_textos.py   exit 0 when all hold, 1 when not, 2 when it cannot build.
 """
 import concurrent.futures
+import hashlib
 import os
 import pathlib
 import platform
@@ -553,7 +554,11 @@ GLUE = KIT / 'DisplayManager_UiA_Textos.cpp'
 INDICE_H = SRC / 'LangPackIndex.h'
 CABECALHO = SRC / 'DisplayManager.h'
 BOOT = SRC / 'AppManager_Boot.cpp'
-PONTA = 'e2adcc27'   # the stage tip B2b started from: the products' scanner is held to its LangPackIndex.h
+# The products' scanner as it was at e2adcc27, the stage tip B2b started from: a committed copy, held by its sha256, because CI checks out at
+# depth 1 and `git show e2adcc27:...` has no object there (until 2026-10-23 the case read it from the history; the review of S10c B6 found it).
+INDICE_ANTES = HERE / 'host' / 'LangPackIndex_antes_B2b.h'
+INDICE_ANTES_SHA256 = '3b9ee1514a4cdfb237ff758a4a64ea6d5fba4b1169a3c7d67cf1c5b3d8950289'
+INDICE_ANTES_MARCA = '---- below this line: src/LangPackIndex.h at e2adcc27, byte for byte (sha256 ' + INDICE_ANTES_SHA256 + ') ----\n'
 
 # TextosResultado, by number: the context of a refusal in the log is this number (the binary log keeps no text)
 R_OK, R_VAZIO, R_GRANDE, R_MALFORMADA, R_DUPLICADA, R_SEM_MEMORIA, R_JA_CARREGADO, R_LEITURA = range(8)
@@ -857,12 +862,19 @@ def problemas_da_cadeia(exe, pasta):
 def problemas_do_original(pasta, indice_atual=None, caps_atual=None):
     """The products' scanner: built with SIMUT_UI_ANGULO=0 from the current LangPackIndex.h and from the stage tip's, it prints the same index (the sizeof of the
     index included) for every planted pack, and knows no @ANGULO. -> [problem]"""
-    r = subprocess.run(['git', 'show', f'{PONTA}:src/LangPackIndex.h'], capture_output=True, text=True, cwd=ROOT)
-    if r.returncode:
-        return [f'cannot read src/LangPackIndex.h at {PONTA}: {r.stderr.strip()[:80]}']
+    try:
+        bruto = INDICE_ANTES.read_bytes()
+    except OSError as e:
+        return [f'cannot read {INDICE_ANTES.name}: {e.strerror}']
+    marca = INDICE_ANTES_MARCA.encode('utf-8')
+    if bruto.count(marca) != 1:
+        return [f'{INDICE_ANTES.name} has no marker line, or two']
+    antes = bruto[bruto.index(marca) + len(marca):]
+    if hashlib.sha256(antes).hexdigest() != INDICE_ANTES_SHA256:
+        return [f'{INDICE_ANTES.name} is not the scanner of e2adcc27: sha256 {hashlib.sha256(antes).hexdigest()[:16]}, want {INDICE_ANTES_SHA256[:16]}']
     ruins = []
     novo, e1 = compilar_carga(pasta / 'orig_novo', 'int DisplayManager::uiLangLoaded( ) { return 0; }\n', '', '', angulo=False, indice_h=indice_atual, caps_h=caps_atual, nome='orig')
-    velho, e2 = compilar_carga(pasta / 'orig_velho', 'int DisplayManager::uiLangLoaded( ) { return 0; }\n', '', '', angulo=False, indice_h=r.stdout, nome='orig')
+    velho, e2 = compilar_carga(pasta / 'orig_velho', 'int DisplayManager::uiLangLoaded( ) { return 0; }\n', '', '', angulo=False, indice_h=antes.decode('utf-8'), nome='orig')
     if not novo or not velho:
         return [f'the original build of the harness does not compile: {(e1 if not novo else e2).strip().splitlines()[:1]}']
     pacotes = [CAB + RAB, pacote_com(corpo_da_secao(PARES)), pacote_com(b''), CAB + RAB + b'@ANGULO\n' + corpo_da_secao(PARES), pacote_com(corpo_da_secao(PARES), nome=b'@ANGULOX\n'),

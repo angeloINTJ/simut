@@ -176,7 +176,9 @@ void desenharSensorAlarme( Pintor &p, const VmSensorAlarme &vm ) {
   {
     uint16_t cTexto = T.tinta, cEstado = l.manutencaoAberta ? T.alerta : T.tinta2;
     if ( !l.ativa[2] ) { cTexto = desab( T, cTexto ); cEstado = desab( T, cEstado ); }
-    desenharDuasLinhas( p, l.linhas[2], ESP2 + PAD + ICONE_CONTROLE + ESP2, UA_TXT( "Maintenance" ), cTexto, l.manutencao,
+    // "Maintenance mode" and not "Maintenance", the alarm list's badge above: es-ES shortens that one to "Mantenim." for the badge's room,
+    // and this row has the width for "Mantenimiento" (the review of S10c B6).
+    desenharDuasLinhas( p, l.linhas[2], ESP2 + PAD + ICONE_CONTROLE + ESP2, UA_TXT( "Maintenance mode" ), cTexto, l.manutencao,
                         tipo::apoio, cEstado );
   }
   if ( !l.ativa[1] ) {
