@@ -10,6 +10,8 @@
 #include "IdentidadePin.h"
 #include "IdentidadeTexto.h"
 
+#include "Textos.h"   // UA_TXT( ): after the screens' headers, because its pragmas hold to the end of the unit
+
 using namespace ua;
 using namespace ua::tela;
 
@@ -256,7 +258,8 @@ const VmPin kPinNome15 = comConta( pin( PinTeclado::CARTOES4, 41 ), NOME_15 );
 /* The text keyboard                                                    */
 /* ------------------------------------------------------------------ */
 
-// The name of a new account, as the device opens the keyboard: 15 characters at most.
+// The name of a new account, as the device opens the keyboard: 15 characters at most. The texts are the ones the glue asks of UA_TXT( ) (DisplayManager_UiA_Identidade.cpp), with the same English,
+// because the glue cannot be built on the host; a keyboard is built when it is drawn and not at start-up, because the pack is loaded after it (S10c, B3).
 VmTexto texto( const char *txt ) {
   VmTexto vm;
   memset( &vm, 0, sizeof vm );
@@ -264,10 +267,10 @@ VmTexto texto( const char *txt ) {
   vm.shift = TextoShift::OFF;
   vm.maximo = 15;
   vm.pressionada = -1;
-  copiar( vm.rotulo, "Seguir", sizeof vm.rotulo );
-  copiar( vm.titulo, "Nome da conta", sizeof vm.titulo );
+  copiar( vm.rotulo, UA_TXT( "Continue" ), sizeof vm.rotulo );
+  copiar( vm.titulo, UA_TXT( "Account name" ), sizeof vm.titulo );
   copiar( vm.texto, txt, sizeof vm.texto );
-  copiar( vm.ajuda, "Aspas e barra invertida não valem.", sizeof vm.ajuda );
+  copiar( vm.ajuda, UA_TXT( "No quotes or backslashes." ), sizeof vm.ajuda );
   return vm;
 }
 VmTexto comCamada( VmTexto vm, TextoCamada c, TextoShift s = TextoShift::OFF ) { vm.camada = c; vm.shift = s; return vm; }
@@ -279,26 +282,13 @@ VmTexto senhaLegada( const char *txt, bool ver ) {
   vm.secreto = true;
   vm.ver = ver;
   vm.maximo = 7;
-  copiar( vm.titulo, "Nova senha", sizeof vm.titulo );
-  copiar( vm.rotulo, "Salvar", sizeof vm.rotulo );
-  copiar( vm.ajuda, "De 4 a 7 caracteres.", sizeof vm.ajuda );
+  copiar( vm.titulo, UA_TXT( "New password" ), sizeof vm.titulo );
+  copiar( vm.rotulo, UA_TXT( "Save" ), sizeof vm.rotulo );
+  copiar( vm.ajuda, UA_TXT( "4 to 7 characters." ), sizeof vm.ajuda );
   return vm;
 }
 
-const VmTexto kTxtVazio = texto( "" );
-const VmTexto kTxtDigitando = comTecla( texto( "maria.s" ), 10 );        // the A of the second row
-const VmTexto kTxtShift = comCamada( texto( "ana" ), TextoCamada::MIN, TextoShift::ON );
-const VmTexto kTxtCaps = comCamada( texto( "ANA" ), TextoCamada::MIN, TextoShift::LOCK );
-const VmTexto kTxt123 = comTecla( comCamada( texto( "ana2" ), TextoCamada::NUM ), 3 );
-const VmTexto kTxtSimbolos = comCamada( texto( "ana-" ), TextoCamada::SIMB );
-const VmTexto kTxtCheio = texto( NOME_15 );                              // 15 of 15
-const VmTexto kTxtErro = comErro( texto( "maria" ), TXT_ERRO_REPETIDO );
-const VmTexto kTxtErroReservado = comErro( texto( "Admin" ), TXT_ERRO_RESERVADO );
-const VmTexto kTxtErroCaracteres = comErro( texto( "maria\"" ), TXT_ERRO_CARACTERES );
-const VmTexto kTxtErroEspacos = comErro( texto( "   " ), TXT_ERRO_SO_ESPACOS );
-const VmTexto kTxtEspacoFinal = texto( "ana maria " );
-const VmTexto kTxtSenha = senhaLegada( "1234", false );
-const VmTexto kTxtSenhaVer = senhaLegada( "1234", true );
+// The keyboards are in the table below, as expressions that the sample evaluates when it is drawn (AM( ) puts the expression in the sample's two functions).
 
 /* ------------------------------------------------------------------ */
 /* The table                                                            */
@@ -354,20 +344,20 @@ const Amostra kAmostras[] = {
   AM( "pin_nome_15", Pin, kPinNome15 ),
   AM( "pin_nome_31", Pin, kPinNomeLongo ),
   // The text keyboard
-  AM( "texto_vazio", Texto, kTxtVazio ),
-  AM( "texto_digitando", Texto, kTxtDigitando ),
-  AM( "texto_shift", Texto, kTxtShift ),
-  AM( "texto_caps", Texto, kTxtCaps ),
-  AM( "texto_123", Texto, kTxt123 ),
-  AM( "texto_simbolos", Texto, kTxtSimbolos ),
-  AM( "texto_cheio_15_de_15", Texto, kTxtCheio ),
-  AM( "texto_erro", Texto, kTxtErro ),
-  AM( "texto_erro_reservado", Texto, kTxtErroReservado ),
-  AM( "texto_erro_caracteres", Texto, kTxtErroCaracteres ),
-  AM( "texto_erro_so_espacos", Texto, kTxtErroEspacos ),
-  AM( "texto_espaco_final", Texto, kTxtEspacoFinal ),
-  AM( "texto_senha_legada", Texto, kTxtSenha ),
-  AM( "texto_senha_legada_ver", Texto, kTxtSenhaVer ),
+  AM( "texto_vazio", Texto, texto( "" ) ),
+  AM( "texto_digitando", Texto, comTecla( texto( "maria.s" ), 10 ) ),        // the A of the second row
+  AM( "texto_shift", Texto, comCamada( texto( "ana" ), TextoCamada::MIN, TextoShift::ON ) ),
+  AM( "texto_caps", Texto, comCamada( texto( "ANA" ), TextoCamada::MIN, TextoShift::LOCK ) ),
+  AM( "texto_123", Texto, comTecla( comCamada( texto( "ana2" ), TextoCamada::NUM ), 3 ) ),
+  AM( "texto_simbolos", Texto, comCamada( texto( "ana-" ), TextoCamada::SIMB ) ),
+  AM( "texto_cheio_15_de_15", Texto, texto( NOME_15 ) ),                      // 15 of 15
+  AM( "texto_erro", Texto, comErro( texto( "maria" ), erroRepetido( ) ) ),
+  AM( "texto_erro_reservado", Texto, comErro( texto( "Admin" ), erroReservado( ) ) ),
+  AM( "texto_erro_caracteres", Texto, comErro( texto( "maria\"" ), erroCaracteres( ) ) ),
+  AM( "texto_erro_so_espacos", Texto, comErro( texto( "   " ), erroSoEspacos( ) ) ),
+  AM( "texto_espaco_final", Texto, texto( "ana maria " ) ),
+  AM( "texto_senha_legada", Texto, senhaLegada( "1234", false ) ),
+  AM( "texto_senha_legada_ver", Texto, senhaLegada( "1234", true ) ),
   // The list of accounts
   AM( "usuarios_3_contas", Usuarios, kUsr3 ),
   AM( "usuarios_7_pag1", Usuarios, kUsr7p1 ),

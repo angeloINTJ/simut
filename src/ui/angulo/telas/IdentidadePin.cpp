@@ -7,6 +7,8 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "../Textos.h"   // UA_TXT( ): after every project header, because its pragmas hold to the end of the unit
+
 namespace ua {
 namespace tela {
 
@@ -14,7 +16,9 @@ namespace {
 
 using namespace ident;
 
-const AcaoBarra kCancelar = { "Cancelar", Botao::DISCRETO, IconeNome::NENHUM, false };   // never dimmed, even when the keys are
+// The bar's only action, never dimmed, even when the keys are. A function and not a constant: UA_TXT( ) answers from the pack the boot loads, so a constant built at start-up would hold the
+// English for good (Textos.h). The kit's "Cancel" in every language; the bar keeps the action it was measured from (Barra::acoes), so the label that sizes the box is the label that is drawn.
+AcaoBarra acaoCancelar( ) { return AcaoBarra{ UA_TXT( "Cancel" ), Botao::DISCRETO, IconeNome::NENHUM, false }; }
 
 constexpr int16_t M = ESP3, W_UTIL = 320 - 2 * M;                 // the margins of the plan's keypads
 constexpr int16_t Y_CAMPO = 36, H_CAMPO = 32, Y_AJUDA = 72, H_AJUDA = 16;
@@ -38,6 +42,7 @@ const Grade kGrades[6] = {
   { 3, 3, 28, ESP1, ESP1 },     // GRUPOS:    3x3, 96 x 28
 };
 
+// The keys' faces are data and not text: the alphabet's letters in their groups (tools/ui_texts_allow.json), the same in every language.
 const char *const kGrupos[9] = { "0123456789", "ABC", "DEF", "GHI", "JKL", "MNO", "PQRS", "TUV", "WXYZ" };
 const char *const kRotulosGrupo[9] = { "0-9", "ABC", "DEF", "GHI", "JKL", "MNO", "PQRS", "TUV", "WXYZ" };   // the digits group is too wide for its key
 
@@ -72,7 +77,8 @@ struct LayoutPin {
 
 LayoutPin layoutPin( const VmPin &vm ) {
   LayoutPin l{ };
-  l.barra = layoutBarra( &kCancelar, 1 );
+  const AcaoBarra cancelar = acaoCancelar( );
+  l.barra = layoutBarra( &cancelar, 1 );
   l.bloqueio = vm.estado == PinEstado::BLOQUEIO_CONTA || vm.estado == PinEstado::BLOQUEIO_PAINEL;
   l.teclasAtivas = vm.estado == PinEstado::LIVRE || vm.estado == PinEstado::ERRO;
   // The places: as many as the shortest entry or what has been typed past it,
@@ -136,21 +142,21 @@ LayoutPin layoutPin( const VmPin &vm ) {
 
 void montarTitulo( const VmPin &vm, char *out, int cap ) {
   switch ( vm.fase ) {
-    case PinFase::DEFINIR: copiar( out, "Novo PIN", cap ); break;
-    case PinFase::CONFIRMAR: copiar( out, "Confirme o novo PIN", cap ); break;
+    case PinFase::DEFINIR: copiar( out, UA_TXT( "New PIN" ), cap ); break;
+    case PinFase::CONFIRMAR: copiar( out, UA_TXT( "Confirm the new PIN" ), cap ); break;
     case PinFase::IDENTIFICAR:
     default:
-      if ( vm.conta[0] ) snprintf( out, (size_t)cap, "PIN de %s", vm.conta );
-      else copiar( out, "PIN de acesso", cap );
+      if ( vm.conta[0] ) snprintf( out, (size_t)cap, "%s %s", UA_TXT( "PIN for" ), vm.conta );   // "PIN de maria"
+      else copiar( out, UA_TXT( "Access PIN" ), cap );
       break;
   }
 }
 
 const char *rotuloEntrar( const VmPin &vm ) {
   switch ( vm.fase ) {
-    case PinFase::DEFINIR: return "Seguir";            // the next pass confirms it
-    case PinFase::CONFIRMAR: return "Salvar PIN";
-    default: return "Entrar";
+    case PinFase::DEFINIR: return UA_TXT( "Continue" );      // the next pass confirms it
+    case PinFase::CONFIRMAR: return UA_TXT( "Save PIN" );
+    default: return UA_TXT( "Sign in" );
   }
 }
 
@@ -172,58 +178,70 @@ void linhaDaConta( const char *conta, const char *resto, char *out, int cap ) {
   }
 }
 
+// What a PIN is counted in, plural: digits, or characters with the alphanumeric keyboard (the words are looked up where they are needed, UA_TXT( ) cannot initialise a table).
+const char *unidadeDoPin( const VmPin &vm ) { return vm.alfanumerico ? UA_TXT( "characters" ) : UA_TXT( "digits" ); }
+
 // The line under the field: the refusal, the wait, or the help of this layout
 // and this pass. The device talks of digits, or of characters with 0-9 A-Z. Every text here is
 // one line of 296 px at 9 pt: the 7 pt copy ("Toque no cartão que tem cada dígito do PIN.",
 // 337 px) was cut ten times at the floor (2026-10-15), and so was the lengths' message below
 // with "caracteres" (300 to 310 px, in a layout the samples did not draw).
 void montarLinha( const VmPin &vm, const LayoutPin &l, char *out, int cap, Tom *tom ) {
-  const char *digitos = vm.alfanumerico ? "caracteres" : "dígitos";
-  const char *um = vm.alfanumerico ? "caractere" : "dígito";
   *tom = Tom::NEUTRO;
   out[0] = 0;
   if ( vm.estado == PinEstado::ERRO ) {
     *tom = Tom::PERIGO;
     switch ( vm.erro ) {
-      case PinErro::CURTO: snprintf( out, (size_t)cap, "PIN curto: use %d %s ou mais.", (int)vm.minimo, digitos ); break;
-      case PinErro::DIFERENTES: copiar( out, "Os PINs não batem. Comece de novo.", cap ); break;
+      case PinErro::CURTO:
+        snprintf( out, (size_t)cap, "%s %d %s %s", UA_TXT( "Too short: use" ), (int)vm.minimo, unidadeDoPin( vm ), UA_TXT( "or more." ) );
+        break;
+      case PinErro::DIFERENTES: copiar( out, UA_TXT( "The PINs do not match. Start over." ), cap ); break;
       case PinErro::INCORRETO:
-      default: copiar( out, "PIN incorreto. Tente de novo.", cap ); break;
+      default: copiar( out, UA_TXT( "Wrong PIN. Try again." ), cap ); break;
     }
     return;
   }
-  if ( vm.estado == PinEstado::AGUARDANDO ) { copiar( out, "Conferindo…", cap ); return; }
+  if ( vm.estado == PinEstado::AGUARDANDO ) { copiar( out, UA_TXT( "Checking…" ), cap ); return; }
   if ( vm.estado == PinEstado::ESPERA ) {
     *tom = Tom::ALERTA;
-    snprintf( out, (size_t)cap, "Muitas tentativas. Aguarde %u s.", (unsigned)vm.esperaS );
+    snprintf( out, (size_t)cap, "%s %u s.", UA_TXT( "Too many attempts. Wait" ), (unsigned)vm.esperaS );
     return;
   }
-  if ( l.popup ) { snprintf( out, (size_t)cap, "Toque no caractere do grupo %s.", kRotulosGrupo[vm.popup] ); return; }
+  if ( l.popup ) { snprintf( out, (size_t)cap, "%s %s.", UA_TXT( "Tap the character in group" ), kRotulosGrupo[vm.popup] ); return; }
   switch ( vm.fase ) {
     case PinFase::DEFINIR: {
       const int teto = vm.teto ? vm.teto : LUGARES_MAX;
       char regra[40];
-      if ( teto > vm.minimo ) snprintf( regra, sizeof regra, "%d a %d %s.", (int)vm.minimo, teto, digitos );
-      else snprintf( regra, sizeof regra, "%d %s.", teto, digitos );
+      if ( teto > vm.minimo ) snprintf( regra, sizeof regra, "%d %s %d %s.", (int)vm.minimo, UA_TXT( "to" ), teto, unidadeDoPin( vm ) );
+      else snprintf( regra, sizeof regra, "%d %s.", teto, unidadeDoPin( vm ) );
       if ( vm.conta[0] ) {                                // "joao.silva: 6 a 12 caracteres."
         char resto[48];
         snprintf( resto, sizeof resto, ": %s", regra );
         linhaDaConta( vm.conta, resto, out, cap );
+      } else if ( teto > vm.minimo ) {
+        snprintf( out, (size_t)cap, "%s %s %s", UA_TXT( "Choose" ), UA_TXT( "from" ), regra );   // "Escolha de 6 a 12 caracteres."
       } else {
-        snprintf( out, (size_t)cap, "Escolha %s%s", teto > vm.minimo ? "de " : "", regra );
+        snprintf( out, (size_t)cap, "%s %s", UA_TXT( "Choose" ), regra );                        // "Escolha 8 dígitos."
       }
       break;
     }
     case PinFase::CONFIRMAR:
-      if ( vm.conta[0] ) linhaDaConta( vm.conta, ": digite o mesmo PIN.", out, cap );
-      else copiar( out, "Digite o mesmo PIN de novo.", cap );
+      if ( vm.conta[0] ) {                                  // "joao.silva: digite o mesmo PIN."
+        char resto[48];
+        snprintf( resto, sizeof resto, ": %s", UA_TXT( "type the same PIN." ) );
+        linhaDaConta( vm.conta, resto, out, cap );
+      } else {
+        copiar( out, UA_TXT( "Type the same PIN again." ), cap );
+      }
       break;
     case PinFase::IDENTIFICAR:
     default:
       switch ( vm.teclado ) {
-        case PinTeclado::NUMERICO: copiar( out, "Toque nos dígitos do PIN.", cap ); break;
-        case PinTeclado::GRUPOS: copiar( out, "Toque no grupo e depois no caractere.", cap ); break;
-        default: snprintf( out, (size_t)cap, "Toque no cartão com cada %s.", um ); break;
+        case PinTeclado::NUMERICO: copiar( out, UA_TXT( "Tap the digits of the PIN." ), cap ); break;
+        case PinTeclado::GRUPOS: copiar( out, UA_TXT( "Tap the group, then the character." ), cap ); break;
+        default:
+          snprintf( out, (size_t)cap, "%s %s.", UA_TXT( "Tap the card with each" ), vm.alfanumerico ? UA_TXT( "character" ) : UA_TXT( "digit" ) );
+          break;
       }
       break;
   }
@@ -304,9 +322,9 @@ void desenharBloqueio( Pintor &p, const VmPin &vm ) {
   p.fillRoundRect( M, y, w, h, RAIO_CARTAO, T.perigoSuave );
   p.roundRect( M, y, w, h, RAIO_CARTAO, T.perigo );
   p.icone( IconeNome::TRIANGLE_ALERT, 24, 160 - 12, y + ESP4, T.perigo );
-  textoCentrado( p, vm.estado == PinEstado::BLOQUEIO_CONTA ? "Conta bloqueada." : "Painel bloqueado.", 160, y + 44, 24,
+  textoCentrado( p, vm.estado == PinEstado::BLOQUEIO_CONTA ? UA_TXT( "Account locked." ) : UA_TXT( "Panel locked." ), 160, y + 44, 24,
                  tipo::titulo, T.perigo, 'c' );
-  textoCentrado( p, "Reinicie o aparelho para liberar.", 160, y + 72, 20, tipo::corpo, T.tinta, 'c' );
+  textoCentrado( p, UA_TXT( "Restart the device to unlock." ), 160, y + 72, 20, tipo::corpo, T.tinta, 'c' );
 }
 
 }  // namespace
@@ -316,7 +334,7 @@ void desenharPin( Pintor &p, const VmPin &vm ) {
   const LayoutPin l = layoutPin( vm );
   char titulo[64];
   montarTitulo( vm, titulo, sizeof titulo );
-  desenharBarra( p, l.barra, &kCancelar, titulo );
+  desenharBarra( p, l.barra, titulo );
   // Under the popup the bar is still drawn, but a touch there only closes the popup, as any point outside its keys: not pressable.
   UA_CONTROLE( l.barra.caixas[0].x, l.barra.caixas[0].y, l.barra.caixas[0].w, l.barra.caixas[0].h, !l.popup, "botao" );
   if ( l.bloqueio ) { desenharBloqueio( p, vm ); return; }
@@ -350,7 +368,7 @@ void desenharPin( Pintor &p, const VmPin &vm ) {
 
   if ( l.rodape ) {
     const bool desabilitado = !l.teclasAtivas || l.popup;
-    botao( p, l.apagar.x, l.apagar.y, l.apagar.w, l.apagar.h, "Apagar", Botao::SECUNDARIO, desabilitado, IconeNome::DELETE );
+    botao( p, l.apagar.x, l.apagar.y, l.apagar.w, l.apagar.h, UA_TXT( "Delete" ), Botao::SECUNDARIO, desabilitado, IconeNome::DELETE );
     botao( p, l.entrar.x, l.entrar.y, l.entrar.w, l.entrar.h, rotuloEntrar( vm ), Botao::PRIMARIO, desabilitado );
   }
 }

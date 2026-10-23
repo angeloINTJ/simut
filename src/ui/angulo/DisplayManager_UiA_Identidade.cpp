@@ -40,6 +40,7 @@
 #include "telas/IdentidadeTexto.h"
 #include "../../DisplayManager_Actions.h"   /* the core's touch actions, which the PIN keypad runs; last, as in the other glue */
 #include "../../DisplayManager_PinActions.h"   /* the PIN keypad's: the Ângulo is a TFT image, so a panel proves a PIN */
+#include "Textos.h"   /* UA_TXT( ): after every project header, because its pragmas hold to the end of the unit */
 
 namespace {
 
@@ -225,7 +226,7 @@ bool DisplayManager::uaMontarIdentidade( UaQuadro &q ) {
         VmMensagem &vm = uaVm<VmMensagem>( );
         vm.ok = _kbPhase == 3;
         if ( _kbMsgKey < TR_KEYS_COUNT ) uaLatin1ParaUtf8( tr( _kbMsgKey ), vm.texto, sizeof vm.texto );
-        ua::copiar( vm.botao, "Entendi", sizeof vm.botao );
+        ua::copiar( vm.botao, UA_TXT( "Got it" ), sizeof vm.botao );
         uaUsar<VmMensagem, desenharMensagem, alvosMensagem>( q, vm );
         return true;
       }
@@ -241,13 +242,13 @@ bool DisplayManager::uaMontarIdentidade( UaQuadro &q ) {
       const size_t n = strnlen( ativo, sizeof _kbBuffer );
       memcpy( vm.texto, ativo, n < sizeof vm.texto - 1 ? n : sizeof vm.texto - 1 );
       if ( nome ) {
-        ua::copiar( vm.titulo, "Nome da conta", sizeof vm.titulo );
-        ua::copiar( vm.rotulo, "Seguir", sizeof vm.rotulo );
-        ua::copiar( vm.ajuda, "Aspas e barra invertida não valem.", sizeof vm.ajuda );
+        ua::copiar( vm.titulo, UA_TXT( "Account name" ), sizeof vm.titulo );
+        ua::copiar( vm.rotulo, UA_TXT( "Continue" ), sizeof vm.rotulo );
+        ua::copiar( vm.ajuda, UA_TXT( "No quotes or backslashes." ), sizeof vm.ajuda );
       } else {
-        ua::copiar( vm.titulo, _kbPhase == 0 ? "Nova senha" : "Confirmar senha", sizeof vm.titulo );
-        ua::copiar( vm.rotulo, _kbPhase == 0 ? "Seguir" : "Salvar", sizeof vm.rotulo );
-        ua::copiar( vm.ajuda, "De 4 a 7 caracteres.", sizeof vm.ajuda );
+        ua::copiar( vm.titulo, _kbPhase == 0 ? UA_TXT( "New password" ) : UA_TXT( "Confirm password" ), sizeof vm.titulo );
+        ua::copiar( vm.rotulo, _kbPhase == 0 ? UA_TXT( "Continue" ) : UA_TXT( "Save" ), sizeof vm.rotulo );
+        ua::copiar( vm.ajuda, UA_TXT( "4 to 7 characters." ), sizeof vm.ajuda );
       }
       ua::copiar( vm.erro, s_erro, sizeof vm.erro );
       uaUsar<VmTexto, desenharTexto, alvosTexto>( q, vm );
@@ -490,13 +491,13 @@ UaToque DisplayManager::uaToqueIdentidade( const ua::Alvo *a, int16_t &x, int16_
             char nome[16];
             aparar( _kbBuffer, nome, sizeof nome );
             const char *erro = nullptr;
-            if ( !nome[0] ) erro = TXT_ERRO_SO_ESPACOS;
-            else if ( !isValidName( nome, 15 ) ) erro = TXT_ERRO_CARACTERES;
-            else if ( strcasecmp( nome, "admin" ) == 0 ) erro = TXT_ERRO_RESERVADO;
+            if ( !nome[0] ) erro = erroSoEspacos( );
+            else if ( !isValidName( nome, 15 ) ) erro = erroCaracteres( );
+            else if ( strcasecmp( nome, "admin" ) == 0 ) erro = erroReservado( );
             else if ( _sysConfigPtr ) {
               for ( int i = 0; i < MAX_USERS; i++ )
                 if ( _sysConfigPtr->users[i].active && strcasecmp( nome, _sysConfigPtr->users[i].username ) == 0 )
-                  erro = TXT_ERRO_REPETIDO;
+                  erro = erroRepetido( );
             }
             if ( erro ) { ua::copiar( s_erro, erro, sizeof s_erro ); _errorSoundPending = true; break; }
             zerarTeclado( );

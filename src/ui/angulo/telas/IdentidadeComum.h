@@ -79,8 +79,13 @@ inline void anexar( char *dst, int cap, const char *s ) {
 struct AcaoBarra { const char *rotulo; Botao tipo; IconeNome icone; bool desab; };
 constexpr int MAX_ACOES = 2;
 
+// The bar keeps the actions its boxes were measured from, labels included, and desenharBarra( ) draws those and no others: a label is looked up once, where
+// the layout is made, and a box cannot be measured from one text while another is drawn (B3-b and B3-c found that defect for the kit's "Voltar" and the
+// pager's count; B4b closed it for the Ajustes' footer, B5b closes it for these bars). The label pointers are the caller's: a UA_TXT( ) answer lives as long
+// as the pack's table, which is never replaced or freed while the device runs (Textos.h).
 struct Barra {
   Caixa16 caixas[MAX_ACOES];   // the actions, left to right (20 px tall, as the kit's)
+  AcaoBarra acoes[MAX_ACOES];  // the actions the boxes were measured from
   int n;
   int16_t ocupado;             // the kit's measure: every action's width and a gap
   int16_t cabe;                // ink room for the title, up to 8 px short of the first action
@@ -95,6 +100,7 @@ inline Barra layoutBarra( const AcaoBarra *acoes, int n ) {
     a.rotulo = acoes[i].rotulo;
     a.tipo = acoes[i].tipo;
     a.icone = acoes[i].icone;
+    b.acoes[i] = acoes[i];
     const int16_t w = larguraAcao( a );
     x -= w;
     b.caixas[i] = Caixa16{ x, 4, w, 20 };
@@ -116,14 +122,14 @@ inline Fonte tituloDaBarra( const Barra &b, const char *titulo, char *saida, int
   return f;
 }
 
-inline void desenharBarra( Pintor &p, const Barra &b, const AcaoBarra *acoes, const char *titulo ) {
+inline void desenharBarra( Pintor &p, const Barra &b, const char *titulo ) {
   const Tema &T = p.t( );
   char t[64];
   const Fonte f = tituloDaBarra( b, titulo, t, sizeof t );
   textoCentrado( p, t, PAD, 0, H_STATUS, f, T.tinta, 'l' );
   for ( int i = 0; i < b.n; i++ ) {
     const Caixa16 &c = b.caixas[i];
-    botao( p, c.x, c.y, c.w, c.h, acoes[i].rotulo, acoes[i].tipo, acoes[i].desab, acoes[i].icone );
+    botao( p, c.x, c.y, c.w, c.h, b.acoes[i].rotulo, b.acoes[i].tipo, b.acoes[i].desab, b.acoes[i].icone );
   }
   p.hline( 0, H_STATUS, 320, T.linha );
 }
@@ -173,19 +179,26 @@ inline int addAlvosPaginador( Alvo *out, int n, int pagina, int paginas, uint8_t
 
 // The footer of the editors: the primary action at the right, the discreet
 // one beside it (rodapeAcoes( )'s boxes, 40 px tall at y 196). Drawn here from
-// the boxes so that what is drawn is what is touched.
-inline void layoutRodape( const char *primaria, const char *secundaria, Caixa16 *cxP, Caixa16 *cxS ) {
+// the boxes so that what is drawn is what is touched. The struct keeps the very labels its
+// boxes were measured from, and desenharRodape( ) draws those and no others (the Ajustes'
+// CaixasRodape, B4b): a label is looked up once, where the layout is made.
+struct Rodape { Caixa16 primaria, secundaria; const char *rotuloPrimaria, *rotuloSecundaria; };
+
+inline Rodape layoutRodape( const char *primaria, const char *secundaria ) {
   const int16_t y = 196, h = 40;
   const int16_t wP = larguraTinta( primaria, tipo::botao ) + 2 * ESP4;
   const int16_t wS = larguraTinta( secundaria, tipo::botao ) + 2 * ESP2;
-  *cxP = Caixa16{ (int16_t)( 320 - ESP2 - wP ), y, wP, h };
-  *cxS = Caixa16{ (int16_t)( 320 - ESP2 - wP - ESP2 - wS ), y, wS, h };
+  Rodape r;
+  r.primaria = Caixa16{ (int16_t)( 320 - ESP2 - wP ), y, wP, h };
+  r.secundaria = Caixa16{ (int16_t)( 320 - ESP2 - wP - ESP2 - wS ), y, wS, h };
+  r.rotuloPrimaria = primaria;
+  r.rotuloSecundaria = secundaria;
+  return r;
 }
 
-inline void desenharRodape( Pintor &p, const char *primaria, const char *secundaria, const Caixa16 &cxP,
-                            const Caixa16 &cxS ) {
-  botao( p, cxP.x, cxP.y, cxP.w, cxP.h, primaria, Botao::PRIMARIO );
-  botao( p, cxS.x, cxS.y, cxS.w, cxS.h, secundaria, Botao::DISCRETO );
+inline void desenharRodape( Pintor &p, const Rodape &r ) {
+  botao( p, r.primaria.x, r.primaria.y, r.primaria.w, r.primaria.h, r.rotuloPrimaria, Botao::PRIMARIO );
+  botao( p, r.secundaria.x, r.secundaria.y, r.secundaria.w, r.secundaria.h, r.rotuloSecundaria, Botao::DISCRETO );
 }
 
 // A list with nothing in it: an icon, what is missing, and what to do, centred

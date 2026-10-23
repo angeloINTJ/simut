@@ -8,6 +8,8 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "../Textos.h"   // UA_TXT( ): after every project header, because its pragmas hold to the end of the unit
+
 namespace ua {
 namespace tela {
 
@@ -15,7 +17,9 @@ namespace {
 
 using namespace ident;
 
-const AcaoBarra kCancelar = { "Cancelar", Botao::DISCRETO, IconeNome::NENHUM, false };
+// The bar's only action: the kit's "Cancel" in every language. A function and not a constant: UA_TXT( ) answers from the pack the boot loads, so a constant built at start-up would hold the
+// English for good (Textos.h); the bar keeps the action it was measured from (Barra::acoes), so the label that sizes the box is the label that is drawn.
+AcaoBarra acaoCancelar( ) { return AcaoBarra{ UA_TXT( "Cancel" ), Botao::DISCRETO, IconeNome::NENHUM, false }; }
 
 constexpr int16_t M = ESP3, W_UTIL = 320 - 2 * M;
 constexpr int16_t Y_CAMPO = 36, H_CAMPO = 32, Y_AJUDA = 72, H_AJUDA = 16;
@@ -25,7 +29,7 @@ constexpr int16_t W_FUNC = 36, W_SALVAR = 64;                               // s
 constexpr int16_t MEIO_VAO = ESP1 / 2;                                      // a target reaches half the gap
 constexpr int16_t W_OLHO = 20;                                              // the "see" icon
 
-// The layers, three rows of up to ten keys. All ASCII, and no character the
+// The layers, three rows of up to ten keys (the keys' faces are data and not text: the letters of the alphabet, tools/ui_texts_allow.json). All ASCII, and no character the
 // old keyboard could not type: the "#+=" layer is its 28 symbols in the order of
 // PwdKb::SYMBOLS (PasswordKeyboard.h:30), ten, ten and eight to a row. abc and
 // ABC keep the plan's @ . - _ and # ! ? ; at the ends of the rows.
@@ -61,7 +65,8 @@ struct LayoutTexto {
 
 LayoutTexto layoutTexto( const VmTexto &vm ) {
   LayoutTexto l{ };
-  l.barra = layoutBarra( &kCancelar, 1 );
+  const AcaoBarra cancelar = acaoCancelar( );
+  l.barra = layoutBarra( &cancelar, 1 );
   l.campo = Caixa16{ M, Y_CAMPO, W_UTIL, H_CAMPO };
   if ( vm.secreto ) {
     // The eye and the margin around it, up to the field's edge: 40 px wide.
@@ -76,7 +81,7 @@ LayoutTexto layoutTexto( const VmTexto &vm ) {
   }
   l.cheio = tamanho( vm ) >= maximoDe( vm );
   l.vazio = tamanho( vm ) == 0;
-  l.rotuloSalvar = vm.rotulo[0] ? vm.rotulo : "Salvar";
+  l.rotuloSalvar = vm.rotulo[0] ? vm.rotulo : UA_TXT( "Save" );   // looked up once: the width below and the draw read this one pointer
 
   // Actions, as the plan's: shift | layer | space | delete | Salvar, 296 px edge to edge.
   // Salvar grows (to the 4 px grid) only when its label does not fit 64 px.
@@ -117,7 +122,7 @@ void conteudoCampo( Pintor &p, const VmTexto &vm, const LayoutTexto &l ) {
 
   // The counter, against the right edge (left of the eye when there is one).
   char cont[16];
-  snprintf( cont, sizeof cont, "%d de %d", len, maximoDe( vm ) );
+  snprintf( cont, sizeof cont, "%d %s %d", len, UA_TXT( "of" ), maximoDe( vm ) );
   const int16_t xr = (int16_t)( xi + wi - ( vm.secreto ? W_OLHO + ESP2 : 0 ) );
   const Tinta tc = textoCentrado( p, cont, xr, l.campo.y, l.campo.h, tipo::apoio, l.cheio ? T.alerta : T.tinta2, 'r' );
   if ( vm.secreto )
@@ -153,6 +158,12 @@ void conteudoCampo( Pintor &p, const VmTexto &vm, const LayoutTexto &l ) {
 
 }  // namespace
 
+// The refusals of a new account's name (see the header).
+const char *erroSoEspacos( ) { return UA_TXT( "Type a name, not only spaces." ); }
+const char *erroCaracteres( ) { return UA_TXT( "Remove the quotes and the backslash." ); }
+const char *erroReservado( ) { return UA_TXT( "Admin is reserved. Use another name." ); }
+const char *erroRepetido( ) { return UA_TXT( "That name already exists. Use another." ); }
+
 char teclaCaractere( TextoCamada camada, TextoShift shift, int indice ) {
   if ( indice < 0 ) return 0;
   const int r = indice / 10, c = indice % 10;
@@ -163,7 +174,7 @@ char teclaCaractere( TextoCamada camada, TextoShift shift, int indice ) {
 
 void desenharTexto( Pintor &p, const VmTexto &vm ) {
   const LayoutTexto l = layoutTexto( vm );
-  desenharBarra( p, l.barra, &kCancelar, vm.titulo );
+  desenharBarra( p, l.barra, vm.titulo );
   campo( p, l.campo.x, l.campo.y, l.campo.w, l.campo.h, vm.erro[0] ? CampoEstado::ERRO : CampoEstado::FOCO );
   conteudoCampo( p, vm, l );
   char linha[104];
@@ -208,13 +219,13 @@ void desenharTexto( Pintor &p, const VmTexto &vm ) {
 
   TeclaOpts ly;
   ly.tipo = TeclaTipo::FUNCAO;
-  ly.legenda = letras( vm.camada ) ? "123" : "abc";
+  ly.legenda = letras( vm.camada ) ? "123" : UA_TXT( "abc" );
   ly.fonte = tipo::rotulo;
   tecla( p, l.camada.x, l.camada.y, l.camada.w, l.camada.h, ly );
 
   TeclaOpts sp;
   sp.tipo = TeclaTipo::ESPACO;
-  sp.legenda = "espaço";
+  sp.legenda = UA_TXT( "space" );
   sp.fonte = tipo::apoio;
   sp.alturaDeX = true;
   sp.estado = l.cheio ? TeclaEstado::DESAB : TeclaEstado::REPOUSO;

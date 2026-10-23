@@ -10,7 +10,7 @@ Spanish, and the source gives the English. This runs tools/tft_ui/host_telas.py 
      converted ones, because the kit's texts reach them all: B3 translated the kit's "Voltar", three screens still built its box with the literal, and
      the charts' detail, in English and in Spanish, stopped the harness on the difference (S10c B3-b). And what a screen places by the width of a
      translated text keeps its place against it in the three languages: the touch target of the kit's back button against its label, in every sample
-     that draws the kit's bar (127), and the charts' page name after the pager's count (S10c B3-c: a literal copy of either moves the gap by the
+     that draws the kit's bar (168 on 2026-10-23), and the charts' page name after the pager's count (S10c B3-c: a literal copy of either moves the gap by the
      difference of the two widths, which no check of one language can see).
   2. The checks bite, through the whole chain (a pack file, the loader, UA_TXT( ), the screen, the recorder, the check). A pack is planted with one text changed, and the
      samples that fail must be EXACTLY the samples whose frames differ from the shipped pack's (two instruments that do not read each other: the pixels and the
@@ -28,6 +28,14 @@ Spanish, and the source gives the English. This runs tools/tft_ui/host_telas.py 
      "D L M X J V S"), each weekday centred in its column, in every calendar sample.
   6. What the translated paragraphs of the update screens leave of the foot (S10c, B5a): a refusal's two paragraphs wrap to as many lines as the language needs, and in es-ES one of them took four lines and ended
      2 px above the foot note, where nothing else came nearer than 18 px. The paragraphs must end 12 px or more above the first foot line, in every language.
+  7. The identity screens draw their own bar and footer (S10c, B5b), so the kit's single sources do not reach them: the bar keeps the actions its boxes were measured from and the footer the labels of
+     its boxes. The target of the bar's "Back" (the account picker, the list of accounts, one account: 20 of the 168 samples of item 1) and of its "Cancel" (the PIN keypad and the text keyboard:
+     43 samples) keeps its place against the label in the three languages; the account editor's footer is its label's ink and the kit's padding, as the Ajustes' (86 buttons with them); and a name
+     cut beside a badge ("Locked", "No PIN") ends within FOLGA_CORTE px of the room the badge's drawn width leaves it, never nearer than the layout leaves it (9 rows, 2 with a cut name). The mutants
+     (stages/s10c_b5b/scripts/mut_b5b.py, scratch copies): a badge measured from the pt-BR literal fails the third in English, one measured from a narrower word fails it in pt-BR and es-ES, a bar
+     measured from the literal "Voltar" fails the first two, a footer box measured from the literal "Cancelar" fails the footer's.
+  8. The placeholder of a missing value ("--,-") carries the language's separator, like the numbers (S10c, B5b): the Painel's dec( ) wrote a literal comma in every language, and the numbers' check
+     (item 4) cannot see it, because it reads digits. The control is a mutant dec( ) with the literal: it fails only the English samples of the Painel (10 of the 12 placeholders).
 
 Usage: python3 tools/tft_ui/test_idiomas.py   exit 0 when all hold, 1 when not, 2 when it cannot build (no Adafruit GFX 1.12.6 in .pio/libdeps: run pio once).
 """
@@ -49,15 +57,21 @@ os.environ.setdefault('LANG_GATE_NO_RUN', '1')   # tools/check_lang_packs.py run
 import check_lang_packs as gate  # noqa: E402
 import host_telas  # noqa: E402
 
-GRUPOS = ('base', 'painel', 'menus', 'ajustes', 'graficos')   # the groups whose texts are converted: a group joins here when its step lands (B5b: identidade)
+GRUPOS = ('base', 'painel', 'menus', 'ajustes', 'graficos', 'identidade')   # the groups whose texts are converted: a group joins here when its step lands (B5b: identidade, the last)
 TODOS = tuple(sorted(p.stem for p in (HERE / 'amostras').glob('*.cpp')))   # every group the harness draws, read from its samples
 IDIOMAS = ('en', 'pt', 'es')
 PACOTES = {'pt': ROOT / 'data' / 'lang' / 'language_pt-BR.lng', 'es': ROOT / 'data' / 'lang' / 'language_es-ES.lng'}
 CASOS = []                                        # (name, ok, detail)
 # The samples the cross-language checks below hold, counted on 2026-10-22 (B4a-b, after the review of B4a found that losing most of them
-# stayed green; B4b added the 78 footer buttons of the Ajustes samples; B5a the 21 samples of the chart and the calendar, whose bars draw the kit's back action):
-# a step that draws fewer must lower these on purpose, and say why.
-PISO_LEGENDA, PISO_VOLTAR, PISO_RODAPE = 4, 148, 78
+# stayed green; B4b added the 78 footer buttons of the Ajustes samples; B5a the 21 samples of the chart and the calendar, whose bars draw the kit's back action;
+# counted on 2026-10-23 (B5b): the 20 samples of the identity bars that draw the kit's back action (the account picker 7, the list of accounts 9, one account 4) raise the back
+# buttons from 148 to 168, and the 4 samples of the account editor add 8 footer buttons to the 78 of the Ajustes): a step that draws fewer must lower these on purpose, and say why.
+PISO_LEGENDA, PISO_VOLTAR, PISO_RODAPE = 4, 168, 86
+# The bar's "Cancel" of the PIN keypad and of the text keyboard (a target of the bar that is not dead), and the rows of the account picker and of the user list whose name is cut beside a badge,
+# counted on 2026-10-23 (B5b). PISO_SEM_DADO: the Painel's and the charts' placeholders for a missing value ("--,-"), the same day.
+PISO_CANCELAR, PISO_SELOS, PISO_SEM_DADO = 43, 9, 12
+FOLGA_CORTE = 16        # a name cut beside a badge ends at most this far past the room the layout leaves it (the cut stops at the last whole character: 0 to 8 px for these names, measured 2026-10-23);
+                        # so the case sees a badge measured from another text only when the two widths differ by a character or more, about 8 px ("Locked" and "Bloqueada" differ by 29)
 # The numbers with one decimal that the samples of all the groups draw in each language, counted on 2026-10-22 (B5a: 109 in graficos, 36 in menus, 101 in painel, 16 in ajustes): the separator check holds this many in every language.
 PISO_DECIMAIS = 262
 CHAVE_SEPARADOR = 'Decimal separator'                            # the English key of the separator (Angulo.cpp, separadorDecimal( )); English has no line for it and draws the point
@@ -208,6 +222,46 @@ def decimais(pasta):
     return out
 
 
+SEM_DADO = re.compile(r'--([.,])-')   # the placeholder for a value the sensor or the day does not have ("--,-" in pt-BR)
+
+
+def sem_dado(pasta):
+    """[(sample, text, separator)] for every placeholder of a missing value in the texts of one group's samples (the light theme's records). The Painel's dec( ) and the charts' values write it
+    ("--" + the language's separator + "-"); the separator is read from what the screen drew, as decimais( ) reads a number's."""
+    out = []
+    for f in sorted(pasta.glob('*_claro.textos')):
+        nome = f.name[:-len('_claro.textos')]
+        for ln in f.read_text(encoding='utf-8').splitlines():
+            r = ln.split(' ', 5)
+            if len(r) > 5 and r[4] == 't':
+                out += [(nome, r[5], m.group(1)) for m in SEM_DADO.finditer(r[5])]
+    return out
+
+
+def selos_e_nomes(pasta, esp2):
+    """{sample@y: (name, gap, cut, limit)} for the rows of the account picker (quem_*) and of the user list (usuarios_*) that carry a badge: the gap from the ink of the text that ends nearest to the badge's left
+    edge (the account's name; the badge's own label starts inside the box) to the badge's box, which host_telas.py records as kind "s" (the whole box, not the label's ink). The layout leaves the name the room
+    that remains once the badge's drawn width is taken: ESP2 from the badge in the picker (the badge stands where the chevron would), 2 * ESP2 in the list (the chevron sits between). So a name that is cut ("…")
+    ends between `limit` and `limit` + FOLGA_CORTE from the badge, whatever the language's word for the badge is; a badge measured from another text than the one drawn shifts the gap by the difference of the
+    two widths (the layout measured the pt-BR literal while the pack's word was drawn, S10c B3-b and B3-c found that defect for other labels)."""
+    out = {}
+    for f in sorted(pasta.glob('*_claro.textos')):
+        nome = f.name[:-len('_claro.textos')]
+        limite = {'quem': esp2, 'usuarios': 2 * esp2}.get(nome.split('_')[0])
+        if limite is None:
+            continue
+        recs = [ln.split(' ', 5) for ln in f.read_text(encoding='utf-8').splitlines()]
+        recs = [(int(r[0]), int(r[1]), int(r[2]), int(r[3]), r[4], r[5]) for r in recs if len(r) > 5]
+        for sx0, sx1, sy0, sy1, tipo, rotulo in recs:
+            if tipo != 's':
+                continue
+            ao_lado = [r for r in recs if r[4] == 't' and r[0] < sx0 and sy0 <= (r[2] + r[3]) // 2 <= sy1]
+            if ao_lado:
+                x0, x1, _, _, _, texto = max(ao_lado, key=lambda r: r[1])
+                out[f'{nome}@{sy0}'] = (texto, sx0 - x1, texto.endswith('…'), limite, rotulo)
+    return out
+
+
 def meses_das_amostras():
     """{sample: (year, month)} of the calendar samples, read from tools/tft_ui/amostras/graficos.cpp: the table's `{ "calendario_x", desCl<kVar>, ...` and the `calendario( year, month, ...` that builds kVar, directly or
     in the lambda that marks it busy. The month a screen is asked for comes from the sample's data and not from another run's drawing: a key that is wrong in the code is wrong in every language alike."""
@@ -327,10 +381,23 @@ def main():
         caso('back button: the gap from its target to its label is the same in the three languages', not movidos,
              '; '.join(f'{n}: ' + ', '.join(f'{i} {voltas[i][n]} px' for i in IDIOMAS) for n in movidos[:4]))
 
+        # the identity bar's cancel button (the PIN keypad's and the text keyboard's): the bar keeps the action its box was measured from, so the target keeps its place against the label (S10c, B5b)
+        cancela = {i: {} for i in IDIOMAS}
+        for g in TODOS:
+            for i in IDIOMAS:
+                cancela[i].update({f'{g}/{n}': v for n, v in voltar_e_alvo(limpo / i / g, traducao(i, 'Cancel'), inerte).items()})
+        iguais = sorted(set(cancela['en']) & set(cancela['pt']) & set(cancela['es']))
+        grupos_can = sorted({n.split('/')[0] for n in iguais})
+        caso(f'cancel button: samples with the identity bar in every language ({len(iguais)}, in {", ".join(grupos_can)})',
+             len(iguais) >= PISO_CANCELAR and grupos_can == ['identidade'], f'{len(iguais)} of at least {PISO_CANCELAR}: {grupos_can}')
+        movidos = [n for n in iguais if len({cancela[i][n] for i in IDIOMAS}) != 1]
+        caso('cancel button: the gap from its target to its label is the same in the three languages', not movidos,
+             '; '.join(f'{n}: ' + ', '.join(f'{i} {cancela[i][n]} px' for i in IDIOMAS) for n in movidos[:4]))
+
         # the Ajustes footers: each button's box is its label's ink and the kit's padding, in every language (S10c B4b)
         esp2, esp4 = espaco_do_kit('ESP2'), espaco_do_kit('ESP4')
-        folgas = {i: rodape_e_alvos(limpo / i / 'ajustes') for i in IDIOMAS}
-        caso(f'footer buttons: the same buttons in every language ({len(folgas["pt"])} in pt-BR)',
+        folgas = {i: {f'{g}/{k}': v for g in ('ajustes', 'identidade') for k, v in rodape_e_alvos(limpo / i / g).items()} for i in IDIOMAS}   # the account editor's footer is built like the Ajustes' (B5b)
+        caso(f'footer buttons: the same buttons in every language ({len(folgas["pt"])} in pt-BR, in ajustes and identidade)',
              esp2 and esp4 and len(folgas['pt']) >= PISO_RODAPE and all(set(folgas[i]) == set(folgas['pt']) for i in IDIOMAS),
              f'{ {i: len(v) for i, v in folgas.items()} } of at least {PISO_RODAPE}; ESP2 {esp2}, ESP4 {esp4}')
         fora = sorted((i, k, v) for i in IDIOMAS for k, v in folgas[i].items() if v not in (2 * (esp2 or 0), 2 * (esp4 or 0)))
@@ -350,6 +417,29 @@ def main():
             errados = [(n, t, s) for n, t, s in achados[i] if s != SEPARADOR[i]]
             caso(f'decimal separator in {i}: every number with a decimal is written with "{SEPARADOR[i]}" ({len(achados[i])} found)', not errados,
                  '; '.join(f'{n} "{t}" has "{s}"' for n, t, s in errados[:4]) + f' ({len(errados)} of {len(achados[i])})')
+
+        # the placeholder of a missing value: the same separator as the numbers (S10c, B5b: the Painel's dec( ) wrote a literal comma in every language)
+        faltas = {i: [(f'{g}/{n}', t, s) for g in TODOS for n, t, s in sem_dado(limpo / i / g)] for i in IDIOMAS}
+        caso(f'missing value: the samples draw the placeholder in every language ({len(faltas["pt"])} in pt-BR)',
+             all(len(faltas[i]) >= PISO_SEM_DADO for i in IDIOMAS), str({i: len(v) for i, v in faltas.items()}) + f' of at least {PISO_SEM_DADO}')
+        for i in IDIOMAS:
+            errados = [(n, t, s) for n, t, s in faltas[i] if s != SEPARADOR[i]]
+            caso(f'missing value in {i}: the placeholder is written with "{SEPARADOR[i]}" ({len(faltas[i])} found)', not errados,
+                 '; '.join(f'{n} "{t}" has "{s}"' for n, t, s in errados[:4]) + f' ({len(errados)} of {len(faltas[i])})')
+
+        # the badges: a name cut beside a badge takes the room the badge's drawn width leaves (S10c, B5b)
+        selos = {i: selos_e_nomes(limpo / i / 'identidade', esp2 or 0) for i in IDIOMAS}
+        caso(f'badges: the same rows carry a badge in every language ({len(selos["pt"])} in pt-BR, {sum(1 for v in selos["pt"].values() if v[2])} with a cut name)',
+             esp2 and len(selos['pt']) >= PISO_SELOS and sum(1 for v in selos['pt'].values() if v[2]) >= 2 and all(set(selos[i]) == set(selos['pt']) for i in IDIOMAS),
+             str({i: sorted(v) for i, v in selos.items()}))
+        for i in IDIOMAS:
+            palavras = {'quem': traducao(i, 'Locked'), 'usuarios': traducao(i, 'No PIN')}
+            erradas = [f'{k}: "{v[4]}"' for k, v in selos[i].items() if v[4] != palavras[k.split('_')[0]]]
+            caso(f'badges in {i}: every badge says the pack\'s word ("{palavras["quem"]}", "{palavras["usuarios"]}")', not erradas, '; '.join(erradas[:4]))
+            perto = [f'{k} "{v[0]}" is {v[1]} px from its badge, the layout leaves {v[3]}' for k, v in selos[i].items() if v[1] < v[3]]
+            caso(f'badges in {i}: no name comes nearer to its badge than the layout leaves it ({len(selos[i])} rows)', not perto, '; '.join(perto[:4]))
+            longe = [f'{k} "{v[0]}" is {v[1]} px from its badge, the layout leaves {v[3]}' for k, v in selos[i].items() if v[2] and v[1] > v[3] + FOLGA_CORTE]
+            caso(f'badges in {i}: a cut name ends within {FOLGA_CORTE} px of the room its badge leaves it', not longe, '; '.join(longe[:4]))
 
         # the calendar's names: the months of the title and the weekday header, in every language (S10c, B5a)
         caso('calendar names: the packs give the months and the weekday letters of the brief',

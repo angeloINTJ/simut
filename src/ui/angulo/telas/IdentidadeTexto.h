@@ -53,14 +53,19 @@ int alvosTexto( const VmTexto &vm, Alvo *out );
 // glue, DisplayManager_UiA_Identidade.cpp, writes them into VmTexto::erro). Here
 // so that the samples show the very texts; each says what happened or what to
 // do, and fits the line's 296 px in the support type (measured 2026-10-15, at the
-// 9 pt floor: 247, 252, 289 and 233 px; the copy of the 7 pt type measured 239,
+// 9 pt floor: 247, 252, 289 and 233 px in pt-BR; the copy of the 7 pt type measured 239,
 // 270, 247 and 275, and at 9 pt it was 310, 352, 319 and 356 and was cut at its
-// end, which is where the way out is said). The line has one row: the keys start
-// 28 px under the field.
-constexpr const char *TXT_ERRO_SO_ESPACOS = "Digite um nome, não só espaços.";
-constexpr const char *TXT_ERRO_CARACTERES = "Tire as aspas e a barra invertida.";
-constexpr const char *TXT_ERRO_RESERVADO = "O nome admin é reservado. Use outro.";
-constexpr const char *TXT_ERRO_REPETIDO = "Esse nome já existe. Use outro.";
+// end, which is where the way out is said). In English and in Spanish (measured
+// 2026-10-23, S10c B5b, with the kit's larguraTinta( )): 228, 291, 287 and 294 px,
+// and 280, 285, 272 and 235; the first wordings of the reserved name's refusal
+// ("The name admin is reserved. Use another.", 318 px) were cut and were shortened.
+// The line has one row: the keys start 28 px under the field.
+// Functions and not constants: UA_TXT( ) answers from the pack the boot loads, so a constant built at start-up would hold the English for good (Textos.h).
+// Defined in IdentidadeTexto.cpp, which includes Textos.h after its own headers.
+const char *erroSoEspacos( );
+const char *erroCaracteres( );
+const char *erroReservado( );
+const char *erroRepetido( );
 
 // The character the key at `indice` types in the layer on screen (the layer
 // `camada` shows, taking `shift` into account), or 0 where there is no key.

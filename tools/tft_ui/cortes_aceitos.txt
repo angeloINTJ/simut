@@ -38,7 +38,7 @@ menus | status_telemetria | https://telemetria | a 53-character collector URL
 menus | status_telemetria_mqtt | mqtt.hospital | a 28-character broker host
 
 identidade | conta_nome_31 | administradora | a 31-character account name
-identidade | pin_nome_31 | PIN de administr | a 31-character account name in the title
+identidade | pin_nome_31 | PIN de administr ¦ PIN for administr ¦ PIN de administr | a 31-character account name in the title, after the language's word for "PIN of"
 identidade | quem_nomes_longos | administradora | 31-character account names in the account picker
 identidade | usuarios_nomes_longos | administradora | 31-character account names in the user list
 

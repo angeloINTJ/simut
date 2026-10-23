@@ -154,11 +154,11 @@ uint16_t corDe( const Tema &T, Sit s ) {
   }
 }
 
-/* "4,6", "-18,5"; "--,-" for a value the sensor or the day does not have.
+/* "4,6", "-18,5"; "--,-" for a value the sensor or the day does not have; the separator is the language's (n1( ) and the placeholder both ask the kit: "4.6" and "--.-" in English).
  * buf >= 16 bytes. */
 const char *dec( int16_t v, bool semValor, char *buf ) {
   if ( semValor || v == VmPainel::SEM_VALOR ) {
-    memcpy( buf, "--,-", 5 );
+    snprintf( buf, 16, "--%s-", separadorDecimal( ) );
     return buf;
   }
   return n1( v, buf );

@@ -120,9 +120,18 @@
      "%u"
     ],
     "src/ui/angulo/telas/IdentidadePin.cpp": [
+     "%d %s %d %s.",
      "%d %s.",
+     "%s %d %s %s",
+     "%s %s",
+     "%s %s %s",
+     "%s %s.",
+     "%s %u s.",
      "%s%s",
      ": %s"
+    ],
+    "src/ui/angulo/telas/IdentidadeTexto.cpp": [
+     "%d %s %d"
     ],
     "src/ui/angulo/telas/MenusAlarmes.cpp": [
      "%s %s %s °C",
@@ -162,7 +171,8 @@
      "%s %s %s °C",
      "%s%u",
      "%u",
-     "%u/%u"
+     "%u/%u",
+     "--%s-"
     ],
     "src/ui/angulo/telas/Telas.cpp": [
      "%s · %u s",
@@ -449,6 +459,29 @@
      "Escuro, petróleo",
      "Escuro, violeta",
      "Escuro, índigo"
+    ]
+   }
+  },
+  {
+   "reason": "a key's face: the letters of a PIN keypad's group and of a text keyboard's layer, the characters the key types (the device types ASCII); data and not text, the same in every language, and the order of the alphabet",
+   "texts": {
+    "src/ui/angulo/telas/IdentidadePin.cpp": [
+     "ABC",
+     "DEF",
+     "GHI",
+     "JKL",
+     "MNO",
+     "PQRS",
+     "TUV",
+     "WXYZ"
+    ],
+    "src/ui/angulo/telas/IdentidadeTexto.cpp": [
+     "ASDFGHJKL#",
+     "QWERTYUIOP",
+     "ZXCVBNM!?;",
+     "asdfghjkl@",
+     "qwertyuiop",
+     "zxcvbnm.-_"
     ]
    }
   }
