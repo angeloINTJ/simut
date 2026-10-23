@@ -234,11 +234,12 @@ lib_deps = ["https://github.com/angeloINTJ/pico-enc28j60.git#4984e2f55727c81cfd6
 # linkam nas duas imagens com o mesmo .bin e a mesma folga (o --gc-sections ja as descartava); o que a lista traz e que uma dependencia
 # nova delas vira erro de link, e nao bytes calados. O Dashboard entrou em 2026-10-23 (S10c, D1): a buildDashLayout( ), a unica funcao dele
 # que o Angulo chamava (uaMontarPainel e uaToquePainel), foi para o Panel.cpp, que as duas imagens compilam e onde a tabela a classifica como
-# core. Medido nesse dia, as duas imagens do Angulo de zero sem a unidade: o mesmo .bin (826752 e 1035632 B), nenhuma funcao mudada (V-ELF) e
+# core. Medido nesse dia, as duas imagens do Angulo de zero sem a unidade: .bin do mesmo tamanho (826752 e 1035632 B), nenhuma funcao mudada (V-ELF) e
 # os bytes do original nelas caem de 293 e 269 B para 17 B (a buildDashLayout tem 276 e 252 B).
 # A DisplayManager_AlarmUi.cpp entrou em 2026-10-23 (S10c, D5): as tres funcoes de desenho da tela de alarme (drawAlarmAction, slotAlarmBg e
 # redrawAlarmFlash), que so o original chama, sairam do Alarm.cpp (o estado do alarme, core) para ela. Medido nesse dia, as duas imagens do
-# Angulo de zero sem a unidade: o mesmo .bin (826752 e 1035632 B), nenhuma funcao mudada (V-ELF) e os mesmos 17 B do original; as tres
+# Angulo de zero sem a unidade: .bin do mesmo tamanho (826752 e 1035632 B; os bytes que mudam sao veneers reordenados pelo linker e os
+# desvios ate eles, veneer_proof OTHER=0), nenhuma funcao mudada (V-ELF) e os mesmos 17 B do original; as tres
 # funcoes ja nao entravam nelas (o --gc-sections as descartava), entao a lista traz o erro de link de uma dependencia nova, e nao bytes. As
 # duas listas de exclusao do LCD trazem a unidade tambem: os tres .bin do LCD3 (alpha, air e wire) mantem o sha256 da base.
 # Ainda NAO estao aqui, cada uma com o que a segura (tabela da P4; o S10b-2 as separa): Settings (so na imagem com Wi-Fi:
