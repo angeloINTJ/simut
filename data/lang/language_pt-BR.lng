@@ -663,6 +663,7 @@ bac7c481 Ligar ou desligar alarmes vale na hora.
 bb4ba06a Excluir a conta
 bdcbb413 Aparelho
 be2d76ae Voltar ao painel
+c13cc707 Modo automático: escuro das 19 às 7
 c18f13cb Placa
 c2914989 1 min restante
 c2954bc2 Voltar
@@ -678,7 +679,6 @@ d60c1322 S
 d7958fc6 Não definido
 d7a2e319 máx
 d8cececf Esta tela
-dcb53a00 Modo automático: escuro das 19 às 7
 dee04507 Em alarme
 e19e5a06 Confira o tamanho mínimo e os caracteres em Segurança do PIN.
 e1d0be1a %UR

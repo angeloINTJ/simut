@@ -9,8 +9,9 @@
 #
 # <group> | <sample glob> | <start of the drawn text> | <why the cut is right>
 #
-# A cut that begins with a label of the screen ("Conta: maria.a") begins with another word in each language: the start may list one per language,
-# separated by " ¦ " (pt-BR, English, Spanish), and the line is used when any of them matches.
+# The start is one text for every language, or three separated by " ¦ ", in the order pt-BR, English, Spanish: a cut that begins with a label
+# of the screen ("Conta: maria.a") begins with another word in each language, and a long name cut one letter earlier in one language must
+# fail there. Each language's run (host_telas.py --idioma) holds its cuts to its own start.
 
 painel | painel_nome_31* | Refrig | a 31-character sensor name (the most the device stores) on a card
 painel | acao_nome_longo | Refrigerado | a 31-character sensor name; the sentence's fixed part, "acima do limite", is whole
@@ -25,10 +26,10 @@ painel | boot*_textos_longos | Carregando cache | boot steps of 69 to 71 charact
 painel | boot*_textos_longos | Sincronizando Rel | boot steps of 69 to 71 characters, made long on purpose; a step is one line
 
 menus | alarmes_nome_longo | Camara fria | 31-character sensor names in the alarm list
-menus | alarmes_nome_longo | WWWWWW | 31 of the widest letter in the alarm list: one W fewer in Spanish, where the badge "Desactivado" is 20 px wider than "Desligado"
+menus | alarmes_nome_longo | WWWWWWW ¦ WWWWWWWWWW ¦ WWWWWW | 31 of the widest letter in the alarm list: 7, 10 and 6 W, beside the badge "Desligado", "Off" or "Desactivado"
 menus | sensor_nome_longo | Camara fria | a 31-character sensor name in the sensor menu's title
 menus | sensor_nome_largo | WWWWWWW | 31 of the widest letter in the sensor menu's title
-menus | menu_conta_longa | Conta: maria.a ¦ Account: maria ¦ Cuenta: maria. | a 31-character account name, after the label "Conta:" in the language's word
+menus | menu_conta_longa | Conta: maria.a ¦ Account: maria. ¦ Cuenta: maria. | a 31-character account name, after the label "Conta:" in the language's word
 menus | status_sensores_5 | Camara fria | 31-character sensor names in the status list
 menus | status_sensores_5 | WWWWWWW | 31 of the widest letter in the status list
 menus | status_sistema_limites | Camara fria | a 31-character sensor name in the limits row

@@ -120,7 +120,7 @@ const char *temaFrase( int m ) {
   switch ( static_cast<EscolhaTema>( m ) ) {
     case TM_CLARO: return UA_TXT( "Light mode" );
     case TM_ESCURO: return UA_TXT( "Dark mode" );
-    case TM_AUTOMATICO: return UA_TXT( "Automatic: dark from 19:00 to 7:00" );
+    case TM_AUTOMATICO: return UA_TXT( "Automatic mode: dark 19:00 to 7:00" );
     case TM_N: break;
   }
   return "";

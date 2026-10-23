@@ -47,6 +47,9 @@ TODOS = tuple(sorted(p.stem for p in (HERE / 'amostras').glob('*.cpp')))   # eve
 IDIOMAS = ('en', 'pt', 'es')
 PACOTES = {'pt': ROOT / 'data' / 'lang' / 'language_pt-BR.lng', 'es': ROOT / 'data' / 'lang' / 'language_es-ES.lng'}
 CASOS = []                                        # (name, ok, detail)
+# The samples the two cross-language checks below hold, counted on 2026-10-22 (B4a-b, after the review of B4a found that losing most of them
+# stayed green): a step that draws fewer must lower these on purpose, and say why.
+PISO_LEGENDA, PISO_VOLTAR = 4, 127
 
 
 def caso(nome, ok, detalhe=''):
@@ -178,7 +181,7 @@ def main():
         # the charts' pager: the page's name keeps its gap after the count in every language
         lacunas = {i: contagem_e_legenda(limpo / i / 'graficos') for i in IDIOMAS}
         caso(f'charts\' pager: the same samples draw a count and a page name in every language ({len(lacunas["pt"])} in pt-BR)',
-             lacunas['pt'] and all(set(lacunas[i]) == set(lacunas['pt']) for i in IDIOMAS), str({i: sorted(v) for i, v in lacunas.items()}))
+             len(lacunas['pt']) >= PISO_LEGENDA and all(set(lacunas[i]) == set(lacunas['pt']) for i in IDIOMAS), str({i: sorted(v) for i, v in lacunas.items()}))
         diferem = sorted(n for n in lacunas['pt'] if len({lacunas[i].get(n) for i in IDIOMAS}) != 1)
         caso('charts\' pager: the gap from the count to the page name is the same in the three languages', not diferem,
              '; '.join(f'{n}: ' + ', '.join(f'{i} {lacunas[i].get(n)} px' for i in IDIOMAS) for n in diferem[:4]))
@@ -192,7 +195,7 @@ def main():
         comuns = sorted(set(voltas['en']) & set(voltas['pt']) & set(voltas['es']))
         grupos_com = sorted({n.split('/')[0] for n in comuns})
         caso(f'back button: samples with the kit\'s bar in every language ({len(comuns)}, in {", ".join(grupos_com)})',
-             len(comuns) >= 10 and {'ajustes', 'menus', 'graficos'} <= set(grupos_com), str(grupos_com))
+             len(comuns) >= PISO_VOLTAR and {'ajustes', 'menus', 'graficos'} <= set(grupos_com), f'{len(comuns)} of at least {PISO_VOLTAR}: {grupos_com}')
         movidos = [n for n in comuns if len({voltas[i][n] for i in IDIOMAS}) != 1]
         caso('back button: the gap from its target to its label is the same in the three languages', not movidos,
              '; '.join(f'{n}: ' + ', '.join(f'{i} {voltas[i][n]} px' for i in IDIOMAS) for n in movidos[:4]))
@@ -258,23 +261,29 @@ def main():
         caso('reader: texts and badges come apart, each with its box', lidos is not None and lidos[0] == [(10, 60, 4, 20, cheio), (10, 60, 30, 46, cheio[:-1])]
              and lidos[1] == [(70, 90, 4, 20, 'web')], str(lidos))
 
-    # the accepted cuts (tools/tft_ui/cortes_aceitos.txt): a cut that begins with a label of the screen begins with another word in each language, so a line may list one
-    # start per language, separated by " ¦ " (S10c, B4a: the menu's "Conta: maria.a…", "Account: maria…" and "Cuenta: maria.…")
+    # the accepted cuts (tools/tft_ui/cortes_aceitos.txt): a line gives one start for every language, or three in the order pt-BR, English, Spanish (S10c, B4a:
+    # the menu's "Conta: maria.a…", "Account: maria.…" and "Cuenta: maria.…"), and each language's run holds its cuts to its own start (B4a-b: a shared "WWWWWW"
+    # fitted the Spanish cut and accepted a Portuguese one a letter short)
     with tempfile.TemporaryDirectory(prefix='idiomas_cortes_') as t:
         d = pathlib.Path(t)
         orig = host_telas.ACEITOS
         host_telas.ACEITOS = d / 'cortes.txt'
         try:
-            host_telas.ACEITOS.write_text('menus | menu_x | Conta: maria.a ¦ Account: maria ¦ Cuenta: maria. | why\nmenus | menu_y | Camara fria | why\nidentidade | conta_z | Ana | why\n', encoding='utf-8')
-            regras = host_telas.aceitos('menus')
-            caso('accepted cuts: a start lists one text per language, and a line with one start is a tuple of one',
-                 regras == [('menu_x', ('Conta: maria.a', 'Account: maria', 'Cuenta: maria.'), 1), ('menu_y', ('Camara fria',), 2)], str(regras))
-            caso('accepted cuts: a cut begins with any of the starts of a line and with none of the starts of another',
-                 all(t.startswith(regras[0][1]) for t in ('Conta: maria.a…', 'Account: maria…', 'Cuenta: maria.…')) and not any(t.startswith(regras[1][1]) for t in ('Conta: maria.a…', 'Account: maria…')))
-            host_telas.ACEITOS.write_text('menus | menu_x | Conta: maria.a ¦ | why\n', encoding='utf-8')
-            with contextlib.redirect_stderr(io.StringIO()):
-                vazia = host_telas.aceitos('menus')
-            caso('accepted cuts: an empty alternative is refused, so that it cannot accept every cut', vazia is None)
+            host_telas.ACEITOS.write_text('menus | menu_x | Conta: maria.a ¦ Account: maria. ¦ Cuenta: maria. | why\nmenus | menu_w | WWWWWWW ¦ WWWWWWWWWW ¦ WWWWWW | why\n'
+                                          'menus | menu_y | Camara fria | why\nidentidade | conta_z | Ana | why\n', encoding='utf-8')
+            por = {i: host_telas.aceitos('menus', i) for i in IDIOMAS}
+            caso('accepted cuts: three starts give each language its own, in the order pt-BR, English, Spanish, and one start serves all three',
+                 por['pt'] == [('menu_x', 'Conta: maria.a', 1), ('menu_w', 'WWWWWWW', 2), ('menu_y', 'Camara fria', 3)]
+                 and por['en'] == [('menu_x', 'Account: maria.', 1), ('menu_w', 'WWWWWWWWWW', 2), ('menu_y', 'Camara fria', 3)]
+                 and por['es'] == [('menu_x', 'Cuenta: maria.', 1), ('menu_w', 'WWWWWW', 2), ('menu_y', 'Camara fria', 3)], str(por))
+            caso('accepted cuts: a cut a letter short fails its own language\'s start and would have passed the Spanish one',
+                 not 'WWWWWW…'.startswith(por['pt'][1][1]) and 'WWWWWW…'.startswith(por['es'][1][1]) and 'WWWWWWW…'.startswith(por['pt'][1][1])
+                 and not 'Account: maria…'.startswith(por['en'][0][1]) and 'Account: maria.…'.startswith(por['en'][0][1]))
+            for linha, motivo in (('menus | menu_x | Conta: maria.a ¦ | why\n', 'an empty start is refused, so that it cannot accept every cut'),
+                                  ('menus | menu_x | Conta: maria.a ¦ Account: maria. | why\n', 'two starts are refused: one for all or one for each of the three')):
+                host_telas.ACEITOS.write_text(linha, encoding='utf-8')
+                with contextlib.redirect_stderr(io.StringIO()):
+                    caso(f'accepted cuts: {motivo}', host_telas.aceitos('menus', 'pt') is None)
         finally:
             host_telas.ACEITOS = orig
 

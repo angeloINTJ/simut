@@ -647,7 +647,7 @@ time <AAAA-MM-DD> <HH:MM:SS>
 8befa93c Servidor NTP
 8c6879ca sobre el límite
 8f3184bc Sistema
-901aca78 Desactivado
+901aca78 Inactivo
 90817d38 Sensores
 99bf7f3c pendientes
 9a73db9b Idioma
@@ -662,6 +662,7 @@ bac7c481 El cambio de las alarmas es inmediato.
 bb4ba06a ¿Eliminar la cuenta
 bdcbb413 Equipo
 be2d76ae Volver al panel
+c13cc707 Modo automático: oscuro de 19 a 7 h
 c18f13cb Placa
 c2914989 1 min restante
 c2954bc2 Volver
@@ -677,12 +678,11 @@ d60c1322 S
 d7958fc6 Sin definir
 d7a2e319 máx
 d8cececf Esta pantalla
-dcb53a00 Modo automático: oscuro de 19 a 7 h
 dee04507 En alarma
 e19e5a06 Compruebe la longitud mínima y los caracteres en Seguridad del PIN.
 e1d0be1a %HR
 e29483e7 en alarma
-e35e8699 Calibrar el táctil
+e35e8699 Calibrar la pantalla táctil
 e974ac92 Elija otro PIN.
 ea2e9485 Error del sensor
 eaeeb4c6 Sin dirección
