@@ -67,7 +67,11 @@ static constexpr size_t LANG_FILE_MIN = 64;
  * bound UA_TEXTOS_MAX, src/ui/angulo/Textos.cpp). LANG_FILE_MAX only bounds the
  * file on flash: everything outside those is read from there, if at all. */
 static constexpr size_t LANG_DICT_MAX = 6144;
-static constexpr size_t LANG_FILE_MAX = 49152;
+/* 65,536 since 2026-10-22 (S10c B4b-0; 49,152 before): the Ângulo's @ANGULO section took es-ES to 47,697 B, 97 % of the old
+ * ceiling, with two groups of screens still to translate. 64 KiB is the web's text viewer's cap (TV_CAP, WebUI.h's lang.js), which
+ * shows a file up to that size and downloads a bigger one: the largest file the device keeps is a pack, so a pack it accepts stays
+ * one the web can show, and tools/check_lang_packs.py holds the two in that order. */
+static constexpr size_t LANG_FILE_MAX = 65536;
 
 uint32_t DisplayManager::fnv1a32(const char* s) {
  uint32_t h = 0x811c9dc5u;

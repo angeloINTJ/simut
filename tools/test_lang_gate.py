@@ -288,6 +288,37 @@ def angulo_cases():
         restore_tree()
 
 
+def viewer_cap_cases():
+    """LANG_FILE_MAX against the web's text viewer (S10c B4b-0): the viewer shows a file up to TV_CAP (WebUI.h, lang.js) and downloads a
+    bigger one, and the largest file the device keeps is a pack, so the gate holds LANG_FILE_MAX <= TV_CAP. The real tree passes; a parser
+    planted one byte over fails and names both numbers; a WebUI.h without TV_CAP is a refusal, never a pass."""
+    real_parser, real_webui = gate.PARSER, getattr(gate, "WEBUI", None)
+    file_max = gate.lang_limits()[0]
+    try:
+        bad, err = run_gate(sorted((ROOT / "data" / "lang").glob("*.lng")))
+        check("viewer cap: the real tree passes", not bad and "TV_CAP" not in err, err[-200:])
+        with tempfile.TemporaryDirectory() as t:
+            t = Path(t)
+            cap = int(re.search(r"const TV_CAP = (\d+)", (ROOT / "WebUI.h").read_text(encoding="utf-8")).group(1))
+            src = real_parser.read_text(encoding="utf-8")
+            planted = t / "DisplayManager_LangParser.cpp"
+            planted.write_text(src.replace(f"LANG_FILE_MAX = {file_max};", f"LANG_FILE_MAX = {cap + 1};"), encoding="utf-8")
+            gate.PARSER = planted
+            bad, err = run_gate(sorted((ROOT / "data" / "lang").glob("*.lng")))
+            check("viewer cap: a ceiling one byte over the viewer's cap fails and names both numbers",
+                  bad and str(cap + 1) in err and str(cap) in err and "TV_CAP" in err, err[-240:])
+            gate.PARSER = real_parser
+            sem = t / "WebUI.h"
+            sem.write_text("/* a WebUI.h with no viewer */\n", encoding="utf-8")
+            gate.WEBUI = sem
+            bad, err = run_gate(sorted((ROOT / "data" / "lang").glob("*.lng")))
+            check("viewer cap: a WebUI.h without TV_CAP is a refusal, not a pass", bad, err[-200:])
+    finally:
+        gate.PARSER = real_parser
+        if real_webui is not None:
+            gate.WEBUI = real_webui
+
+
 def main():
     file_max, dict_max = gate.lang_limits()
     check("limits read from parser source", file_max > dict_max > 0,
@@ -368,6 +399,8 @@ def main():
         bad, err = run_gate([p])
         check("gate fires: file over LANG_FILE_MAX",
               bad and "LANG_FILE_MAX" in err, err[-200:])
+
+    viewer_cap_cases()
 
     angulo_cases()
 

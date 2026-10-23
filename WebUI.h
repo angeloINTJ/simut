@@ -8671,8 +8671,9 @@ static const char LANG_JS[] PROGMEM = R"raw(
        lang.js is paid for in every image.
 
        The cap is 64 KiB: the largest text the firmware keeps is a language
-       pack, held under LANG_FILE_MAX (48 KiB), and the viewer draws one
-       element per row, so a bigger file is downloaded instead. */
+       pack, held under LANG_FILE_MAX (64 KiB since 2026-10-22, at most this
+       cap: tools/check_lang_packs.py), and the viewer draws one element per
+       row, so a bigger file is downloaded instead. */
     const TV_CAP = 65536, TV_EXT = ' json jsonl ndjson txt csv tsv lng thm log cfg conf ini pem crt md xml yml yaml ';
     function tvExt(n) { let i = n.lastIndexOf('.'); return i < 0 ? '' : n.slice(i + 1).toLowerCase(); }
     function tvViewable(n, s) { return s <= TV_CAP && TV_EXT.indexOf(' ' + tvExt(n) + ' ') >= 0; }

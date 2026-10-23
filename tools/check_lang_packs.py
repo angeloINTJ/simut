@@ -50,6 +50,7 @@ except NameError:
 HEADER = ROOT / "src" / "DisplayManager.h"
 I18N = ROOT / "src" / "DisplayManager_i18n.cpp"
 PARSER = ROOT / "src" / "DisplayManager_LangParser.cpp"
+WEBUI = ROOT / "WebUI.h"
 PACKS = sorted((ROOT / "data" / "lang").glob("*.lng"))
 ANGULO_DIR = ROOT / "src" / "ui" / "angulo"
 TEXTOS_H = ANGULO_DIR / "Textos.h"
@@ -62,6 +63,16 @@ TEXTOS_H = ANGULO_DIR / "Textos.h"
 # band gives notice before a routine addition tips either over the edge in a
 # commit that "just adds a string".
 CEIL_WARN_FRAC = 0.95
+
+
+def web_viewer_cap():
+    """TV_CAP, the largest file the web's text viewer shows (WebUI.h, lang.js; a bigger one is downloaded), read from the source. The largest
+    file the device keeps is a pack, so LANG_FILE_MAX must not pass it, or a pack the device accepts could not be read on the web (S10c B4b-0,
+    when the ceiling rose from 48 to 64 KiB). Not found is a refusal, never a pass."""
+    m = re.search(r"const TV_CAP = (\d+)", WEBUI.read_text(encoding="utf-8")) if WEBUI.exists() else None
+    if not m:
+        raise SystemExit(f"check_lang_packs: TV_CAP not found in {WEBUI.name}: the gate cannot hold LANG_FILE_MAX to the web viewer's cap")
+    return int(m.group(1))
 
 
 def lang_limits():
@@ -525,6 +536,7 @@ def main():
     keys = enum_keys()
     want = len(keys)
     ceil, dict_ceil = lang_limits()
+    tv_cap = web_viewer_cap()
     warn_at = int(ceil * CEIL_WARN_FRAC)
     dict_warn_at = int(dict_ceil * CEIL_WARN_FRAC)
     trl_live = trl_literals()
@@ -537,6 +549,10 @@ def main():
         raise SystemExit(f"check_lang_packs: read {len(english)} lines out of DICTIONARY_EN, "
                          f"TR_KEYS_COUNT is {want}: the reader is wrong, not the table")
     failed = False
+    if ceil > tv_cap:
+        print(f"[lang-packs] FAIL LANG_FILE_MAX ({ceil}) is over the web text viewer's TV_CAP ({tv_cap}, {WEBUI.name}): a pack the device "
+              f"accepts would be downloaded and not shown on the web; keep the ceiling at or under the cap", file=sys.stderr)
+        failed = True
     for where, shown in ua_bad:
         print(f"[lang-packs] FAIL {where}: the English {shown[:60]!r} of a UA_TXT( ) is not valid UTF-8 — the device hashes the compiler's bytes and a pack, "
               f"a UTF-8 file, cannot carry a line for them; write the character as its UTF-8 bytes (\\xE2\\x80\\xA6 is one ellipsis)", file=sys.stderr)
