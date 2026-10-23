@@ -58,10 +58,11 @@ TEXTOS_H = ANGULO_DIR / "Textos.h"
 # A pack over a ceiling is the same invisible failure as a short one:
 # loadLangFile() returns false, setLanguage() reverts to English, and nothing
 # says so. Two ceilings, both read from the parser source: LANG_FILE_MAX bounds
-# the file on flash, LANG_DICT_MAX the @DICT — the one section that is read
-# into RAM, and the one allocation a pack keeps for the whole uptime. A warning
-# band gives notice before a routine addition tips either over the edge in a
-# commit that "just adds a string".
+# the file on flash, LANG_DICT_MAX the @DICT — the section the original panel
+# reads into RAM and keeps for the whole uptime (the Ângulo images keep a second
+# one, the @ANGULO table, held to UA_TEXTOS_MAX below). A warning band gives
+# notice before a routine addition tips either over the edge in a commit that
+# "just adds a string".
 CEIL_WARN_FRAC = 0.95
 
 
@@ -69,7 +70,8 @@ def web_viewer_cap():
     """TV_CAP, the largest file the web's text viewer shows (WebUI.h, lang.js; a bigger one is downloaded), read from the source. The largest
     file the device keeps is a pack, so LANG_FILE_MAX must not pass it, or a pack the device accepts could not be read on the web (S10c B4b-0,
     when the ceiling rose from 48 to 64 KiB). Not found is a refusal, never a pass."""
-    m = re.search(r"const TV_CAP = (\d+)", WEBUI.read_text(encoding="utf-8")) if WEBUI.exists() else None
+    # a plain number and nothing else: "64 * 1024" would read as 64 (the review of S10c B4b-0), so a form this reader does not know is refused
+    m = re.search(r"const TV_CAP = (\d+)\s*[,;]", WEBUI.read_text(encoding="utf-8")) if WEBUI.exists() else None
     if not m:
         raise SystemExit(f"check_lang_packs: TV_CAP not found in {WEBUI.name}: the gate cannot hold LANG_FILE_MAX to the web viewer's cap")
     return int(m.group(1))

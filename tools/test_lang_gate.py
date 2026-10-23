@@ -313,6 +313,14 @@ def viewer_cap_cases():
             gate.WEBUI = sem
             bad, err = run_gate(sorted((ROOT / "data" / "lang").glob("*.lng")))
             check("viewer cap: a WebUI.h without TV_CAP is a refusal, not a pass", bad, err[-200:])
+            sem.write_text("    const TV_CAP = 64 * 1024, TV_EXT = ' json ';\n", encoding="utf-8")
+            bad, err = run_gate(sorted((ROOT / "data" / "lang").glob("*.lng")))
+            try:
+                lido = f"read as {gate.web_viewer_cap()}"
+            except SystemExit as e:
+                lido = str(e.code)
+            check("viewer cap: a TV_CAP that is not a plain number is a refusal, not read as its first digits",
+                  bad and "TV_CAP not found" in lido, lido[-200:])
     finally:
         gate.PARSER = real_parser
         if real_webui is not None:

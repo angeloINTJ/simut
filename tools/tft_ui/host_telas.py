@@ -180,6 +180,10 @@ def aceitos(grupo, idioma='en'):
             print(f'{ACEITOS.name}:{n}: {len(inicios)} starts; a line gives one for every language or one for each of '
                   f'{", ".join(IDIOMAS_DOS_CORTES)}, in that order', file=sys.stderr)
             return None
+        if len(inicios) > 1 and idioma not in IDIOMAS_DOS_CORTES:
+            print(f'{ACEITOS.name}:{n}: no start for the language {idioma!r}: a line of three gives one for each of '
+                  f'{", ".join(IDIOMAS_DOS_CORTES)}', file=sys.stderr)
+            return None
         if partes[0] == grupo:
             out.append((partes[1], inicios[0] if len(inicios) == 1 else inicios[IDIOMAS_DOS_CORTES.index(idioma)], n))
     return out

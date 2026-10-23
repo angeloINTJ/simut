@@ -284,6 +284,14 @@ def main():
                 host_telas.ACEITOS.write_text(linha, encoding='utf-8')
                 with contextlib.redirect_stderr(io.StringIO()):
                     caso(f'accepted cuts: {motivo}', host_telas.aceitos('menus', 'pt') is None)
+            host_telas.ACEITOS.write_text('menus | menu_x | Conta: maria.a ¦ Account: maria. ¦ Cuenta: maria. | why\n', encoding='utf-8')
+            err = io.StringIO()
+            try:
+                with contextlib.redirect_stderr(err):
+                    fora = host_telas.aceitos('menus', 'xx')
+                caso('accepted cuts: a language the lines do not list is refused and named, not a traceback', fora is None and 'xx' in err.getvalue(), err.getvalue()[-120:])
+            except ValueError as e:
+                caso('accepted cuts: a language the lines do not list is refused and named, not a traceback', False, f'ValueError: {e}')
         finally:
             host_telas.ACEITOS = orig
 
