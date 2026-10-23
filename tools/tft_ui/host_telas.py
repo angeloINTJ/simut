@@ -154,8 +154,10 @@ def literais():
 
 
 def aceitos(grupo):
-    """The cuts tools/tft_ui/cortes_aceitos.txt accepts in this group: (sample glob, start of the
-    drawn text, line number). None when a line is malformed."""
+    """The cuts tools/tft_ui/cortes_aceitos.txt accepts in this group: (sample glob, the starts of the
+    drawn text, line number). A cut that begins with a label ("Conta: maria.a") begins with another word in each language, so a line
+    may give one start per language, separated by " ¦ "; a cut is accepted when it begins with any of them, and the line is used when
+    any of them matched. None when a line is malformed."""
     out = []
     for n, linha in enumerate(ACEITOS.read_text(encoding='utf-8').splitlines(), 1):
         if not linha.strip() or linha.startswith('#'):
@@ -165,8 +167,12 @@ def aceitos(grupo):
             print(f'{ACEITOS.name}:{n}: expected "<group> | <sample glob> | <start of the drawn text> | <why>"',
                   file=sys.stderr)
             return None
+        inicios = tuple(s.strip() for s in partes[2].split('¦'))
+        if not all(inicios):
+            print(f'{ACEITOS.name}:{n}: an empty start (a stray "¦"?) would accept every cut', file=sys.stderr)
+            return None
         if partes[0] == grupo:
-            out.append((partes[1], partes[2], n))
+            out.append((partes[1], inicios, n))
     return out
 
 
@@ -573,7 +579,7 @@ def main():
                                      f'sample makes on purpose, with data too long to fit)')
         for glob, inicio, n in regras:
             if n not in usadas:
-                erros.append(f'{ACEITOS.name}:{n}: accepts a cut of "{inicio}" in {glob} that no longer happens '
+                erros.append(f'{ACEITOS.name}:{n}: accepts a cut of "{" ¦ ".join(inicio)}" in {glob} that no longer happens '
                              f'(remove the line)')
         for a in avisos:
             print('warning:', a)

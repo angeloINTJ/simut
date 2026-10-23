@@ -7,10 +7,12 @@
 #include <Adafruit_GFX.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 #include "Angulo.h"
 #include "telas/MenusConfig.h"   // the Tema screen's fixed texts and the boxes they are drawn in (S10c, A'3)
+#include "Textos.h"              // after the project's headers: its pragmas hold to the end of the unit
 
 namespace gerado {
 #include "kit/angulo_tokens.h"
@@ -51,9 +53,32 @@ uint32_t hashDoQuadro( const ua::IdentidadeDoQuadro &id ) {
   return fnv1a( &id, sizeof id, h );
 }
 
+// The pack's @ANGULO section (the body, as test_temas.py cut it out of the pack), through the code the device runs: what the Tema screen draws through UA_TXT( ) is then the
+// pack's text, and the room each text needs is measured in that language (S10c, B4a). With no argument nothing is loaded and the texts are the English of the source.
+int carregarTextos( const char *caminho ) {
+  FILE *f = fopen( caminho, "rb" );
+  if ( !f ) { perror( caminho ); return 2; }
+  fseek( f, 0, SEEK_END );
+  const long n = ftell( f );
+  fseek( f, 0, SEEK_SET );
+  char *corpo = static_cast<char *>( malloc( n > 0 ? (size_t)n : 1 ) );
+  const size_t lidos = n > 0 ? fread( corpo, 1, (size_t)n, f ) : 0;
+  fclose( f );
+  if ( n <= 0 || lidos != (size_t)n ) { fprintf( stderr, "%s: short read\n", caminho ); free( corpo ); return 2; }
+  const ua::TextosResultado r = ua::textosCarregar( corpo, (size_t)n );
+  free( corpo );
+  if ( r != ua::TEXTOS_OK ) { fprintf( stderr, "%s: the device would refuse this section (%d)\n", caminho, (int)r ); return 2; }
+  printf( "idioma: @ANGULO loaded, %zu texts\n", ua::textosContagem( ) );
+  return 0;
+}
+
 }  // namespace
 
-int main( ) {
+int main( int argc, char **argv ) {
+  if ( argc > 1 ) {
+    const int rc = carregarTextos( argv[1] );
+    if ( rc ) return rc;
+  }
   const int N = gerado::ACENTOS_N;
 
   // 1. The decode, over all 256 int8_t values. Index m + 3 k is mode m with accent k; anything else means ( 0, 0 ). The expectation
@@ -126,32 +151,32 @@ int main( ) {
   CONFERE( hashDoQuadro( escuro ) != hashDoQuadro( base ) && hashDoQuadro( ox ) != hashDoQuadro( base ) && hashDoQuadro( oy ) != hashDoQuadro( base ),
            "a change of mode, of ox or of oy changes the hash" );
 
-  // 5. The Tema screen's fixed texts fit the room they are drawn in: the very strings and boxes of telas/MenusConfig.h (S10c, A'3). MEDIDA lines are the
-  //    measures, echoed by test_temas.py.
+  // 5. The Tema screen's fixed texts fit the room they are drawn in: the very strings and boxes of telas/MenusConfig.h and .cpp (S10c, A'3), through the accessors the
+  //    screen draws with (B4a), in the language of the pack given as argv[1] (English when none is). MEDIDA lines are the measures, echoed by test_temas.py.
   {
     using namespace ua::tela;
     for ( int m = 0; m < TM_N; m++ ) {
-      const int w = ua::larguraTinta( TEMA_MODOS[m], TEMA_FONTE_SEGMENTO );
-      printf( "MEDIDA segment label \"%s\": %d px in %d\n", TEMA_MODOS[m], w, TEMA_W_ROTULO );
-      CONFERE( w <= TEMA_W_ROTULO, "the segment label \"%s\" is %d px and its room %d", TEMA_MODOS[m], w, TEMA_W_ROTULO );
+      const int w = ua::larguraTinta( temaModo( m ), TEMA_FONTE_SEGMENTO );
+      printf( "MEDIDA segment label \"%s\": %d px in %d\n", temaModo( m ), w, TEMA_W_ROTULO );
+      CONFERE( w <= TEMA_W_ROTULO, "the segment label \"%s\" is %d px and its room %d", temaModo( m ), w, TEMA_W_ROTULO );
     }
     const int linha = W_TELA - 2 * ua::ESP2;
     for ( int m = 0; m < TM_N; m++ ) {
-      const int w = ua::larguraTinta( TEMA_FRASES[m], ua::tipo::corpo );
-      printf( "MEDIDA words line \"%s\": %d px in %d\n", TEMA_FRASES[m], w, linha );
-      CONFERE( w <= linha, "the line \"%s\" is %d px and its room %d", TEMA_FRASES[m], w, linha );
+      const int w = ua::larguraTinta( temaFrase( m ), ua::tipo::corpo );
+      printf( "MEDIDA words line \"%s\": %d px in %d\n", temaFrase( m ), w, linha );
+      CONFERE( w <= linha, "the line \"%s\" is %d px and its room %d", temaFrase( m ), w, linha );
     }
     int pior = 0;
     for ( int k = 0; k < TEMA_CORES_N; k++ ) {
       char buf[64];
-      snprintf( buf, sizeof buf, TEMA_FMT_COR, TEMA_CORES[k] );
+      temaLinhaCor( k, buf, sizeof buf );
       const int w = ua::larguraTinta( buf, ua::tipo::corpo );
       if ( w > pior ) pior = w;
       CONFERE( w <= linha, "the line \"%s\" is %d px and its room %d", buf, w, linha );
     }
     printf( "MEDIDA accent line, the widest of the %d: %d px in %d\n", TEMA_CORES_N, pior, linha );
-    const int bw = ua::larguraTinta( TEMA_APLICAR_ROTULO, ua::tipo::botao ), bsala = linha - 2 * ua::PAD;
-    printf( "MEDIDA button label \"%s\": %d px in %d\n", TEMA_APLICAR_ROTULO, bw, bsala );
+    const int bw = ua::larguraTinta( temaAplicarRotulo( ), ua::tipo::botao ), bsala = linha - 2 * ua::PAD;
+    printf( "MEDIDA button label \"%s\": %d px in %d\n", temaAplicarRotulo( ), bw, bsala );
     CONFERE( bw <= bsala, "the button label is %d px and its room %d", bw, bsala );
     // The control of the measure: a label that is too wide is refused by the same comparison.
     CONFERE( ua::larguraTinta( "Automático Automático", TEMA_FONTE_SEGMENTO ) > TEMA_W_ROTULO, "control: a label of two words must not fit a segment" );

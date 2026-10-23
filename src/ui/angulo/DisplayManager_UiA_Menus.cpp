@@ -41,7 +41,8 @@
 #include "telas/Telas.h"
 #include "../../display/ListPager.h"   /* listPages( ), listClampPage( ), listPageStep( ): the lists' page arithmetic */
 #include "../../display/SettingsSteps.h"   /* langSlotCount( ): the language list's rows */
-#include "../../DisplayManager_Actions.h"   /* the core's touch actions, which the lists' rows run; last */
+#include "../../DisplayManager_Actions.h"   /* the core's touch actions, which the lists' rows run; the last project header */
+#include "Textos.h"   /* UA_TXT( ): after every project header, because its pragmas hold to the end of the unit */
 
 /* The screens' ids are the firmware's, value for value: the menu copies _menuItems[ ] as
  * it is, and a language row is the language it applies. (Two enums are compared as ints:
@@ -83,13 +84,15 @@ ua::Escolha escolhaNaTela( const SystemConfig *cfg, int8_t previa ) {
 }
 
 /* The loaded pack's name as the language list reads it: the two packs the project ships by
- * their own names, any other as "name (code)" (the pack's @NAME has no accents). */
+ * their own names, any other as "name (code)" (the pack's @NAME has no accents). A language's
+ * own name reads the same in every language (the original's packs do not translate it: it
+ * prints the pack's @NAME as it is), so each of the two is a text of the pack's @ANGULO with
+ * the same line in every pack (S10c, B4a). UA_TXT( ) cannot initialise a table: the pair is
+ * chosen here, when the name is wanted, and copied bounded into the view model's own buffer. */
 void nomeDoPacote( const char *nome, const char *codigo, char *out, int cap ) {
-  static const struct { const char *codigo, *nome; } kConhecidos[] = {
-    { "pt-BR", "Português (Brasil)" }, { "es-ES", "Español (España)" } };
-  for ( const auto &c : kConhecidos ) {
-    if ( !strcmp( codigo, c.codigo ) ) { ua::copiar( out, c.nome, cap ); return; }
-  }
+  const char *conhecido = !strcmp( codigo, "pt-BR" ) ? UA_TXT( "Português (Brasil)" )
+                          : !strcmp( codigo, "es-ES" ) ? UA_TXT( "Español (España)" ) : nullptr;
+  if ( conhecido ) { ua::copiar( out, conhecido, cap ); return; }
   snprintf( out, (size_t)cap, "%s (%s)", nome[0] ? nome : "?", codigo );
 }
 

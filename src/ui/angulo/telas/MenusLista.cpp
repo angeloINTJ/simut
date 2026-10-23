@@ -22,8 +22,9 @@ void seta( Pintor &p, const Caixa16 &c, IconeNome icone, bool ativa ) {
            ativa ? T.tinta : desab( T, T.tinta ) );
 }
 
-// "n de m", 1-based: the page the user is on.
-void rotuloPaginas( const Paginas &g, char *out, int cap ) { snprintf( out, (size_t)cap, "%d de %d", g.pagina + 1, g.total ); }
+// "n of m" ("n de m" in pt-BR), 1-based: the page the user is on. The kit's own count (S10c, B3-c): the pager the kit draws and the ones the screens draw say the same words,
+// in every language, because they call one function. fimDoPaginador( ) measures this very text.
+void rotuloPaginas( const Paginas &g, char *out, int cap ) { contagemDoPaginador( out, cap, (int16_t)( g.pagina + 1 ), (int16_t)g.total ); }
 
 }  // namespace
 

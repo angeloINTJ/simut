@@ -39,7 +39,7 @@
    }
   },
   {
-   "reason": "a format string with no word: only conversions, punctuation and the unit symbols kB, dBm, s and °C; the words it joins are texts of their own",
+   "reason": "a format string with no word: only conversions, punctuation and the unit symbols kB, dBm, s, °C, h, min and d, and the time standard GMT; the words it joins are texts of their own",
    "texts": {
     "src/ui/angulo/Angulo.cpp": [
      "%d %s %d",
@@ -109,11 +109,29 @@
      "%s%s",
      ": %s"
     ],
+    "src/ui/angulo/telas/MenusAlarmes.cpp": [
+     "%s %s %s °C",
+     "%s. %s",
+     "%u h %s",
+     "%u h %u min %s",
+     "%u min %s"
+    ],
+    "src/ui/angulo/telas/MenusConfig.cpp": [
+     "%s: %s"
+    ],
     "src/ui/angulo/telas/MenusStatus.cpp": [
+     "%lu %s",
+     "%lu d %02lu:%02lu:%02lu",
      "%lu,%lu",
+     "%s %s %s kB",
+     "%s %u %s",
      "%s dBm",
      "%s kB",
-     "%s%d"
+     "%s °C · GMT%s",
+     "%s · %s",
+     "%s%d",
+     "%u %s",
+     "%u %s %u"
     ],
     "src/ui/angulo/telas/PainelAlarme.cpp": [
      "%s %u s",
@@ -388,6 +406,31 @@
     "src/ui/angulo/Textos.h": [
      "-Wformat-nonliteral",
      "-Wformat-security"
+    ]
+   }
+  },
+  {
+   "reason": "a name the web lists: the theme catalogue's display names, served as they are by GET /api/themes (WebManager_Api.cpp, handleApiThemes( )) and written by the web page into its select as it receives them (WebUI.h, loadThemes( )), which translates nothing it receives and whose dictionary has no entry for them. The panel does not draw them: its Tema screen has words of its own (telas/MenusConfig.cpp, UA_TXT). The web's contract does not change in S10c B4a (the coordinator's decision, 2026-10-22); a catalogue that follows the language is the question UI_DRIVERS.md leaves to Stage B (F9, b)",
+   "texts": {
+    "src/ui/angulo/Temas.cpp": [
+     "Automático",
+     "Automático, azul",
+     "Automático, magenta",
+     "Automático, petróleo",
+     "Automático, violeta",
+     "Automático, índigo",
+     "Claro",
+     "Claro, azul",
+     "Claro, magenta",
+     "Claro, petróleo",
+     "Claro, violeta",
+     "Claro, índigo",
+     "Escuro",
+     "Escuro, azul",
+     "Escuro, magenta",
+     "Escuro, petróleo",
+     "Escuro, violeta",
+     "Escuro, índigo"
     ]
    }
   }

@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """test_idiomas.py -- the Angulo's screens in the device's three languages, on the host (S10c, B3).
 
-B3 turned the texts of the Painel and Base screens into UA_TXT( "English" ): the device's pack gives the Portuguese or the Spanish, and the source
-gives the English. This runs tools/tft_ui/host_telas.py for every group in each language, and holds what no pixel comparison can:
+B3 turned the texts of the Painel and Base screens into UA_TXT( "English" ) and B4a those of the Menus screens: the device's pack gives the Portuguese or the
+Spanish, and the source gives the English. This runs tools/tft_ui/host_telas.py for every group in each language, and holds what no pixel comparison can:
 
   1. The shipped packs draw clean. `host_telas.py <group> --idioma en|pt|es` exits 0 for every group: no glyph the fonts lack (ua::glifosFaltando( )), no
      text outside the safe area, over another, across the edge of a touch target or of the card it sits on, and no fixed text cut with "…" (only the
@@ -25,6 +25,8 @@ gives the English. This runs tools/tft_ui/host_telas.py for every group in each 
 Usage: python3 tools/tft_ui/test_idiomas.py   exit 0 when all hold, 1 when not, 2 when it cannot build (no Adafruit GFX 1.12.6 in .pio/libdeps: run pio once).
 """
 import concurrent.futures
+import contextlib
+import io
 import os
 import pathlib
 import re
@@ -40,7 +42,7 @@ os.environ.setdefault('LANG_GATE_NO_RUN', '1')   # tools/check_lang_packs.py run
 import check_lang_packs as gate  # noqa: E402
 import host_telas  # noqa: E402
 
-GRUPOS = ('base', 'painel')                       # the groups whose texts are converted: a group joins here when its step lands (B4, B5)
+GRUPOS = ('base', 'painel', 'menus')              # the groups whose texts are converted: a group joins here when its step lands (B4b, B5)
 TODOS = tuple(sorted(p.stem for p in (HERE / 'amostras').glob('*.cpp')))   # every group the harness draws, read from its samples
 IDIOMAS = ('en', 'pt', 'es')
 PACOTES = {'pt': ROOT / 'data' / 'lang' / 'language_pt-BR.lng', 'es': ROOT / 'data' / 'lang' / 'language_es-ES.lng'}
@@ -255,6 +257,26 @@ def main():
              lidos is not None and len(e) == 1 and f'"{cheio}" is {campo - 3} bytes, within 3 of the {campo} bytes' in e[0], str(e))
         caso('reader: texts and badges come apart, each with its box', lidos is not None and lidos[0] == [(10, 60, 4, 20, cheio), (10, 60, 30, 46, cheio[:-1])]
              and lidos[1] == [(70, 90, 4, 20, 'web')], str(lidos))
+
+    # the accepted cuts (tools/tft_ui/cortes_aceitos.txt): a cut that begins with a label of the screen begins with another word in each language, so a line may list one
+    # start per language, separated by " ¦ " (S10c, B4a: the menu's "Conta: maria.a…", "Account: maria…" and "Cuenta: maria.…")
+    with tempfile.TemporaryDirectory(prefix='idiomas_cortes_') as t:
+        d = pathlib.Path(t)
+        orig = host_telas.ACEITOS
+        host_telas.ACEITOS = d / 'cortes.txt'
+        try:
+            host_telas.ACEITOS.write_text('menus | menu_x | Conta: maria.a ¦ Account: maria ¦ Cuenta: maria. | why\nmenus | menu_y | Camara fria | why\nidentidade | conta_z | Ana | why\n', encoding='utf-8')
+            regras = host_telas.aceitos('menus')
+            caso('accepted cuts: a start lists one text per language, and a line with one start is a tuple of one',
+                 regras == [('menu_x', ('Conta: maria.a', 'Account: maria', 'Cuenta: maria.'), 1), ('menu_y', ('Camara fria',), 2)], str(regras))
+            caso('accepted cuts: a cut begins with any of the starts of a line and with none of the starts of another',
+                 all(t.startswith(regras[0][1]) for t in ('Conta: maria.a…', 'Account: maria…', 'Cuenta: maria.…')) and not any(t.startswith(regras[1][1]) for t in ('Conta: maria.a…', 'Account: maria…')))
+            host_telas.ACEITOS.write_text('menus | menu_x | Conta: maria.a ¦ | why\n', encoding='utf-8')
+            with contextlib.redirect_stderr(io.StringIO()):
+                vazia = host_telas.aceitos('menus')
+            caso('accepted cuts: an empty alternative is refused, so that it cannot accept every cut', vazia is None)
+        finally:
+            host_telas.ACEITOS = orig
 
     # the English of a sample file against the sources
     with tempfile.TemporaryDirectory(prefix='idiomas_amostra_') as t:

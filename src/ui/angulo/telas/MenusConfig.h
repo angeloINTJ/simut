@@ -68,8 +68,9 @@ struct VmTemas {
   int8_t premidoIndice;    // its indice (-1 for TT_NADA and TT_APLICAR)
 };
 
-// The geometry, on the 4 px grid (S10C_A_PLANO.md section 3), and the fixed texts, here so that tools/tft_ui/test_temas.py measures the very strings and
-// boxes the screen draws. The texts are pt-BR; Stage B translates them (the commit of A'3 lists each one's English).
+// The geometry, on the 4 px grid (S10C_A_PLANO.md section 3), and the fixed texts' accessors, here so that tools/tft_ui/test_temas.py measures the very strings and
+// boxes the screen draws. The texts are UA_TXT( "<English>" ) calls in MenusConfig.cpp (S10c, B4a): the pack of the language the device runs gives the Portuguese or the
+// Spanish and the source gives the English. They are functions because UA_TXT( ) cannot initialise a constexpr table.
 constexpr int16_t TEMA_ALVO = 44;           // a finger's target: the segments' height, the swatches' box
 constexpr int16_t TEMA_W_SEGMENTO = 96;
 constexpr int16_t TEMA_H_LINHA = 20;        // the two lines of words, each in a box of this height
@@ -86,16 +87,21 @@ constexpr int16_t TEMA_ANEL = 2;            // the selected swatch's ring, and t
 constexpr Fonte TEMA_FONTE_SEGMENTO = tipo::corpo;
 constexpr int16_t TEMA_W_ROTULO = TEMA_W_SEGMENTO - 2 * ESP1;   // the room of a segment's label
 
-constexpr const char *TEMA_TITULO = "Tema";
-constexpr const char *TEMA_MODOS[TM_N] = { "Claro", "Escuro", "Automático" };
 constexpr IconeNome TEMA_ICONES[TM_N] = { IconeNome::SUN, IconeNome::MOON, IconeNome::SUN_MOON };
-constexpr const char *TEMA_FRASES[TM_N] = { "Modo claro", "Modo escuro", "Modo automático: escuro das 19 às 7" };
-// The palette's accents in its order (entry 0 is the stock one): the names the screen and the web list say. In lower case: a name follows a colon on the words line ("Cor de destaque: azul")
-// and a comma in the catalogue ("Claro, azul"), and the Ângulo's sentence case (ANGULO.md section 7) writes it so (S10c, A'3b); tools/tft_ui/test_temas.py holds it.
-constexpr const char *TEMA_CORES[] = { "verde-azulado", "petróleo", "azul", "índigo", "violeta", "magenta" };
-constexpr int TEMA_CORES_N = sizeof TEMA_CORES / sizeof TEMA_CORES[0];
-constexpr const char *TEMA_FMT_COR = "Cor de destaque: %s";
-constexpr const char *TEMA_APLICAR_ROTULO = "Aplicar tema";
+// The palette's accents in its order (entry 0 is the stock one). The enum gives the count, so that no number is written here, and lets temaCor( ) be a switch the compiler checks
+// (-Wswitch is an error): an accent without a name does not build.
+enum CorTema : uint8_t { TC_VERDE_AZULADO, TC_PETROLEO, TC_AZUL, TC_INDIGO, TC_VIOLETA, TC_MAGENTA, TC_N };
+constexpr int TEMA_CORES_N = TC_N;
+
+const char *temaTitulo( );
+const char *temaModo( int m );                    // a segment's label: TM_CLARO, TM_ESCURO, TM_AUTOMATICO
+const char *temaFrase( int m );                   // the mode in words
+// The accent's name, in lower case: a name follows a colon on the words line ("Cor de destaque: azul") and a comma in the catalogue ("Claro, azul"), and the Ângulo's sentence
+// case (ANGULO.md section 7) writes it so (S10c, A'3b). The catalogue (Temas.cpp) is what GET /api/themes serves to the web page, which shows it as it comes, so its names are
+// not looked up: they stay the pt-BR words (S10c, B4a, the web's contract does not change), and tools/tft_ui/test_temas.py holds them equal to the pt-BR pack's words for these.
+const char *temaCor( int k );
+void temaLinhaCor( int k, char *out, int cap );   // "<accent colour>: <name>", cut to `cap` bytes
+const char *temaAplicarRotulo( );
 
 void desenharTemas( Pintor &p, const VmTemas &vm );
 int alvosTemas( const VmTemas &vm, Alvo *out );

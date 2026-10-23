@@ -4,6 +4,8 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "../Textos.h"   // UA_TXT( ): after every project header, because its pragmas hold to the end of the unit
+
 namespace ua {
 namespace tela {
 
@@ -51,14 +53,14 @@ LayoutAlarmes layoutAlarmes( const VmAlarmes &vm ) {
     // "Desligado" plus "Manutenção" is 70 + 106 px of badges and the 28 px of
     // chevron on a row that has 280 px inside its padding, and while the
     // window is open the alarms are suspended whatever the switch says.
-    if ( s.manutencao ) { r.selo = "Manutenção"; r.seloTom = Tom::ALERTA; }
-    else if ( s.ligado ) { r.selo = "Ligado"; r.seloTom = Tom::POSITIVO; }
-    else { r.selo = "Desligado"; r.seloTom = Tom::NEUTRO; }
+    if ( s.manutencao ) { r.selo = UA_TXT( "Maintenance" ); r.seloTom = Tom::ALERTA; }
+    else if ( s.ligado ) { r.selo = UA_TXT( "On" ); r.seloTom = Tom::POSITIVO; }
+    else { r.selo = UA_TXT( "Off" ); r.seloTom = Tom::NEUTRO; }
     // Right to left, as lista( ) lays a row out: the padding, the chevron and its gap, the badge.
     r.xSelo = (int16_t)( c.x + c.w - PAD - ( ICONE_CONTROLE + ESP2 ) - larguraSelo( r.selo ) );
     cortar( s.nome, tipo::corpo, (int16_t)( r.xSelo - ESP2 - ( c.x + PAD ) ), r.nome, sizeof r.nome );
     char lo[16], hi[16];
-    snprintf( r.faixa, sizeof r.faixa, "%s a %s °C", n1( s.lo, lo ), n1( s.hi, hi ) );
+    snprintf( r.faixa, sizeof r.faixa, "%s %s %s °C", n1( s.lo, lo ), UA_TXT( "to" ), n1( s.hi, hi ) );
   }
   return l;
 }
@@ -69,9 +71,12 @@ void desenharAlarmes( Pintor &p, const VmAlarmes &vm ) {
   const Tema &T = p.t( );
   const LayoutAlarmes l = layoutAlarmes( vm );
   // The title echoes the menu item that opened this list.
-  barraTituloVoltar( p, "Limites de alarme" );
+  barraTituloVoltar( p, UA_TXT( "Alarm limits" ) );
   if ( l.lista.total == 0 ) {
-    desenharVazio( p, "Nenhum sensor ativo. Ative um sensor pela web." );
+    // Two texts the dashboard's empty card has as well, joined by a literal format (a looked-up text is never a format); bounded by the buffer.
+    char vazio[160];
+    snprintf( vazio, sizeof vazio, "%s. %s", UA_TXT( "No active sensor" ), UA_TXT( "Activate a sensor on the web." ) );
+    desenharVazio( p, vazio );
     return;
   }
   // lista( ) gives the card, the dividers and the chevrons; what a row says is
@@ -107,23 +112,26 @@ struct LayoutSensorAlarme {
   char manutencao[40];                 // the maintenance row's value
 };
 
-// "1 h 30 min restantes", "2 h restantes", "1 h restante", "45 min restantes",
-// "1 min restante" or "Desligada". Rounded up to the minute: 30 s left is one
-// minute, never zero. From 100 h on the minutes go: they are noise.
+// "1 h 30 min left", "2 h left", "1 h left", "45 min left", "1 min left" or "Inactive"
+// (pt-BR: "1 h 30 min restantes", "2 h restantes", "1 h restante", "45 min restantes",
+// "1 min restante", "Desligada"). Rounded up to the minute: 30 s left is one minute, never
+// zero. From 100 h on the minutes go: they are noise. The singular is a text of its own,
+// because a language's word changes with the number (pt-BR "restante" and "restantes");
+// the plural is the word "left" after the number and its unit, in a literal format.
 void textoManutencao( uint32_t seg, char *out, int cap ) {
-  if ( seg == 0 ) { copiar( out, "Desligada", cap ); return; }
+  if ( seg == 0 ) { copiar( out, UA_TXT( "Inactive" ), cap ); return; }
   const unsigned min = (unsigned)( ( seg + 59 ) / 60 );
   const unsigned h = min / 60, m = min % 60;
-  if ( h == 1 && !m ) copiar( out, "1 h restante", cap );   // the rig read "1 h restantes" (2026-10-14)
-  else if ( h >= 100 || ( h && !m ) ) snprintf( out, (size_t)cap, "%u h restantes", h );
-  else if ( h ) snprintf( out, (size_t)cap, "%u h %u min restantes", h, m );
-  else if ( m == 1 ) snprintf( out, (size_t)cap, "1 min restante" );
-  else snprintf( out, (size_t)cap, "%u min restantes", m );
+  if ( h == 1 && !m ) copiar( out, UA_TXT( "1 h left" ), cap );   // the rig read "1 h restantes" (2026-10-14)
+  else if ( h >= 100 || ( h && !m ) ) snprintf( out, (size_t)cap, "%u h %s", h, UA_TXT( "left" ) );
+  else if ( h ) snprintf( out, (size_t)cap, "%u h %u min %s", h, m, UA_TXT( "left" ) );
+  else if ( m == 1 ) copiar( out, UA_TXT( "1 min left" ), cap );
+  else snprintf( out, (size_t)cap, "%u min %s", m, UA_TXT( "left" ) );
 }
 
 LayoutSensorAlarme layoutSensorAlarme( const VmSensorAlarme &vm ) {
   LayoutSensorAlarme l{ };
-  tituloCortado( vm.nome[0] ? vm.nome : "Alarmes", l.titulo, sizeof l.titulo );
+  tituloCortado( vm.nome[0] ? vm.nome : UA_TXT( "Alarms" ), l.titulo, sizeof l.titulo );
   l.voltar = alvoVoltar( );
   for ( int i = 0; i < SA_LINHAS; i++ )
     l.linhas[i] = Caixa16{ ESP2, (int16_t)( Y0 + i * LISTA_H_FILA_2 ), (int16_t)( W_TELA - 2 * ESP2 ), LISTA_H_FILA_2 };
@@ -143,10 +151,10 @@ void desenharSensorAlarme( Pintor &p, const VmSensorAlarme &vm ) {
   barraTituloVoltar( p, l.titulo );
 
   Item itens[SA_LINHAS];
-  itens[0].texto = "Limites";
+  itens[0].texto = UA_TXT( "Limits" );
   itens[0].icone = IconeNome::GAUGE;
   itens[0].chevron = l.ativa[0];
-  itens[1].texto = "Alarmes";
+  itens[1].texto = UA_TXT( "Alarms" );
   itens[1].icone = IconeNome::BELL;
   // A locked row shows its switch disabled, below; lista( ) only draws live ones.
   itens[1].interruptor = l.ativa[1] ? ( vm.alarmesLigados ? 1 : 0 ) : -1;
@@ -168,7 +176,7 @@ void desenharSensorAlarme( Pintor &p, const VmSensorAlarme &vm ) {
   {
     uint16_t cTexto = T.tinta, cEstado = l.manutencaoAberta ? T.alerta : T.tinta2;
     if ( !l.ativa[2] ) { cTexto = desab( T, cTexto ); cEstado = desab( T, cEstado ); }
-    desenharDuasLinhas( p, l.linhas[2], ESP2 + PAD + ICONE_CONTROLE + ESP2, "Manutenção", cTexto, l.manutencao,
+    desenharDuasLinhas( p, l.linhas[2], ESP2 + PAD + ICONE_CONTROLE + ESP2, UA_TXT( "Maintenance" ), cTexto, l.manutencao,
                         tipo::apoio, cEstado );
   }
   if ( !l.ativa[1] ) {
@@ -176,7 +184,7 @@ void desenharSensorAlarme( Pintor &p, const VmSensorAlarme &vm ) {
     interruptor( p, c.x + c.w - PAD - W_INTERRUPTOR, c.y + rd2( c.h - H_INTERRUPTOR ), vm.alarmesLigados, true );
   }
   // The switch saves on the spot, unlike the screens that end in "Salvar".
-  desenharNota( p, fim + ESP2, "Ligar ou desligar alarmes vale na hora." );
+  desenharNota( p, fim + ESP2, UA_TXT( "Turning alarms on or off applies at once." ) );
 }
 
 int alvosSensorAlarme( const VmSensorAlarme &vm, Alvo *out ) {

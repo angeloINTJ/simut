@@ -8,6 +8,9 @@
 # long. A line whose cut no longer happens fails too, so the list does not rot.
 #
 # <group> | <sample glob> | <start of the drawn text> | <why the cut is right>
+#
+# A cut that begins with a label of the screen ("Conta: maria.a") begins with another word in each language: the start may list one per language,
+# separated by " ¦ " (pt-BR, English, Spanish), and the line is used when any of them matches.
 
 painel | painel_nome_31* | Refrig | a 31-character sensor name (the most the device stores) on a card
 painel | acao_nome_longo | Refrigerado | a 31-character sensor name; the sentence's fixed part, "acima do limite", is whole
@@ -22,10 +25,10 @@ painel | boot*_textos_longos | Carregando cache | boot steps of 69 to 71 charact
 painel | boot*_textos_longos | Sincronizando Rel | boot steps of 69 to 71 characters, made long on purpose; a step is one line
 
 menus | alarmes_nome_longo | Camara fria | 31-character sensor names in the alarm list
-menus | alarmes_nome_longo | WWWWWWW | 31 of the widest letter in the alarm list
+menus | alarmes_nome_longo | WWWWWW | 31 of the widest letter in the alarm list: one W fewer in Spanish, where the badge "Desactivado" is 20 px wider than "Desligado"
 menus | sensor_nome_longo | Camara fria | a 31-character sensor name in the sensor menu's title
 menus | sensor_nome_largo | WWWWWWW | 31 of the widest letter in the sensor menu's title
-menus | menu_conta_longa | Conta: maria.a | a 31-character account name
+menus | menu_conta_longa | Conta: maria.a ¦ Account: maria ¦ Cuenta: maria. | a 31-character account name, after the label "Conta:" in the language's word
 menus | status_sensores_5 | Camara fria | 31-character sensor names in the status list
 menus | status_sensores_5 | WWWWWWW | 31 of the widest letter in the status list
 menus | status_sistema_limites | Camara fria | a 31-character sensor name in the limits row

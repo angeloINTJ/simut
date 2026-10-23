@@ -168,8 +168,8 @@ def compila(src, obj, inc, estrito):
     return r.returncode, r.stderr
 
 
-def constroi(tmp, nome, texto_angulo, gfx_obj, main_obj, inc):
-    """The program with Angulo.cpp as given (None = the file itself). Returns the executable, or None and the compiler's words."""
+def constroi(tmp, nome, texto_angulo, gfx_obj, main_obj, inc, extras=()):
+    """The program with Angulo.cpp as given (None = the file itself). `extras`: more objects to link (the Tema screen's units, S10c B4a). Returns the executable, or None and the compiler's words."""
     d = tmp / nome
     d.mkdir()
     fonte = ANGULO
@@ -180,12 +180,13 @@ def constroi(tmp, nome, texto_angulo, gfx_obj, main_obj, inc):
     if rc:
         return None, err
     exe = d / 'temas'
-    r = subprocess.run(['g++', str(gfx_obj), str(d / 'Angulo.o'), str(main_obj), '-o', str(exe)], capture_output=True, text=True)
+    r = subprocess.run(['g++', str(gfx_obj), str(d / 'Angulo.o'), str(main_obj), *[str(e) for e in extras], '-o', str(exe)], capture_output=True, text=True)
     return (exe, '') if r.returncode == 0 else (None, r.stderr)
 
 
-def corre(exe):
-    r = subprocess.run([str(exe)], capture_output=True, text=True)
+def corre(exe, secao=None):
+    """(exit code, stdout) of a host program; `secao`: the file of a pack's @ANGULO section for the program to load (none: the English of the source)."""
+    r = subprocess.run([str(exe), *([str(secao)] if secao else [])], capture_output=True, text=True)
     return r.returncode, r.stdout
 
 
@@ -563,18 +564,84 @@ def problemas_de_literais(mh, mc, menus, ua):  # the 6 is not looked for in uaTe
     return p
 
 
-def pedacos_do_catalogo(cat, mh):
+def fnv1a32(b):
+    """The pack's key of an English text (DisplayManager::fnv1a32, tools/check_lang_packs.py): FNV-1a, 32 bits, over the UTF-8 bytes."""
+    h = 0x811c9dc5
+    for c in b:
+        h = ((h ^ c) * 0x01000193) & 0xFFFFFFFF
+    return h
+
+
+def palavras_do_pacote(caminho=None):
+    """{hash of the English: text} of the @ANGULO section of the pt-BR pack (S10c, B4a): the Tema screen's words are UA_TXT( "<English>" ), and the catalogue (Temas.cpp) keeps
+    the pt-BR words, which this test holds equal to the pack's."""
+    caminho = caminho or ROOT / 'data' / 'lang' / 'language_pt-BR.lng'
+    linhas = caminho.read_text(encoding='utf-8').split('\n')
+    i = linhas.index('@ANGULO')
+    out = {}
+    for ln in linhas[i + 1:]:
+        if ln.startswith('@'):
+            break
+        if ln:
+            h, _, t = ln.partition(' ')
+            out[int(h, 16)] = t
+    return out
+
+
+def em_pt(pt, ingles):
+    """The pack's text for an English, or a KeyError that names the English."""
+    h = fnv1a32(ingles.encode('utf-8'))
+    if h not in pt:
+        raise KeyError(ingles)
+    return pt[h]
+
+
+def com_texto(pt, ingles, texto):
+    """A copy of the pack's words with the text of `ingles` replaced (the controls plant a wrong word)."""
+    h = fnv1a32(ingles.encode('utf-8'))
+    assert h in pt, ingles
+    novo = dict(pt)
+    novo[h] = texto
+    return novo
+
+
+def ingles_da_tela(mh, mc):
+    """The English of the Tema screen's UA_TXT( ) calls in MenusConfig.cpp, with the enumerators they stand for: {'modos': [(TM_x, English)], 'frases': [...], 'cores': [(TC_x, English)],
+    'titulo': English, 'rotuloCor': English, 'aplicar': English, 'ordem_cores': [TC_x in the enum's order]}. Empty lists when a function is not found."""
+    def casos(nome):
+        corpo = pedaco(mc, f'const char *{nome}( int ', '\n}\n') or ''
+        return re.findall(r'case (\w+): return UA_TXT\( "([^"]*)" \);', corpo)
+    um = lambda r: (re.search(r, mc) or [None, None])[1]
+    enum = re.search(r'enum CorTema : uint8_t \{([^}]*)\}', mh)
+    return {'modos': casos('temaModo'), 'frases': casos('temaFrase'), 'cores': casos('temaCor'),
+            'titulo': um(r'const char \*temaTitulo\( \) \{ return UA_TXT\( "([^"]*)" \); \}'),
+            'rotuloCor': um(r'"%s: %s", UA_TXT\( "([^"]*)" \), temaCor\( k \)'),
+            'aplicar': um(r'const char \*temaAplicarRotulo\( \) \{ return UA_TXT\( "([^"]*)" \); \}'),
+            'ordem_cores': [x.strip() for x in enum.group(1).split(',')][:-1] if enum else []}
+
+
+def pedacos_do_catalogo(cat, mh, mc, pt):
+    """(the catalogue's rows, the accents' pt-BR words, the modes' pt-BR words, problems): the screen's words are looked up in the pt-BR pack by their English."""
     rows = re.findall(r'TEMA\(\s*"([^"]*)"\s*,\s*"([^"]*)"\s*\)', cat)
-    cores = re.findall(r'"([^"]*)"', pedaco(mh, 'TEMA_CORES[] =', '};') or '')
-    modos = re.findall(r'"([^"]*)"', pedaco(mh, 'TEMA_MODOS[TM_N] =', '};') or '')
-    return rows, cores, modos
-
-
-def problemas_do_catalogo(cat, mh):
-    """The 18 ids and names of Temas.cpp: each row at the index ua::escolhaDoIndice( ) gives it (mode t % 3, accent t / 3), the stock accent's three unchanged, an id at most
-    15 B, a name at most 23 B of UTF-8, none repeated, and the static_assert that ties the count to the palette."""
+    en = ingles_da_tela(mh, mc)
     p = []
-    rows, cores, modos = pedacos_do_catalogo(cat, mh)
+    if [c for c, _ in en['modos']] != ['TM_CLARO', 'TM_ESCURO', 'TM_AUTOMATICO']:
+        p.append(f'temaModo( ) does not give TM_CLARO, TM_ESCURO and TM_AUTOMATICO in that order: {en["modos"]}')
+    if not en['ordem_cores'] or [c for c, _ in en['cores']] != en['ordem_cores']:
+        p.append(f'temaCor( ) does not give the accents of enum CorTema, in its order: {en["cores"]} against {en["ordem_cores"]}')
+    try:
+        cores = [em_pt(pt, e) for _, e in en['cores']]
+        modos = [em_pt(pt, e) for _, e in en['modos']]
+    except KeyError as x:
+        return rows, [], [], p + [f'the pt-BR pack has no @ANGULO line for the English {x}']
+    return rows, cores, modos, p
+
+
+def problemas_do_catalogo(cat, mh, mc, pt):
+    """The 18 ids and names of Temas.cpp: each row at the index ua::escolhaDoIndice( ) gives it (mode t % 3, accent t / 3), the stock accent's three unchanged, an id at most
+    15 B, a name at most 23 B of UTF-8, none repeated, and the static_assert that ties the count to the palette. The names are the pt-BR words of the Tema screen (S10c, B4a: the
+    screen looks them up in the pack, the catalogue keeps them because the web shows them as they come), so each is held equal to the pack's text for the screen's English."""
+    rows, cores, modos, p = pedacos_do_catalogo(cat, mh, mc, pt)
     ids = ['claro', 'escuro', 'auto']
     if len(modos) != 3 or len(cores) < 2:
         return [f'the screen header gives {len(modos)} modes and {len(cores)} accents']
@@ -613,22 +680,25 @@ def problemas_da_previa_nos_menus(menus):
     return p
 
 
-def problemas_de_caixa(cat, mh):
+def problemas_de_caixa(cat, mh, mc, pt):
     """S10c, A'3b, ANGULO.md section 7 (sentence case): a colour's name follows a colon on the words line ("Cor de destaque: azul") and a comma in the catalogue ("Claro, azul"), so it starts in
-    lower case in both, and the words line is `Cor de destaque: %s`."""
-    p = []
-    rows, cores, _ = pedacos_do_catalogo(cat, mh)
+    lower case in both, and the words line is the label "Cor de destaque" (the pack's text for the English of temaLinhaCor( )) and a colon: `"%s: %s"`."""
+    rows, cores, _, p = pedacos_do_catalogo(cat, mh, mc, pt)
     if not cores:
-        p.append('no accent name found in TEMA_CORES')
+        p.append('no accent name found in temaCor( )')
     for c in cores:
         if not c[:1].islower():
             p.append(f'the accent name {c!r} starts in upper case, after the colon of the words line')
     for _, n in rows:
         if ', ' in n and not n.split(', ', 1)[1][:1].islower():
             p.append(f'the catalogue name {n!r} starts its colour in upper case, after the comma')
-    fmt = re.search(r'TEMA_FMT_COR = "([^"]*)";', mh)
-    if not fmt or fmt.group(1) != 'Cor de destaque: %s':
-        p.append(f'the words line is {(fmt.group(1) if fmt else None)!r}, expected "Cor de destaque: %s"')
+    en = ingles_da_tela(mh, mc)
+    try:
+        rotulo = em_pt(pt, en['rotuloCor']) if en['rotuloCor'] else None
+    except KeyError as x:
+        rotulo = f'(no pack line for {x})'
+    if rotulo != 'Cor de destaque':
+        p.append(f'the words line is {rotulo!r} and a colon, expected "Cor de destaque: %s"')
     return p
 
 
@@ -829,6 +899,15 @@ def main():
             print(r.stderr, file=sys.stderr)
             return 2
         gfx_obj = tmp / 'Biblioteca.o'
+        # The Tema screen's units, which the program's section 5 draws its texts from (S10c, B4a): built once, as the kit's mutants do not touch them.
+        extras = []
+        for nome_u in ('MenusConfig', 'MenusLista', 'Telas'):
+            obj = tmp / f'{nome_u}.o'
+            rc, err = compila(KIT / 'telas' / f'{nome_u}.cpp', obj, inc + [f'-I{KIT / "telas"}'], True)
+            if rc:
+                print(err, file=sys.stderr)
+                return 2
+            extras.append(obj)
         texto = ANGULO.read_text(encoding='utf-8')
         for nome, velho, novo in MUTANTES:
             if texto.count(velho) != 1:
@@ -837,19 +916,31 @@ def main():
         # the real program and one program per mutant, built side by side
         jobs = [('real', None)] + [(f'm{i}', texto.replace(v, n)) for i, (_, v, n) in enumerate(MUTANTES)]
         with concurrent.futures.ThreadPoolExecutor(4) as ex:
-            feitos = list(ex.map(lambda j: constroi(tmp, j[0], j[1], gfx_obj, main_obj, inc), jobs))
+            feitos = list(ex.map(lambda j: constroi(tmp, j[0], j[1], gfx_obj, main_obj, inc, extras), jobs))
         if feitos[0][0] is None:
             print(feitos[0][1], file=sys.stderr)
             return 2
-        rc, saida = corre(feitos[0][0])
-        falhas = [l for l in saida.splitlines() if l.startswith('FAIL')]
-        resumo = saida.strip().splitlines()[-1] if saida.strip() else 'no output'
-        caso(f'host program: mode, accent, tema( ), desab( ) and the frame identity against the generated header ({resumo})', not falhas and rc == 0 and resumo.endswith(' 0 failed'))
-        for l in falhas[:6]:
-            print('       ' + l)
-        for l in saida.splitlines():
-            if l.startswith('MEDIDA'):
+        # the real program in the three languages: the Tema screen's texts are measured in the pack's words (pt-BR first: the MEDIDA lines are the ones the earlier steps printed), in
+        # the Spanish pack's and in the English of the source (S10c, B4a)
+        secoes = {}
+        for lingua, arq in (('pt-BR', 'language_pt-BR.lng'), ('es-ES', 'language_es-ES.lng')):
+            import host_telas
+            corpo, problema = host_telas.secao_angulo(ROOT / 'data' / 'lang' / arq)
+            if corpo is None:
+                print(f'{arq}: {problema or "no @ANGULO section"}', file=sys.stderr)
+                return 2
+            secoes[lingua] = tmp / f'secao_{lingua}.txt'
+            secoes[lingua].write_bytes(corpo)
+        for lingua, secao in (('pt-BR', secoes['pt-BR']), ('es-ES', secoes['es-ES']), ('English', None)):
+            rc, saida = corre(feitos[0][0], secao)
+            falhas = [l for l in saida.splitlines() if l.startswith('FAIL')]
+            resumo = saida.strip().splitlines()[-1] if saida.strip() else 'no output'
+            caso(f'host program in {lingua}: mode, accent, tema( ), desab( ), the frame identity and the Tema screen\'s texts against the room they are drawn in ({resumo})', not falhas and rc == 0 and resumo.endswith(' 0 failed'))
+            for l in falhas[:6]:
                 print('       ' + l)
+            for l in saida.splitlines():
+                if l.startswith('MEDIDA') and lingua == 'pt-BR':
+                    print('       ' + l)
         for (nome, _, _), (exe, err) in zip(MUTANTES, feitos[1:]):
             if exe is None:
                 caso(f'control: {nome}', [f'the mutant does not build: {err.strip()[:200]}'])
@@ -986,20 +1077,24 @@ def main():
     caso('control: a comment that names a file that does not read it is reported', bool(leitores_nomeados(texto.replace('MenusConfig.cpp', 'MenusConfig.cpp, Fantasma.cpp'), outros)))
 
     cat, mh, mc = TEMAS_CPP.read_text(encoding='utf-8'), MENUS_H.read_text(encoding='utf-8'), MENUS_CPP.read_text(encoding='utf-8')
+    pt = palavras_do_pacote()
     menus = MENUS_GLUE.read_text(encoding='utf-8')
     caso("menus glue: the preview is named only inside the two cases of the Tema screen", problemas_da_previa_nos_menus(menus))
     caso('control: another screen naming the preview is reported', bool(problemas_da_previa_nos_menus(menus + '\nint8_t leMenus( ) { return _uaPrevia; }\n')))
-    caso('catalogue: 18 ids and names, each at the index the decode gives it, ids within 15 B and names within 23 B', problemas_do_catalogo(cat, mh))
+    caso('catalogue: 18 ids and names, each at the index the decode gives it, ids within 15 B and names within 23 B, the names the pt-BR words of the Tema screen', problemas_do_catalogo(cat, mh, mc, pt))
     r0 = re.findall(r'TEMA\(\s*"[^"]*"\s*,\s*"[^"]*"\s*\)', cat)
-    caso('control: an id of 16 B is reported', bool(problemas_do_catalogo(cat.replace('"escuro-petroleo"', '"escuro-petroleos"'), mh)))
-    caso('control: a name of 24 B is reported', bool(problemas_do_catalogo(cat.replace('"Automático, petróleo"', '"Automático, petróleos2"'), mh)))
-    caso('control: two rows swapped are reported', bool(problemas_do_catalogo(cat.replace(r0[4], '@@').replace(r0[5], r0[4]).replace('@@', r0[5]), mh)))
-    caso('control: a catalogue of 17 rows is reported', bool(problemas_do_catalogo(cat.replace(r0[17] + ',', '', 1), mh)))
-    caso('control: a catalogue without its static_assert is reported', bool(problemas_do_catalogo(cat.replace('static_assert( NUM_TEMAS == 3 *', 'static_assert( NUM_TEMAS >= 3 *'), mh)))
-    caso('microcopy: a colour name is in lower case after the colon of the words line and after the comma of the catalogue (ANGULO.md section 7)', problemas_de_caixa(cat, mh))
-    caso('control: a capitalised colour in the screen\'s list is reported', bool(problemas_de_caixa(cat, mh.replace('"azul"', '"Azul"'))))
-    caso('control: a capitalised colour in the catalogue is reported', bool(problemas_de_caixa(cat.replace('"Claro, azul"', '"Claro, Azul"'), mh)))
-    caso('control: a words line other than "Cor de destaque: %s" is reported', bool(problemas_de_caixa(cat, mh.replace('"Cor de destaque: %s"', '"Cor de Destaque: %s"'))))
+    caso('control: an id of 16 B is reported', bool(problemas_do_catalogo(cat.replace('"escuro-petroleo"', '"escuro-petroleos"'), mh, mc, pt)))
+    caso('control: a name of 24 B is reported', bool(problemas_do_catalogo(cat.replace('"Automático, petróleo"', '"Automático, petróleos2"'), mh, mc, pt)))
+    caso('control: two rows swapped are reported', bool(problemas_do_catalogo(cat.replace(r0[4], '@@').replace(r0[5], r0[4]).replace('@@', r0[5]), mh, mc, pt)))
+    caso('control: a catalogue of 17 rows is reported', bool(problemas_do_catalogo(cat.replace(r0[17] + ',', '', 1), mh, mc, pt)))
+    caso('control: a catalogue name that is not the pack\'s pt-BR word for the screen\'s is reported', bool(problemas_do_catalogo(cat, mh, mc, com_texto(pt, 'petrol blue', 'petrol'))))
+    caso('control: a Tema screen text the pt-BR pack has no line for is reported', bool(problemas_do_catalogo(cat, mh, mc, {h: t for h, t in pt.items() if h != fnv1a32(b'Dark')})))
+    caso('control: a mode that is not at its enumerator is reported', bool(problemas_do_catalogo(cat, mh, mc.replace('case TM_ESCURO: return UA_TXT( "Dark" );', 'case TM_CLARO: return UA_TXT( "Dark" );'), pt)))
+    caso('control: a catalogue without its static_assert is reported', bool(problemas_do_catalogo(cat.replace('static_assert( NUM_TEMAS == 3 *', 'static_assert( NUM_TEMAS >= 3 *'), mh, mc, pt)))
+    caso('microcopy: a colour name is in lower case after the colon of the words line and after the comma of the catalogue (ANGULO.md section 7)', problemas_de_caixa(cat, mh, mc, pt))
+    caso('control: a capitalised colour in the screen\'s words is reported', bool(problemas_de_caixa(cat, mh, mc, com_texto(pt, 'blue', 'Azul'))))
+    caso('control: a capitalised colour in the catalogue is reported', bool(problemas_de_caixa(cat.replace('"Claro, azul"', '"Claro, Azul"'), mh, mc, pt)))
+    caso('control: a words line other than "Cor de destaque: %s" is reported', bool(problemas_de_caixa(cat, mh, mc, com_texto(pt, 'Accent color', 'Cor de Destaque'))))
     caso('sources: the Tema screen, its touch and uaTema( ) carry no bare 3 or 6 outside static_asserts', problemas_de_literais(mh, mc, menus, glue))
     caso('control: an `i < 3` in the touch is reported', bool(problemas_de_literais(mh, mc, menus.replace('else if ( a->tipo == TT_MODO ) {', 'else if ( a->tipo == TT_MODO && i < 3 ) {'), glue)))
     caso('control: a 6 in the screen is reported', bool(problemas_de_literais(mh, mc.replace('for ( int k = 0; k < TEMA_CORES_N; k++ ) desenharCor', 'for ( int k = 0; k < 6; k++ ) desenharCor'), menus, glue)))

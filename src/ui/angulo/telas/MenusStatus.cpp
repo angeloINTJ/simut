@@ -5,6 +5,8 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "../Textos.h"   // UA_TXT( ): after every project header, because its pragmas hold to the end of the unit
+
 namespace ua {
 namespace tela {
 
@@ -90,53 +92,53 @@ void inteiroComSinal( int v, bool mais, char *out, int cap ) {
 void paginaSistema( LayoutStatus &l, const VmStatusSistema &vm ) {
   // A uint32_t of bytes is at most "4294967,3" in kB: 12 bytes hold it.
   char b[48], c[12];
-  anexar( l, "Aparelho", vm.aparelho[0] ? vm.aparelho : "Sem nome" );
-  anexar( l, "Firmware", vm.firmware );
+  anexar( l, UA_TXT( "Device" ), vm.aparelho[0] ? vm.aparelho : UA_TXT( "Unnamed" ) );
+  anexar( l, UA_TXT( "Firmware" ), vm.firmware );
   const unsigned long s = vm.ligadoSeg;
   snprintf( b, sizeof b, "%lu d %02lu:%02lu:%02lu", s / 86400, ( s % 86400 ) / 3600, ( s % 3600 ) / 60, s % 60 );
-  anexar( l, "Tempo ligado", b );
+  anexar( l, UA_TXT( "Uptime" ), b );
   kb( vm.memLivre, c, sizeof c );
   snprintf( b, sizeof b, "%s kB", c );
-  anexar( l, "Memória livre", b, vm.memLivre < MEM_BAIXA ? Tom::PERIGO : Tom::POSITIVO );
+  anexar( l, UA_TXT( "Free memory" ), b, vm.memLivre < MEM_BAIXA ? Tom::PERIGO : Tom::POSITIVO );
   kb( vm.flashUsada, c, sizeof c );
   if ( vm.flashTotal ) {
     char t[12];
     kb( vm.flashTotal, t, sizeof t );
-    snprintf( b, sizeof b, "%s de %s kB", c, t );
+    snprintf( b, sizeof b, "%s %s %s kB", c, UA_TXT( "of" ), t );
   } else {
     snprintf( b, sizeof b, "%s kB", c );
   }
   // The file system's bytes (the WebManager's cache), the old screen's "Flash Used".
-  anexar( l, "Flash", b );
+  anexar( l, UA_TXT( "Flash" ), b );
   char t1[16], gmt[8];
   inteiroComSinal( vm.fuso, true, gmt, sizeof gmt );
   snprintf( b, sizeof b, "%s °C · GMT%s", n1( vm.placaDecimos, t1 ), gmt );
-  anexar( l, "Placa", b );
+  anexar( l, UA_TXT( "Board" ), b );
 }
 
 void paginaRede( LayoutStatus &l, const VmStatusSistema &vm ) {
   if ( vm.cabo ) {
-    anexar( l, "Cabo", vm.conectado ? "Conectado" : "Sem cabo", vm.conectado ? Tom::POSITIVO : Tom::PERIGO );
+    anexar( l, UA_TXT( "Cable" ), vm.conectado ? UA_TXT( "Connected" ) : UA_TXT( "No cable" ), vm.conectado ? Tom::POSITIVO : Tom::PERIGO );
   } else if ( vm.conectado ) {
-    anexar( l, "Wi-Fi", vm.ssid[0] ? vm.ssid : "Conectado", Tom::POSITIVO );
+    anexar( l, UA_TXT( "Wi-Fi" ), vm.ssid[0] ? vm.ssid : UA_TXT( "Connected" ), Tom::POSITIVO );
     char dbm[16], b[24];
     inteiroComSinal( vm.rssi, false, dbm, sizeof dbm );
     snprintf( b, sizeof b, "%s dBm", dbm );
-    anexar( l, "Sinal", b, vm.rssi > RSSI_BOM ? Tom::POSITIVO : vm.rssi > RSSI_REGULAR ? Tom::NEUTRO : Tom::ALERTA );
+    anexar( l, UA_TXT( "Signal" ), b, vm.rssi > RSSI_BOM ? Tom::POSITIVO : vm.rssi > RSSI_REGULAR ? Tom::NEUTRO : Tom::ALERTA );
   } else {
-    anexar( l, "Wi-Fi", "Desconectado", Tom::PERIGO );
+    anexar( l, UA_TXT( "Wi-Fi" ), UA_TXT( "Disconnected" ), Tom::PERIGO );
   }
-  anexar( l, "Endereço IP", vm.ip[0] ? vm.ip : "Sem endereço" );
-  anexar( l, "MAC", vm.mac );
-  anexar( l, "NTP", vm.ntpSincronizado ? "Sincronizado" : "Não sincronizado",
+  anexar( l, UA_TXT( "IP address" ), vm.ip[0] ? vm.ip : UA_TXT( "No address" ) );
+  anexar( l, UA_TXT( "MAC" ), vm.mac );
+  anexar( l, UA_TXT( "NTP" ), vm.ntpSincronizado ? UA_TXT( "Synced" ) : UA_TXT( "Not synced" ),
           vm.ntpSincronizado ? Tom::POSITIVO : Tom::ALERTA );
-  anexar( l, "Servidor NTP", vm.ntpServidor[0] ? vm.ntpServidor : "Não definido" );
+  anexar( l, UA_TXT( "NTP server" ), vm.ntpServidor[0] ? vm.ntpServidor : UA_TXT( "Not set" ) );
 }
 
 void paginaSensores( LayoutStatus &l, const VmStatusSistema &vm ) {
   char b[24];
-  snprintf( b, sizeof b, "%u de %u", (unsigned)vm.ativos, (unsigned)vm.slots );
-  anexar( l, "Ativos", b );
+  snprintf( b, sizeof b, "%u %s %u", (unsigned)vm.ativos, UA_TXT( "of" ), (unsigned)vm.slots );
+  anexar( l, UA_TXT( "Active" ), b );
   int mostrar = vm.nSensores < STATUS_SENSORES_MAX ? vm.nSensores : STATUS_SENSORES_MAX;
   // More sensors than rows: the last row is the count of those not shown.
   const bool sobram = vm.ativos > mostrar && mostrar == STATUS_SENSORES_MAX;
@@ -146,14 +148,14 @@ void paginaSensores( LayoutStatus &l, const VmStatusSistema &vm ) {
     const char *palavra = "";
     Tom tom = Tom::NEUTRO;
     switch ( s.estado ) {
-      case ESS_NA_FAIXA: palavra = "Na faixa"; tom = Tom::POSITIVO; break;
-      case ESS_NO_LIMITE: palavra = "No limite"; tom = Tom::ALERTA; break;
-      case ESS_ACIMA: palavra = "Acima"; tom = Tom::PERIGO; break;
-      case ESS_ABAIXO: palavra = "Abaixo"; tom = Tom::PERIGO; break;
-      case ESS_ERRO: palavra = "Erro"; tom = Tom::PERIGO; break;
-      case ESS_MANUTENCAO: palavra = "Manutenção"; tom = Tom::ALERTA; break;
-      case ESS_ALARME: palavra = "Em alarme"; tom = Tom::PERIGO; break;
-      case ESS_DESLIGADO: palavra = "Sem alarme"; break;   // its alarms are off; "Desligado" read as the sensor (rig, 2026-10-14)
+      case ESS_NA_FAIXA: palavra = UA_TXT( "In range" ); tom = Tom::POSITIVO; break;
+      case ESS_NO_LIMITE: palavra = UA_TXT( "At the limit" ); tom = Tom::ALERTA; break;
+      case ESS_ACIMA: palavra = UA_TXT( "Above" ); tom = Tom::PERIGO; break;
+      case ESS_ABAIXO: palavra = UA_TXT( "Below" ); tom = Tom::PERIGO; break;
+      case ESS_ERRO: palavra = UA_TXT( "Error" ); tom = Tom::PERIGO; break;
+      case ESS_MANUTENCAO: palavra = UA_TXT( "Maintenance" ); tom = Tom::ALERTA; break;
+      case ESS_ALARME: palavra = UA_TXT( "In alarm" ); tom = Tom::PERIGO; break;
+      case ESS_DESLIGADO: palavra = UA_TXT( "No alarm" ); break;   // its alarms are off; "Off" ("Desligado") read as the sensor (rig, 2026-10-14)
       default: break;
     }
     // Here the name is what gives way: the state is a word, the name may be 31 characters.
@@ -162,35 +164,44 @@ void paginaSensores( LayoutStatus &l, const VmStatusSistema &vm ) {
   }
   if ( sobram ) {
     LinhaStatus &r = anexar( l, "", "" );
-    snprintf( r.k, sizeof r.k, "e mais %u sensores", (unsigned)( vm.ativos - mostrar ) );
+    // "and 4 more sensors": the count sits inside the sentence, so it is two texts and a literal format around the number (pt-BR "e mais" + 4 + "sensores").
+    snprintf( r.k, sizeof r.k, "%s %u %s", UA_TXT( "and" ), (unsigned)( vm.ativos - mostrar ), UA_TXT( "more sensors" ) );
     r.suave = true;
   }
   // "Nenhum sensor ativo." is the row above ("Ativos  0 de 11"): with it the note was 364 px
   // and left the glass at 9 pt (2026-10-15).
-  if ( vm.ativos == 0 ) copiar( l.nota, "Ative um sensor pela web.", sizeof l.nota );
+  if ( vm.ativos == 0 ) copiar( l.nota, UA_TXT( "Activate a sensor on the web." ), (int)sizeof l.nota );
 }
 
 void paginaTelemetria( LayoutStatus &l, const VmStatusSistema &vm ) {
   char b[32];
-  anexar( l, "Transporte", vm.mqtt ? "MQTT" : "HTTP" );
-  anexar( l, "Servidor", vm.servidor[0] ? vm.servidor : "Não definido" );
-  if ( vm.pendentes == 1 ) snprintf( b, sizeof b, "1 pendente" );
-  else snprintf( b, sizeof b, "%u pendentes", (unsigned)vm.pendentes );
-  anexar( l, "Pendentes", b, vm.pendentes > PENDENTES_ALTO ? Tom::ALERTA : Tom::POSITIVO );
-  if ( vm.lote == 0 ) snprintf( b, sizeof b, "Desligado" );
-  else if ( vm.lote == 1 ) snprintf( b, sizeof b, "1 registro" );
-  else snprintf( b, sizeof b, "%lu registros", (unsigned long)vm.lote );
-  anexar( l, "Lote mínimo", b );
+  anexar( l, UA_TXT( "Transport" ), vm.mqtt ? UA_TXT( "MQTT" ) : UA_TXT( "HTTP" ) );
+  anexar( l, UA_TXT( "Server" ), vm.servidor[0] ? vm.servidor : UA_TXT( "Not set" ) );
+  // The singular is a text of its own (a language's word may change with the number); the plural is the word after the number, in a literal format.
+  if ( vm.pendentes == 1 ) copiar( b, UA_TXT( "1 pending" ), (int)sizeof b );
+  else snprintf( b, sizeof b, "%u %s", (unsigned)vm.pendentes, UA_TXT( "pending" ) );
+  anexar( l, UA_TXT( "Pending" ), b, vm.pendentes > PENDENTES_ALTO ? Tom::ALERTA : Tom::POSITIVO );
+  if ( vm.lote == 0 ) copiar( b, UA_TXT( "Off" ), (int)sizeof b );
+  else if ( vm.lote == 1 ) copiar( b, UA_TXT( "1 record" ), (int)sizeof b );
+  else snprintf( b, sizeof b, "%lu %s", (unsigned long)vm.lote, UA_TXT( "records" ) );
+  anexar( l, UA_TXT( "Minimum batch" ), b );
   if ( vm.mqtt )
-    anexar( l, "MQTT", vm.mqttConectado ? "Conectado" : "Desconectado", vm.mqttConectado ? Tom::POSITIVO : Tom::PERIGO );
+    anexar( l, UA_TXT( "MQTT" ), vm.mqttConectado ? UA_TXT( "Connected" ) : UA_TXT( "Disconnected" ), vm.mqttConectado ? Tom::POSITIVO : Tom::PERIGO );
 }
 
 LayoutStatus layoutStatus( const VmStatusSistema &vm ) {
   LayoutStatus l{ };
   l.pag = paginasDe( vm.pagina, STATUS_PAGINAS );
   l.voltar = alvoVoltar( );
-  static const char *const nomes[STATUS_PAGINAS] = { "Sistema", "Rede", "Sensores", "Telemetria" };
-  snprintf( l.titulo, sizeof l.titulo, "Status · %s", nomes[l.pag.pagina] );
+  // The page's name, looked up where the title is made (UA_TXT( ) cannot initialise a table); a switch on the enum, so that a page without a name does not build.
+  const char *nome = "";
+  switch ( static_cast<PaginaStatus>( l.pag.pagina ) ) {
+    case PS_SISTEMA: nome = UA_TXT( "System" ); break;
+    case PS_REDE: nome = UA_TXT( "Network" ); break;
+    case PS_SENSORES: nome = UA_TXT( "Sensors" ); break;
+    case PS_TELEMETRIA: nome = UA_TXT( "Telemetry" ); break;
+  }
+  snprintf( l.titulo, sizeof l.titulo, "%s · %s", UA_TXT( "Status" ), nome );
   switch ( l.pag.pagina ) {
     case PS_SISTEMA: paginaSistema( l, vm ); break;
     case PS_REDE: paginaRede( l, vm ); break;
@@ -275,7 +286,7 @@ LayoutLicenca layoutLicenca( const VmLicenca &vm ) {
 void desenharLicenca( Pintor &p, const VmLicenca &vm ) {
   const Tema &T = p.t( );
   const LayoutLicenca l = layoutLicenca( vm );
-  barraTituloVoltar( p, "Licença MIT" );
+  barraTituloVoltar( p, UA_TXT( "MIT license" ) );
   superficie( p, ESP2, Y0, W_TELA - 2 * ESP2, LICENCA_H_CARTAO );
   // The text is the screen's content, so it takes the primary ink; the note
   // under it is the secondary one.
@@ -285,7 +296,7 @@ void desenharLicenca( Pintor &p, const VmLicenca &vm ) {
     p.fillRoundRect( l.trilho.x, l.trilho.y, l.trilho.w, l.trilho.h, RAIO_TOTAL, T.superficie2 );
     p.fillRoundRect( l.polegar.x, l.polegar.y, l.polegar.w, l.polegar.h, RAIO_TOTAL, T.linhaForte );
   }
-  textoCentrado( p, "O texto legal fica no original (inglês).", l.xTexto, l.yNota, LICENCA_PASSO, tipo::apoio, T.tinta2, 'l' );
+  textoCentrado( p, UA_TXT( "The legal text stays in English." ), l.xTexto, l.yNota, LICENCA_PASSO, tipo::apoio, T.tinta2, 'l' );
   desenharPaginador( p, l.pag );
 }
 

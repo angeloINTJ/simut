@@ -26,7 +26,10 @@ namespace entrega {
 namespace {
 /* Index t is mode t % 3 with accent t / 3: light, dark, automatic for the stock accent, then for each of the others. The ids are ASCII, at most 15 B (the .thm
  * code's size); the names are at most 23 B of UTF-8 (its name's size); tools/tft_ui/test_temas.py holds both, and each row to its index.
- * The colour follows the comma in lower case, as TEMA_CORES (telas/MenusConfig.h) writes it: sentence case, ANGULO.md section 7 (S10c, A'3b). */
+ * The colour follows the comma in lower case, as temaCor( ) (telas/MenusConfig.cpp) writes it in pt-BR: sentence case, ANGULO.md section 7 (S10c, A'3b).
+ * The names are not looked up (UA_TXT): GET /api/themes serves them to the web page as they are and the page writes them into its select as it receives them (WebUI.h,
+ * loadThemes( )), so the web shows these pt-BR words in every language, as it always did; a catalogue that follows the language changes that API's contract and is not
+ * decided here (S10c, B4a; tools/ui_texts_allow.json names the reason). tools/tft_ui/test_temas.py holds each name equal to the pt-BR pack's words for the Tema screen's. */
 const ThemePalette kTemas[] = {
  TEMA( "claro", "Claro" ),
  TEMA( "escuro", "Escuro" ),
