@@ -13,9 +13,17 @@ that keep it true:
     tools/flash_budget.json) fails — an image that grows records it;
   * the table says, row for row, what the record makes of it — so neither can
     move without the other.
+
+And one rule of the gate itself: when it cannot look (no firmware.bin, or an
+ota_layout.h it cannot read), it fails instead of passing.
 """
+import json
 import os
+import re
+import shutil
+import subprocess
 import sys
+import tempfile
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import check_flash_budget as cfb             # noqa: E402
@@ -142,6 +150,64 @@ check("a slotted image's row measured against the Pico W's ceiling fails",
       len(errs) == 1 and "pico2_w_release" in errs[0], str(errs))
 check("the OTA ceiling is the slot when there is one, the Pico W's otherwise",
       cfb.ota_ceiling({"slot": SLOT}, SAFE) == SLOT and cfb.ota_ceiling({}, SAFE) == SAFE)
+
+# The gate as CI runs it (the env and its build log), on a copy of it in a
+# temporary tree. Until 2026-10-24 an image whose firmware.bin was not there
+# got a NOTE and exit 0, so a run after .pio/build was cleaned passed without
+# reading any .bin (found in S10c D5's review, 2026-10-23); an ota_layout.h it
+# could not read did the same. Not looking is a failure, not a pass.
+GATE = os.path.abspath(cfb.__file__)
+BIN = 1028252
+LOG = "Flash: [==========]  95.7% (used 1000000 bytes from 1044480 bytes)\n"
+
+
+def run_gate(env, bin_size=None, layout_edit=None):
+    """(exit, output) of the copied gate for @p env, with a firmware.bin of
+    @p bin_size bytes under .pio/build/<env>/ unless it is None."""
+    with tempfile.TemporaryDirectory() as tmp:
+        os.makedirs(os.path.join(tmp, "tools"))
+        os.makedirs(os.path.join(tmp, "src", "ota"))
+        shutil.copy(GATE, os.path.join(tmp, "tools"))
+        for h in ("ota_layout.h", "signature.h"):
+            shutil.copy(os.path.join(cfb.ROOT, "src", "ota", h), os.path.join(tmp, "src", "ota"))
+        if layout_edit:
+            path = os.path.join(tmp, "src", "ota", "ota_layout.h")
+            with open(path, encoding="utf-8") as fh:
+                text = fh.read()
+            with open(path, "w", encoding="utf-8") as fh:
+                fh.write(layout_edit(text))
+        with open(os.path.join(tmp, "tools", "flash_budget.json"), "w", encoding="utf-8") as fh:
+            json.dump({"ceiling": 1044480,
+                       "envs": {"pico_w_release": {"budget": 1000000, "measured": 1000000, "bin": BIN},
+                                "pico_w_test_https": {"budget": 1000000, "measured": 1000000}},
+                       "ota_exempt": {"pico_w_test_https": "bench image, flashed over USB"}}, fh)
+        log = os.path.join(tmp, "build.log")
+        with open(log, "w", encoding="utf-8") as fh:
+            fh.write(LOG)
+        if bin_size is not None:
+            os.makedirs(os.path.join(tmp, ".pio", "build", env))
+            with open(os.path.join(tmp, ".pio", "build", env, "firmware.bin"), "wb") as fh:
+                fh.write(b"\xff" * bin_size)
+        r = subprocess.run([sys.executable, os.path.join(tmp, "tools", "check_flash_budget.py"), env, log],
+                           capture_output=True, text=True)
+        return r.returncode, (r.stdout + r.stderr).strip()
+
+
+code, out = run_gate("pico_w_release")
+check("an image whose firmware.bin is not there fails, naming where it looked",
+      code == 1 and "FAIL" in out and ".pio/build/pico_w_release/firmware.bin" in out, f"exit {code}: {out}")
+code, out = run_gate("pico_w_release", BIN)
+check("a firmware.bin of its recorded size passes",
+      code == 0 and "OK pico_w_release: firmware.bin signed" in out, f"exit {code}: {out}")
+code, out = run_gate("pico_w_release", BIN + 1)
+check("a firmware.bin 1 B over its record fails", code == 1, f"exit {code}: {out}")
+code, out = run_gate("pico_w_test_https")
+check("an image exempt from the OTA ceiling needs no firmware.bin",
+      code == 0 and "SKIP pico_w_test_https" in out, f"exit {code}: {out}")
+code, out = run_gate("pico_w_release", BIN,
+                     lambda t: re.sub(r"#define\s+OTA_FLASH_TOTAL\b", "#define OTA_FLASH_TOTAL_GONE", t))
+check("an ota_layout.h the gate cannot read fails, naming OTA_APP_SAFE_MAX_SIZE",
+      code == 1 and "FAIL" in out and "OTA_APP_SAFE_MAX_SIZE" in out, f"exit {code}: {out}")
 
 print(f"{len(RAN) - len(FAILS)} ok, {len(FAILS)} falha(s)")
 sys.exit(1 if FAILS else 0)
