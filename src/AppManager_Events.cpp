@@ -345,10 +345,10 @@ void AppManager::core0Yield( ) {
  }
  else if (uiEv.id == MENU_SETUP_AP) {
 #if SIMUT_DISPLAY_TFT && SIMUT_NET_WIFI
- /* The screen lives in DisplayManager_Settings.cpp, which is not in the
-  * alpha or Air link — the same reason MENU_OWN_PIN and MENU_PIN_POLICY
-  * carry a guard. A wired build lists no such row (display/SettingsMenu.h)
-  * and has no such screen. */
+ /* The entry lives in DisplayManager_SettingsCore.cpp and the screen in
+  * DisplayManager_Settings.cpp, neither in the alpha or Air link — the same
+  * reason MENU_OWN_PIN and MENU_PIN_POLICY carry a guard. A wired build
+  * lists no such row (display/SettingsMenu.h) and has no such screen. */
  if (panelAllowed(PERM_NET_CONFIG, -1)) _displayMgr->showApConfirm( );
 #endif
  }

@@ -131,6 +131,7 @@
   "DisplayManager.h": 2,
   "DisplayManager_Alpha.cpp": 2,
   "DisplayManager_Settings.cpp": 1,
+  "DisplayManager_SettingsCore.cpp": 1,
   "WebManager.h": 2,
   "WebManager_Api.cpp": 10,
   "WebManager_Commit.cpp": 1,

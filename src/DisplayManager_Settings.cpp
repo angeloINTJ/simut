@@ -3,7 +3,7 @@
  * @brief Settings screens: themes, alarms, main menu, password, sounds, system status.
  * @details Sub-file of DisplayManager.cpp.
  * The entry points of the settings screens (showSettingsMain and the
- * rest, but for showApConfirm), the sound preview helpers (consume +
+ * rest, showApConfirm included), the sound preview helpers (consume +
  * request) and setTelemetryPending/setTelemetrySendStatus are in
  * DisplayManager_SettingsCore.cpp. Touch helpers
  * (acceptTouch/Hold/Slide) are in core along with handleTouch.
@@ -665,19 +665,6 @@ void DisplayManager::drawSettingsPassword( ) {
 
 
 #if SIMUT_NET_WIFI   /* a wired build has no setup AP to ask about */
-/* Starting the setup AP takes the device off the LAN for up to 15 minutes, so
- * it asks first — the same two-button screen the Global Mute confirmation
- * uses, and the same hardcoded EN/PT strings, which is the rule this file
- * already follows for confirmations (the TFT renders ASCII only, and the
- * es-ES pack has 111 B left of its resident ceiling). */
-void DisplayManager::showApConfirm( ) {
- mutex_enter_blocking(&_stateMutex);
- _uiMode = MODE_CONFIRM_AP;
- _forceSettingsRedraw = true;
- _repaintSettings = true;
- mutex_exit(&_stateMutex);
-}
-
 void DisplayManager::drawApConfirm( ) {
  if (!_driver.canvas) return;
  if (!_forceSettingsRedraw) return;

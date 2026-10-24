@@ -242,8 +242,17 @@ lib_deps = ["https://github.com/angeloINTJ/pico-enc28j60.git#4984e2f55727c81cfd6
 # desvios ate eles, veneer_proof OTHER=0), nenhuma funcao mudada (V-ELF) e os mesmos 17 B do original; as tres
 # funcoes ja nao entravam nelas (o --gc-sections as descartava), entao a lista traz o erro de link de uma dependencia nova, e nao bytes. As
 # duas listas de exclusao do LCD trazem a unidade tambem: os tres .bin do LCD3 (alpha, air e wire) mantem o sha256 da base.
-# Ainda NAO estao aqui, cada uma com o que a segura (tabela da P4; o S10b-2 as separa): Settings (so na imagem com Wi-Fi:
-# core0Yield( ) chama showApConfirm( )), Calibration (core0Yield( ) chama
+# A DisplayManager_Settings.cpp entrou em 2026-10-24 (S10c, D2): a showApConfirm( ), a unica funcao dela que o nucleo chamava (o core0Yield( ), sob
+# #if SIMUT_NET_WIFI), foi para o SettingsCore.cpp, que as duas imagens do Angulo compilam e onde a tabela a classifica como core; o resto do
+# arquivo e desenho do original. O #if SIMUT_NET_WIFI foi junto com a funcao e o emaranhamento subiu 1 (363 -> 364: SIMUT_NET_WIFI no
+# SettingsCore.cpp, de 0 para 1), com o aceite do mantenedor de 2026-10-24, um desvio registrado como o do A'4: a [net_class.wifi] nao tem lista
+# `units` por onde o arquivo saisse das imagens cabeadas em vez de levar um #if. A unidade ja estava nas duas listas de exclusao do LCD (a
+# SettingsCore.cpp tambem), entao os tres .bin do LCD3 (alpha, air e wire) nem a compilam e mantem o sha256 da base. Medido nesse dia, as duas imagens
+# do Angulo de zero sem a unidade: o log de build nao a compila mais, os .bin tem o mesmo tamanho (826752 e 1035632 B), nenhuma funcao mudou (V-ELF:
+# 4290 e 4348 iguais), nenhum simbolo foi perdido ou ganho (5629 e 5706), os construtores e as tabelas de init sao os mesmos e o original nelas continua
+# em 17 B; a showApConfirm( ) era o unico simbolo do arquivo que a imagem do Pico 2 W linkava, e a do Wire nao linkava nenhum. Nos seis produtos com
+# painel TFT, V-ELF sai 0 (nenhuma funcao mudou; so a ordem do link, nos cinco com radio) e os onze .bin mantem o tamanho.
+# Ainda NAO estao aqui, cada uma com o que a segura (tabela da P4; o S10b-2 as separa): Calibration (core0Yield( ) chama
 # showTouchCalibration e showSettingsDisplayOffset, e handleResetTouchCal so showTouchCalibration), Auth (fastRandom, readRect*, convert3to565 e readRow,
 # que o nucleo chama), Touch (loopCore1 chama handleTouch), Users, Alarm e DisplayManager.cpp (funcoes de estado e de show que o nucleo
 # e o Angulo chamam) e Panel.cpp (sem linha de original na tabela, nao sondada). Uma unidade entra aqui com a prova das duas imagens.
@@ -258,6 +267,7 @@ units = [
     "UiWidgets.cpp",
     "DisplayManager_Dashboard.cpp",
     "DisplayManager_AlarmUi.cpp",
+    "DisplayManager_Settings.cpp",
 ]
 
 [ui.angulo]
