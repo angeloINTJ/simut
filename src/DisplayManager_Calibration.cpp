@@ -90,8 +90,8 @@ void DisplayManager::showSettingsDisplayOffset( ) {
  _offsetSavedY = _driver.tft ? _driver.tft->getOffsetY( ) : 0;
  _offsetPreviewX = _offsetSavedX;
  _offsetPreviewY = _offsetSavedY;
- _lastOffsetDrawX = 99; /* sentinel forces redraw of numeric values */
- _lastOffsetDrawY = 99;
+ /* The original sets the sentinels that force the redraw of the numeric values (UiChange::DISPLAY_OFFSET_ENTER, UiOriginal.h). Raised inside the mutex: an answer must not take it. */
+ uiChanged( UiChange::DISPLAY_OFFSET_ENTER, 0 );
  _forceSettingsRedraw = true;
  _repaintSettings = true;
  mutex_exit(&_stateMutex);

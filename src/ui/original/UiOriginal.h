@@ -53,6 +53,9 @@ UI_HOOK void DisplayManager::uiChanged( UiChange c, int16_t arg ) {
 	/* The touch calibration was entered, on Core 0 (showTouchCalibration( ), before the mode is published): the draw caches of its two screens go back to
 	 * "nothing painted", the seven stores that function held until S10c D3. Nothing is drawn here: the glass is Core 1's. */
 	case UiChange::TOUCH_CAL_ENTER: resetTouchCalCaches( ); break;
+	/* The display offset screen was entered, on Core 0 and INSIDE _stateMutex (showSettingsDisplayOffset( )): the sentinels that force the redraw of the numeric values, the two stores that
+	 * function held until S10c D3b. Written here, not in a member: only drawSettingsDisplayOffset( ) reads them. Nothing is drawn, and the mutex is not taken: it is held. */
+	case UiChange::DISPLAY_OFFSET_ENTER: _lastOffsetDrawX = 99; _lastOffsetDrawY = 99; break;
 	}
 }
 
