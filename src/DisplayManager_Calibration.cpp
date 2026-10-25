@@ -18,8 +18,9 @@
 #include "LogManager.h"
 #include "UiWidgets.h"
 #include <math.h>
+#include "ui/UiDriverHooks.h"   /* uiChanged( ), which showTouchCalibration( ) raises: the hook definitions need the complete class, so this comes last */
 
-/* POD volatile globals + writes in show*(). Volatile forces writes to persist. */
+/* POD volatile globals: the original's draw caches of the sensitivity and calibration screens. The draws (Core 1) write them; resetTouchCalCaches( ) resets them. Volatile forces writes to persist. */
 namespace {
  volatile bool g_sensFirstDraw = true;
  volatile bool g_lastSensDone = false;
@@ -28,6 +29,18 @@ namespace {
  volatile int g_lastCalPointIdx = -1;
  volatile bool g_lastCalHoldReady = false;
  volatile int g_lastCalStep = -1;
+}
+
+/* The original's answer to UiChange::TOUCH_CAL_ENTER (ui/original/UiOriginal.h): its draw caches back to "nothing painted yet". The seven stores
+ * showTouchCalibration( ) held until S10c D3, moved here as they were, in their order. The Ângulo keeps no such cache. */
+void DisplayManager::resetTouchCalCaches( ) {
+ g_sensFirstDraw = true;
+ g_lastSensDone = false;
+ g_lastSensStability = -1.0f;
+ g_lastSensThreshold = -1;
+ g_lastCalPointIdx = -1;
+ g_lastCalHoldReady = false;
+ g_lastCalStep = -1;
 }
 
 void DisplayManager::showTouchCalibration( ) {
@@ -47,14 +60,8 @@ void DisplayManager::showTouchCalibration( ) {
  memset(_calRawX, 0, sizeof(_calRawX));
  memset(_calRawY, 0, sizeof(_calRawY));
 
- /* Reset globals */
- g_sensFirstDraw = true;
- g_lastSensDone = false;
- g_lastSensStability = -1.0f;
- g_lastSensThreshold = -1;
- g_lastCalPointIdx = -1;
- g_lastCalHoldReady = false;
- g_lastCalStep = -1;
+ /* The original's draw caches go back to "nothing painted" (resetTouchCalCaches( ), its answer to this kind). Nothing is drawn: the glass is Core 1's. */
+ uiChanged( UiChange::TOUCH_CAL_ENTER, 0 );
 
  mutex_enter_blocking(&_stateMutex);
  _uiMode = MODE_SETTINGS_TOUCH_SENS;

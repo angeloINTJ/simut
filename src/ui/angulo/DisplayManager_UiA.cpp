@@ -409,7 +409,11 @@ void DisplayManager::uiBegin( ) {
  * answers by drawing (redrawAlarmFlash( ), restoreNormalDashboard( ), drawSlotPanel( ) and drawBottomButtons( ), UiOriginal.h);
  * none of them is linked into this image. GRAPH_HEADER and GRAPH_BUSY, the graph's two immediate draws, are raised
  * only where the original's touch code stands: this driver has no header target and shows its busy line from its own model
- * (pedirDados( ), DisplayManager_UiA_Graficos.cpp), so they do not reach it; marking the frame would be the right answer if they did. */
+ * (pedirDados( ), DisplayManager_UiA_Graficos.cpp), so they do not reach it; marking the frame would be the right answer if they did.
+ * TOUCH_CAL_ENTER is raised on CORE 0, by showTouchCalibration( ), where the others come from Core 1: the original answers it by resetting the draw
+ * caches of its two calibration screens (resetTouchCalCaches( ), UiOriginal.h), and this driver keeps none. Marking the frame is redundant for it and
+ * harmless: the same entry raises _forceSettingsRedraw and _repaintSettings, and the pass below turns those into uaSujo( ) itself. An answer to a
+ * kind raised on Core 0 must not draw: the glass belongs to Core 1. */
 void DisplayManager::uiChanged( UiChange, int16_t ) {
   uaSujo( );
 }

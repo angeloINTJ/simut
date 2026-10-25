@@ -14,7 +14,7 @@ pico_wiretft that the C6 Wire Angulo lacks, the patterns matched 88 and missed 1
 
 How it decides now. `nm -S -C` of the ELF, then three things.
 1. The function table (docs/analysis/UI_DRIVERS_funcoes.tsv), read with bytes_original.py's own code (key_of, row_of, the unit list, the file symbols of readelf): a symbol that falls on a row of class `original` is a finding unless ALLOWED names it. A row
-   of class `mixed` is one too (C6c): a function that holds original lines and core lines, linked into an Angulo image, carries the original's share with it; four are allowed today, each with its reason. A row of class core is not a finding: core is shared code by the table's definition. A header is a unit like
+   of class `mixed` is one too (C6c): a function that holds original lines and core lines, linked into an Angulo image, carries the original's share with it; three are allowed today, each with its reason. A row of class core is not a finding: core is shared code by the table's definition. A header is a unit like
    any other (its rows are read by the name, and the unit says which header). By name for every unit, a unit that [ui.original].units lists and the image does not link included, and that is where this differs from bytes_original.py, which counts bytes: its unit rule leaves out the rows of an
    absent unit, so a planted `uiButton` (UiWidgets.cpp, absent from both Angulo images) would pass. Here such a hit says "another unit's definition of the same name, or the original leaking in without a file symbol", and only ALLOWED can excuse it: the Angulo's
    own Temas.cpp defines the six catalogue functions that Themes.cpp does (C4a), four of them are named with the unit, and the allowance holds only while that unit has no file symbol in the image (in C0's ELF Themes.cpp is linked and the same four names are findings).
@@ -61,21 +61,12 @@ FREE_WHY = "a draw, render or blit name outside the Angulo's own namespace: the 
 OWN = re.compile(r'(?:^|\s)(?:ua|Adafruit_GFX|Adafruit_SPITFT|GFXcanvas16)::')   # the Angulo's namespace and the libraries both drivers link
 ANGULO_MARK = 'ua::Pintor'                   # check_ui_ram.py's test for an image that carries the Angulo
 
-_CAL = "Calibration.cpp keeper: AppManager::core0Yield( ) calls showTouchCalibration( ) and showSettingsDisplayOffset( ), and WebManager::handleResetTouchCal( ) calls showTouchCalibration( ), so the unit keeps its statics; S10b-2 splits it (P4's table, docs/analysis/UI_DRIVERS.md section 2.15)"
 _THEME = "the Angulo defines it in src/ui/angulo/Temas.cpp; the original's row is Themes.cpp's, a unit this image does not compile (C4a's collision, told apart by unit)"
 _TOUCH = "mixed row, DisplayManager_Touch.cpp: the original image's body holds the original's mode chain (ui/original/UiTouchChain.h, which ui/UiDriverTouch.h includes inside the function); the Angulo images include ui/angulo/UiTouchChain.h at that place, so what is linked is the core's gates and the Angulo's chain; loopCore1( ) calls it, so it stays"
 _CORE1 = "mixed row, DisplayManager.cpp: Core 1's main loop (core1Entry( ) runs it); 10 of the 11 images link it, all but pico_w_air (nm of the eleven images, 2026-10-22), and both Angulo images are among the 10; the table's note counts the first paint, the theme redraw and the mode dispatch as the original's share, and in this function they are now calls to the driver's uiBegin( ), uiThemeChanged( ) and uiPass( ); the row's ranges are 192e1ad's"
-_CALTOUCH = "mixed row, Calibration.cpp keeper: AppManager::core0Yield( ) calls it (so do WebManager::handleResetTouchCal( ) and the CLI's touchcal), so it stays linked with the original's share of its row, the reset of the file-local g_* draw caches; S10b-2 splits the unit (P4's table, docs/analysis/UI_DRIVERS.md section 2.15)"
 _CALOFF = "mixed row, Calibration.cpp keeper: AppManager::core0Yield( ) calls it (so does the CLI's offset command), so it stays linked with the original's share of its row, the _lastOffsetDraw* sentinels that force the numeric redraw; S10b-2 splits the unit (P4's table, docs/analysis/UI_DRIVERS.md section 2.15)"
 # Exact name (demangled, with the parameter list) -> (reason, unit). A unit says the allowance holds only while that unit has no file symbol in the image (the name is then another unit's).
 ALLOWED = {
-    '(anonymous namespace)::g_lastCalStep': (_CAL, None),
-    '(anonymous namespace)::g_lastSensDone': (_CAL, None),
-    '(anonymous namespace)::g_sensFirstDraw': (_CAL, None),
-    '(anonymous namespace)::g_lastCalPointIdx': (_CAL, None),
-    '(anonymous namespace)::g_lastCalHoldReady': (_CAL, None),
-    '(anonymous namespace)::g_lastSensStability': (_CAL, None),
-    '(anonymous namespace)::g_lastSensThreshold': (_CAL, None),
     'getThemeCount()': (_THEME, 'Themes.cpp'),
     'getThemePalette(int)': (_THEME, 'Themes.cpp'),
     'scanCustomThemes()': (_THEME, 'Themes.cpp'),
@@ -88,7 +79,6 @@ ALLOWED = {
     'WebManager::RenderGuard::~RenderGuard()': ("core (WebManager.h): ends that pause (pauseRendering( false )); draws nothing", None),
     'DisplayManager::handleTouch()': (_TOUCH, None),
     'DisplayManager::loopCore1()': (_CORE1, None),
-    'DisplayManager::showTouchCalibration()': (_CALTOUCH, None),
     'DisplayManager::showSettingsDisplayOffset()': (_CALOFF, None),
 }
 
@@ -270,9 +260,9 @@ def selftest():
                   'dmaTftOpen(TftWithOffset*, short, short, short, short)', 'fillWindowDma(TftWithOffset*, unsigned short, short, short, short, short) [clone .constprop.0]', 'Adafruit_GFX::drawCircle(short, short, short, unsigned short)', 'Adafruit_GFX::charBounds(unsigned char, short*, short*, short*, short*, short*, short*)', 'CSWTCH.349', '__gnu_thumb1_case_si']
         miss = [(p, f) for p in H_PASS for a, f, u in [scan('\n'.join(real + ['00002000 t ' + p]), rows, listed, set())] if f]
         case('the real table: core rows, library and compiler code get no rule (%d of the 48 that C6b passed and that still pass after C6d, planted: 0 findings)' % len(H_PASS), not miss, str(miss[:2]))
-        MIX = ['DisplayManager::handleTouch()', 'DisplayManager::loopCore1()', 'DisplayManager::showTouchCalibration()', 'DisplayManager::showSettingsDisplayOffset()']
+        MIX = ['DisplayManager::handleTouch()', 'DisplayManager::loopCore1()', 'DisplayManager::showSettingsDisplayOffset()']
         tb, cl = bo.build_table(rows)
-        case('the real table: the four mixed-row functions that both Angulo images link are in ALLOWED, and each sits on a mixed row', all(k in ALLOWED and cl.get(bo.row_of(bo.key_of(k), tb)) == 'mixed' for k in MIX), '')
+        case('the real table: the three mixed-row functions that both Angulo images link are in ALLOWED, and each sits on a mixed row', all(k in ALLOWED and cl.get(bo.row_of(bo.key_of(k), tb)) == 'mixed' for k in MIX), '')
     except Refusal as e:
         case('the real table can be read', False, str(e))
     with tempfile.TemporaryDirectory() as d:

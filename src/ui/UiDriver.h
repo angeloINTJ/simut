@@ -47,4 +47,5 @@ enum class UiChange : uint8_t {
 	BOTTOM_BUTTONS,  /**< the row of buttons changed (a page turned, a slot was chosen): `arg` is the slot it highlights */
 	GRAPH_HEADER,    /**< the graph's header was asked for the sensor's name (a tap on it): it shows the name for 3 s */
 	GRAPH_BUSY,      /**< a request that takes a while went to Core 0 (a step in time, a period, the calendar, a day, Today): the screen says so until the data lands */
+	TOUCH_CAL_ENTER, /**< the touch calibration was entered (showTouchCalibration( ), before it publishes the mode): the original sets the draw caches of its two calibration screens back to "nothing painted"; the Ângulo keeps none. The first kind raised on CORE 0, by the entry of a screen: the others come from the core's touch actions and ticks, on Core 1. A driver's answer must not draw, because the glass belongs to Core 1 */
 };

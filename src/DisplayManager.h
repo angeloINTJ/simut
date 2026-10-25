@@ -1296,6 +1296,9 @@ private:
 	SensorRecord _tempAlarmConfig;
 
 
+	/** The original's: sets the draw caches of its touch sensitivity and calibration screens back to "nothing painted"; its answer to UiChange::TOUCH_CAL_ENTER
+	 *  (ui/original/UiOriginal.h). Defined in DisplayManager_Calibration.cpp, next to the caches. */
+	void resetTouchCalCaches( );
 	void drawTouchCalibration( );
 	void drawCalibrationMessage( );
 #if SIMUT_DISPLAY_TFT

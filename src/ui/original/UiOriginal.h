@@ -50,6 +50,9 @@ UI_HOOK void DisplayManager::uiChanged( UiChange c, int16_t arg ) {
 	 * the switch folds there as it does here. */
 	case UiChange::GRAPH_HEADER: drawGraphHeaderBar( ); break;
 	case UiChange::GRAPH_BUSY:   drawGraphBusyHint( ); break;
+	/* The touch calibration was entered, on Core 0 (showTouchCalibration( ), before the mode is published): the draw caches of its two screens go back to
+	 * "nothing painted", the seven stores that function held until S10c D3. Nothing is drawn here: the glass is Core 1's. */
+	case UiChange::TOUCH_CAL_ENTER: resetTouchCalCaches( ); break;
 	}
 }
 
