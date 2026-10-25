@@ -1,6 +1,6 @@
 /**
  * @file DisplayManager_CalibrationCore.cpp
- * @brief The touch calibration and display offset state: the core share of DisplayManager_Calibration.cpp, moved word for word in S10a (docs/analysis/UI_DRIVERS.md).
+ * @brief The touch calibration and display offset state: the core share of DisplayManager_Calibration.cpp, moved word for word in S10a (docs/analysis/UI_DRIVERS.md); since S10c D3c also the two mode entries, showTouchCalibration( ) and showSettingsDisplayOffset( ), which draw nothing and say what happened through uiChanged( ).
  */
 
 #include "DisplayManager.h"
@@ -8,6 +8,7 @@
 #include "LogManager.h"
 #include "UiWidgets.h"
 #include <math.h>
+#include "ui/UiDriverHooks.h"   /* uiChanged( ), which the two mode entries raise: the hook definitions need the complete class, so this comes last */
 
 void DisplayManager::loadTouchCalibration(const TouchCalData* cal) {
  if (!cal || cal->magic != 0xCA) {
@@ -138,4 +139,53 @@ void DisplayManager::mapTouchPoint(TS_Point raw, int16_t &outX, int16_t &outY) {
 
  outX = (int16_t)constrain(map(rawForX, _calXMin, _calXMax, 0, DisplayDriver::W), 0, DisplayDriver::W - 1);
  outY = (int16_t)constrain(map(rawForY, _calYMin, _calYMax, 0, DisplayDriver::H), 0, DisplayDriver::H - 1);
+}
+
+void DisplayManager::showTouchCalibration( ) {
+ /*
+ * Integrated flow: sensitivity first, then position.
+ * 1. MODE_SETTINGS_TOUCH_SENS — taps to calibrate pressure threshold
+ * 2. MODE_SETTINGS_TOUCH_CAL — crosshairs to calibrate position
+ * Transition 1→2 is automatic after sensitivity completion.
+ */
+ _sensCount = 0;
+ _sensStability = 0.0f;
+ _sensThreshold = 0;
+ _sensDone = false;
+ _sensDoneTime = 0;
+ _calStep = 0;
+ _calPhase = 0;
+ memset(_calRawX, 0, sizeof(_calRawX));
+ memset(_calRawY, 0, sizeof(_calRawY));
+
+ /* The original's draw caches go back to "nothing painted" (resetTouchCalCaches( ), its answer to this kind). Nothing is drawn: the glass is Core 1's. */
+ uiChanged( UiChange::TOUCH_CAL_ENTER, 0 );
+
+ mutex_enter_blocking(&_stateMutex);
+ _uiMode = MODE_SETTINGS_TOUCH_SENS;
+ _forceSettingsRedraw = true;
+ _repaintSettings = true;
+ mutex_exit(&_stateMutex);
+}
+
+/**
+ * @brief Enters the display offset adjustment screen; snapshots saved state for BACK.
+ *
+ * The "preview" state is initialized with the offset currently applied to the TFT
+ * (which corresponds to the persisted value, loaded via loadDisplayOffset() at
+ * boot). Any change via arrows is applied live to _driver.tft, and BACK restores
+ * the snapshot if the user cancels.
+ */
+void DisplayManager::showSettingsDisplayOffset( ) {
+ mutex_enter_blocking(&_stateMutex);
+ _uiMode = MODE_SETTINGS_DISPLAY_OFFSET;
+ _offsetSavedX = _driver.tft ? _driver.tft->getOffsetX( ) : 0;
+ _offsetSavedY = _driver.tft ? _driver.tft->getOffsetY( ) : 0;
+ _offsetPreviewX = _offsetSavedX;
+ _offsetPreviewY = _offsetSavedY;
+ /* The original sets the sentinels that force the redraw of the numeric values (UiChange::DISPLAY_OFFSET_ENTER, UiOriginal.h). Raised inside the mutex: an answer must not take it. */
+ uiChanged( UiChange::DISPLAY_OFFSET_ENTER, 0 );
+ _forceSettingsRedraw = true;
+ _repaintSettings = true;
+ mutex_exit(&_stateMutex);
 }

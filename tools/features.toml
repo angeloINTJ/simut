@@ -252,8 +252,17 @@ lib_deps = ["https://github.com/angeloINTJ/pico-enc28j60.git#4984e2f55727c81cfd6
 # 4290 e 4348 iguais), nenhum simbolo foi perdido ou ganho (5629 e 5706), os construtores e as tabelas de init sao os mesmos e o original nelas continua
 # em 17 B; a showApConfirm( ) era o unico simbolo do arquivo que a imagem do Pico 2 W linkava, e a do Wire nao linkava nenhum. Nos seis produtos com
 # painel TFT, V-ELF sai 0 (nenhuma funcao mudou; so a ordem do link, nos cinco com radio) e os onze .bin mantem o tamanho.
-# Ainda NAO estao aqui, cada uma com o que a segura (tabela da P4; o S10b-2 as separa): Calibration (core0Yield( ) chama
-# showTouchCalibration e showSettingsDisplayOffset, e handleResetTouchCal so showTouchCalibration), Auth (fastRandom, readRect*, convert3to565 e readRow,
+# A DisplayManager_Calibration.cpp entrou em 2026-10-24 (S10c, D3): as duas entradas de modo das telas de calibracao, showTouchCalibration( ) e
+# showSettingsDisplayOffset( ), que o core0Yield( ), o handleResetTouchCal e a CLI chamam, so guardavam do original dois restos: as sete memorias de
+# desenho (g_*) e as duas sentinelas do desvio. Passaram a avisar o que aconteceu (UiChange::TOUCH_CAL_ENTER e DISPLAY_OFFSET_ENTER, levantados no Core 0,
+# o segundo dentro do _stateMutex) e o original responde (resetTouchCalCaches( ) e dois stores em linha no UiOriginal.h); as duas funcoes foram para o
+# CalibrationCore.cpp, que as duas imagens do Angulo compilam, e sobrou na unidade so o original (as memorias, o resetTouchCalCaches( ) e os desenhos das
+# tres telas). A unidade e a CalibrationCore.cpp ja estavam nas duas listas de exclusao do LCD, entao os tres .bin do LCD3 (alpha, air e wire) nem a compilam
+# e mantem o sha256 da base. Medido nesse dia, as duas imagens do Angulo de zero: o log de build nao compila mais a unidade (0 linhas; eram 3), os bytes do
+# original nelas caem de 17 B de flash + 2 B de RAM para 0 B + 0 B (no D3a, que tirou as sete memorias do link; o D3b e o D3c mantem), nenhum simbolo foi
+# perdido ou ganho na mudanca (SYMDIFF 0 e 0), o .bin vale 826672 e 1035560 B (eram 826752 e 1035632 B antes do D3) e a lista traz o erro de link de uma
+# dependencia nova, e nao bytes.
+# Ainda NAO estao aqui, cada uma com o que a segura (tabela da P4; o S10b-2 as separa): Auth (fastRandom, readRect*, convert3to565 e readRow,
 # que o nucleo chama), Touch (loopCore1 chama handleTouch), Users, Alarm e DisplayManager.cpp (funcoes de estado e de show que o nucleo
 # e o Angulo chamam) e Panel.cpp (sem linha de original na tabela, nao sondada). Uma unidade entra aqui com a prova das duas imagens.
 units = [
@@ -268,6 +277,7 @@ units = [
     "DisplayManager_Dashboard.cpp",
     "DisplayManager_AlarmUi.cpp",
     "DisplayManager_Settings.cpp",
+    "DisplayManager_Calibration.cpp",
 ]
 
 [ui.angulo]

@@ -3,8 +3,8 @@
  * @brief The UI driver's hook definitions that need the complete DisplayManager class, and the core's inline ticks
  *        (src/DisplayManager_Ticks.h), which render( ), drawAlarmEdit( ), drawTopBar( ) and the drivers' passes call.
  *        Included LAST, and only, by the translation units that call a hook or a tick, or that take the core's touch actions
- *        (DisplayManager.cpp, DisplayManager_Ota.cpp, DisplayManager_Settings.cpp, DisplayManager_Dashboard.cpp,
- *        DisplayManager_Touch.cpp and DisplayManager_Users.cpp): about fifty other units include DisplayManager.h and gain no
+ *        (DisplayManager.cpp, DisplayManager_CalibrationCore.cpp, DisplayManager_Dashboard.cpp, DisplayManager_Ota.cpp, DisplayManager_OtaCore.cpp, DisplayManager_Panel.cpp,
+ *        DisplayManager_Render.cpp, DisplayManager_Settings.cpp, DisplayManager_SettingsCore.cpp, DisplayManager_Touch.cpp and DisplayManager_Users.cpp): about fifty other units include DisplayManager.h and gain no
  *        header from this. A tick leans on the hook definitions (tickAlarmFlash( ) calls uiChanged( )), so a unit that takes the
  *        ticks takes this header, not DisplayManager_Ticks.h alone; so does a core unit that takes DisplayManager_Actions.h
  *        (DisplayManager_Touch.cpp and DisplayManager_Users.cpp), whose redrawTopPanel( ) calls uiTopPanel( ). The Ângulo's glue
