@@ -612,6 +612,15 @@ def sha256_frontend(password):
     return hashlib.sha256(password.encode('latin-1')).hexdigest()
 
 
+# The device's answer to a cookie whose session is gone, on the routes behind requirePerm( ): the exact body, because a
+# handler's own 401 (a wrong password) must not be retried (see Web._authed).
+SESSION_GONE_401 = '{"error":"Unauthorized"}'
+
+
+def _session_gone(r):
+    return r.status_code == 403 or (r.status_code == 401 and r.text.strip() == SESSION_GONE_401)
+
+
 class Web:
     def __init__(self, host, scheme='http', timeout=15):
         if requests is None:
@@ -660,11 +669,25 @@ class Web:
         neither of which changes device state. Retrying the original request is
         safe even when it is a POST — the rule above says POSTs are never
         retried because /api/commit_all reboots, but a 403 means the handler
-        was refused before it ran, so there is nothing to do twice. Only a
-        403 is retried; any other status is returned untouched.
+        was refused before it ran, so there is nothing to do twice.
+
+        The session also dies while the device stays up: it keeps ONE session
+        per user, and a login reuses the user's slot with a new token
+        (WebManager::allocSessionSlot, src/WebManager_Auth.cpp), so a walk run
+        as a subprocess, or a browser, logging in as the same user kills this
+        cookie. The routes behind requirePerm( ) answer that with **401**
+        {"error":"Unauthorized"} (WebManager_Auth.cpp, WebManager_Api.cpp), the
+        file routes with 403; measured on 2026-10-24 (S10c B7), where a run read
+        "POST /api/users HTTP 401" from a healthy device after its walks. That
+        401 is refused before the handler too, so it is retried as well. A 401
+        with any other body is a handler's own answer (a wrong password at
+        /api/login or a password change: {"ok":false,"err":1}) and is returned
+        untouched, because a retry would count a second failure toward the
+        lockout. Any other status is returned untouched.
+        tools/test_air_web_session.py holds the three cases.
         """
         r = fn(self.base + path, timeout=self.timeout, **kw)
-        if r.status_code != 403 or not self._cred or self._relogin:
+        if not self._cred or self._relogin or not _session_gone(r):
             return r
         try:
             self.login(*self._cred)
