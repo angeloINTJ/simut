@@ -11,12 +11,30 @@ name: SIMUT savings watermark
 on:
   schedule:
     - cron: '0 6 * * *'   # 06:00 UTC diariamente
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      simular_falha:
+        description: 'Falhar no primeiro passo, sem build, para provar o aviso da issue'
+        type: boolean
+        default: false
+
+# issues: write é só para o último passo, o aviso; o resto lê o repositório.
+permissions:
+  contents: read
+  issues: write
 
 jobs:
   savings:
     runs-on: ubuntu-latest
     steps:
+      # A prova do aviso abaixo: falha aqui, antes de qualquer build (os passos
+      # seguintes são pulados), e o aviso roda como numa noite vermelha.
+      - name: Simulate a failure (only when asked)
+        if: inputs.simular_falha
+        run: |
+          echo "simular_falha=true: falha de propósito, para provar o aviso"
+          exit 1
+
       - uses: actions/checkout@v7
 
       - name: Set up Python
@@ -49,3 +67,31 @@ jobs:
 
       - name: Check per-feature savings watermark
         run: python3 tools/measure_savings.py --check
+
+      # Um vermelho daqui não aparece em PR nenhum (ver o cabeçalho), então a
+      # falha de um run agendado abre uma issue, ou comenta na que já está
+      # aberta, e o GitHub avisa o mantenedor por e-mail. Uma issue só por
+      # sequência de noites vermelhas: fechá-la depois do conserto rearma o
+      # aviso. Decidido por ele em 2026-10-24, contra rodar o job em todo PR
+      # de src/ (16 a 21 min a mais de CI).
+      - name: Open or update the failure issue
+        if: failure() && (github.event_name == 'schedule' || inputs.simular_falha)
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          SIMULADA: ${{ inputs.simular_falha && 'sim' || 'não' }}
+        run: |
+          titulo="Savings watermark failed on main"
+          n=$(gh issue list --state open --search "\"$titulo\" in:title" --json number,title \
+                --jq "map(select(.title == \"$titulo\")) | .[0].number // empty")
+          corpo="O job **SIMUT savings watermark** falhou: $RUN_URL (falha simulada: $SIMULADA)."
+          if [ -n "$n" ]; then
+            gh issue comment "$n" --body "$corpo"
+            echo "comentou na issue #$n"
+          else
+            gh issue create --title "$titulo" --body "$corpo
+
+          O portão de economia não roda em PR (.github/workflows/savings.yml). Feche esta issue depois do conserto: a próxima noite vermelha abre outra."
+            echo "abriu uma issue nova"
+          fi
