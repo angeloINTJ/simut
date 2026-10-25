@@ -92,6 +92,12 @@ jobs:
         run: python3 tools/check_flash_budget.py --table
       - name: OTA headroom gate tests
         run: python3 tools/test_flash_budget.py
+      # The bench's web client (tools/air_test_suite.py) logs back in when the
+      # device dropped its session, which it keeps one per user: a 403, or a 401
+      # with requirePerm's exact body. A handler's own 401 (a wrong password) is
+      # returned untouched, so no failure is counted twice toward the lockout.
+      - name: Bench web client session tests
+        run: python3 tools/test_air_web_session.py
 
       # Every filesystem-mutating handler (delete/upload/ls) and the restore
       # validator must refuse the /config credential store. This is what blocks
