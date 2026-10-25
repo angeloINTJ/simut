@@ -49,6 +49,7 @@
 #include <vector>
 #include "display/ClockEntry.h"         /* the date and time set at the panel */
 #include "display/SettingsMenu.h"       /* the panel's Settings menu: rows, order */
+#include "display/LangChoice.h"         /* the Idioma screen: rows, opening row, what waits for a boot */
 #include "PasswordCheck.h"             /* one derivation per password check */
 #include "SessionCheck.h"              /* a session against its live account */
 #include "display/CountInText.h"        /* a number inside a translated line */
@@ -1948,6 +1949,104 @@ void test_langidx_end_of_file(void) {
     const char* u = "@DICT\na\n@NAME X ";
     ix = langIndex(u);
     TEST_ASSERT_EQUAL_STRING("X", langRange(u, ix, LANG_SEC_NAME).c_str());
+}
+
+/* ===========================================================================
+ *  THE IDIOMA SCREEN — display/LangChoice.h, and the one rule for a usable pack
+ *
+ *  After a boot in English the screen listed English alone: the pack loads only
+ *  at a boot in another language, and the row count asked whether it was LOADED.
+ *  It now asks whether it was FOUND in /lang (2026-10-24), and a choice made
+ *  while the pack is not in RAM waits for the next boot. The functions are plain
+ *  ints, so each state of the screen is a line here; the mutation that breaks
+ *  each one is recorded with the change.
+ * =========================================================================== */
+void test_langchoice_english_boot_with_a_pack_in_lang_lists_two_rows(void) {
+    /* The fix: found at boot, not loaded, and the row is there. */
+    TEST_ASSERT_EQUAL_INT(2, langRowsListed(false, true));
+}
+
+void test_langchoice_english_boot_without_a_pack_lists_one_row(void) {
+    TEST_ASSERT_EQUAL_INT(1, langRowsListed(false, false));
+}
+
+void test_langchoice_pt_boot_with_the_pack_loaded_lists_two_rows(void) {
+    TEST_ASSERT_EQUAL_INT(2, langRowsListed(true, true));
+    /* A pack in RAM is listed whatever the scan of /lang said. */
+    TEST_ASSERT_EQUAL_INT(2, langRowsListed(true, false));
+}
+
+void test_langchoice_pt_boot_that_loaded_nothing_opens_on_row_zero(void) {
+    /* Saved in the pack (1), but the load failed or the file is gone: one row.
+     * The screen used to open on the row that was not there and highlight
+     * nothing; it opens on English. */
+    const int rows = langRowsListed(false, false);
+    TEST_ASSERT_EQUAL_INT(1, rows);
+    TEST_ASSERT_EQUAL_INT(0, langRowAtOpen(1, rows));
+}
+
+void test_langchoice_the_screen_opens_on_the_saved_row_when_it_is_listed(void) {
+    TEST_ASSERT_EQUAL_INT(0, langRowAtOpen(0, 2));
+    TEST_ASSERT_EQUAL_INT(1, langRowAtOpen(1, 2));
+    TEST_ASSERT_EQUAL_INT(0, langRowAtOpen(0, 1));
+}
+
+void test_langchoice_a_saved_row_that_does_not_exist_opens_on_row_zero(void) {
+    TEST_ASSERT_EQUAL_INT(0, langRowAtOpen(-1, 2));
+    TEST_ASSERT_EQUAL_INT(0, langRowAtOpen(2, 2));
+    TEST_ASSERT_EQUAL_INT(0, langRowAtOpen(255, 2));
+}
+
+void test_langchoice_valid_choices(void) {
+    TEST_ASSERT_TRUE(langChoiceValid(0, 1));
+    TEST_ASSERT_TRUE(langChoiceValid(0, 2));
+    TEST_ASSERT_TRUE(langChoiceValid(1, 2));
+}
+
+void test_langchoice_refuses_a_row_that_is_not_listed(void) {
+    /* Core 0 does not take the screen's word: id 1 with one row, a row past
+     * the end, a byte that is no row at all, a negative. */
+    TEST_ASSERT_FALSE(langChoiceValid(1, 1));
+    TEST_ASSERT_FALSE(langChoiceValid(2, 2));
+    TEST_ASSERT_FALSE(langChoiceValid(255, 2));
+    TEST_ASSERT_FALSE(langChoiceValid(-1, 2));
+}
+
+void test_langchoice_a_pack_chosen_while_not_loaded_waits_for_the_boot(void) {
+    TEST_ASSERT_TRUE(langAppliesAtBoot(1, false));
+}
+
+void test_langchoice_english_applies_live(void) {
+    TEST_ASSERT_FALSE(langAppliesAtBoot(0, false));
+    TEST_ASSERT_FALSE(langAppliesAtBoot(0, true));
+}
+
+void test_langchoice_a_pack_chosen_while_loaded_applies_live(void) {
+    TEST_ASSERT_FALSE(langAppliesAtBoot(1, true));
+}
+
+void test_langusable_accepts_a_shipped_like_pack(void) {
+    TEST_ASSERT_TRUE(langPackIndexUsable(langIndex(kLangPack)));
+    TEST_ASSERT_TRUE(langPackIndexUsable(langIndex("@DICT\na\n")));
+}
+
+void test_langusable_refuses_a_directive_after_webdict(void) {
+    /* The one refusal that comes from the tail and from nothing else: the
+     * dictionary is there and has a body. */
+    TEST_ASSERT_FALSE(langPackIndexUsable(langIndex("@DICT\na\n@WEBDICT\n{}\n@HELP\nx\n")));
+}
+
+void test_langusable_refuses_a_pack_without_a_dict(void) {
+    TEST_ASSERT_FALSE(langPackIndexUsable(langIndex("@NAME X\n@HELP\nh\n")));
+    /* Offsets that look like a body do not rescue an index that never saw @DICT. */
+    LangPackIndex ix = langIndex("@DICT\na\n");
+    ix.present[LANG_SEC_DICT] = false;
+    TEST_ASSERT_TRUE(ix.end[LANG_SEC_DICT] > ix.start[LANG_SEC_DICT]);
+    TEST_ASSERT_FALSE(langPackIndexUsable(ix));
+}
+
+void test_langusable_refuses_an_empty_dict(void) {
+    TEST_ASSERT_FALSE(langPackIndexUsable(langIndex("@DICT\n@HELP\nh\n")));
 }
 
 /* ===========================================================================
@@ -5235,6 +5334,21 @@ int main(int /*argc*/, char** /*argv*/) {
     RUN_TEST(test_langidx_last_occurrence_wins);
     RUN_TEST(test_langidx_absent_and_empty_sections);
     RUN_TEST(test_langidx_end_of_file);
+    RUN_TEST(test_langchoice_english_boot_with_a_pack_in_lang_lists_two_rows);
+    RUN_TEST(test_langchoice_english_boot_without_a_pack_lists_one_row);
+    RUN_TEST(test_langchoice_pt_boot_with_the_pack_loaded_lists_two_rows);
+    RUN_TEST(test_langchoice_pt_boot_that_loaded_nothing_opens_on_row_zero);
+    RUN_TEST(test_langchoice_the_screen_opens_on_the_saved_row_when_it_is_listed);
+    RUN_TEST(test_langchoice_a_saved_row_that_does_not_exist_opens_on_row_zero);
+    RUN_TEST(test_langchoice_valid_choices);
+    RUN_TEST(test_langchoice_refuses_a_row_that_is_not_listed);
+    RUN_TEST(test_langchoice_a_pack_chosen_while_not_loaded_waits_for_the_boot);
+    RUN_TEST(test_langchoice_english_applies_live);
+    RUN_TEST(test_langchoice_a_pack_chosen_while_loaded_applies_live);
+    RUN_TEST(test_langusable_accepts_a_shipped_like_pack);
+    RUN_TEST(test_langusable_refuses_a_directive_after_webdict);
+    RUN_TEST(test_langusable_refuses_a_pack_without_a_dict);
+    RUN_TEST(test_langusable_refuses_an_empty_dict);
     RUN_TEST(test_fold_keeps_ascii_and_latin_letters);
     RUN_TEST(test_fold_drops_spanish_opening_marks);
     RUN_TEST(test_fold_punctuation_to_ascii);

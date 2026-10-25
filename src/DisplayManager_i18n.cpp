@@ -3,8 +3,9 @@
  * @brief i18n: DICTIONARY_EN (hardcoded), dynamic tr(), language settings screen.
  * @details DICTIONARY is now 1D EN only. Slot 1
  * of the menu shows _activeLang.name/code dynamically (via
- * unaccent for ASCII on the TFT). Without .lng loaded, slot 1
- * stays hidden (gated by _activeLangLoaded).
+ * unaccent for ASCII on the TFT). Without a .lng in /lang, slot 1
+ * stays hidden (langRowsListed, display/LangChoice.h); a pack that is only
+ * listed, not loaded, shows too, and choosing it waits for the next boot.
  *
  * @project SIMUT — Integrated Universal Monitoring and Telemetry System
  * @author Ângelo Moisés Alves
@@ -164,11 +165,16 @@ const char* DisplayManager::tr(LangKey key) {
 }
 
 #if SIMUT_DISPLAY_TFT
+static_assert(LANG_COUNT == LANG_CHOICE_ROWS,
+              "the Idioma screen lists English and one pack: display/LangChoice.h counts those rows");
+
 void DisplayManager::showSettingsLang(int currentLang) {
  mutex_enter_blocking(&_stateMutex);
  _uiMode = MODE_SETTINGS_LANG;
- _previewLangIdx = currentLang;
- _langPage = currentLang / 4;
+ /* The saved language if the screen lists it, English otherwise: a unit saved in
+  * a pack it could not load has one row, and row 1 is not there. */
+ _previewLangIdx = langRowAtOpen(currentLang, langRowsListed(isLangLoaded( ), isLangListed( )));
+ _langPage = _previewLangIdx / 4;
  _forceSettingsRedraw = true;
  _lastLangPage = -1;
  _repaintSettings = true;
@@ -182,16 +188,17 @@ void DisplayManager::drawSettingsLang( ) {
  bool pageChanged = (_langPage != _lastLangPage);
 
 
- /* Slot 1 visible when .lng loaded; shows _activeLang.name/code
- * mapped to Latin-1 for the TFT fonts (accents kept). */
- int activeSlots = _activeLangLoaded ? LANG_COUNT : 1;
+ /* Slot 1 is visible when a pack is loaded or only listed (found in /lang at an
+ * English boot); shows its name/code mapped to Latin-1 for the TFT fonts
+ * (accents kept). getListedLang*( ) answer "" when there is no pack. */
+ int activeSlots = langRowsListed(isLangLoaded( ), isLangListed( ));
  char slot1Name[40] = "(install .lng)";
  char slot1Code[12] = "??";
- if (_activeLangLoaded && _activeLang.name[0]) {
- utf8ToLatin1(_activeLang.name, slot1Name, sizeof(slot1Name));
+ if (getListedLangName( )[0]) {
+ utf8ToLatin1(getListedLangName( ), slot1Name, sizeof(slot1Name));
  }
- if (_activeLangLoaded && _activeLang.code[0]) {
- utf8ToLatin1(_activeLang.code, slot1Code, sizeof(slot1Code));
+ if (getListedLangCode( )[0]) {
+ utf8ToLatin1(getListedLangCode( ), slot1Code, sizeof(slot1Code));
  }
  int totalPages = (activeSlots + 3) / 4;
  if (_langPage >= totalPages) _langPage = totalPages - 1;

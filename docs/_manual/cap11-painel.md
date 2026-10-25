@@ -429,12 +429,16 @@ A tela **Configurações > Idioma** (*Settings > Language*) tem até duas linhas
 | Linha | Código | Quando aparece |
 |---|---|---|
 | **English** | `EN` | Sempre |
-| O nome do pacote de idioma instalado, como **Portugues** | O código do pacote, como `pt-BR` | Só com um pacote `.lng` carregado |
+| O nome do pacote de idioma, como **Portugues** | O código do pacote, como `pt-BR` | Com um pacote `.lng` na pasta `/lang`. Num boot em inglês o pacote não é carregado: o painel só lê o nome e o código do arquivo, e nada fica na memória |
 
 1. Toque no idioma.
 2. Toque em **APLICAR**.
 
-O painel toca o som de confirmação e volta à tela inicial no idioma novo. O aparelho grava na hora, e o log registra o código 441, **Idioma alterado via UI**. O console serial passa a usar o mesmo idioma a partir do próximo reinício. De fábrica, o idioma é o do pacote; sem pacote carregado, o painel fica em inglês.
+**Com o painel em português**, que é o pacote carregado, o painel toca o som de confirmação e volta à tela inicial no idioma novo. O aparelho grava na hora, e o log registra o código 441, **Idioma alterado via UI**. O console serial passa a usar o mesmo idioma a partir do próximo reinício.
+
+**Com o painel em inglês**, escolher o pacote grava o idioma, toca o som de confirmação e mostra **Reboot required** (*Reinício necessário*). O painel continua em inglês até o próximo reinício; nele o pacote é carregado, e o painel, o console, o log e a página web passam a usar o idioma dele. O log registra o código 441 quando o idioma é gravado. Se a gravação falhar, o painel mostra **Error** e o idioma continua o que era. O aparelho não reinicia sozinho, porque o reinício interrompe a medição e os alarmes.
+
+De fábrica, o idioma é o do pacote. Sem pacote em `/lang`, o painel fica em inglês e a tela lista só **English**. A lista é a do boot: um pacote enviado depois dele só aparece depois do próximo reinício.
 
 Algumas telas não seguem o idioma escolhido: o aviso de web ocupada, o calendário e o LCD do alpha estão sempre em português, e as linhas da tela [Status do Sistema](#cap-11-status) estão sempre em inglês.
 

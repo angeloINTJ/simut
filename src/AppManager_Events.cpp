@@ -367,13 +367,38 @@ void AppManager::core0Yield( ) {
  LOG_CODE(LOG_INFO, "APP", APP_UI_THEME_CHANGED, 0, "");
  }
  else if (uiEv.type == UiEvent::EVT_APPLY_LANG) {
- SystemConfig &cfg = _storageMgr->getConfig( );
- cfg.displayLang = uiEv.id;
- _displayMgr->setLanguage(cfg.displayLang);
- _storageMgr->saveConfiguration( );
- _soundMgr->play(SND_CONFIRM);
- _displayMgr->forceDashboard( );
- LOG_CODE(LOG_INFO, "APP", APP_UI_LANG_CHANGED, 0, "");
+  SystemConfig &cfg = _storageMgr->getConfig( );
+#if SIMUT_DISPLAY_TFT
+  /* The Idioma screen lists a pack it has only found in /lang, one that is not
+   * in RAM (display/LangChoice.h). Core 0 does not take the screen's word for the
+   * row. A pack that cannot translate yet is saved and waits for the next boot,
+   * where it loads; setLanguage( ) is not called, because the screens with text
+   * of their own would turn Portuguese while tr( ) stayed in English. The
+   * message is promised after the save, not before it, and a save that failed
+   * leaves the language as it was. */
+  if (!langChoiceValid(uiEv.id, langRowsListed(DisplayManager::isLangLoaded( ), DisplayManager::isLangListed( )))) {
+   _displayMgr->showPanelMessage(false, TR_ERROR_LBL, MODE_DASHBOARD);
+  } else if (langAppliesAtBoot(uiEv.id, DisplayManager::isLangLoaded( ))) {
+   const uint8_t before = cfg.displayLang;
+   cfg.displayLang = uiEv.id;
+   if (_storageMgr->saveConfiguration( )) {
+    _soundMgr->play(SND_CONFIRM);
+    _displayMgr->showPanelMessage(true, TR_REBOOT_REQ, MODE_DASHBOARD);
+    LOG_CODE(LOG_INFO, "APP", APP_UI_LANG_CHANGED, 0, "");
+   } else {
+    cfg.displayLang = before;
+    _displayMgr->showPanelMessage(false, TR_ERROR_LBL, MODE_DASHBOARD);
+   }
+  } else
+#endif
+  {
+   cfg.displayLang = uiEv.id;
+   _displayMgr->setLanguage(cfg.displayLang);
+   _storageMgr->saveConfiguration( );
+   _soundMgr->play(SND_CONFIRM);
+   _displayMgr->forceDashboard( );
+   LOG_CODE(LOG_INFO, "APP", APP_UI_LANG_CHANGED, 0, "");
+  }
  }
  else if (uiEv.type == UiEvent::EVT_SAVE_ALARMS) {
  /* v24: the limit editor's SAVE. Core 1 no longer writes the config; the
