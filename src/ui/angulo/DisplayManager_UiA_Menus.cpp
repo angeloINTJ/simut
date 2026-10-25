@@ -284,7 +284,7 @@ bool DisplayManager::uaMontarMenus( UaQuadro &q ) {
       return true;
     }
     case MODE_SETTINGS_LICENSE: {
-      /* drawSettingsLicense( ) (DisplayManager.cpp): the opening, then the MIT text and the third-party
+      /* drawSettingsLicense( ) (DisplayManager_LicenseUi.cpp): the opening, then the MIT text and the third-party
        * list, as one text. Wrapped once into an index; the page's lines are copied out of it. */
       VmLicenca &vm = uaVm<VmLicenca>( );
       if ( s_indiceLic.n == 0 || s_idiomaLic != _currentLangIdx ) {

@@ -72,7 +72,7 @@ flags   = ["-DSIMUT_DISPLAY_TFT=0", "-DSIMUT_DISPLAY_ALPHA=1", "-DHD44780_MODE_P
 exclude = [
   "DisplayManager_Touch.cpp", "DisplayManager_Settings.cpp", "DisplayManager_SettingsCore.cpp", "DisplayManager_Graph.cpp", "DisplayManager_GraphCore.cpp",
   "DisplayManager_Dashboard.cpp", "DisplayManager_Panel.cpp", "DisplayManager_Calibration.cpp", "DisplayManager_CalibrationCore.cpp", "DisplayManager_Auth.cpp",
-  "DisplayManager_Alarm.cpp", "DisplayManager_AlarmUi.cpp", "DisplayManager_Calendar.cpp", "DisplayManager_CalendarCore.cpp", "DisplayManager_Fonts.cpp",
+  "DisplayManager_Alarm.cpp", "DisplayManager_AlarmUi.cpp", "DisplayManager_LicenseUi.cpp", "DisplayManager_Calendar.cpp", "DisplayManager_CalendarCore.cpp", "DisplayManager_Fonts.cpp",
   "DisplayManager_i18n.cpp", "DisplayManager_i18nUi.cpp", "DisplayManager_LangParser.cpp", "AppManager_Graph.cpp",
   "DisplayManager_Ota.cpp", "DisplayManager_OtaCore.cpp", "DisplayManager_Render.cpp",
 ]
@@ -86,7 +86,7 @@ flags   = ["-DSIMUT_DISPLAY_TFT=0", "-DSIMUT_DISPLAY_ALPHA=0"]
 exclude = [
   "DisplayManager_Touch.cpp", "DisplayManager_Settings.cpp", "DisplayManager_SettingsCore.cpp", "DisplayManager_Graph.cpp", "DisplayManager_GraphCore.cpp",
   "DisplayManager_Dashboard.cpp", "DisplayManager_Panel.cpp", "DisplayManager_Calibration.cpp", "DisplayManager_CalibrationCore.cpp", "DisplayManager_Auth.cpp",
-  "DisplayManager_Alarm.cpp", "DisplayManager_AlarmUi.cpp", "DisplayManager_Calendar.cpp", "DisplayManager_CalendarCore.cpp", "DisplayManager_Fonts.cpp",
+  "DisplayManager_Alarm.cpp", "DisplayManager_AlarmUi.cpp", "DisplayManager_LicenseUi.cpp", "DisplayManager_Calendar.cpp", "DisplayManager_CalendarCore.cpp", "DisplayManager_Fonts.cpp",
   "AppManager_Graph.cpp", "DisplayManager.cpp", "DisplayManager_Render.cpp", "DisplayManager_Alpha.cpp",
   "DisplayManager_Ota.cpp", "DisplayManager_OtaCore.cpp", "DisplayManager_i18nUi.cpp",
 ]
@@ -262,6 +262,15 @@ lib_deps = ["https://github.com/angeloINTJ/pico-enc28j60.git#4984e2f55727c81cfd6
 # original nelas caem de 17 B de flash + 2 B de RAM para 0 B + 0 B (no D3a, que tirou as sete memorias do link; o D3b e o D3c mantem), nenhum simbolo foi
 # perdido ou ganho na mudanca (SYMDIFF 0 e 0), o .bin vale 826672 e 1035560 B (eram 826752 e 1035632 B antes do D3) e a lista traz o erro de link de uma
 # dependencia nova, e nao bytes.
+# A DisplayManager_LicenseUi.cpp entrou em 2026-10-24 (S10c, D4): a drawSettingsLicense( ), a tela de licenca do original (so o UiOriginal.h a chama; o Angulo
+# desenha a sua e le a abertura por licenseOpening( )), saiu do DisplayManager.cpp (core) para ela. O buffer que ela le, _licOpening, ficou la e ganhou ligacao
+# externa no passo anterior (D4b-1, declarado em display/LicenseOpening.h). A unidade entrou tambem nas duas listas de exclusao do LCD: o DisplayManager.cpp e
+# compilado pelo display.alpha_paralelo, onde a funcao estava sob #if !SIMUT_DISPLAY_ALPHA, e uma unidade vazia compilada ali pode mudar o sha256 do LCD3; os tres
+# .bin do LCD3 (alpha, air e wire) mantem o sha256 da base. Medido nesse dia, as duas imagens do Angulo de zero sem a unidade: o log de build nao compila a unidade
+# (0 linhas nas duas), os .bin tem o mesmo tamanho (826672 e 1035560 B), nenhuma funcao mudou (V-ELF: 4285 e 4343 iguais), o original nelas continua em 0 B + 0 B e
+# a funcao ja nao entrava nelas (o --gc-sections a descartava), entao a lista traz o erro de link de uma dependencia nova, e nao bytes. O que muda nas duas imagens
+# e o endereco de funcoes: a utf8FoldNext (180 B, funcao inline fraca) vinha da copia do DisplayManager.cpp, que so a drawSettingsLicense( ) usava, e o ligador
+# passou a tomar a de outra unidade.
 # Ainda NAO estao aqui, cada uma com o que a segura (tabela da P4; o S10b-2 as separa): Auth (fastRandom, readRect*, convert3to565 e readRow,
 # que o nucleo chama), Touch (loopCore1 chama handleTouch), Users, Alarm e DisplayManager.cpp (funcoes de estado e de show que o nucleo
 # e o Angulo chamam) e Panel.cpp (sem linha de original na tabela, nao sondada). Uma unidade entra aqui com a prova das duas imagens.
@@ -278,6 +287,7 @@ units = [
     "DisplayManager_AlarmUi.cpp",
     "DisplayManager_Settings.cpp",
     "DisplayManager_Calibration.cpp",
+    "DisplayManager_LicenseUi.cpp",
 ]
 
 [ui.angulo]
