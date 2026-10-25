@@ -1355,8 +1355,8 @@ private:
 	volatile uint32_t _pktArrowFlashEnd = 0;
 
 
-	/** The licence screen's opening in the active language, composed on Core 0 when the screen opened (a file-static
-	 * buffer of DisplayManager.cpp); empty where there is no pack or it is English. Core 1 reads it. */
+	/** The licence screen's opening in the active language, composed on Core 0 when the screen opened (_licOpening, of
+	 * DisplayManager.cpp, declared in display/LicenseOpening.h); empty where there is no pack or it is English. Core 1 reads it. */
 	const char *licenseOpening( ) const;
 	void drawSettingsLicense( );
 	int _licensePage = 0;
