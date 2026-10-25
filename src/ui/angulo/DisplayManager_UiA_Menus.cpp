@@ -59,8 +59,8 @@ static_assert( mesmo( ua::tela::IM_TEMA, MENU_THEMES ) && mesmo( ua::tela::IM_LI
 static_assert( mesmo( ua::tela::ID_INGLES, LANG_EN ) && mesmo( ua::tela::ID_PACOTE, LANG_PT ),
                "EscolhaIdioma must stay the language ids" );
 
-/* The licence's opening in the pack's language is composed on Core 0 into a file-static buffer of
- * DisplayManager.cpp (_licOpening): webDictValue( ) reads LittleFS, which only Core 0 may
+/* The licence's opening in the pack's language is composed on Core 0 into a buffer of
+ * DisplayManager.cpp (_licOpening, display/LicenseOpening.h): webDictValue( ) reads LittleFS, which only Core 0 may
  * ("Core 0 only", DisplayManager_LangParser.cpp), so Core 1 cannot compose it here.
  * DisplayManager::licenseOpening( ) offers that buffer; where it is empty (no pack, or English) the screen opens
  * with the English text of the page, which is what the old screen shows without a pack. */

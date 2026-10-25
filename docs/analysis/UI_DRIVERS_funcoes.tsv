@@ -1,83 +1,83 @@
 unit	line	end	symbol	class	original_lines	core_lines	note
 DisplayManager_Actions.h	39	77	DisplayManager::redrawTopPanel	core			defined in DisplayManager_Actions.h since S4 (the class holds only the declaration): the sync of _sharedState.topSlotIdx and the bottom slot under the mutex, the possible EVT_SLOT_SELECT, then the hand-over of the drawing to the driver (uiTopPanel( )); core since S4: at 192e1ad its two draws (drawSlotPanel for the top card and drawBottomButtons) were original and the row was mixed. Called by handleTouch (the finger-up path and the dashboard press)
-DisplayManager.cpp	67	67	_licOpening	core			static char[768] buffer for the License screen's opening, composed from the pack's @WEBDICT; working state, not drawing
-DisplayManager.cpp	68	68	_licOpeningLang	core			language the License opening was composed for; screen working state
-DisplayManager.cpp	72	72	kLicOpeningSep	core			separators between the five opening strings (mirrors opening_bytes( ) in check_lang_packs.py); text composition, not layout
-DisplayManager.cpp	74	80	licOpeningAppend	core			bounds-checked append into _licOpening; i18n text composition
-DisplayManager.cpp	82	100	composeLicenseOpening	core			reads the five @WEBDICT strings of the active pack (English fallback); i18n, no drawing
-DisplayManager.cpp	103	103	DisplayManager::licenseOpening	core			S4 (C9): the accessor of _licOpening, the License opening Core 0 composed for the active language; the Angulo's licence screen reads it and no other image calls it
-DisplayManager.cpp	106	106	_instance	core			global pointer to the single DisplayManager
-DisplayManager.cpp	109	109	DisplayManager::CAL_SCR_X	core			out-of-class definition of the calibration target X on the glass; the math in Touch.cpp hard-codes the same 20 px inset, the drawing in Calibration.cpp only reads it
-DisplayManager.cpp	110	110	DisplayManager::CAL_SCR_Y	core			out-of-class definition of the calibration target Y on the glass; same reasoning as CAL_SCR_X
-DisplayManager.cpp	112	162	DisplayManager::DisplayManager	core			constructor: zeroes the shared state, boot flags, mode and Core 1 flags; no drawing
-DisplayManager.cpp	164	164	DisplayManager::begin	core			empty
-DisplayManager.cpp	170	178	DisplayManager::stateMutexHeldByCurrentCore	core			mutex ownership probe (CONCURRENCY invariant 3)
-DisplayManager.cpp	200	200	s_core1Stack	core			8 KB dedicated Core 1 stack
-DisplayManager.cpp	202	211	DisplayManager::launchCore1IfAbsent	core			the single funnel for every Core 1 launch
-DisplayManager.cpp	227	241	DisplayManager::markCore1Down	core			re-arms the launch funnel, drains the FIFO, invalidates the phase stamp
-DisplayManager.cpp	243	243	DisplayManager::startCore1	core			calls launchCore1IfAbsent
-DisplayManager.cpp	245	273	DisplayManager::restartCore1	core			resets Core 1 (lockout cleanup, mutex re-init, relaunch); Core 1 lifecycle
-DisplayManager.cpp	275	285	DisplayManager::setLanguage	core			sets _currentLangIdx and _langChanged; i18n state, no drawing
-DisplayManager.cpp	289	294	DisplayManager::isMenuActive	core			reads _uiMode under the mutex (mode ordering >= MODE_AUTH); used by Core 0
-DisplayManager.cpp	297	302	DisplayManager::isDisplayBusy	core			reads _uiMode under the mutex; used by Core 0
-DisplayManager.cpp	305	311	DisplayManager::isHeavyRendering	core			true in the three graph modes; reads _uiMode under the mutex
-DisplayManager.cpp	325	325	CORE1_QUIESCE_MS	core			static constexpr 1200 ms, the park window of the flash pause
-DisplayManager.cpp	327	513	DisplayManager::pauseRendering	core			flash-pause protocol for Core 1 (quiesce, IRQ lockout, hard-reset fallback, accounting); no drawing
-DisplayManager.cpp	525	528	DisplayManager::requestCore1Park	core			raises _quiescePlease
-DisplayManager.cpp	530	539	DisplayManager::awaitCore1Park	core			spins until Core 1 parks or the timeout, watchdog fed
-DisplayManager.cpp	541	543	DisplayManager::releaseCore1Park	core			clears _quiescePlease
-DisplayManager.cpp	548	558	DisplayManager::accountPauseEnd	core			folds a finished pause into the max/owner counters
-DisplayManager.cpp	560	574	DisplayManager::forceUnpause	core			clears a stuck pause refcount and ends the lockout
-DisplayManager.cpp	576	579	DisplayManager::getHeartbeat	core			returns millis( ) while paused for flash, else _lastHeartbeat
-DisplayManager.cpp	581	581	DisplayManager::refreshTheme	core			one store: _themeChanged = true; the theme code that consumes it is in render( )
-DisplayManager.cpp	593	603	DisplayManager::setBootStatus	core			pushes a raw boot line into bootLogs, forces MODE_DASHBOARD and a full redraw; state under the mutex
-DisplayManager.cpp	605	614	DisplayManager::replaceBootStatus	core			replaces the last boot line; same state change as setBootStatus
-DisplayManager.cpp	616	628	DisplayManager::setBootStatusKey	core			pushes a translated (LangKey) boot line; state under the mutex
-DisplayManager.cpp	630	641	DisplayManager::replaceBootStatusKey	core			replaces the last boot line with a LangKey; state under the mutex
-DisplayManager.cpp	643	647	DisplayManager::setApProgress	core			stores apProgressPct and isBooting
-DisplayManager.cpp	649	653	DisplayManager::endBoot	core			clears isBooting
-DisplayManager.cpp	655	659	DisplayManager::forceDashboard	core			mode transition to MODE_DASHBOARD with a full redraw
-DisplayManager.cpp	676	676	OTA_PAINT_WAIT_MS	core			static constexpr 800 ms, how long Core 0 waits for the update screen to reach the glass
-DisplayManager.cpp	678	692	DisplayManager::showOta	core			OTA screen state machine step (atomic _otaState); then calls otaPaintFromCore0( ) (a draw, from Core 0) and waits on _otaDrawnSeq, so the paint call site is the future uiPaintOta hook
-DisplayManager.cpp	694	699	DisplayManager::otaProgress	core			stores the percentage and calls otaPaintFromCore0( ); state plus an indirect draw from Core 0
-DisplayManager.cpp	701	705	DisplayManager::otaEnd	core			compare-and-swap that dismisses the update screen state
-DisplayManager.cpp	723	723	DisplayManager::forceGraphView	core			SIMUT_TFT_GRAPH=1 variant: mode transition to MODE_GRAPH_VIEW and _repaintGraph; no drawing
-DisplayManager.cpp	723	723	DisplayManager::forceGraphView	core			empty stub when SIMUT_TFT_GRAPH=0 (alpha or TFT without graph)
-DisplayManager.cpp	731	731	DisplayManager::setGraphNavOffset	core			empty stub, TFT build with SIMUT_TFT_GRAPH=0
-DisplayManager.cpp	732	732	DisplayManager::requestLoadingScreen	core			stub, TFT build with SIMUT_TFT_GRAPH=0: only raises _loadingDrawn so a waiting caller does not burn 500 ms
-DisplayManager.cpp	733	735	DisplayManager::showCalendar	core			empty stub, TFT build with SIMUT_TFT_GRAPH=0
-DisplayManager.cpp	739	742	DisplayManager::isSkipPressed	core			consume-on-read of the boot Skip button flag
-DisplayManager.cpp	745	763	DisplayManager::setSlotsSnapshot	core			alpha-only copy of the slot snapshots; no-op on the TFT
-DisplayManager.cpp	765	769	DisplayManager::setApMode	core			stores apMode under the mutex
-DisplayManager.cpp	774	776	DisplayManager::setApInfo	core			empty stub on the TFT (the network and key are boot terminal lines)
-DisplayManager.cpp	780	786	DisplayManager::isScreenTouched	core			touch acquisition: reads PENIRQ, the XPT2046 and the raw flag; no drawing
-DisplayManager.cpp	788	795	DisplayManager::beginTouch	core			initialises the PENIRQ GPIO (touch acquisition, early boot)
-DisplayManager.cpp	804	810	DisplayManager::injectTouch	core			simulated-touch injection for automation, six atomic stores
-DisplayManager.cpp	813	823	DisplayManager::setWebBusy	core			stores the web-busy flag and user name under the mutex
-DisplayManager.cpp	825	830	DisplayManager::setSlotData	core			shared-state setter for the selected slot (values, type, name) plus _isDirty
-DisplayManager.cpp	832	837	DisplayManager::setTopSlotData	core			shared-state setter for the top panel slot plus _isDirty
-DisplayManager.cpp	839	844	DisplayManager::setSlotMinMax	core			stores min/max in _bottomPanel; state read by the dashboard draw
-DisplayManager.cpp	846	849	DisplayManager::setBottomSlotData	core			empty body (takes and releases the mutex); kept for the API
-DisplayManager.cpp	851	856	DisplayManager::setTopSlotMinMax	core			stores min/max in _topPanel; state read by the dashboard draw
-DisplayManager.cpp	859	864	DisplayManager::setSystemStatus	core			stores RSSI, Bluetooth flag and the clock string in the shared state
-DisplayManager.cpp	870	878	DisplayManager::getUiEvent	core			Core 0 consumer of the SPSC event ring
-DisplayManager.cpp	879	879	DisplayManager::core1Entry	core			Core 1 entry point; calls loopCore1
-DisplayManager.cpp	900	902	DisplayManager::_runQuietLoop	core			empty, no longer used (hard reset replaced it)
-DisplayManager.cpp	907	959	DisplayManager::requestQuietMode	core			re-entrant hard reset of Core 1 for flash work; Core 1 lifecycle
-DisplayManager.cpp	963	987	DisplayManager::releaseQuietMode	core			re-launch of Core 1 after the quiet window
-DisplayManager.cpp	1013	1013	s_c1AlarmNum	core			static uint8_t, the hardware alarm claimed for Core 1's private wait
-DisplayManager.cpp	1015	1018	core1AlarmIsr	core			SRAM ISR that acks the wait alarm
-DisplayManager.cpp	1027	1027	s_c1Vectors	core			RAM copy of the vector table for Core 1 (HardFault witness)
-DisplayManager.cpp	1029	1040	core1FaultIsr	core			naked HardFault handler that stamps the stacked PC
-DisplayManager.cpp	1042	1048	core1VtorInit	core			copies the vector table to RAM and points VTOR at it
-DisplayManager.cpp	1055	1059	touchIrqArmed	core			reads PROC1_INTE and the NVIC to say whether the touch interrupt is armed
-DisplayManager.cpp	1061	1088	core1WaitInit	core			claims the hardware alarm and enables its IRQ on Core 1 for the private timed wait
-DisplayManager.cpp	1090	1111	core1WaitUs	core			SRAM-resident timed wait of Core 1 in __wfe on the private alarm
-DisplayManager.cpp	1121	1365	DisplayManager::loopCore1	mixed	1287-1289,1400-1449,1451-1451,1520-1520,1528-1528,1540-1555,1559-1587,1595-1616,1625-1700	1241-1286,1290-1399,1450-1450,1452-1519,1521-1527,1529-1539,1556-1558,1588-1594,1617-1624,1701-1745	[ranges and counts are 192e1ad's: the body changed since] Core 1 loop: core = setup, park, capture, heartbeat, touch read, handleTouch/otaTick calls, alarm nav/rotation/flash timers, lockout expiry, sens-to-cal tick, pacing; original = first paint, the _themeChanged redraw (future uiThemeChanged), mode dispatch to draw*/render, repaint cadences, 3 s graph header revert
-DisplayManager.cpp	1369	1387	DisplayManager::pullSnapshot	core			copies _sharedState to the caller's snapshot under the mutex and consumes _isDirty; syncs topSlotIdx with the pinned/following top panel
-DisplayManager.cpp	1399	1405	DisplayManager::setWebNotification	core			stores the web user name and start time for the top-bar banner (drawTopBar draws it)
-DisplayManager.cpp	1412	1422	DisplayManager::showSettingsLicense	core			entry point: composes the opening if the language changed, sets MODE_SETTINGS_LICENSE, page 0 and the repaint flags
-DisplayManager.cpp	1425	1503	DisplayManager::drawSettingsLicense	original			draws the License screen (50 columns, 17 lines, buttons); surprise: it computes _licenseTotalPages and clamps _licensePage, which Touch.cpp:1517 and 1529 read to page
+DisplayManager.cpp	68	68	_licOpening	core			char[768] buffer for the License screen's opening, composed from the pack's @WEBDICT; working state, not drawing. Not static since S10c D4b-1: display/LicenseOpening.h declares it, so the original's licence draw can read it from another unit
+DisplayManager.cpp	69	69	_licOpeningLang	core			language the License opening was composed for; screen working state
+DisplayManager.cpp	73	73	kLicOpeningSep	core			separators between the five opening strings (mirrors opening_bytes( ) in check_lang_packs.py); text composition, not layout
+DisplayManager.cpp	75	81	licOpeningAppend	core			bounds-checked append into _licOpening; i18n text composition
+DisplayManager.cpp	83	101	composeLicenseOpening	core			reads the five @WEBDICT strings of the active pack (English fallback); i18n, no drawing
+DisplayManager.cpp	104	104	DisplayManager::licenseOpening	core			S4 (C9): the accessor of _licOpening, the License opening Core 0 composed for the active language; the Angulo's licence screen reads it and no other image calls it
+DisplayManager.cpp	107	107	_instance	core			global pointer to the single DisplayManager
+DisplayManager.cpp	110	110	DisplayManager::CAL_SCR_X	core			out-of-class definition of the calibration target X on the glass; the math in Touch.cpp hard-codes the same 20 px inset, the drawing in Calibration.cpp only reads it
+DisplayManager.cpp	111	111	DisplayManager::CAL_SCR_Y	core			out-of-class definition of the calibration target Y on the glass; same reasoning as CAL_SCR_X
+DisplayManager.cpp	113	163	DisplayManager::DisplayManager	core			constructor: zeroes the shared state, boot flags, mode and Core 1 flags; no drawing
+DisplayManager.cpp	165	165	DisplayManager::begin	core			empty
+DisplayManager.cpp	171	179	DisplayManager::stateMutexHeldByCurrentCore	core			mutex ownership probe (CONCURRENCY invariant 3)
+DisplayManager.cpp	201	201	s_core1Stack	core			8 KB dedicated Core 1 stack
+DisplayManager.cpp	203	212	DisplayManager::launchCore1IfAbsent	core			the single funnel for every Core 1 launch
+DisplayManager.cpp	228	242	DisplayManager::markCore1Down	core			re-arms the launch funnel, drains the FIFO, invalidates the phase stamp
+DisplayManager.cpp	244	244	DisplayManager::startCore1	core			calls launchCore1IfAbsent
+DisplayManager.cpp	246	274	DisplayManager::restartCore1	core			resets Core 1 (lockout cleanup, mutex re-init, relaunch); Core 1 lifecycle
+DisplayManager.cpp	276	286	DisplayManager::setLanguage	core			sets _currentLangIdx and _langChanged; i18n state, no drawing
+DisplayManager.cpp	290	295	DisplayManager::isMenuActive	core			reads _uiMode under the mutex (mode ordering >= MODE_AUTH); used by Core 0
+DisplayManager.cpp	298	303	DisplayManager::isDisplayBusy	core			reads _uiMode under the mutex; used by Core 0
+DisplayManager.cpp	306	312	DisplayManager::isHeavyRendering	core			true in the three graph modes; reads _uiMode under the mutex
+DisplayManager.cpp	326	326	CORE1_QUIESCE_MS	core			static constexpr 1200 ms, the park window of the flash pause
+DisplayManager.cpp	328	514	DisplayManager::pauseRendering	core			flash-pause protocol for Core 1 (quiesce, IRQ lockout, hard-reset fallback, accounting); no drawing
+DisplayManager.cpp	526	529	DisplayManager::requestCore1Park	core			raises _quiescePlease
+DisplayManager.cpp	531	540	DisplayManager::awaitCore1Park	core			spins until Core 1 parks or the timeout, watchdog fed
+DisplayManager.cpp	542	544	DisplayManager::releaseCore1Park	core			clears _quiescePlease
+DisplayManager.cpp	549	559	DisplayManager::accountPauseEnd	core			folds a finished pause into the max/owner counters
+DisplayManager.cpp	561	575	DisplayManager::forceUnpause	core			clears a stuck pause refcount and ends the lockout
+DisplayManager.cpp	577	580	DisplayManager::getHeartbeat	core			returns millis( ) while paused for flash, else _lastHeartbeat
+DisplayManager.cpp	582	582	DisplayManager::refreshTheme	core			one store: _themeChanged = true; the theme code that consumes it is in render( )
+DisplayManager.cpp	594	604	DisplayManager::setBootStatus	core			pushes a raw boot line into bootLogs, forces MODE_DASHBOARD and a full redraw; state under the mutex
+DisplayManager.cpp	606	615	DisplayManager::replaceBootStatus	core			replaces the last boot line; same state change as setBootStatus
+DisplayManager.cpp	617	629	DisplayManager::setBootStatusKey	core			pushes a translated (LangKey) boot line; state under the mutex
+DisplayManager.cpp	631	642	DisplayManager::replaceBootStatusKey	core			replaces the last boot line with a LangKey; state under the mutex
+DisplayManager.cpp	644	648	DisplayManager::setApProgress	core			stores apProgressPct and isBooting
+DisplayManager.cpp	650	654	DisplayManager::endBoot	core			clears isBooting
+DisplayManager.cpp	656	660	DisplayManager::forceDashboard	core			mode transition to MODE_DASHBOARD with a full redraw
+DisplayManager.cpp	677	677	OTA_PAINT_WAIT_MS	core			static constexpr 800 ms, how long Core 0 waits for the update screen to reach the glass
+DisplayManager.cpp	679	693	DisplayManager::showOta	core			OTA screen state machine step (atomic _otaState); then calls otaPaintFromCore0( ) (a draw, from Core 0) and waits on _otaDrawnSeq, so the paint call site is the future uiPaintOta hook
+DisplayManager.cpp	695	700	DisplayManager::otaProgress	core			stores the percentage and calls otaPaintFromCore0( ); state plus an indirect draw from Core 0
+DisplayManager.cpp	702	706	DisplayManager::otaEnd	core			compare-and-swap that dismisses the update screen state
+DisplayManager.cpp	724	724	DisplayManager::forceGraphView	core			SIMUT_TFT_GRAPH=1 variant: mode transition to MODE_GRAPH_VIEW and _repaintGraph; no drawing
+DisplayManager.cpp	724	724	DisplayManager::forceGraphView	core			empty stub when SIMUT_TFT_GRAPH=0 (alpha or TFT without graph)
+DisplayManager.cpp	732	732	DisplayManager::setGraphNavOffset	core			empty stub, TFT build with SIMUT_TFT_GRAPH=0
+DisplayManager.cpp	733	733	DisplayManager::requestLoadingScreen	core			stub, TFT build with SIMUT_TFT_GRAPH=0: only raises _loadingDrawn so a waiting caller does not burn 500 ms
+DisplayManager.cpp	734	736	DisplayManager::showCalendar	core			empty stub, TFT build with SIMUT_TFT_GRAPH=0
+DisplayManager.cpp	740	743	DisplayManager::isSkipPressed	core			consume-on-read of the boot Skip button flag
+DisplayManager.cpp	746	764	DisplayManager::setSlotsSnapshot	core			alpha-only copy of the slot snapshots; no-op on the TFT
+DisplayManager.cpp	766	770	DisplayManager::setApMode	core			stores apMode under the mutex
+DisplayManager.cpp	775	777	DisplayManager::setApInfo	core			empty stub on the TFT (the network and key are boot terminal lines)
+DisplayManager.cpp	781	787	DisplayManager::isScreenTouched	core			touch acquisition: reads PENIRQ, the XPT2046 and the raw flag; no drawing
+DisplayManager.cpp	789	796	DisplayManager::beginTouch	core			initialises the PENIRQ GPIO (touch acquisition, early boot)
+DisplayManager.cpp	805	811	DisplayManager::injectTouch	core			simulated-touch injection for automation, six atomic stores
+DisplayManager.cpp	814	824	DisplayManager::setWebBusy	core			stores the web-busy flag and user name under the mutex
+DisplayManager.cpp	826	831	DisplayManager::setSlotData	core			shared-state setter for the selected slot (values, type, name) plus _isDirty
+DisplayManager.cpp	833	838	DisplayManager::setTopSlotData	core			shared-state setter for the top panel slot plus _isDirty
+DisplayManager.cpp	840	845	DisplayManager::setSlotMinMax	core			stores min/max in _bottomPanel; state read by the dashboard draw
+DisplayManager.cpp	847	850	DisplayManager::setBottomSlotData	core			empty body (takes and releases the mutex); kept for the API
+DisplayManager.cpp	852	857	DisplayManager::setTopSlotMinMax	core			stores min/max in _topPanel; state read by the dashboard draw
+DisplayManager.cpp	860	865	DisplayManager::setSystemStatus	core			stores RSSI, Bluetooth flag and the clock string in the shared state
+DisplayManager.cpp	871	879	DisplayManager::getUiEvent	core			Core 0 consumer of the SPSC event ring
+DisplayManager.cpp	880	880	DisplayManager::core1Entry	core			Core 1 entry point; calls loopCore1
+DisplayManager.cpp	901	903	DisplayManager::_runQuietLoop	core			empty, no longer used (hard reset replaced it)
+DisplayManager.cpp	908	960	DisplayManager::requestQuietMode	core			re-entrant hard reset of Core 1 for flash work; Core 1 lifecycle
+DisplayManager.cpp	964	988	DisplayManager::releaseQuietMode	core			re-launch of Core 1 after the quiet window
+DisplayManager.cpp	1014	1014	s_c1AlarmNum	core			static uint8_t, the hardware alarm claimed for Core 1's private wait
+DisplayManager.cpp	1016	1019	core1AlarmIsr	core			SRAM ISR that acks the wait alarm
+DisplayManager.cpp	1028	1028	s_c1Vectors	core			RAM copy of the vector table for Core 1 (HardFault witness)
+DisplayManager.cpp	1030	1041	core1FaultIsr	core			naked HardFault handler that stamps the stacked PC
+DisplayManager.cpp	1043	1049	core1VtorInit	core			copies the vector table to RAM and points VTOR at it
+DisplayManager.cpp	1056	1060	touchIrqArmed	core			reads PROC1_INTE and the NVIC to say whether the touch interrupt is armed
+DisplayManager.cpp	1062	1089	core1WaitInit	core			claims the hardware alarm and enables its IRQ on Core 1 for the private timed wait
+DisplayManager.cpp	1091	1112	core1WaitUs	core			SRAM-resident timed wait of Core 1 in __wfe on the private alarm
+DisplayManager.cpp	1122	1366	DisplayManager::loopCore1	mixed	1287-1289,1400-1449,1451-1451,1520-1520,1528-1528,1540-1555,1559-1587,1595-1616,1625-1700	1241-1286,1290-1399,1450-1450,1452-1519,1521-1527,1529-1539,1556-1558,1588-1594,1617-1624,1701-1745	[ranges and counts are 192e1ad's: the body changed since] Core 1 loop: core = setup, park, capture, heartbeat, touch read, handleTouch/otaTick calls, alarm nav/rotation/flash timers, lockout expiry, sens-to-cal tick, pacing; original = first paint, the _themeChanged redraw (future uiThemeChanged), mode dispatch to draw*/render, repaint cadences, 3 s graph header revert
+DisplayManager.cpp	1370	1388	DisplayManager::pullSnapshot	core			copies _sharedState to the caller's snapshot under the mutex and consumes _isDirty; syncs topSlotIdx with the pinned/following top panel
+DisplayManager.cpp	1400	1406	DisplayManager::setWebNotification	core			stores the web user name and start time for the top-bar banner (drawTopBar draws it)
+DisplayManager.cpp	1413	1423	DisplayManager::showSettingsLicense	core			entry point: composes the opening if the language changed, sets MODE_SETTINGS_LICENSE, page 0 and the repaint flags
+DisplayManager.cpp	1426	1504	DisplayManager::drawSettingsLicense	original			draws the License screen (50 columns, 17 lines, buttons); surprise: it computes _licenseTotalPages and clamps _licensePage, which Touch.cpp:1517 and 1529 read to page
 DisplayManager_Render.cpp	36	94	DisplayManager::truncateText	original			text-fitting helper (getTextBounds binary search plus "..."), measured in the gfx's current font; only the original's draw code calls it (inside #if SIMUT_DISPLAY_TFT)
 DisplayManager_Render.cpp	106	158	DisplayManager::truncateTextKeepSuffix	original			same as truncateText but reserves a suffix (MAX/MIN labels); called only from original draw code (inside #if SIMUT_DISPLAY_TFT)
 DisplayManager_Render.cpp	160	379	DisplayManager::render	mixed	1772-1948,1955-1955,1959-1960,1963-1992	1949-1954,1956-1958,1961-1962	[ranges and counts are 192e1ad's: the body changed since] the dashboard and boot-terminal paint with its render cache (_lastRenderedState, _bootPaintSeq, _langChanged); the core part is the 30 s return of the panels from min/max (flag clears), whose draws at 1955 and 1959-1960 are original

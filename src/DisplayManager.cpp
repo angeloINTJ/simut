@@ -24,6 +24,7 @@
 #endif
 #include "DisplayManager_FmtFloat.h"
 #include "HelpLicenseEN.h" /* LICENSE_TEXT_EN inline in PROGMEM */
+#include "display/LicenseOpening.h" /* _licOpening: one declaration for this unit and the original's licence draw, checked against the definition below */
 #include "TextWrap.h"
 #include "Utf8Fold.h"
 #include <LittleFS.h>
@@ -64,7 +65,7 @@
  * to English. Without a pack, or in English, the opening is the page's English
  * text, which tools/gen_notices.py copies into HelpLicenseEN.h. */
 #if !SIMUT_DISPLAY_ALPHA
-static char _licOpening[768];
+char _licOpening[768];              /* declared in display/LicenseOpening.h: external linkage since S10c D4b-1 */
 static int _licOpeningLang = -1;    /* the language _licOpening was composed for */
 
 /* What follows each of the five strings: the page's paragraphs. Mirrored by
