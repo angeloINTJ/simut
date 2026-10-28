@@ -40,7 +40,7 @@
 #include "telas/MenusStatus.h"
 #include "telas/Telas.h"
 #include "../../display/ListPager.h"   /* listPages( ), listClampPage( ), listPageStep( ): the lists' page arithmetic */
-#include "../../display/SettingsSteps.h"   /* langSlotCount( ): the language list's rows */
+#include "../../display/LangChoice.h"   /* langRowsListed( ): the language list's rows, counted as the original's draw and Core 0 count them (#294) */
 #include "../../DisplayManager_Actions.h"   /* the core's touch actions, which the lists' rows run; the last project header */
 #include "Textos.h"   /* UA_TXT( ): after every project header, because its pragmas hold to the end of the unit */
 
@@ -83,7 +83,7 @@ ua::Escolha escolhaNaTela( const SystemConfig *cfg, int8_t previa ) {
   return ua::escolhaDoIndice( previa >= 0 ? previa : cfg ? cfg->themeIndex : (int8_t)0 );
 }
 
-/* The loaded pack's name as the language list reads it: the two packs the project ships by
+/* The listed pack's name (loaded, or found in /lang at an English boot) as the language list reads it: the two packs the project ships by
  * their own names, any other as "name (code)" (the pack's @NAME has no accents). A language's
  * own name reads the same in every language (the original's packs do not translate it: it
  * prints the pack's @NAME as it is), so each of the two is a text of the pack's @ANGULO with
@@ -152,14 +152,12 @@ bool DisplayManager::uaMontarMenus( UaQuadro &q ) {
       return true;
     }
     case MODE_SETTINGS_LANG: {
-      /* drawSettingsLang( ) (DisplayManager_i18nUi.cpp): English, and the pack when one is loaded. */
+      /* drawSettingsLang( ) (DisplayManager_i18nUi.cpp): English, and the pack when the screen lists one: loaded, or only found in /lang at an English boot (#294; the original reads the same
+       * accessors). The mark is the saved language's row, which the core's showSettingsLang( ) sets with langRowAtOpen( ) when Core 0 opens the screen (_previewLangIdx), as the original marks it:
+       * _currentLangIdx is the language in use, and an English boot that saved the pack still runs in English (S10c, sync 6, D5). */
       VmIdioma &vm = uaVm<VmIdioma>( );
-      if ( _activeLangLoaded ) {
-        nomeDoPacote( _activeLang.name, _activeLang.code, vm.pacote, sizeof vm.pacote );
-        vm.atual = _currentLangIdx == LANG_EN ? ID_INGLES : ID_PACOTE;
-      } else {
-        vm.atual = ID_INGLES;
-      }
+      if ( isLangListed( ) ) nomeDoPacote( getListedLangName( ), getListedLangCode( ), vm.pacote, sizeof vm.pacote );
+      vm.atual = _previewLangIdx == LANG_EN ? ID_INGLES : ID_PACOTE;
       uaUsar<VmIdioma, desenharIdioma, alvosIdioma>( q, vm );
       return true;
     }
@@ -384,9 +382,10 @@ UaToque DisplayManager::uaToqueMenus( const ua::Alvo *a, int16_t &, int16_t & ) 
       if ( voltar ) {
         /* The original's Back (handleTouch( ), Touch.cpp): SAIR is back to the menu. */
         if ( acceptTouch( ZONA_VOLTAR ) ) showSettingsMain( );
-      } else if ( linha && i >= 0 && i < langSlotCount( _activeLangLoaded, LANG_COUNT ) && acceptTouch( ZONA_LINHA ) ) {
-        /* The original's slots are English, plus the pack, and its Apply (handleTouch( ), Touch.cpp): APLICAR runs actApplyLang( ), the core's, with the
-         * row; Core 0 saves it and leaves for the dashboard. */
+      } else if ( linha && i >= 0 && i < langRowsListed( isLangLoaded( ), isLangListed( ) ) && acceptTouch( ZONA_LINHA ) ) {
+        /* The original's slots (UiTouchChain.h) are English, plus the pack when the screen lists one (loaded, or found in /lang at an English boot, #294), and its Apply: APLICAR runs actApplyLang( ),
+         * the core's, with the row. Core 0 checks PERM_SYS_CONFIG and the row again, then applies it at once (a pack in RAM) or saves it and says "Reboot required" (a pack only listed, which loads at the
+         * next boot), and leaves for the dashboard. */
         actApplyLang( i );
       }
       break;

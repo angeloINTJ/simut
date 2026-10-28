@@ -22,7 +22,7 @@
 #include "sensors/SensorDrawing.h" /* min/max graph button geometry */
 #include "ui/UiDriverHooks.h"   /* uiChanged( ), which the dashboard's touches raise: the hook definitions need the complete class, so after every other include */
 #include "display/GraphNav.h"        /* calDayHasHistory( ): the calendar's day test */
-#include "display/SettingsSteps.h"     /* unused here since the Idioma touch takes langRowsListed( ) (display/LangChoice.h); goes with langSlotCount( ) */
+#include "display/SettingsSteps.h"     /* unused here since the Idioma touch (ui/original/UiTouchChain.h) counts its rows with langRowsListed( ), display/LangChoice.h */
 #include "DisplayManager_Actions.h"   /* the core's touch actions; last, they lean on the hooks above */
 
 void DisplayManager::handleTouch( ) {

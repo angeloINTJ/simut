@@ -1,7 +1,7 @@
 /**
  * @file SettingsSteps.h
- * @brief What the settings screens' touches decide, which has no hardware in it: one step of a volume, one step of the display alignment's preview and how many language slots the screen offers. No Arduino: the host tests run it
- *        (test/test_validators) and the core's touch code calls it (DisplayManager_Actions.h, DisplayManager_Touch.cpp and the Ângulo's DisplayManager_UiA_Menus.cpp), so what the tests pin is the code the
+ * @brief What the settings screens' touches decide, which has no hardware in it: one step of a volume and one step of the display alignment's preview. No Arduino: the host tests run it
+ *        (test/test_validators) and the core's touch code calls it (DisplayManager_Actions.h and the Ângulo's DisplayManager_UiA_Ajustes.cpp), so what the tests pin is the code the
  *        panel runs. Every function is always_inline, so it stays part of the branch that calls it.
  *        S8b (C9) adds limitStepMag( ), the ramp of a limit's arrow, which actLimitStep( ) (DisplayManager_Actions.h) calls for both drivers.
  */
@@ -29,13 +29,6 @@ inline __attribute__((always_inline)) bool offsetStep( int8_t &v, int dir ) {
 	if ( dir < 0 ) { if ( v > -DISPLAY_OFFSET_LIMIT ) { v--; return true; } }
 	else { if ( v < DISPLAY_OFFSET_LIMIT ) { v++; return true; } }
 	return false;
-}
-
-/* How many language slots the screen offers: English alone until a pack is loaded, then English and the pack, `langCount` of them. The caller passes
- * LANG_COUNT (SystemDefs_Records.h) because this header must stand alone: the native suite declares things that header declares as well, so it cannot
- * include it. The original's list takes the count as the bound of its rows and arrows, the Ângulo's as the bound of a tapped row. */
-inline __attribute__((always_inline)) int langSlotCount( bool packLoaded, int langCount ) {
-	return packLoaded ? langCount : 1;
 }
 
 /* The step of a limit's arrow from how long the same arrow has been held (the limits editor's ramp): 0.1, then 0.5 after 2 s, 1 after 4 s and 10 after 6 s. A threshold is exclusive: held for exactly

@@ -114,7 +114,7 @@ enum EscolhaIdioma : uint8_t { ID_INGLES, ID_PACOTE };
 
 struct VmIdioma {
   uint8_t atual;                      // EscolhaIdioma: the one with the mark
-  char pacote[32];                    // the loaded pack's name as it reads ("Português (Brasil)"); "" when none
+  char pacote[32];                    // the listed pack's name (loaded, or found in /lang at an English boot) as it reads ("Português (Brasil)"); "" when none
 };
 // Targets: AlvoLista. LST_LINHA's indice is the EscolhaIdioma it applies.
 void desenharIdioma( Pintor &p, const VmIdioma &vm );

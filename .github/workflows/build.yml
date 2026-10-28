@@ -323,6 +323,8 @@ jobs:
       # The mode and the accent through the kit and through the glue's own functions, run; the mutants of the kit and of the glue must fail it.
       - name: Angulo theme and glue on the host (test_temas.py)
         run: python3 tools/tft_ui/test_temas.py
+      - name: Angulo language screen on the host (test_idioma_pacote.py)
+        run: python3 tools/tft_ui/test_idioma_pacote.py
       - name: Angulo corners on the host (test_cantos.py)
         run: python3 tools/tft_ui/test_cantos.py
       - name: Angulo touch targets on the host (test_alvos.py)

@@ -5558,12 +5558,6 @@ void test_offset_step_leaves_a_value_beyond_the_end_alone(void) {
 
 /* English alone until a pack is loaded, then English and the pack, however many that is (2 today, 3 for a case that no constant can pass). The arms swapped,
  * a constant 1, a constant 2, a constant count and a floor of 0 each fail. */
-void test_lang_slot_count_is_english_alone_until_a_pack_is_loaded(void) {
-    TEST_ASSERT_EQUAL_INT(1, langSlotCount(false, 2));
-    TEST_ASSERT_EQUAL_INT(2, langSlotCount(true, 2));
-    TEST_ASSERT_EQUAL_INT(1, langSlotCount(false, 3));
-    TEST_ASSERT_EQUAL_INT(3, langSlotCount(true, 3));
-}
 
 /* The ramp of a limit's arrow. At the top of each arm (0, 2000, 4000 and 6000 ms) the arm below still answers: `>=` at any threshold, two arms swapped and an arm dropped fail here. */
 void test_limit_step_mag_holds_each_arm_up_to_its_threshold(void) {
@@ -6044,7 +6038,6 @@ int main(int /*argc*/, char** /*argv*/) {
     RUN_TEST(test_offset_step_moves_one_toward_each_end);
     RUN_TEST(test_offset_step_comes_back_from_either_end);
     RUN_TEST(test_offset_step_leaves_a_value_beyond_the_end_alone);
-    RUN_TEST(test_lang_slot_count_is_english_alone_until_a_pack_is_loaded);
     RUN_TEST(test_limit_step_mag_holds_each_arm_up_to_its_threshold);
     RUN_TEST(test_limit_step_mag_moves_to_the_next_arm_one_millisecond_past);
     RUN_TEST(test_graph_anchor_back_from_the_present_is_whole_periods_in_the_past);

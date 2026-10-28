@@ -248,7 +248,7 @@ int alvosTemas( const VmTemas &vm, Alvo *out ) {
   return addAlvo( out, n, caixaAplicar( ), (uint8_t)( temAplicar( vm ) ? TT_APLICAR : TT_NADA ) );
 }
 
-/* Idioma: English and the loaded pack, no pager. */
+/* Idioma: English and the listed pack (loaded, or found in /lang at an English boot), no pager. */
 
 namespace {
 
