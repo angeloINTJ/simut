@@ -368,8 +368,8 @@ void AppManager::core0Yield( ) {
  else if (uiEv.type == UiEvent::EVT_START_AP) {
  /* The bit is checked HERE and not only when the row was drawn: the menu
   * is filtered by the session's bits, but the event arrives from Core 1
-  * and Core 0 is where authorisation lives — the same rule every v24
-  * panel event follows. */
+  * and Core 0 is where authorisation lives. `tools/check_authz.py --list`
+  * names which panel event checks which bit, and the four that do not yet. */
  if (panelAllowed(PERM_NET_CONFIG, -1)) startApMode( );
  }
 #endif
@@ -397,6 +397,21 @@ void AppManager::core0Yield( ) {
  else              _displayMgr->showSettingsMain( );
  }
  }
+ /* Theme and language: their Settings rows ask for PERM_SYS_CONFIG
+  * (display/SettingsMenu.h), and Core 0 asks again, because the event arrives
+  * from Core 1 and Core 0 does not take the screen's word. One arm ahead of
+  * both handlers, so a refused event assigns, saves and logs nothing (no
+  * APP_UI_THEME_CHANGED or APP_UI_LANG_CHANGED line, no "Reboot required");
+  * panelAllowed( ) logs 458 and plays the error tone, and the refusal is
+  * EVT_PIN_POLICY's (AppManager_Panel.cpp). No boot exception, unlike the
+  * clock: nothing shows Idioma or Themes without a session. In this region
+  * because only the touch panel sends either event (actApplyTheme( ) and
+  * actApplyLang( ), DisplayManager_Actions.h, which both UIs call), so the
+  * images without a panel keep their bytes. */
+ else if ((uiEv.type == UiEvent::EVT_APPLY_THEME || uiEv.type == UiEvent::EVT_APPLY_LANG) &&
+          !panelAllowed(PERM_SYS_CONFIG, -1)) {
+  _displayMgr->showPanelMessage(false, TR_NO_PERMISSION, MODE_SETTINGS_MAIN);
+ }
 #endif
  else if (uiEv.type == UiEvent::EVT_APPLY_THEME) {
  SystemConfig &cfg = _storageMgr->getConfig( );
@@ -408,13 +423,38 @@ void AppManager::core0Yield( ) {
  LOG_CODE(LOG_INFO, "APP", APP_UI_THEME_CHANGED, 0, "");
  }
  else if (uiEv.type == UiEvent::EVT_APPLY_LANG) {
- SystemConfig &cfg = _storageMgr->getConfig( );
- cfg.displayLang = uiEv.id;
- _displayMgr->setLanguage(cfg.displayLang);
- _storageMgr->saveConfiguration( );
- _soundMgr->play(SND_CONFIRM);
- _displayMgr->forceDashboard( );
- LOG_CODE(LOG_INFO, "APP", APP_UI_LANG_CHANGED, 0, "");
+  SystemConfig &cfg = _storageMgr->getConfig( );
+#if SIMUT_DISPLAY_TFT
+  /* The Idioma screen lists a pack it has only found in /lang, one that is not
+   * in RAM (display/LangChoice.h). Core 0 does not take the screen's word for the
+   * row. A pack that cannot translate yet is saved and waits for the next boot,
+   * where it loads; setLanguage( ) is not called, because the screens with text
+   * of their own would turn Portuguese while tr( ) stayed in English. The
+   * message is promised after the save, not before it, and a save that failed
+   * leaves the language as it was. */
+  if (!langChoiceValid(uiEv.id, langRowsListed(DisplayManager::isLangLoaded( ), DisplayManager::isLangListed( )))) {
+   _displayMgr->showPanelMessage(false, TR_ERROR_LBL, MODE_DASHBOARD);
+  } else if (langAppliesAtBoot(uiEv.id, DisplayManager::isLangLoaded( ))) {
+   const uint8_t before = cfg.displayLang;
+   cfg.displayLang = uiEv.id;
+   if (_storageMgr->saveConfiguration( )) {
+    _soundMgr->play(SND_CONFIRM);
+    _displayMgr->showPanelMessage(true, TR_REBOOT_REQ, MODE_DASHBOARD);
+    LOG_CODE(LOG_INFO, "APP", APP_UI_LANG_CHANGED, 0, "");
+   } else {
+    cfg.displayLang = before;
+    _displayMgr->showPanelMessage(false, TR_ERROR_LBL, MODE_DASHBOARD);
+   }
+  } else
+#endif
+  {
+   cfg.displayLang = uiEv.id;
+   _displayMgr->setLanguage(cfg.displayLang);
+   _storageMgr->saveConfiguration( );
+   _soundMgr->play(SND_CONFIRM);
+   _displayMgr->forceDashboard( );
+   LOG_CODE(LOG_INFO, "APP", APP_UI_LANG_CHANGED, 0, "");
+  }
  }
  else if (uiEv.type == UiEvent::EVT_SAVE_ALARMS) {
  /* v24: the limit editor's SAVE. Core 1 no longer writes the config; the

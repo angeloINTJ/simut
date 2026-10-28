@@ -49,12 +49,13 @@
   "display/DisplayDriver.h": 1
  },
  "SIMUT_DISPLAY_TFT": {
-  "AppManager_Boot.cpp": 4,
+  "AppManager_Boot.cpp": 5,
   "AppManager_Commands.cpp": 3,
-  "AppManager_Events.cpp": 2,
+  "AppManager_Events.cpp": 3,
   "AppManager_Panel.cpp": 1,
   "DisplayManager.cpp": 2,
   "DisplayManager.h": 3,
+  "DisplayManager_LangParser.cpp": 1,
   "DisplayManager_Users.cpp": 1,
   "DisplayManager_i18n.cpp": 2,
   "SystemDefs_Limits.h": 1,

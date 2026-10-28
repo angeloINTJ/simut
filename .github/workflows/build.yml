@@ -45,7 +45,9 @@ jobs:
 
       # Every HTTP route must enforce authorization or be allowlisted as public
       # with a reason — the matrix is documented in docs/AUTHORIZATION.md. This
-      # is what blocks a newly-added route from shipping without a gate.
+      # is what blocks a newly-added route from shipping without a gate. Since
+      # 2026-10-28 it holds the panel's half too: every UiEvent is classified,
+      # and a GATED one calls panelAllowed( ) with its bit before its first write.
       - name: Check authorization matrix
         run: python3 tools/check_authz.py
 
@@ -55,8 +57,13 @@ jobs:
       # never audited, and the exit 0 looked like a clean file (found 2026-10-15).
       # This moves the real route, ungated, into a file of each extension and requires
       # one finding, holds the hook's pattern to the gate's list, and bites itself with
-      # 11 mutants.
-      - name: Authorization gate tests
+      # 11 mutants (tools/test_check_authz_drivers.py).
+      - name: Authorization gate tests (UI drivers)
+        run: python3 tools/test_check_authz_drivers.py
+
+      # A gate that finds nothing on a clean tree is proved on mutated copies of
+      # it: each rule gives exactly its findings (tools/test_check_authz.py).
+      - name: Test the authorization gate
         run: python3 tools/test_check_authz.py
 
       # The MIT text lives in three places (LICENSE, the /license page, and
@@ -102,6 +109,12 @@ jobs:
         run: python3 tools/check_flash_budget.py --table
       - name: OTA headroom gate tests
         run: python3 tools/test_flash_budget.py
+      # The bench's web client (tools/air_test_suite.py) logs back in when the
+      # device dropped its session, which it keeps one per user: a 403, or a 401
+      # with requirePerm's exact body. A handler's own 401 (a wrong password) is
+      # returned untouched, so no failure is counted twice toward the lockout.
+      - name: Bench web client session tests
+        run: python3 tools/test_air_web_session.py
 
       # Every filesystem-mutating handler (delete/upload/ls) and the restore
       # validator must refuse the /config credential store. This is what blocks

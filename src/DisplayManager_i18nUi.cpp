@@ -16,16 +16,17 @@ void DisplayManager::drawSettingsLang( ) {
  bool pageChanged = (_langPage != _lastLangPage);
 
 
- /* Slot 1 visible when .lng loaded; shows _activeLang.name/code
- * mapped to Latin-1 for the TFT fonts (accents kept). */
- int activeSlots = _activeLangLoaded ? LANG_COUNT : 1;
+ /* Slot 1 is visible when a pack is loaded or only listed (found in /lang at an
+ * English boot); shows its name/code mapped to Latin-1 for the TFT fonts
+ * (accents kept). getListedLang*( ) answer "" when there is no pack. */
+ int activeSlots = langRowsListed(isLangLoaded( ), isLangListed( ));
  char slot1Name[40] = "(install .lng)";
  char slot1Code[12] = "??";
- if (_activeLangLoaded && _activeLang.name[0]) {
- utf8ToLatin1(_activeLang.name, slot1Name, sizeof(slot1Name));
+ if (getListedLangName( )[0]) {
+ utf8ToLatin1(getListedLangName( ), slot1Name, sizeof(slot1Name));
  }
- if (_activeLangLoaded && _activeLang.code[0]) {
- utf8ToLatin1(_activeLang.code, slot1Code, sizeof(slot1Code));
+ if (getListedLangCode( )[0]) {
+ utf8ToLatin1(getListedLangCode( ), slot1Code, sizeof(slot1Code));
  }
  int totalPages = (activeSlots + 3) / 4;
  if (_langPage >= totalPages) _langPage = totalPages - 1;

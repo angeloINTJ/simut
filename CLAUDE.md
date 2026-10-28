@@ -12,7 +12,7 @@ substance lives there, not here.
 |---|---|
 | Firmware source | `src/` — ~56k lines, C++17, RP2040 / arduino-pico |
 | Web UI source | `WebUI.h` at the repository root, written in English. The other language comes from the device: `GET /api/lang` serves the `@WEBDICT` of the active `.lng` pack (`data/lang/` has pt-BR and es-ES), and a key the pack lacks shows the English text. `tools/build_webui_gz.py` compresses it into `src/WebUI_GZ.h` on every build — never edit the generated header |
-| Tools | `tools/` — [`tools/README.md`](tools/README.md) says which of the 199 scripts are live |
+| Tools | `tools/` — [`tools/README.md`](tools/README.md) says which of the 201 scripts are live |
 | Documentation | `docs/` — [`docs/README.md`](docs/README.md) marks each document **Living** or **Snapshot** |
 | Interface standard | [`ANGULO.md`](ANGULO.md) — the Ângulo guide for anything with a screen or a reader: web UI, site, README, docs, brand. [`AGENTS.md`](AGENTS.md) §7 says how it applies here and what `tools/check_angulo.py` enforces in CI |
 | Tests | `test/` — eleven native environments, `pio test -e native…` |
@@ -94,7 +94,9 @@ locally. When one fires, it is usually right:
   Section 2.17 of `docs/analysis/UI_DRIVERS.md` says why, and what each
   rule holds.
 - **Authorization matrix** — every new HTTP route needs a gate or an
-  allowlist entry with a reason (`docs/AUTHORIZATION.md`).
+  allowlist entry with a reason, and every new panel `UiEvent` a row in
+  `tools/check_authz.py`'s panel table: the bit Core 0 checks, or why none
+  (`docs/AUTHORIZATION.md`).
 
 ## House style
 

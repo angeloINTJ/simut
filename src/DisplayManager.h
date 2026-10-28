@@ -35,6 +35,7 @@ class Adafruit_GFX;
 #include "PinKeypad.h"   /* PinKb:: — geometry of the scrambled PIN keypad */
 #include "display/ClockEntry.h" /* the date and time set at the panel */
 #include "display/SettingsMenu.h" /* the Settings menu: items, order, rows */
+#include "display/LangChoice.h" /* the Idioma screen: rows, opening row, what waits for a boot */
 #include "OtaScreen.h"          /* what the panel says during a firmware update */
 #include "Themes.h"
 #include "SoundManager.h"
@@ -1471,6 +1472,13 @@ public:
 	 * Logs a warning if extras exist. Core 0 only (LittleFS).
 	 * Returns true if a .lng was successfully loaded. */
 	static bool findAndLoadLangFile( );
+	/** For a boot in English, on the panel builds: the same pass over /lang/,
+	 * stopped where the pack would be read. It keeps the name, the code and
+	 * the path of the pack the next boot in another language would load, with
+	 * nothing on the heap and no log record, so the Idioma screen can list it
+	 * (display/LangChoice.h). True if a usable pack was found. Core 0 only
+	 * (LittleFS). Defined only when SIMUT_DISPLAY_TFT, and nothing else calls it. */
+	static bool listLangFile( );
 	/** Getter for the @HELP block of the active .lng (UTF-8).
 	 * Caller applies unaccent() to render on ASCII UI/CLI.
 	 * Returns nullptr if .lng not loaded or section absent. */
@@ -1485,8 +1493,17 @@ public:
 	 * key. True when found and it fit in cap; *len is its length in bytes.
 	 * Core 0 only (LittleFS). */
 	static bool webDictValue(const char* key, char* out, size_t cap, size_t* len);
-	/** True if _activeLang is populated (any lookup may hit). */
+	/** True if a pack is loaded: its strings are in RAM and any lookup may hit.
+	 * A pack that listLangFile( ) only found is not loaded, but it is listed. */
 	static bool isLangLoaded( );
+	/** True if the Idioma screen has a pack to list: one that is loaded, or one
+	 * that listLangFile( ) found at an English boot. Defined only when
+	 * SIMUT_DISPLAY_TFT, like the two below. */
+	static bool isLangListed( );
+	/** Name and code of the listed pack, as the Idioma screen draws them; ""
+	 * if !isLangListed( ). */
+	static const char* getListedLangName( );
+	static const char* getListedLangCode( );
 	/** Active .lng meta info (name + code) for /api/perms to populate
 	 * the language selector in the web drawer. Returns "" if !isLangLoaded(). */
 	static const char* getActiveLangName( );
@@ -1671,7 +1688,9 @@ private:
 		char* buffer;
 		size_t bufferSize;
 		/* @WEBDICT stays on flash: path + byte range, not a pointer.
-		 * webDictLen == 0 means the pack has no @WEBDICT section. */
+		 * webDictLen == 0 means the pack has no @WEBDICT section.
+		 * A pack that is only listed (listLangFile( )) keeps its path too: a path
+		 * with _activeLangLoaded false is what isLangListed( ) reads. */
 		char path[64];
 		uint32_t webDictOffset;
 		uint32_t webDictLen;
@@ -1691,6 +1710,11 @@ private:
 	static ActiveLang _activeLang;
 	static bool _activeLangLoaded;
 	static bool loadLangFile(const char* path);
+	/** What loadLangFile( ) and listLangFile( ) both run (DisplayManager_LangParser.cpp):
+	 * the open, the size bounds, the scan and langPackIndexUsable( ) are one copy.
+	 * kListOnly stops it there, keeping the name, the code and the path and
+	 * allocating nothing. */
+	template <bool kListOnly> static bool loadLangImpl(const char* path);
 	static void unloadLang( );
 
 	/* The UI driver's members, last among them (src/ui/UiDriverMembers.h). */

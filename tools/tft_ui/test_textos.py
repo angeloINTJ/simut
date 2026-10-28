@@ -913,8 +913,10 @@ def problemas_de_forma_da_carga():
     chamadas = re.findall(r'(?:->|\.)\s*uiLangLoaded\s*\(', ''.join(p.read_text(encoding='utf-8', errors='ignore') for p in SRC.rglob('*') if p.suffix in ('.cpp', '.h', '.c')))
     if len(chamadas) != 1:
         ruins.append(f'uiLangLoaded( ) is called {len(chamadas)} times in src/, not once')
-    if not re.search(r'findAndLoadLangFile\(\s*\);\s*\}\s*(?:/\*(?:(?!\*/).)*\*/\s*)?if\s*\(\s*const\s+int\s+\w+\s*=\s*_displayMgr->uiLangLoaded\(\s*\)\s*\)', boot, re.S):
-        ruins.append('the call is not right after the block that loads the pack in AppManager::setup( )')
+    # The block that loads the pack ends with `}`, or, on the TFT since #294 (2026-10-24), with the
+    # `#if SIMUT_DISPLAY_TFT else { listLangFile( ); } #endif` that lists the pack at an English boot: nothing else may sit between it and the hook.
+    if not re.search(r'findAndLoadLangFile\(\s*\);\s*\}\s*(?:#if\s+SIMUT_DISPLAY_TFT\s+else\s*\{\s*(?:DisplayManager::)?listLangFile\(\s*\);\s*\}\s*#endif\s*)?(?:/\*(?:(?!\*/).)*\*/\s*)?if\s*\(\s*const\s+int\s+\w+\s*=\s*_displayMgr->uiLangLoaded\(\s*\)\s*\)', boot, re.S):
+        ruins.append('the call is not right after the block that loads (or, at an English boot on the TFT, lists) the pack in AppManager::setup( )')
     if not re.search(r'UI_HOOK\s+int\s+uiLangLoaded\(\s*\)\s*\{\s*return\s+0\s*;\s*\}', membros):
         ruins.append("the original's empty always_inline hook is not in src/ui/UiDriverMembers.h")
     if not re.search(r'int\s+uiLangLoaded\(\s*\)\s*;', kit_membros):

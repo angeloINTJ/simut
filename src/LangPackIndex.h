@@ -210,3 +210,14 @@ private:
 		_cur = -1;
 	}
 };
+
+/** Whether a pack the scanner indexed can be used at all: no directive after
+ *  the @WEBDICT marker, and a @DICT that is there and has a body. The loader
+ *  and the Idioma screen's list (DisplayManager_LangParser.cpp) both ask this,
+ *  so a pack the screen offers is one the next boot can open. It does not
+ *  cover what is known only when @DICT is read: a body past the heap ceiling
+ *  that cuts into the dictionary, or a malloc that fails. */
+inline bool langPackIndexUsable(const LangPackIndex& ix) {
+	if (ix.tailAfterWebDict) return false;
+	return ix.present[LANG_SEC_DICT] && ix.end[LANG_SEC_DICT] > ix.start[LANG_SEC_DICT];
+}

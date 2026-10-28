@@ -998,12 +998,22 @@ void AppManager::setup( ) {
  _displayMgr->refreshTheme( );
  }
  
- /* Load the .lng pack only when a non-English language is in use:
-  * the EN path serves inline strings and does not need the ~15 KB of
-  * heap the pack occupies. */
+ /* Load the .lng pack only when a non-English language is in use: the EN
+  * path serves inline strings and does not need the heap the pack keeps: its
+  * @DICT (at most LANG_DICT_MAX + 2 = 6,146 B; 3,294 B with the shipped pt-BR,
+  * @DICT 3,292 B by check_lang_packs.py) and, on the Angulo images, its @ANGULO
+  * table (8,416 B in RAM with the shipped pt-BR, from a 9,536 B section:
+  * host_telas.py; both measured 2026-10-28). In English the panel only LISTS
+  * the pack: it reads the name and the code and keeps nothing on the heap, so
+  * the Idioma screen can offer it and the language has a way back. */
  if (cfg.displayLang != LANG_EN) {
   DisplayManager::findAndLoadLangFile( );
  }
+#if SIMUT_DISPLAY_TFT
+ else {
+  DisplayManager::listLangFile( );
+ }
+#endif
  
  /* The UI driver's hook (src/ui/UiDriverMembers.h): the language pack, if the language needed one, has finished loading. Core 0, once, and this is the
   * only call. The Angulo reads its own section of the pack now (src/ui/angulo/DisplayManager_UiA_Textos.cpp); a board in English loaded no pack, and the

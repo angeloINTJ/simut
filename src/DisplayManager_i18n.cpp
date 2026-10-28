@@ -1,10 +1,11 @@
 /**
  * @file DisplayManager_i18n.cpp
- * @brief i18n: DICTIONARY_EN (hardcoded), dynamic tr(); the language settings screen is in DisplayManager_i18nUi.cpp.
+ * @brief i18n: DICTIONARY_EN (hardcoded), dynamic tr(), showSettingsLang( ), which both UIs open; the language settings screen is drawn in DisplayManager_i18nUi.cpp (the original UI) and in ui/angulo/DisplayManager_UiA_Menus.cpp (the Ângulo).
  * @details DICTIONARY is now 1D EN only. Slot 1
- * of the menu shows _activeLang.name/code dynamically (via
- * unaccent for ASCII on the TFT). Without .lng loaded, slot 1
- * stays hidden (gated by _activeLangLoaded).
+ * of the menu shows the pack's name and code (the original's draw reads
+ * getListedLangName/Code( ); via unaccent for ASCII on the TFT). Without a .lng in /lang, slot 1
+ * stays hidden (langRowsListed, display/LangChoice.h); a pack that is only
+ * listed, not loaded, shows too, and choosing it waits for the next boot.
  *
  * @project SIMUT — Integrated Universal Monitoring and Telemetry System
  * @author Ângelo Moisés Alves
@@ -164,11 +165,16 @@ const char* DisplayManager::tr(LangKey key) {
 }
 
 #if SIMUT_DISPLAY_TFT
+static_assert(LANG_COUNT == LANG_CHOICE_ROWS,
+              "the Idioma screen lists English and one pack: display/LangChoice.h counts those rows");
+
 void DisplayManager::showSettingsLang(int currentLang) {
  mutex_enter_blocking(&_stateMutex);
  _uiMode = MODE_SETTINGS_LANG;
- _previewLangIdx = currentLang;
- _langPage = currentLang / 4;
+ /* The saved language if the screen lists it, English otherwise: a unit saved in
+  * a pack it could not load has one row, and row 1 is not there. */
+ _previewLangIdx = langRowAtOpen(currentLang, langRowsListed(isLangLoaded( ), isLangListed( )));
+ _langPage = _previewLangIdx / 4;
  _forceSettingsRedraw = true;
  _lastLangPage = -1;
  _repaintSettings = true;

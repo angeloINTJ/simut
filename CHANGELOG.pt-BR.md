@@ -12,7 +12,7 @@ código de clock e não foram medidas. Um rádio que para de responder não é m
 Core 0 além do watchdog de hardware: ele é reiniciado pelo caminho planejado (#266). Os registros de log do pacote de
 idioma têm tag e códigos próprios: eram gravados como `?`, dois avisos como "OK" e o pacote carregado no boot como um
 idioma trocado pela interface (#283). Um Alpha ou um Wire num idioma que não é o inglês volta a dar nome aos eventos
-no console e no syslog: os dois saíam sem o nome.**
+no console e no syslog: os dois saíam sem o nome. Depois de um boot em inglês a tela Idioma do painel lista o pacote de idioma de `/lang`, que ela só listava quando o pacote estava carregado, e um aparelho deixado em inglês não tinha volta: escolher o pacote grava o idioma, e o pacote carrega no próximo boot. O tema e o idioma escolhidos no painel pedem a permissão Sistema ao Core 0, como o relógio, o AP de configuração e as contas já faziam.**
 
 ### O barramento do painel
 
@@ -146,6 +146,43 @@ no console e no syslog: os dois saíam sem o nome.**
   `Show IP`).
 - Conferido nas imagens, ainda não na bancada: os dois lookups do Alpha devolviam o endereço de uma string vazia e
   agora devolvem 0. As sete imagens que não compilam esse código saem idênticas, byte a byte.
+
+### O inglês tem volta no painel
+
+- **Depois de um boot em inglês, a tela Idioma lista o pacote de idioma de `/lang`.** Ela listava só o inglês: a tela
+  contava um pacote só quando ele estava carregado, e o pacote só é carregado num boot em outro idioma. Um aparelho que
+  tinha dado boot em inglês ficava sem linha para escolher, e nada mais gravava o idioma de volta numa imagem de
+  produto (o console de emergência não tem `language`, e a web não tem uma chave para isso). A bancada de 24/10/2026
+  achou o defeito. A tela agora lê o nome e o código do pacote no boot e não guarda mais nada: nem heap, nem registro
+  de log. Ela lista o arquivo que o próximo boot carregaria, o primeiro `language_*.lng` por nome.
+- **Escolher o pacote grava o idioma e mostra "Reboot required".** O painel continua em inglês até o próximo boot, em
+  que o pacote carrega e o painel, o console, o log e a página web passam ao idioma dele, como sempre passaram. O
+  Core 0 grava primeiro e só mostra a mensagem se a gravação deu certo; se falhou, o painel diz "Error" e o idioma fica
+  como estava. Escolher o inglês estando num pacote continua valendo na hora. O aparelho não reinicia sozinho: um
+  reinício interrompe a medição e os alarmes.
+- **Duas correções menores na mesma tela.** Um aparelho gravado num pacote que não carregou abria a tela numa linha
+  que não existia, sem nada em destaque; agora abre no inglês. O Core 0 recusa uma linha que a tela não lista.
+- **Custo, compilado aqui do zero sobre a be56633d, em 24/10/2026:** o `.bin` cresce 616 B na `pico_w_release`, 624 na
+  `pico_w_test` (sobram 139 B da folga de OTA de 763), 624 na `pico_w_test_https`, 608 na `pico_w_asserts`, 656 na
+  `pico2_w_release` e 624 na `pico_wiretft`; a RAM não muda. A `pico_w_alpha` e a `pico_wire` ficam byte a byte como a
+  `main`, comparadas por sha256. A `pico_w_air` não: a flash dela fica 16 B menor, porque o leitor de pacotes dela é
+  compilado de outro jeito. Não verificado no hardware. A marca d'água do emaranhamento sobe três sítios
+  (`SIMUT_DISPLAY_TFT` em `AppManager_Boot.cpp`, `AppManager_Events.cpp` e `DisplayManager_LangParser.cpp`), que o
+  código que só o painel executa exige e o gate conta.
+- **Testes no host:** 726 casos em 11 suítes, eram 711. Quinze no `native` prendem as decisões da tela Idioma (linhas,
+  linha de abertura, as linhas que o Core 0 aceita, que escolha espera um boot) e a regra do pacote utilizável, cada
+  uma quebrada por uma mutação da função que prende.
+- **O manual** (capítulo 11) descreve a tela com o pacote listado, e a mensagem.
+
+### O tema e o idioma do painel
+
+- **O tema e o idioma pedem a permissão Sistema no Core 0.** As linhas Temas e Idioma já pediam `PERM_SYS_CONFIG`, mas o
+  evento que aplica a escolha chega do núcleo do painel e não era conferido no Core 0: uma conta que perdeu a permissão,
+  ou que foi apagada, com a tela aberta ainda podia gravar um tema ou um idioma. O Core 0 agora recusa o evento antes de
+  mudar, gravar ou registrar qualquer coisa, toca o som de erro, mostra a recusa que as outras ações mostram e registra o
+  código 458 (`APP_UI_PERM_DENIED`). O `tools/check_authz.py` passou a listar, para cada evento do painel, a permissão
+  que ele confere, e o CI reprova um evento que não esteja classificado. Quatro eventos ainda gravam sem a conferência
+  (os sons, as duas calibrações do toque, o alinhamento da tela): estão registrados no portão, para uma versão seguinte.
 
 ## v2.11.1 (2026-10-12)
 

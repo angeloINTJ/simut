@@ -12,7 +12,7 @@ carry the same clock code and were not measured. A radio that stops answering is
 Core 0 past the hardware watchdog: it is restarted by the planned path (#266). The language pack's log records carry
 their own tag and codes: they were persisted as `?`, two warnings as "OK" and the pack loaded at boot as a language
 changed through the UI (#283). An alpha or a Wire set to a language other than English names its events on the
-console and in the syslog again: both left the name out.**
+console and in the syslog again: both left the name out. After a boot in English the panel's Idioma screen lists the language pack in `/lang`, which it listed only when the pack was loaded, so a unit left in English had no way back: choosing the pack saves the language, and the pack loads at the next boot. The theme and the language chosen at the panel ask Core 0 for the System permission, as the clock, the setup access point and the accounts already did.**
 
 ### The panel's bus
 
@@ -135,6 +135,44 @@ console and in the syslog again: both left the name out.**
   chapters 14, 16 and 25 say so; their example lines are now the text the device sends (`Login failed`, `Show IP`).
 - Checked in the images, not yet on the rig: the alpha's two lookups returned the address of an empty string and now
   return 0. The seven images that do not build that code are byte-identical.
+
+### English has a way back on the panel
+
+- **After a boot in English, the Idioma screen lists the language pack in `/lang`.** It listed English alone: the
+  screen counted a pack only when it was loaded, and the pack loads only at a boot in another language. A unit that
+  had booted in English had no row to choose, and nothing else could write the language back on a product image (the
+  emergency console has no `language`, and the web has no key for it). The bench of 2026-10-24 found it. The screen
+  now reads the name and the code of the pack at boot and keeps nothing else: no heap, no log record. It lists the file
+  the next boot would load, the first `language_*.lng` by name.
+- **Choosing the pack saves the language and says "Reboot required".** The panel stays in English until the next boot,
+  where the pack loads and the panel, the console, the log and the web page change to its language, as they always
+  did. Core 0 saves first and shows the message only if the save succeeded; if it failed, the panel says "Error" and
+  the language stays as it was. Choosing English from a pack still applies at once. The unit does not restart by
+  itself: a restart stops the monitoring and the alarms.
+- **Two smaller fixes in the same screen.** A unit saved in a pack that did not load opened the screen on a row that
+  was not there, with nothing highlighted; it opens on English. Core 0 refuses a row the screen does not list.
+- **Cost, built here from scratch on be56633d, 2026-10-24:** the `.bin` grows 616 B on `pico_w_release`, 624 on
+  `pico_w_test` (139 B of OTA headroom left of 763), 624 on `pico_w_test_https`, 608 on `pico_w_asserts`, 656 on
+  `pico2_w_release` and 624 on `pico_wiretft`; RAM is unchanged. `pico_w_alpha` and `pico_wire` are byte for byte
+  main's, compared by sha256. `pico_w_air` is not: its flash is 16 B smaller, because its pack loader is compiled
+  differently. Not verified on hardware. The feature-sprawl watermark rises by three sites (`SIMUT_DISPLAY_TFT` in
+  `AppManager_Boot.cpp`, `AppManager_Events.cpp` and `DisplayManager_LangParser.cpp`), which code that only the panel
+  runs needs and the gate counts.
+- **Host tests:** 726 cases in 11 suites, up from 711. Fifteen in `native` pin the Idioma screen's decisions (rows,
+  opening row, the rows Core 0 accepts, which choices wait for a boot) and the rule for a usable pack, each broken by a
+  mutation of the function it pins.
+- **The manual** (chapter 11) describes the screen with the pack listed, and the message.
+
+### The panel's theme and language
+
+- **The theme and the language ask for the System permission on Core 0.** The Themes and Idioma rows already asked for
+  `PERM_SYS_CONFIG`, but the event that applies the choice arrives from the panel's core and was not checked on Core 0:
+  an account whose permission was revoked, or that was deleted, while the screen was open could still save a theme or a
+  language. Core 0 now refuses the event before it changes, saves or logs anything, plays the error tone, shows the
+  refusal the other actions show and logs 458 (`APP_UI_PERM_DENIED`). `tools/check_authz.py` now lists, for every panel
+  event, the permission it checks, and CI fails on an event that is not classified. Four events still save without the
+  check (the sounds, the two touch calibrations, the display alignment): they are registered in the gate, for a later
+  release.
 
 ## v2.11.1 (2026-10-12)
 
