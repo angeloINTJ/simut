@@ -590,15 +590,17 @@ static const char DASH_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
            The pack's @WEBDICT answers thm_<code> with the name in its language; a code it has
            no key for (a user's own .thm), the English page, or a firmware that sends no code
            shows the name as the device wrote it. data-i18n lets applyLang( ) relabel the option
-           when /api/lang answers after /api/themes. t( ) is lang.js's: no binding in here may
-           be named t. tools/test_webui_theme_names.py runs this part under node, as written
-           and minified. */
+           when /api/lang answers after /api/themes. data-en holds the device's English the way
+           applyLang( ) keeps it (escaped HTML, escaped again for the attribute), so an option
+           born translated, when /api/lang answered first, is not taken for English by the next
+           applyLang( ). t( ) is lang.js's: no binding in here may be named t.
+           tools/test_webui_theme_names.py runs this part under node, as written and minified. */
         function themeOptions(themes) {
             let html = '';
             themes.forEach(th => {
                 const c = th.code ? String(th.code).replace(/[^A-Za-z0-9_]/g, '_') : '';
                 const name = c ? t('thm_' + c, th.name) : th.name;
-                const attr = c ? ` data-i18n="thm_${c}"` : '';
+                const attr = c ? ` data-i18n="thm_${c}" data-en="${escAttr(escHtml(th.name))}"` : '';
                 html += `<option value="${escHtml(th.id)}"${attr}>${escHtml(name)}</option>`;
             });
             return html;

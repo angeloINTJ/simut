@@ -272,8 +272,8 @@ jobs:
       # language: GET /api/themes sends {"id","code","name"} with the name in
       # English, and the page asks the pack's @WEBDICT for thm_<code>. The pure
       # part that builds the options is pulled out of WebUI.h and run under node,
-      # as written and minified, with lang.js's own t( ), escHtml( ) and
-      # applyLang( ); the data checks hold every stock code to a key in both
+      # as written and minified, with lang.js's own t( ), escHtml( ), escAttr( )
+      # and applyLang( ); the data checks hold every stock code to a key in both
       # packs and data/themes to the generator's names.
       - name: Web UI theme names (as written and minified)
         run: python3 tools/test_webui_theme_names.py

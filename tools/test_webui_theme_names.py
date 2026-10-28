@@ -14,8 +14,8 @@ the source the build compresses, and runs the cases below against it twice
 under node: as written, and as the build's own minifier leaves it. The
 minifier has deleted shipped code before and reported success
 (tools/test_webui_minify.py tells that story), so passing as written is not
-enough. The pure part runs together with the t( ), escHtml( ) and applyLang( )
-of lang.js (LANG_JS in WebUI.h), the script the page loads, so the cases
+enough. The pure part runs together with the t( ), escHtml( ), escAttr( ) and
+applyLang( ) of lang.js (LANG_JS in WebUI.h), the script the page loads, so the cases
 exercise what the browser runs: the key lookup, the escaping and the
 relabelling of an <option>.
 
@@ -48,7 +48,7 @@ PACKS = [REPO / "data" / "lang" / "language_pt-BR.lng",
          REPO / "data" / "lang" / "language_es-ES.lng"]
 START = "/* th: the pure part"
 END = "/* th: end of the pure part */"
-HELPERS = ("t", "escHtml", "applyLang")
+HELPERS = ("t", "escHtml", "escAttr", "applyLang")
 NAME_MAX = 23  # a theme's @NAME is kept in 24 B: 23 characters and the NUL
 
 # "Simut Default" (simut_def) is compiled into every image and is the one stock
@@ -113,6 +113,14 @@ CASES = [
      "dict": {"thm_cafe": "Café com leite"},
      "options": [["thm_cafe", "Coffee with milk"], ["thm_meu_tema", "Meu tema"]],
      "after_pt": ["Café com leite", "Meu tema"], "after_en": ["Coffee with milk", "Meu tema"]},
+    {"id": "h2", "title": "options born translated (dictionary first) or translated later go back to the device's English, a name with & < > whole",
+     "kind": "order",
+     "dict": {"thm_cafe": "Café com leite"},
+     "rows": [{"id": 3, "code": "cafe", "name": "Coffee with milk"},
+              {"id": 12, "code": "meu_tema", "name": "Meu tema"},
+              {"id": 13, "code": "mix", "name": "A <b> & c"}],
+     "after_pt": ["Café com leite", "Meu tema", "A &lt;b&gt; &amp; c"],
+     "after_en": ["Coffee with milk", "Meu tema", "A &lt;b&gt; &amp; c"]},
 ]
 
 # What node does not have: the page's storage, its DOM (only what t( ), escHtml( )
@@ -155,6 +163,22 @@ function __opt(key, html) {
              setAttribute: function (n, v) { attrs[n] = String(v); },
              hasAttribute: function (n) { return Object.prototype.hasOwnProperty.call(attrs, n); } };
 }
+function __attrDecode(s) { return s.replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&'); }
+function __dom(html) {
+    var out = [], re = /<option\b([^>]*)>([\s\S]*?)<\/option>/g, m;
+    while ((m = re.exec(html))) {
+        var attrs = {}, ar = /([\w-]+)="([^"]*)"/g, a, state = m[2];
+        while ((a = ar.exec(m[1]))) attrs[a[1]] = __attrDecode(a[2]);
+        out.push((function (attrs, state) { return { tagName: 'OPTION',
+             get innerHTML() { return state; }, set innerHTML(v) { state = String(v); },
+             get textContent() { return state.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&'); },
+             set textContent(v) { state = String(v).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); },
+             getAttribute: function (n) { return Object.prototype.hasOwnProperty.call(attrs, n) ? attrs[n] : null; },
+             setAttribute: function (n, v) { attrs[n] = String(v); },
+             hasAttribute: function (n) { return Object.prototype.hasOwnProperty.call(attrs, n); } }; })(attrs, state));
+    }
+    return out.filter(function (e) { return e.hasAttribute('data-i18n'); });
+}
 function __j(o) { return JSON.stringify(o); }
 __cases.forEach(function (c) {
     var fails = [];
@@ -169,6 +193,28 @@ __cases.forEach(function (c) {
             localStorage.setItem('simut_lang', 'en'); applyLang();
             var en = __els.map(function (e) { return e.innerHTML; });
             if (__j(en) !== __j(c.after_en)) fails.push('on the English page the options read ' + __j(en) + ', wanted ' + __j(c.after_en));
+        } else if (c.kind === 'order') {
+            ['dict-first', 'themes-first'].forEach(function (order) {
+                Object.keys(__store).forEach(function (k) { delete __store[k]; });
+                __els = []; dict.pt = {};
+                localStorage.setItem('simut_lang', 'pt');
+                var check = function (label, want) {
+                    var got = __els.map(function (e) { return e.innerHTML; });
+                    if (__j(got) !== __j(want)) fails.push(order + ', ' + label + ': the options read ' + __j(got) + ', wanted ' + __j(want));
+                };
+                if (order === 'dict-first') {
+                    dict.pt = c.dict; applyLang();                                     /* lang.js loaded the dictionary at start */
+                    __els = __dom(themeOptions(JSON.parse(__j(c.rows))));              /* loadThemes( ) at DOMContentLoaded */
+                    check('as created', c.after_pt);
+                } else {
+                    __els = __dom(themeOptions(JSON.parse(__j(c.rows))));              /* /api/themes answered first */
+                    check('as created', c.after_en);
+                    dict.pt = c.dict; applyLang(); check('after the dictionary arrived', c.after_pt);
+                }
+                [['en', c.after_en], ['pt', c.after_pt], ['en', c.after_en]].forEach(function (st) {
+                    localStorage.setItem('simut_lang', st[0]); applyLang(); check('after switching to ' + st[0], st[1]);
+                });
+            });
         } else {
             if (c.lang) localStorage.setItem('simut_lang', c.lang);
             var calls = [];
@@ -274,7 +320,7 @@ def wiring(src: str) -> bool:
                    "loadThemes( ) must call the tested function, not carry its own loop"))
     _, lost = helpers(src)
     page = page_of(src, a) if a >= 0 else None
-    checks.append(("W6 the pure part is in DASH_PAGE, which loads lang.js, where t( ), escHtml( ) and applyLang( ) are defined",
+    checks.append(("W6 the pure part is in DASH_PAGE, which loads lang.js, where t( ), escHtml( ), escAttr( ) and applyLang( ) are defined",
                    page == "DASH_PAGE" and '<script src="/lang.js">' in block(src, "DASH_PAGE") and not lost,
                    f"the pure part is in {page}; missing from LANG_JS: {', '.join(lost) or 'nothing'}; "
                    f"the harness runs the helpers of the script this page loads"))
