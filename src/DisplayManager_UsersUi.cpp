@@ -14,8 +14,8 @@
  * two units, GCC inlines these helpers into some of their callers. The commit that moved this unit (S10c D6a) lists the functions and the
  * byte deltas; the decoded argument that the behaviour is unchanged is in docs/analysis/UI_DRIVERS.md.
  */
-
 #include "DisplayManager.h"
+#include "ui/original/PinKeypadLayout.h"   /* the keypad cards, the popup card and the dots: the original's alone, they left PinKeypad.h in S10c, C8; early, where PinKeypad.h defined them */
 #include "DisplayManager_Fonts.h"
 #include "UiWidgets.h"
 #include "SystemDefs_Validate.h"     /* PIN_MIN_LEN / PIN_MAX_LEN */

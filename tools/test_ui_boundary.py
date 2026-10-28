@@ -525,6 +525,10 @@ def original_cases():
     expect("cross-driver: everything under src/ui/original/ is the original's",
            {ANGULO_UNIT: angulo('#include "../original/UiOriginal.h"')}, hit)
     expect("cross-driver: ... spelled from src/ too", {ANGULO_UNIT: angulo('#include "ui/original/UiOriginal.h"')}, hit)
+    expect("cross-driver: ... the PIN keypad's layout is one of them (S10c, C8: the Angulo links none of it)",
+           {ANGULO_UNIT: angulo('#include "../original/PinKeypadLayout.h"')}, hit)
+    expect("cross-driver: ... the PIN keypad's layout spelled from src/ too",
+           {ANGULO_UNIT: angulo('#include "ui/original/PinKeypadLayout.h"')}, hit)
     expect("cross-driver: the core and the original may include what is under src/ui/original/",
            {SURFACE: surface('#include "ui/original/UiOriginal.h"')}, [])
 
