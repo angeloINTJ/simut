@@ -12,7 +12,7 @@ código de clock e não foram medidas. Um rádio que para de responder não é m
 Core 0 além do watchdog de hardware: ele é reiniciado pelo caminho planejado (#266). Os registros de log do pacote de
 idioma têm tag e códigos próprios: eram gravados como `?`, dois avisos como "OK" e o pacote carregado no boot como um
 idioma trocado pela interface (#283). Um Alpha ou um Wire num idioma que não é o inglês volta a dar nome aos eventos
-no console e no syslog: os dois saíam sem o nome. Depois de um boot em inglês a tela Idioma do painel lista o pacote de idioma de `/lang`, que ela só listava quando o pacote estava carregado, e um aparelho deixado em inglês não tinha volta: escolher o pacote grava o idioma, e o pacote carrega no próximo boot.**
+no console e no syslog: os dois saíam sem o nome. Depois de um boot em inglês a tela Idioma do painel lista o pacote de idioma de `/lang`, que ela só listava quando o pacote estava carregado, e um aparelho deixado em inglês não tinha volta: escolher o pacote grava o idioma, e o pacote carrega no próximo boot. O tema e o idioma escolhidos no painel pedem a permissão Sistema ao Core 0, como o relógio, o AP de configuração e as contas já faziam.**
 
 ### O barramento do painel
 
@@ -173,6 +173,16 @@ no console e no syslog: os dois saíam sem o nome. Depois de um boot em inglês 
   linha de abertura, as linhas que o Core 0 aceita, que escolha espera um boot) e a regra do pacote utilizável, cada
   uma quebrada por uma mutação da função que prende.
 - **O manual** (capítulo 11) descreve a tela com o pacote listado, e a mensagem.
+
+### O tema e o idioma do painel
+
+- **O tema e o idioma pedem a permissão Sistema no Core 0.** As linhas Temas e Idioma já pediam `PERM_SYS_CONFIG`, mas o
+  evento que aplica a escolha chega do núcleo do painel e não era conferido no Core 0: uma conta que perdeu a permissão,
+  ou que foi apagada, com a tela aberta ainda podia gravar um tema ou um idioma. O Core 0 agora recusa o evento antes de
+  mudar, gravar ou registrar qualquer coisa, toca o som de erro, mostra a recusa que as outras ações mostram e registra o
+  código 458 (`APP_UI_PERM_DENIED`). O `tools/check_authz.py` passou a listar, para cada evento do painel, a permissão
+  que ele confere, e o CI reprova um evento que não esteja classificado. Quatro eventos ainda gravam sem a conferência
+  (os sons, as duas calibrações do toque, o alinhamento da tela): estão registrados no portão, para uma versão seguinte.
 
 ## v2.11.1 (2026-10-12)
 
