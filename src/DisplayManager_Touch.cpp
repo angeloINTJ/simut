@@ -1114,9 +1114,10 @@ void DisplayManager::handleTouch( ) {
  }
  }
  else if (_uiMode == MODE_SETTINGS_LANG) {
- /* Limit interaction to slot 0 when no .lng loaded.
- * Dynamic bound avoids slot 1 "ghost". */
- int activeSlots = _activeLangLoaded ? LANG_COUNT : 1;
+ /* Limit interaction to the rows the screen lists: slot 0, and slot 1 when a
+ * pack is loaded or only listed (display/LangChoice.h). Dynamic bound avoids
+ * slot 1 "ghost". */
+ int activeSlots = langRowsListed(isLangLoaded( ), isLangListed( ));
  if (y >= 40 && y <= 185) {
  int clickedIndex = 0;
  if (y < 80) clickedIndex = 0; else if (y < 118) clickedIndex = 1; else if (y < 156) clickedIndex = 2; else clickedIndex = 3;

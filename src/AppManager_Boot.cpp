@@ -998,12 +998,21 @@ void AppManager::setup( ) {
  _displayMgr->refreshTheme( );
  }
  
- /* Load the .lng pack only when a non-English language is in use:
-  * the EN path serves inline strings and does not need the ~15 KB of
-  * heap the pack occupies. */
+ /* Load the .lng pack only when a non-English language is in use: the EN
+  * path serves inline strings and does not need the heap the pack keeps,
+  * its @DICT: at most LANG_DICT_MAX + 2 = 6,146 B, and 3,294 B with the
+  * shipped pt-BR (@DICT 3,292 B, check_lang_packs.py, 2026-10-24). In English
+  * the panel only LISTS the pack: it reads the name and the code and keeps
+  * nothing on the heap, so the Idioma screen can offer it and the language
+  * has a way back. */
  if (cfg.displayLang != LANG_EN) {
   DisplayManager::findAndLoadLangFile( );
  }
+#if SIMUT_DISPLAY_TFT
+ else {
+  DisplayManager::listLangFile( );
+ }
+#endif
  
  _displayMgr->setLanguage(cfg.displayLang);
  
