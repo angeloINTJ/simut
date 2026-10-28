@@ -542,6 +542,18 @@ publish             = true
 #   release, senao ficaria -DSIMUT_CLI_FULL=0 e =1 na mesma linha.
 #   ota_trust_bench: o rig roda esta imagem e recebe tanto o build local, assinado
 #   pela bancada, quanto a candidata que o CI assina.
+#   custom_fs_pages LICENSE_PAGE (2026-10-28, "Abrir espaco na pico_w_test", escolha do
+#   mantenedor, a mesma do #288 na pico_w_test_https): a imagem assinava 1.040.309 B contra
+#   o teto de OTA de 1.040.384 B, 75 B de folga na main 9f4da77b (763 B no 2075b84e; o #294
+#   e o #295 levaram 688 B), e o feat/ui-drivers, depois do sync com a main, ficava 101 B
+#   acima. A pagina (4.260 B de gz, a LICENSE_PAGE_GZ do nm -S) passa para o LittleFS: o
+#   .bin cai 3.624 B (1.040.068 -> 1.036.444, usado 1.028.036 -> 1.024.412), nao os 4.260
+#   B, porque esta imagem nao servia pagina nenhuma do arquivo e passa a linkar
+#   serveProtectedFsPage( ) (+428 B) e o aviso "Page asset missing" (+212 B de strings em
+#   .rodata). Folga de 3.699 B (assinado 1.036.685 B): ainda menos que um setor, entao o
+#   WARN do portao continua. Suba data/web/license.html.gz para /web/ antes de uma suite
+#   (AGENTS.md, "Gravar firmware"): o web_test_suite.py abre /license e acusa "Page asset
+#   missing" sem ele.
 [profiles.pico_w_test]
 display       = "tft"
 net           = "cyw43"
@@ -565,6 +577,7 @@ syslog        = true
 build_type    = "release"
 publish       = false
 ota_trust_bench = true
+custom_fs_pages = ["LICENSE_PAGE"]
 
 # pico_w_test_https — a unica imagem com CLI completa E servidor TLS. Nao publicada.
 #   Existe porque validar o servidor HTTPS pede duas coisas que nenhuma imagem de campo
@@ -576,7 +589,7 @@ ota_trust_bench = true
 #   DOIS numeros e o teto de OTA e o mais apertado: so ALARMS_PAGE fora deixou o .bin
 #   1.420 B acima do teto de 1.040.384 B mesmo com a regiao cabendo. Sao as duas paginas
 #   que um soak HTTPS menos toca; TEL_PAGE entra por folga (com duas fora o .bin ficava
-#   3.732 B sob o teto, menos de um setor de 4 KiB). Suba data/web/{alarms,files,tel,license}.
+#   3.732 B sob o teto, menos de um setor de 4 KiB). Suba data/web/{alarms,files,telemetry,license}.
 #   html.gz para /web/ antes de uma suite, ou as rotas dao "Page asset missing" (POST
 #   /api/upload, nunca uploadfs). Isenta do teto de OTA desde 2026-10-02 (ota_exempt em
 #   tools/flash_budget.json, B6 do PLANO_STABLE.md). O limite que sobra e o fim do slot do

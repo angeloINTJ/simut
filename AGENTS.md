@@ -149,6 +149,18 @@ hand_release_all
 - `hand RESET` aciona o pino RUN: é reset global do chip, dá boot frio (M0 no
   Air) e restaura os clocks. Serve para recuperar; **não serve de prova** de que
   o caminho do sono funciona (ver §3).
+- **`pico_w_test` e `pico_w_test_https` levam páginas no LittleFS, não na imagem.**
+  O `custom_fs_pages` de `tools/features.toml` tira `LICENSE_PAGE` da primeira
+  (desde 28/10) e, da segunda, também `ALARMS_PAGE`, `FILE_PAGE` e `TEL_PAGE`. O
+  `pio run` deixa o `.gz` de cada uma em `data/web/` (fora do git) e apaga ali o
+  das páginas que o ambiente construído por último leva no firmware: construa por
+  último o que vai gravar. Depois de gravar, envie os arquivos para `/web/` com
+  `POST /api/upload?uploadDir=/web` (campo `file`); a página Arquivos serve na
+  `pico_w_test`, mas na `pico_w_test_https` ela é uma das que faltam. **Nunca**
+  `uploadfs`: formata a partição e leva histórico, logs e `calib.csv`. Sem o
+  arquivo a rota responde 200 com "Page asset missing", e o `web_test_suite.py`
+  (que abre `/license`) reprova a página. Uma atualização por OTA reformata o
+  LittleFS e leva os arquivos embora: envie de novo.
 
 ### O Pico 2 W (RP2350)
 

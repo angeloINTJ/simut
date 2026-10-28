@@ -88,7 +88,7 @@ de recebê-la pelo ar: o aparelho a recusa no stage, na validação e no aplicad
 | `pico_w_air` | 1.035.581 | 4.803 |
 | `pico_w_alpha` | 990.621 | 49.763 |
 | `pico2_w_release` | 1.000.009 | 568.759 |
-| `pico_w_test` | 1.040.485 | -101 |
+| `pico_w_test` | 1.036.853 | 3.531 |
 | `pico_w_asserts` | 1.038.333 | 2.051 |
 | `pico_wire` | 604.537 | 435.847 |
 | `pico_wiretft` | 787.729 | 252.655 |
@@ -109,12 +109,10 @@ de recebê-la pelo ar: o aparelho a recusa no stage, na validação e no aplicad
   de OTA no painel 3,3 KB. A folga da release cabia três telas dessas, ou seis
   A-04.
 - **A `pico_w_test_https` é isenta** (B6): imagem de bancada, gravada pela USB.
-- **A `pico_w_test` está acima do teto neste ramo** (a linha -101 da tabela,
-  medida em 2026-10-28, no sync 6): `check_flash_budget.py pico_w_test` sai com 1,
-  e o job exigido da imagem ficaria vermelho. O mantenedor escolheu em 2026-10-28
-  abrir folga nela servindo a página de licença pelo LittleFS, na `main` (um PR:
-  o `9eb4252c`, ramo `chore/test-image-license-fs`). O próximo sync traz essa
-  mudança, e a linha muda junto.
+- **Histórico da `pico_w_test`:** em 2026-10-28, depois do C1 do sync 6, ela ficou
+  101 B acima do teto (`check_flash_budget.py pico_w_test` saía com 1); o #297, que
+  serve a página de licença dela pelo LittleFS, tirou-a de lá neste merge (sync 6b,
+  2026-10-28), e a linha da tabela é a medida dele.
 - **A folga da `pico2_w_release` é contra o slot, não contra o teto acima.**
   Desde o passo 4 do [OTA_AB_RP2350.md](OTA_AB_RP2350.md) ela atualiza pelo ar
   no outro slot de uma tabela de partições, e o teto dela é esse slot,
