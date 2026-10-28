@@ -12,7 +12,7 @@ código de clock e não foram medidas. Um rádio que para de responder não é m
 Core 0 além do watchdog de hardware: ele é reiniciado pelo caminho planejado (#266). Os registros de log do pacote de
 idioma têm tag e códigos próprios: eram gravados como `?`, dois avisos como "OK" e o pacote carregado no boot como um
 idioma trocado pela interface (#283). Um Alpha ou um Wire num idioma que não é o inglês volta a dar nome aos eventos
-no console e no syslog: os dois saíam sem o nome. Depois de um boot em inglês a tela Idioma do painel lista o pacote de idioma de `/lang`, que ela só listava quando o pacote estava carregado, e um aparelho deixado em inglês não tinha volta: escolher o pacote grava o idioma, e o pacote carrega no próximo boot. O tema e o idioma escolhidos no painel pedem a permissão Sistema ao Core 0, como o relógio, o AP de configuração e as contas já faziam.**
+no console e no syslog: os dois saíam sem o nome. Depois de um boot em inglês a tela Idioma do painel lista o pacote de idioma de `/lang`, que ela só listava quando o pacote estava carregado, e um aparelho deixado em inglês não tinha volta: escolher o pacote grava o idioma, e o pacote carrega no próximo boot. O tema e o idioma escolhidos no painel pedem a permissão Sistema ao Core 0, como o relógio, o AP de configuração e as contas já faziam. O seletor de temas da página web mostra os temas de fábrica no idioma do aparelho: `GET /api/themes` manda o código de cada tema, a página traduz por ele, e os temas de fábrica têm nome em inglês na origem.**
 
 ### O barramento do painel
 
@@ -183,6 +183,33 @@ no console e no syslog: os dois saíam sem o nome. Depois de um boot em inglês 
   código 458 (`APP_UI_PERM_DENIED`). O `tools/check_authz.py` passou a listar, para cada evento do painel, a permissão
   que ele confere, e o CI reprova um evento que não esteja classificado. Quatro eventos ainda gravam sem a conferência
   (os sons, as duas calibrações do toque, o alinhamento da tela): estão registrados no portão, para uma versão seguinte.
+
+### Os nomes dos temas na página web
+
+- **O seletor de temas acompanha o idioma do aparelho.** `GET /api/themes` agora manda `{"id","code","name"}`; o
+  código é o `@CODE` do tema (`nordic`, `cafe`, ...). A página pede ao pacote de idioma ativo a chave `thm_<código>` e
+  mostra o nome que o aparelho mandou quando o pacote não a tem: um tema seu, a página em inglês, um dicionário que
+  ainda não chegou, um firmware que não manda código. Os onze temas de fábrica têm a chave nos pacotes pt-BR e es-ES
+  (`@WEBDICT` de 42.038 para 42.373 B e de 43.773 para 44.107 B, medidos em 28/10/2026); o "Simut Default", compilado,
+  não tem chave e aparece como sempre apareceu. Um tema seu que reutilize um `@CODE` de fábrica recebe a tradução de
+  fábrica.
+- **Os temas de fábrica têm nome em inglês na origem**: Nordic, Industrial graphite, Thermal camera, Coffee with milk,
+  High contrast, Light quartz, Unimed light, Emerald, Unimed dark e Night shift ("Ubuntu" não muda). Um aparelho que
+  já tem os `.thm` fica com eles como instalados: a página web traduz os códigos deles em pt-BR e es-ES e mostra os
+  nomes instalados na página em inglês, então um nome antigo em português continua em português ali, inclusive o de um
+  `.thm` restaurado de um `.bkp`. Uma instalação nova traz os nomes em inglês, e o painel original desenha o `@NAME`
+  como está escrito, então os mostra em inglês também num aparelho pt-BR ou es-ES (decisão do mantenedor em
+  28/10/2026: sem tradução no painel); `theme list`, o registro de log `CFG_THEME_APPLIED` e a mensagem do console de
+  `theme <id>` também dão os nomes de fábrica em inglês. O painel Ângulo não muda.
+- **Os nomes em espanhol são uma proposta**, até que um falante nativo os revise.
+- **Por baixo.** O `tools/test_webui_theme_names.py` (CI) roda o montador de opções da página no node, como escrito e
+  minificado, com o `t( )`, o `escHtml( )` e o `applyLang( )` do próprio `lang.js`, e prende cada código de fábrica a
+  uma chave nos dois pacotes. Ele achou que os `data/themes/*.thm` não são o que o `tools/gen_theme_collection.py`
+  escreve: o 2137ea15 (23/08/2026) mudou as cores do alarme de limite nos arquivos e no `src/Themes.cpp` e não no
+  gerador, cujas regras de contraste as cores novas reprovam (36 pares), então uma regeneração deixaria o alarme de
+  todo tema de fábrica vermelho de novo. Os nomes novos entraram no gerador e, por um script, na linha `@NAME` dos
+  arquivos; o teste confere nomes e códigos e imprime os campos de cor que diferem. Sincronizar o gerador e suas
+  regras está em aberto.
 
 ## v2.11.1 (2026-10-12)
 
