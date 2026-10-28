@@ -46,12 +46,12 @@
 namespace ua {
 
 // The most bytes an @ANGULO section may hold; a section over it is refused and every text shows its English. The gate (tools/check_lang_packs.py)
-// reads this line, and holds both packs to it. Measured on 2026-10-22 (check_ui_texts.py on 549f4253): 408 distinct texts, 6,333 B of pt-BR
-// UTF-8; a line is its text plus 10 B (8 hex digits, a space, the newline), so the section is 10,413 B, and the table textosCarregar( ) builds
-// from it 9,197 B (an 8 B header, 6 B an entry, each text with its NUL). 16,384 B is 1.57 times the section: room for the texts that are still
-// to be written (es-ES is longer than pt-BR) and the gate warns at 95 %, while a hostile pack cannot make the device hold more than this plus
-// the 8 B header. Offsets into the text area are 16 bits, so the bound stays under 65,536. Measured again on 2026-10-23, every screen converted
-// (S10c B5b-b): 373 texts, the sections 9,341 B (pt-BR) and 9,590 B (es-ES), the tables 8,230 and 8,479 B; 16,384 B is 1.71 times the larger.
+// reads this line, and holds both packs to it. A line is its text plus 10 B (8 hex digits, a space, the newline); the table textosCarregar( ) builds from the section takes an 8 B header,
+// 6 B an entry and each text with its NUL. B2a projected on 2026-10-22 (check_ui_texts.py on 549f4253) 408 distinct texts, 6,333 B of pt-BR UTF-8: a section of 10,413 B and a table of 9,197 B, so 16,384 B was 1.57 times the section:
+// room for the texts that are still to be written (es-ES is longer than pt-BR); the gate warns at 95 %, while a hostile pack cannot make the device hold more than this plus the 8 B header.
+// Offsets into the text area are 16 bits, so the bound stays under 65,536. Measured on 2026-10-23, every screen converted (S10c B5b-b): 373 texts, the sections 9,341 B (pt-BR) and 9,590 B (es-ES),
+// the tables 8,230 and 8,479 B, 16,384 B 1.71 times the larger. Measured on 2026-10-28 (tools/check_lang_packs.py for the sections; python3 tools/tft_ui/host_telas.py --idioma pt menus, or es, for the tables in RAM):
+// 376 texts, the sections 9,536 B (pt-BR) and 9,797 B (es-ES), the tables 8,416 and 8,677 B; 16,384 B is 1.67 times the larger.
 constexpr size_t UA_TEXTOS_MAX = 16384;
 static_assert( UA_TEXTOS_MAX < 0x10000 );
 
