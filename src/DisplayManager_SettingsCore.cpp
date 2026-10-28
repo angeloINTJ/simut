@@ -1,6 +1,6 @@
 /**
  * @file DisplayManager_SettingsCore.cpp
- * @brief The settings screens' entry points and working state: the core share of DisplayManager_Settings.cpp, moved word for word in S10a (docs/analysis/UI_DRIVERS.md).
+ * @brief The settings screens' entry points and working state: the core share of DisplayManager_Settings.cpp, moved word for word in S10a, plus showApConfirm( ), which S10c D2 moved here (docs/analysis/UI_DRIVERS.md section 2.18).
  */
 
 #include "DisplayManager.h"
@@ -153,10 +153,10 @@ void DisplayManager::showMuteConfirm( ) {
 
 #if SIMUT_NET_WIFI   /* a wired build has no setup AP to ask about */
 /* Starting the setup AP takes the device off the LAN for up to 15 minutes, so
- * it asks first — the same two-button screen the Global Mute confirmation
- * uses, and the same hardcoded EN/PT strings, which is the rule this file
- * already follows for confirmations (the TFT renders ASCII only, and the
- * es-ES pack has 111 B left of its resident ceiling). */
+ * it asks first. The original's screen (drawApConfirm( ) in DisplayManager_Settings.cpp)
+ * is the two-button one the Global Mute confirmation uses, with hardcoded EN/PT strings
+ * (the rule of the original's confirmations: the TFT renders ASCII only); since S10c D7
+ * the Ângulo draws its own VmDialogo from UA_TXT( ) texts (ui/angulo/DisplayManager_UiA.cpp). */
 void DisplayManager::showApConfirm( ) {
  mutex_enter_blocking(&_stateMutex);
  _uiMode = MODE_CONFIRM_AP;

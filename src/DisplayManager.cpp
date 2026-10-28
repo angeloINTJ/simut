@@ -57,7 +57,7 @@
  * The opening is the pack's own @WEBDICT strings — the very sentences the page
  * shows — so there is no second translation of them to drift. They are read
  * from flash once per language, on Core 0 when the screen opens, into the
- * buffer below; Core 1 draws it and then LICENSE_TEXT_EN straight from flash,
+ * buffer below; Core 1 draws it (DisplayManager_LicenseUi.cpp since S10c D4b-2) and then LICENSE_TEXT_EN straight from flash,
  * as one text (TextWrap.h), folding each word to the CP437 font as it goes
  * (Utf8Fold.h). The buffer holds 768 B: the pt-BR opening is 614 B and the
  * es-ES one 623 B (measured 2026-10-02), and tools/check_lang_packs.py fails a

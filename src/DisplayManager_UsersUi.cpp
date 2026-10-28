@@ -1,6 +1,6 @@
 /**
  * @file DisplayManager_UsersUi.cpp
- * @brief The user and PIN screens' draws and the panel's touch hand-off: the original share of DisplayManager_Users.cpp, moved word for word in S10c D6a (docs/analysis/UI_DRIVERS.md).
+ * @brief The user and PIN screens' draws and the panel's touch hand-off: the original share of DisplayManager_Users.cpp, moved word for word in S10c D6a (docs/analysis/UI_DRIVERS.md section 2.18).
  *
  * The PIN keypad (drawPinScreen( ) and its cards), the alarm-sensor menu, the maintenance entry, the user list, editor and delete
  * confirmation, the panel message and the PIN policy screen are drawn only by the original UI (ui/original/UiOriginal.h), and
@@ -12,7 +12,7 @@
  *
  * The move changes the products' compiled code, not only its place: with the callers of PinKb::orderedFace, clampPinPolicy and maxLenFor in
  * two units, GCC inlines these helpers into some of their callers. The commit that moved this unit (S10c D6a) lists the functions and the
- * byte deltas; the decoded argument that the behaviour is unchanged is in docs/analysis/UI_DRIVERS.md.
+ * byte deltas; the decoded argument that the behaviour is unchanged is in docs/analysis/UI_DRIVERS.md section 2.18.
  */
 #include "DisplayManager.h"
 #include "ui/original/PinKeypadLayout.h"   /* the keypad cards, the popup card and the dots: the original's alone, they left PinKeypad.h in S10c, C8; early, where PinKeypad.h defined them */
