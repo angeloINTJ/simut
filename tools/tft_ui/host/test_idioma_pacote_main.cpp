@@ -40,8 +40,9 @@ class DisplayManager {
   // what the pieces call, and records
   bool isLangLoaded( ) const { return _activeLangLoaded; }
   bool isLangListed( ) const { return listado; }
-  const char *getListedLangName( ) const { return _activeLang.name; }
-  const char *getListedLangCode( ) const { return _activeLang.code; }
+  // the firmware's own text, accessor for accessor (src/DisplayManager_LangParser.cpp): the pack's name and code only while it is listed, an empty string otherwise. test_idioma_pacote.py compares the two bodies and refuses a difference
+  const char *getListedLangName( ) const { return isLangListed( ) ? _activeLang.name : ""; }
+  const char *getListedLangCode( ) const { return isLangListed( ) ? _activeLang.code : ""; }
   bool acceptTouch( uint8_t zona ) {
     if ( nZonas < 8 ) zonas[nZonas] = zona;
     nZonas++;

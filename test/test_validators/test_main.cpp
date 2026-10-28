@@ -5556,9 +5556,6 @@ void test_offset_step_leaves_a_value_beyond_the_end_alone(void) {
     assert_offset_step(5, +1, 5, false);
 }
 
-/* English alone until a pack is loaded, then English and the pack, however many that is (2 today, 3 for a case that no constant can pass). The arms swapped,
- * a constant 1, a constant 2, a constant count and a floor of 0 each fail. */
-
 /* The ramp of a limit's arrow. At the top of each arm (0, 2000, 4000 and 6000 ms) the arm below still answers: `>=` at any threshold, two arms swapped and an arm dropped fail here. */
 void test_limit_step_mag_holds_each_arm_up_to_its_threshold(void) {
     TEST_ASSERT_EQUAL_FLOAT(0.1f, limitStepMag(0));

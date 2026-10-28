@@ -15,6 +15,11 @@ The touch site is not braced, so it has its own cutter, which refuses to run whe
 actApplyLang( ) or without Back's arm: it never cuts a smaller block (its controls are below). Then the instrument is bitten: one program per mutant of the live file (the draw, the touch, or the mark
 turned back to what they read before #294) must exit 1.
 
+The stand-in's two accessors, getListedLangName( ) and getListedLangCode( ), are the firmware's own text (src/DisplayManager_LangParser.cpp: the pack's name and code only while it is listed, an empty string
+otherwise). A stand-in that returned the fields bare would pass every case below, because the cases set them only when the pack is listed, so the body of each accessor is compared as text between that file and
+the stand-in (acessores_amarrados( ): comments out, whitespace apart, each found exactly once on both sides), and the comparison is bitten as the touch cutter is: the firmware's text, and the stand-in's, turned
+into each of the things in CONTROLES_ACESSORES, which the comparison must report.
+
 Usage: python3 tools/tft_ui/test_idioma_pacote.py   exit 0 when all hold, 1 when not, 2 when it cannot build.
 """
 import concurrent.futures
@@ -36,6 +41,7 @@ MAIN = HERE / 'host' / 'test_idioma_pacote_main.cpp'
 I18N = ROOT / 'src' / 'DisplayManager_i18n.cpp'
 EVENTS = ROOT / 'src' / 'AppManager_Events.cpp'
 RECORDS = ROOT / 'src' / 'SystemDefs_Records.h'
+LANGPARSER = ROOT / 'src' / 'DisplayManager_LangParser.cpp'
 
 CASOS = []
 
@@ -276,6 +282,35 @@ def fontes_amarradas(events, records):
     return p
 
 
+ACESSORES = ('getListedLangName', 'getListedLangCode')   # the two accessors the stand-in DisplayManager of the host program answers as the firmware does
+
+
+def corpo_do_acessor(limpo, nome, qualificado):
+    """The body of the one definition of the accessor `nome` in `limpo` (no comments), from its `{` to its closing `}`, whitespace taken out; None when the text holds it zero times, several times, or only as a
+    declaration. `qualificado`: the firmware's `DisplayManager::nome( )`, otherwise a member of the stand-in's class."""
+    d = definicao(limpo, rf'^[^\n;{{}}()]*\b{"DisplayManager::" if qualificado else ""}{nome}\s*\(')
+    if d is None:
+        return None
+    texto = limpo[d[0]:d[1]]
+    return re.sub(r'\s+', '', texto[texto.index('{'):])
+
+
+def acessores_amarrados(real, standin):
+    """[problem]: the stand-in DisplayManager of the host program answers getListedLangName( ) and getListedLangCode( ) as the firmware's own accessors do (src/DisplayManager_LangParser.cpp): the pack's name and code
+    only while it is listed. The body of each, comments out and whitespace apart, has to be the same text on both sides, and each has to be found exactly once on both."""
+    p = []
+    limpo_real, limpo_standin = apaga_comentarios(real), apaga_comentarios(standin)
+    for nome in ACESSORES:
+        a, b = corpo_do_acessor(limpo_real, nome, True), corpo_do_acessor(limpo_standin, nome, False)
+        if a is None:
+            p.append(f'DisplayManager_LangParser.cpp: DisplayManager::{nome}( ) was not found exactly once, as a definition')
+        if b is None:
+            p.append(f'test_idioma_pacote_main.cpp: {nome}( ) was not found exactly once, as a definition in the stand-in')
+        if a is not None and b is not None and a != b:
+            p.append(f'{nome}( ): the firmware\'s body is {a} and the stand-in\'s is {b}')
+    return p
+
+
 def compila(src, obj, inc, estrito):
     r = subprocess.run(['g++', *inc, *(['-Wall', '-Wextra', '-Werror'] if estrito else ['-w']), '-c', str(src), '-o', str(obj)], capture_output=True, text=True)
     return r.returncode, r.stderr
@@ -311,6 +346,19 @@ MUTANTES = [
 ]
 
 
+# The controls of the accessors' tie: (what the text is turned into, the side it is turned on, the text to find there exactly once, what it becomes, a word that the problem reported must hold). The tie must report each.
+CONTROLES_ACESSORES = [
+    ("the firmware's name accessor without its guard", 'real', 'isLangListed( ) ? _activeLang.name : ""', '_activeLang.name', 'body is'),
+    ("the firmware's code accessor without its guard", 'real', 'isLangListed( ) ? _activeLang.code : ""', '_activeLang.code', 'body is'),
+    ("the firmware's name accessor guarded by _activeLangLoaded (the shape before #294)", 'real', 'isLangListed( ) ? _activeLang.name : ""', '_activeLangLoaded ? _activeLang.name : ""', 'body is'),
+    ("the firmware's code accessor answering the name", 'real', 'isLangListed( ) ? _activeLang.code : ""', 'isLangListed( ) ? _activeLang.name : ""', 'body is'),
+    ("the firmware's name accessor with a fallback that is not empty", 'real', 'isLangListed( ) ? _activeLang.name : ""', 'isLangListed( ) ? _activeLang.name : "en"', 'body is'),
+    ("the firmware's code accessor gone (renamed)", 'real', 'DisplayManager::getListedLangCode( )', 'DisplayManager::getListedCode( )', 'not found exactly once'),
+    ("the stand-in's name accessor without its guard (the text before C7)", 'standin', 'isLangListed( ) ? _activeLang.name : ""', '_activeLang.name', 'body is'),
+    ("the stand-in's code accessor without its guard (the text before C7)", 'standin', 'isLangListed( ) ? _activeLang.code : ""', '_activeLang.code', 'body is'),
+]
+
+
 def main():
     gfx = find_gfx()
     if not gfx:
@@ -319,6 +367,20 @@ def main():
     menus = MENUS_GLUE.read_text(encoding='utf-8')
     i18n = I18N.read_text(encoding='utf-8')
     caso('the stand-in\'s two assumptions hold in the source (Core 0 opens the screen through showSettingsLang( ); the language ids are 0, 1, 2)', fontes_amarradas(EVENTS.read_text(encoding='utf-8'), RECORDS.read_text(encoding='utf-8')))
+    parser = LANGPARSER.read_text(encoding='utf-8')
+    standin = MAIN.read_text(encoding='utf-8')
+    caso('the stand-in\'s getListedLangName( ) and getListedLangCode( ) are the firmware\'s text (src/DisplayManager_LangParser.cpp): the pack\'s name and code only while it is listed', acessores_amarrados(parser, standin))
+    mal = []
+    for nome, lado, velho, novo, palavra in CONTROLES_ACESSORES:
+        texto = parser if lado == 'real' else standin
+        if texto.count(velho) != 1:
+            mal.append(f'{nome}: the text is not on the {lado} side exactly once: {velho!r}')
+            continue
+        mutante = texto.replace(velho, novo)
+        achados = acessores_amarrados(mutante, standin) if lado == 'real' else acessores_amarrados(parser, mutante)
+        if not any(palavra in a for a in achados):
+            mal.append(f'{nome}: the tie reported {achados or "nothing"}, expected a problem holding {palavra!r}')
+    caso(f'control: the accessors\' tie reports the firmware\'s text, or the stand-in\'s, turned into any of {len(CONTROLES_ACESSORES)} things (a guard dropped or changed, a field swapped, a fallback that is not empty, an accessor gone)', mal)
     pecas, falta = recorta(menus, i18n)
     caso('the five pieces are cut out of the live files (the unbraced touch case by its own cutter)', falta or (['expected five pieces, got ' + str(sorted(pecas))] if len(pecas) != 5 else []))
     # the touch cutter refuses what it cannot cut whole
