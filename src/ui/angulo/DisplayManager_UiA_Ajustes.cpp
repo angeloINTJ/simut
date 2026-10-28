@@ -41,7 +41,7 @@ namespace {
 
 /* Minutes left in a slot's maintenance window, 0 when closed, rounded up: the
  * same arithmetic as the old screen's static helper
- * (DisplayManager_Users.cpp:656-662), which a static function cannot lend. */
+ * (maintMinutesLeft( ), DisplayManager_UsersUi.cpp:291-297 of 2026-10-28), which a static function cannot lend. */
 uint32_t minutosRestantes( const SystemConfig *cfg, int slot ) {
   if ( !cfg || slot < 0 || slot >= MAX_SENSORS ) return 0;
   const uint32_t now = (uint32_t)time( nullptr );
@@ -114,7 +114,7 @@ bool DisplayManager::uaMontarAjustes( UaQuadro &q ) {
       return true;
     }
     case MODE_SETTINGS_MAINT: {
-      /* drawMaintEntry( ) (DisplayManager_Users.cpp:756-830) says what is open from the
+      /* drawMaintEntry( ) (DisplayManager_UsersUi.cpp:377-453 of 2026-10-28) says what is open from the
        * clock at the moment it draws, not from a label painted on the way in
        * (the stale-label trap of pin_usuarios_alarmes.md §19.2): so does this. */
       const SensorRecord *rec = ( _sysConfigPtr && _maintSlot >= 0 && _maintSlot < MAX_SENSORS ) ? &_sysConfigPtr->sensors[_maintSlot] : nullptr;
@@ -166,7 +166,7 @@ bool DisplayManager::uaMontarAjustes( UaQuadro &q ) {
     }
     case MODE_SETTINGS_PIN_POLICY: {
       /* The copy the editor works on, taken by showPinPolicy( )
-       * (DisplayManager_Users.cpp:1235-1241): the length, the keypad and the
+       * (DisplayManager_Users.cpp:559-566 of 2026-10-28): the length, the keypad and the
        * alphabet. The ceiling is the chosen keypad's (PinKb::maxLenFor( )), the
        * floor PinKb::PIN_LEN_MIN. */
       VmPoliticaPin &vm = uaVm<VmPoliticaPin>( );

@@ -343,7 +343,7 @@
  }
  else if (handleTouchPanelV24(x, y)) {
  /* v24: PIN keypad, per-sensor actions, maintenance, users, result screen —
-  * DisplayManager_Users.cpp. */
+  * DisplayManager_UsersUi.cpp. */
  }
  else if (_uiMode == MODE_SETTINGS_MAIN) {
  if (y >= 40 && y <= 185) {

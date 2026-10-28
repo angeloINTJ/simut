@@ -4,10 +4,10 @@
  *        (src/DisplayManager_Ticks.h), which render( ), drawAlarmEdit( ), drawTopBar( ) and the drivers' passes call.
  *        Included LAST, and only, by the translation units that call a hook or a tick, or that take the core's touch actions
  *        (DisplayManager.cpp, DisplayManager_CalibrationCore.cpp, DisplayManager_Dashboard.cpp, DisplayManager_Ota.cpp, DisplayManager_OtaCore.cpp, DisplayManager_Panel.cpp,
- *        DisplayManager_Render.cpp, DisplayManager_Settings.cpp, DisplayManager_SettingsCore.cpp, DisplayManager_Touch.cpp and DisplayManager_Users.cpp): about fifty other units include DisplayManager.h and gain no
+ *        DisplayManager_Render.cpp, DisplayManager_Settings.cpp, DisplayManager_SettingsCore.cpp, DisplayManager_Touch.cpp and DisplayManager_UsersUi.cpp): about fifty other units include DisplayManager.h and gain no
  *        header from this. A tick leans on the hook definitions (tickAlarmFlash( ) calls uiChanged( )), so a unit that takes the
- *        ticks takes this header, not DisplayManager_Ticks.h alone; so does a core unit that takes DisplayManager_Actions.h
- *        (DisplayManager_Touch.cpp and DisplayManager_Users.cpp), whose redrawTopPanel( ) calls uiTopPanel( ). The Ângulo's glue
+ *        ticks takes this header, not DisplayManager_Ticks.h alone; so does a unit of the core or of the original that takes DisplayManager_Actions.h
+ *        (DisplayManager_Touch.cpp and DisplayManager_UsersUi.cpp), whose redrawTopPanel( ) calls uiTopPanel( ). The Ângulo's glue
  *        units that take the actions (DisplayManager_UiA.cpp, DisplayManager_UiA_Painel.cpp, DisplayManager_UiA_Menus.cpp,
  *        DisplayManager_UiA_Graficos.cpp and DisplayManager_UiA_Ajustes.cpp) do not take this header: for them uiTopPanel( ) is an ordinary function, defined in
  *        DisplayManager_UiA.cpp.

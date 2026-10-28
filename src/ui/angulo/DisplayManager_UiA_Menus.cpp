@@ -97,7 +97,7 @@ void nomeDoPacote( const char *nome, const char *codigo, char *out, int cap ) {
 }
 
 /* Minutes left in a slot's maintenance window, 0 when it is closed: maintMinutesLeft( ) of
- * maintMinutesLeft( ) in DisplayManager_Users.cpp (a static there), which uses the wall clock the way Core 0 does. */
+ * maintMinutesLeft( ) in DisplayManager_UsersUi.cpp (a static there), which uses the wall clock the way Core 0 does. */
 uint32_t minutosDeManutencao( const SystemConfig *cfg, int slot ) {
   if ( !cfg || slot < 0 || slot >= MAX_SENSORS ) return 0;
   const uint32_t agora = (uint32_t)time( nullptr );
@@ -189,7 +189,7 @@ bool DisplayManager::uaMontarMenus( UaQuadro &q ) {
       return true;
     }
     case MODE_SETTINGS_ALARM_SENSOR: {
-      /* drawAlarmSensorMenu( ) (DisplayManager_Users.cpp): the sensor's name, the switch (alarmsActive),
+      /* drawAlarmSensorMenu( ) (DisplayManager_UsersUi.cpp): the sensor's name, the switch (alarmsActive),
        * the maintenance window and, row by row, whether this session holds the bit. The window is given
        * in whole minutes (as seconds): a count of seconds would repaint the frame every second. */
       VmSensorAlarme &vm = uaVm<VmSensorAlarme>( );
@@ -405,7 +405,7 @@ UaToque DisplayManager::uaToqueMenus( const ua::Alvo *a, int16_t &, int16_t & ) 
       break;
     case MODE_SETTINGS_ALARM_SENSOR:
       if ( a->tipo == SA_VOLTAR ) {
-        /* handleTouchPanelV24( ) (DisplayManager_Users.cpp), the sensor menu: SAIR is back to the list of alarms, which starts over. */
+        /* handleTouchPanelV24( ) (DisplayManager_UsersUi.cpp), the sensor menu: SAIR is back to the list of alarms, which starts over. */
         if ( acceptTouch( ZONA_VOLTAR ) ) showSettingsAlarms( _sysConfigPtr );
       } else if ( a->tipo == SA_LIMITES || a->tipo == SA_ALARMES || a->tipo == SA_MANUTENCAO ) {
         if ( !acceptTouch( ZONA_LINHA ) ) break;

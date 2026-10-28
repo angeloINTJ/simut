@@ -253,7 +253,7 @@ else if (_uiMode == MODE_ALARM_ACTION) {
 
 	if (_repaintSettings) { _repaintSettings = false; C1_PHASE(C1P_UI_SETTINGS); drawAlarmAction( ); }
 }
-/* v24 — identity at the panel (DisplayManager_Users.cpp) */
+/* v24 — identity at the panel (DisplayManager_UsersUi.cpp) */
 else if (_uiMode == MODE_SETTINGS_ALARM_SENSOR) {
 	if (_repaintSettings) { _repaintSettings = false; C1_PHASE(C1P_UI_SETTINGS); drawAlarmSensorMenu( ); }
 }

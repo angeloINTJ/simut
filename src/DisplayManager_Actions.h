@@ -16,7 +16,7 @@
  * the action draws it asks of the driver through the hooks (uiChanged( ), redrawTopPanel( )'s uiTopPanel( )), never
  * by name.
  *
- * Included LAST, after ui/UiDriverHooks.h, by DisplayManager_Touch.cpp and DisplayManager_Users.cpp, and by the Ângulo's
+ * Included LAST, after ui/UiDriverHooks.h, by DisplayManager_Touch.cpp and DisplayManager_UsersUi.cpp, and by the Ângulo's
  * DisplayManager_UiA_Painel.cpp, DisplayManager_UiA.cpp, DisplayManager_UiA_Menus.cpp, DisplayManager_UiA_Graficos.cpp,
  * DisplayManager_UiA_Ajustes.cpp and DisplayManager_UiA_Identidade.cpp (none
  * includes a hooks header: the Ângulo's hooks are ordinary functions): an action leans on the hook definitions the original inlines,

@@ -666,7 +666,7 @@ UaToque DisplayManager::uaToqueBase( const ua::Alvo *a, int16_t &, int16_t & ) {
   switch ( _uiMode ) {
     case MODE_PANEL_MESSAGE:
       /* "Entendi" leaves for the screen the message came from (leavePanelMessage( ), core code), behind acceptTouch( 0 ), the gate the old
-       * zone (y >= 185, DisplayManager_Users.cpp) held. */
+       * zone (y >= 185, DisplayManager_UsersUi.cpp) held. */
       if ( !a ) return UaToque::TRATADO;
       if ( a->tipo == MSG_BOTAO && acceptTouch( 0 ) ) leavePanelMessage( );
       return UaToque::TRATADO;

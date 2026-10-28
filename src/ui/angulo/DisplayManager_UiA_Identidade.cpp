@@ -7,7 +7,7 @@
  *
  * The view models come from the members the old draw functions read, and every touch
  * does what the old branch did for the same request. Each action cites the old line it
- * reproduces (file:line of 2026-10-14, DisplayManager_Users.cpp unless said otherwise).
+ * reproduces (file:line of 2026-10-14, DisplayManager_Users.cpp unless said otherwise; the draws and the touch hand-off moved to DisplayManager_UsersUi.cpp on 2026-10-28, S10c D6a).
  *
  * Touch, per mode (ESPEC §4):
  *  - MODE_AUTH runs the core's keypad actions (DisplayManager_Actions.h, S9 C2): the

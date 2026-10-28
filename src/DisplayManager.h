@@ -556,7 +556,7 @@ public:
 	void showSettingsThemes(int currentThemeIdx);
 
 #if SIMUT_PANEL_PIN
-	/* ── v24: identity at the panel (DisplayManager_Users.cpp) ──────────────
+	/* ── v24: identity at the panel (DisplayManager_Users.cpp, DisplayManager_UsersUi.cpp) ──
 	 * The PIN identifies the user; Core 0 verifies it (EVT_AUTH_PIN) and
 	 * answers through authResult( ) and setPanelSession( ). Every screen below
 	 * only produces UiEvents — nothing here writes the configuration. */
@@ -1102,7 +1102,7 @@ private:
 	int _lastLangPage = -1;
 	int _lastPreviewLangIdx = -1;
 
-	/* PIN keypad + lockout (v24: DisplayManager_Users.cpp) */
+	/* PIN keypad + lockout (v24: DisplayManager_Users.cpp; the draws are in DisplayManager_UsersUi.cpp) */
 	void drawPinScreen( );
 	void drawPinCardInto(GFXcanvas16* cv, int key, int16_t ox, int16_t oy);
 	void blitPinCards( );

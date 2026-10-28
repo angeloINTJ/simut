@@ -1,8 +1,8 @@
 /**
  * @file DisplayManager_Users.cpp
- * @brief v24 — identity at the panel: the PIN keypad, the per-sensor action
- *        menu, the maintenance-window entry, the user list/editor, and the
- *        result message every one of them ends on.
+ * @brief v24 — identity at the panel, the core half (both UIs run it): the PIN
+ *        state and its fail ladder, the session and the show*( ) entry points.
+ *        The original's draws and touch hand-off: DisplayManager_UsersUi.cpp.
  *
  * @details Sub-file of DisplayManager.cpp, Core 1 only. Nothing here touches
  * the configuration: every action becomes a UiEvent that Core 0 authorises,
@@ -32,9 +32,9 @@
 #include "StorageManager.h"          /* userHasPin */
 #include "display/CountInText.h"     /* the minimum inside the too-short line */
 #include "sensors/SensorChannelTable.h"
-#include "ui/UiDriverHooks.h"        /* the hook definitions Actions.h leans on (its redrawTopPanel( ) calls uiTopPanel( )): they need the complete class, so after the includes above; this TFT block only, the LCD images never parse them */
-#include "DisplayManager_Actions.h"  /* the core's touch actions, which handleTouchPanelV24( ) runs; last, they lean on the hooks above */
-#include "DisplayManager_PinActions.h"   /* the PIN keypad's: this unit is TFT-only, so a panel proves a PIN here */
+/* Not included here: the core's touch actions (DisplayManager_Actions.h, DisplayManager_PinActions.h) and the hooks they lean on (ui/UiDriverHooks.h).
+ * handleTouchPanelV24( ), the only code of this unit that ran them, moved to DisplayManager_UsersUi.cpp (S10c, D6a), which takes the three, hooks first;
+ * a function added here that calls an action takes them the same way. Dropped in D6b: the eleven images stayed sha256-equal to D6a's (2026-10-28). */
 
 /* Geometry and character set: PinKeypad.h, shared with the CLI readout. */
 
@@ -566,8 +566,8 @@ void DisplayManager::showPinPolicy( ) {
 }
 
 /* ────────────────────────────────────────────────────────────────────────── */
-/* Touch — one function for every mode above; returns false when the mode is  */
-/* not one of them so the historical chain in handleTouch( ) carries on.      */
+/* Touch — handleTouchPanelV24( ), one function for every mode above, is in   */
+/* DisplayManager_UsersUi.cpp: only the original's touch chain calls it.      */
 /* ────────────────────────────────────────────────────────────────────────── */
 
 #endif /* SIMUT_DISPLAY_TFT */

@@ -1,7 +1,7 @@
 /**
  * @file PinKeypad.h
  * @brief Alphabet, geometry and CPU ceiling of the panel-PIN keypad, shared
- *        by the renderer (DisplayManager_Users.cpp::drawPinScreen), the touch
+ *        by the renderer (DisplayManager_UsersUi.cpp::drawPinScreen), the touch
  *        mapper (handleTouchPanelV24), the validator (SystemDefs_Validate.h)
  *        and the CLI/HTTP readouts used by the bench.
  * @details Two keypads live here, and which one is on screen depends on what

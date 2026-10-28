@@ -7,7 +7,7 @@
  * (scramblePinKeys( )), Core 0's digest comparison (panelIdentify( ) and StorageManager::pinSetMatches( )) and what is logged.
  *
  * The keypad exists only where a panel proves a PIN, and SIMUT_PANEL_PIN follows the TFT panel (SystemDefs_Limits.h). So this header has
- * no #if: only TFT-only units include it, DisplayManager_Users.cpp inside its SIMUT_DISPLAY_TFT section and the Ângulo's
+ * no #if: only TFT-only units include it, DisplayManager_UsersUi.cpp (TFT-only as a whole, so with no #if frame) and the Ângulo's
  * DisplayManager_UiA_Identidade.cpp, after DisplayManager_Actions.h in both. Until 2026-10-21 the block stood under an #if in
  * DisplayManager_Actions.h, which every image compiles through DisplayManager_Touch.cpp; the feature-sprawl gate
  * (tools/check_feature_sprawl.py) refuses a new site in a shared file, and the static_assert says to the compiler what the #if said.

@@ -18,7 +18,7 @@ accounts over the CLI; `cleanup` deletes them and restores the telemetry
 fields it changed. Between the two the device's config is saved by the panel
 actions themselves, which is why cleanup restores and saves too.
 
-Coordinates are the firmware's (DisplayManager_Users.cpp, PinPad namespace
+Coordinates are the firmware's (DisplayManager_UsersUi.cpp, PinPad namespace
 and the 4-row list geometry every menu shares) — none is guessed.
 """
 import argparse
@@ -595,7 +595,7 @@ class Rig:
         19/09 as its mirror image, 15% of honest logins refused because two
         accounts fell inside the same tap sequence."""
         # The arrow steps one row while the list fits two pages and one PAGE
-        # (4 rows) beyond that — DisplayManager_Users.cpp, same rule for both
+        # (4 rows) beyond that — DisplayManager_UsersUi.cpp, same rule for both
         # lists. So: walk the arrow to the right PAGE, then tap the row. The
         # count decides the step, and it is asked for rather than assumed,
         # because guessing it wrong lands the tap on the wrong account and
@@ -609,7 +609,7 @@ class Rig:
         else:
             idx = who
         # The arrow steps one ROW while the list fits two pages and one PAGE
-        # (4 rows) beyond that — DisplayManager_Users.cpp, same rule for both
+        # (4 rows) beyond that — DisplayManager_UsersUi.cpp, same rule for both
         # lists. So the arrow gets us to the right page and the row tap picks
         # inside it.
         step = 4 if len(listed) > 8 else 1
