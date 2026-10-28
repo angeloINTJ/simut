@@ -12,6 +12,7 @@
 #include "LogManager.h"
 #include "MetricsManager.h"
 #include "Themes.h"
+#include "ThemeApiRow.h"   /* formatThemeRow( ): the native suite runs the same code */
 #include "TouchPriority.h"
 #include "DisplayManager.h" /* For getActiveWebDictSource */
 #include "FlashIrqProbe.h"  /* For g_flashIrqExposed (metr.fx) */
@@ -406,23 +407,13 @@ void WebManager::handleApiThemes( ) {
 	_server->send(200, "application/json", "");
 
 	safeSend("[");
-	char entry[64];
+	/* One row per theme: {"id", "code", "name"}. The page translates the stock names by code
+	 * (thm_<code> in the pack's @WEBDICT) and keeps "name" when the pack has no key. */
+	char entry[THEME_ROW_MAX];
 
 	for (int i = 0; i < getThemeCount( ); i++) {
-		char cleanName[32];
-		int cn = 0;
-		const char* p = getThemePalette(i)->displayName;
-		if (p) {
-			while (*p && cn < (int)sizeof(cleanName) - 1) {
-				unsigned char c = (unsigned char)(*p);
-				if (c >= 32 && c != '\"' && c != '\\') cleanName[cn++] = (char)c;
-				p++;
-			}
-		}
-		if (cn == 0) cn = snprintf(cleanName, sizeof(cleanName), "Tema %d", i);
-		cleanName[cn] = '\0';
-
-		snprintf(entry, sizeof(entry), "%s{\"id\":%d,\"name\":\"%s\"}", i > 0 ? "," : "", i, cleanName);
+		const ThemePalette* th = getThemePalette(i);
+		formatThemeRow(entry, sizeof(entry), i, th->idName, th->displayName);
 		if (!safeSend(entry)) return;
 	}
 
