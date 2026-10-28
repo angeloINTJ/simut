@@ -363,7 +363,7 @@ class Rig:
 
         The panel's failure ladder lives in RAM and the top rung is cleared
         ONLY by a boot: PinKb::PANEL_FAIL_CEILING failures set
-        _permanentLockout (DisplayManager_Users.cpp:190) and every visit to
+        _permanentLockout (DisplayManager_Users.cpp:253) and every visit to
         Settings then repaints "Tentativas Excedidas" instead of opening the
         picker. One full suite spends ~3 deliberate wrong PINs, so it never
         reached 20 — but partial re-runs accumulate, and on 2026-09-20 they
