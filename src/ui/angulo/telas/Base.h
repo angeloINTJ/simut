@@ -31,6 +31,9 @@ int alvosMensagem( const VmMensagem &vm, Alvo *out );
 /* Confirmation                                                         */
 /* ------------------------------------------------------------------ */
 
+/* The danger colour (`destrutivo`). ANGULO.md section 4.1 says the colour only changes when the action is irreversible ("a cor só muda quando ela é irreversível"). The Ângulo
+ * reads "irreversible" as "cannot be undone from the panel", for the mute-all confirmation and the setup-network one: the maintainer's decision of 2026-10-28. A dialog that sets
+ * `destrutivo` answers to that reading; DisplayManager_UiA.cpp sets it in three on that date (grep destrutivo): those two and the account deletion. */
 struct VmDialogo {
   char titulo[48];       // the question, sentence case
   char texto[192];       // what will happen, up to four lines

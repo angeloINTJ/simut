@@ -43,7 +43,7 @@ MAIN = HERE / 'host' / 'test_confirma_ap_main.cpp'
 
 TITULO = 'Open the setup network?'
 CORPO = 'The device leaves its Wi-Fi network and opens its own setup network. Telemetry stops until it rejoins, 15 minutes later.'
-CONFIRMA = 'Open network'
+CONFIRMA = 'Start setup'
 CANCELA = 'Cancel'
 # (title, body, Confirm) a pack gives; Cancel is the existing key. The es-ES drafts await the native review (S10c plan, D7).
 TRADUCOES = {

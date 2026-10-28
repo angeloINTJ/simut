@@ -616,6 +616,7 @@ time <AAAA-MM-DD> <HH:MM:SS>
 28b19af7 agora
 28b19ea3 Definido
 29e3c3d4 Toque em Nova conta para criar outra.
+2ae7992e Abrir rede
 2b7495ff Sem nome
 2be2bdb5 Os PINs não batem. Comece de novo.
 2cb1a4ef Set
@@ -921,7 +922,6 @@ fc6ef2f9 Caracteres
 fc731f4d 1 h restante
 fd0c5087 x
 fdad9032 Sua conta não pode criar contas.
-fde1f373 Abrir rede
 fde94007 Silenciar tudo
 fec6acfb MQTT
 fff3c15d Refazer a calibração

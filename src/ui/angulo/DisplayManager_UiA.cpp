@@ -717,7 +717,7 @@ bool DisplayManager::uaMontarConfirmaAp( UaQuadro &q ) {
                       "15 minutes later." ),
               sizeof vm.texto );
   ua::copiar( vm.nao, UA_TXT( "Cancel" ), sizeof vm.nao );
-  ua::copiar( vm.sim, UA_TXT( "Open network" ), sizeof vm.sim );
+  ua::copiar( vm.sim, UA_TXT( "Start setup" ), sizeof vm.sim );
   vm.destrutivo = true;
   uaUsar<VmDialogo, desenharDialogo, alvosDialogo>( q, vm );
   return true;

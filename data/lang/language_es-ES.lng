@@ -615,6 +615,7 @@ time <AAAA-MM-DD> <HH:MM:SS>
 28b19af7 ahora
 28b19ea3 Definido
 29e3c3d4 Toque Añadir para crear otra.
+2ae7992e Abrir red
 2b7495ff Sin nombre
 2be2bdb5 Los PIN no coinciden. Pruebe otra vez.
 2cb1a4ef Sep
@@ -920,7 +921,6 @@ fc6ef2f9 Caracteres
 fc731f4d 1 h restante
 fd0c5087 x
 fdad9032 Su cuenta no puede crear cuentas.
-fde1f373 Abrir red
 fde94007 Silenciar todo
 fec6acfb MQTT
 fff3c15d Rehacer calibración

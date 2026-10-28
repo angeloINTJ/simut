@@ -63,7 +63,7 @@ VmDialogo redeAp( ) {
   return dialogo( UA_TXT( "Open the setup network?" ),
                   UA_TXT( "The device leaves its Wi-Fi network and opens its own setup network. Telemetry stops until it rejoins, "
                           "15 minutes later." ),
-                  UA_TXT( "Cancel" ), UA_TXT( "Open network" ), true );
+                  UA_TXT( "Cancel" ), UA_TXT( "Start setup" ), true );
 }
 
 }  // namespace
