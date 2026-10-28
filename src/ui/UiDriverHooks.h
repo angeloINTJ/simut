@@ -9,7 +9,7 @@
  *        ticks takes this header, not DisplayManager_Ticks.h alone; so does a unit of the core or of the original that takes DisplayManager_Actions.h
  *        (DisplayManager_Touch.cpp and DisplayManager_UsersUi.cpp), whose redrawTopPanel( ) calls uiTopPanel( ). The Ângulo's glue
  *        units that take the actions (DisplayManager_UiA.cpp, DisplayManager_UiA_Painel.cpp, DisplayManager_UiA_Menus.cpp,
- *        DisplayManager_UiA_Graficos.cpp and DisplayManager_UiA_Ajustes.cpp) do not take this header: for them uiTopPanel( ) is an ordinary function, defined in
+ *        DisplayManager_UiA_Graficos.cpp, DisplayManager_UiA_Ajustes.cpp and DisplayManager_UiA_Identidade.cpp) do not take this header: for them uiTopPanel( ) is an ordinary function, defined in
  *        DisplayManager_UiA.cpp.
  *
  * Both need the TFT's members, which the alpha display's class does not declare (measured on 2026-10-15: the ticks fail

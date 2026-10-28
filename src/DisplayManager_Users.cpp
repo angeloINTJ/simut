@@ -26,15 +26,15 @@
 
 #include "DisplayManager.h"
 #if SIMUT_DISPLAY_TFT
-#include "DisplayManager_Fonts.h"
-#include "UiWidgets.h"
 #include "SystemDefs_Validate.h"     /* PIN_MIN_LEN / PIN_MAX_LEN */
 #include "StorageManager.h"          /* userHasPin */
-#include "display/CountInText.h"     /* the minimum inside the too-short line */
-#include "sensors/SensorChannelTable.h"
 /* Not included here: the core's touch actions (DisplayManager_Actions.h, DisplayManager_PinActions.h) and the hooks they lean on (ui/UiDriverHooks.h).
  * handleTouchPanelV24( ), the only code of this unit that ran them, moved to DisplayManager_UsersUi.cpp (S10c, D6a), which takes the three, hooks first;
  * a function added here that calls an action takes them the same way. Dropped in D6b: the eleven images stayed sha256-equal to D6a's (2026-10-28). */
+/* Also not included here: DisplayManager_Fonts.h (the three faces), UiWidgets.h (buttons, bars, icons) and display/CountInText.h (the minimum inside the too-short line): the
+ * draws that use them moved to DisplayManager_UsersUi.cpp in D6a (S10c), and a function added here that draws takes them again. And sensors/SensorChannelTable.h, whose
+ * table no line of the user and PIN screens reads, in this unit or in that one, before D6a or after. Dropped in D6c: the eleven images stayed sha256-equal to D7's
+ * (2026-10-28). */
 
 /* Geometry and character set: PinKeypad.h, shared with the CLI readout. */
 
