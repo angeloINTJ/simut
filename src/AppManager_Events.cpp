@@ -327,8 +327,8 @@ void AppManager::core0Yield( ) {
  else if (uiEv.type == UiEvent::EVT_START_AP) {
  /* The bit is checked HERE and not only when the row was drawn: the menu
   * is filtered by the session's bits, but the event arrives from Core 1
-  * and Core 0 is where authorisation lives — the same rule every v24
-  * panel event follows. */
+  * and Core 0 is where authorisation lives. `tools/check_authz.py --list`
+  * names which panel event checks which bit, and the four that do not yet. */
  if (panelAllowed(PERM_NET_CONFIG, -1)) startApMode( );
  }
 #endif
@@ -355,6 +355,20 @@ void AppManager::core0Yield( ) {
  if (bootQuestion) _displayMgr->forceDashboard( );
  else              _displayMgr->showSettingsMain( );
  }
+ }
+ /* Theme and language: their Settings rows ask for PERM_SYS_CONFIG
+  * (display/SettingsMenu.h), and Core 0 asks again, because the event arrives
+  * from Core 1 and Core 0 does not take the screen's word. One arm ahead of
+  * both handlers, so a refused event assigns, saves and logs nothing (no
+  * APP_UI_THEME_CHANGED or APP_UI_LANG_CHANGED line, no "Reboot required");
+  * panelAllowed( ) logs 458 and plays the error tone, and the refusal is
+  * EVT_PIN_POLICY's (AppManager_Panel.cpp). No boot exception, unlike the
+  * clock: nothing shows Idioma or Themes without a session. In this region
+  * because only the touch panel sends either event (DisplayManager_Touch.cpp),
+  * so the images without a panel keep their bytes. */
+ else if ((uiEv.type == UiEvent::EVT_APPLY_THEME || uiEv.type == UiEvent::EVT_APPLY_LANG) &&
+          !panelAllowed(PERM_SYS_CONFIG, -1)) {
+  _displayMgr->showPanelMessage(false, TR_NO_PERMISSION, MODE_SETTINGS_MAIN);
  }
 #endif
  else if (uiEv.type == UiEvent::EVT_APPLY_THEME) {

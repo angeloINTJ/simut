@@ -79,8 +79,10 @@ enum SettingsMenuItem : uint8_t {
 };
 
 /* The bit each item needs, by id; 0 is everyone's: one's own PIN, the license
- * and the status screen. Core 0 checks the bit again when the event arrives,
- * because authorisation lives there — leaving a row out is only courtesy.
+ * and the status screen. Core 0 checks the bit again when the screen's action
+ * arrives (some screens open without the check), because authorisation lives
+ * there — leaving a row out is only courtesy. `tools/check_authz.py --list`
+ * names which event checks which bit, and the four that do not yet.
  * The tables are `inline constexpr` for the reason PinKeypad.h gives: one copy
  * in the image, not one per object file. */
 inline constexpr uint16_t MENU_NEED[] = {

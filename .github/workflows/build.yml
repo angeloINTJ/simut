@@ -45,9 +45,16 @@ jobs:
 
       # Every HTTP route must enforce authorization or be allowlisted as public
       # with a reason — the matrix is documented in docs/AUTHORIZATION.md. This
-      # is what blocks a newly-added route from shipping without a gate.
+      # is what blocks a newly-added route from shipping without a gate. Since
+      # 2026-10-28 it holds the panel's half too: every UiEvent is classified,
+      # and a GATED one calls panelAllowed( ) with its bit before its first write.
       - name: Check authorization matrix
         run: python3 tools/check_authz.py
+
+      # A gate that finds nothing on a clean tree is proved on mutated copies of
+      # it: each rule gives exactly its findings (tools/test_check_authz.py).
+      - name: Test the authorization gate
+        run: python3 tools/test_check_authz.py
 
       # The MIT text lives in three places (LICENSE, the /license page, and
       # the firmware string the panel draws) and two release scripts are
