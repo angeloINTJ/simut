@@ -11,8 +11,8 @@
  *
  * What it costs at the boot, at the most: the buffer plus the table, both alive while the table is built. The section is refused above
  * UA_TEXTOS_MAX (16,384 B) before anything is opened or allocated, so the worst case is 32,774 B (the review of B2b, measured: 2 * 16,384 + 6 when the section is the file's last and has no final newline; 32,773 with it), and the
- * section B2a projected for pt-BR (10,413 B, 408 texts) peaks at 10,413 + 9,197 = 19,610 B; what stays afterwards is the table alone, 9,197 B (16,390 B at the most). Both
- * numbers are measured by tools/tft_ui/test_textos.py on the host, not on a board (B7 measures the heap there).
+ * shipped pt-BR section is 9,536 B with 376 texts (tools/check_lang_packs.py) and its table 8,416 B in RAM (python3 tools/tft_ui/host_telas.py --idioma pt menus; both measured 2026-10-28; B2a had projected 10,413 B, 408 texts and 9,197 B),
+ * so it peaks at 9,536 + 8,416 = 17,952 B; what stays afterwards is the table alone, 8,416 B (16,390 B at the most). The worst cases are measured by tools/tft_ui/test_textos.py on the host, and none of the figures on a board (B7 measures the heap there).
  *
  * What is logged, and by whom. Only a refusal, and not here: this function returns 0, or the ua::TextosResultado of the refusal, and the core's call site
  * logs it (AppManager_Boot.cpp, where the core logs everything). It does not log itself because LOG_CODE( ) instantiates LogManager::instance( ), whose

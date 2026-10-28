@@ -8,14 +8,14 @@
  * and a pack loads only at a boot in another language: in English it would
  * keep its @DICT on the heap (at most LANG_DICT_MAX + 2 = 6,146 B; 3,294 B with
  * the shipped pt-BR, check_lang_packs.py) and, on the Angulo images, its @ANGULO
- * table too (8,416 B in RAM with the shipped pt-BR, host_telas.py; both measured
- * 2026-10-28). So a unit that
- * booted in English listed English alone, and nothing on a product image could
- * write the language back: the emergency CLI has no `language`, and the web has
- * no key for it. The screen now lists a pack it has only FOUND in /lang, its
- * name and code read from the file at boot with nothing kept on the heap.
- * Choosing it saves the language and says "Reboot required": the pack, the
- * console, the log and the web page follow at the next boot, as they always did.
+ * table too (8,416 B in RAM with the shipped pt-BR, from a 9,536 B section:
+ * python3 tools/tft_ui/host_telas.py --idioma pt menus; both measured 2026-10-28).
+ * So a unit that booted in English listed English alone, and nothing on a product
+ * image could write the language back: the emergency CLI has no `language`, and the
+ * web has no key for it. The screen now lists a pack it has only FOUND in /lang, its
+ * name and code read from the file at boot with nothing kept on the heap. Choosing
+ * it saves the language and says "Reboot required": the pack, the console, the log
+ * and the web page follow at the next boot, as they always did.
  *
  * Plain ints, like SettingsMenu.h, so the host test needs no display. The
  * ceiling of two rows is LANG_COUNT (SystemDefs_Records.h); the panel's

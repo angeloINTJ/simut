@@ -109,6 +109,12 @@ de recebê-la pelo ar: o aparelho a recusa no stage, na validação e no aplicad
   de OTA no painel 3,3 KB. A folga da release cabia três telas dessas, ou seis
   A-04.
 - **A `pico_w_test_https` é isenta** (B6): imagem de bancada, gravada pela USB.
+- **A `pico_w_test` está acima do teto neste ramo** (a linha -101 da tabela,
+  medida em 2026-10-28, no sync 6): `check_flash_budget.py pico_w_test` sai com 1,
+  e o job exigido da imagem ficaria vermelho. O mantenedor escolheu em 2026-10-28
+  abrir folga nela servindo a página de licença pelo LittleFS, na `main` (um PR:
+  o `9eb4252c`, ramo `chore/test-image-license-fs`). O próximo sync traz essa
+  mudança, e a linha muda junto.
 - **A folga da `pico2_w_release` é contra o slot, não contra o teto acima.**
   Desde o passo 4 do [OTA_AB_RP2350.md](OTA_AB_RP2350.md) ela atualiza pelo ar
   no outro slot de uma tabela de partições, e o teto dela é esse slot,

@@ -1002,10 +1002,10 @@ void AppManager::setup( ) {
   * path serves inline strings and does not need the heap the pack keeps: its
   * @DICT (at most LANG_DICT_MAX + 2 = 6,146 B; 3,294 B with the shipped pt-BR,
   * @DICT 3,292 B by check_lang_packs.py) and, on the Angulo images, its @ANGULO
-  * table (8,416 B in RAM with the shipped pt-BR, from a 9,536 B section:
-  * host_telas.py; both measured 2026-10-28). In English the panel only LISTS
-  * the pack: it reads the name and the code and keeps nothing on the heap, so
-  * the Idioma screen can offer it and the language has a way back. */
+  * table (8,416 B in RAM with the shipped pt-BR, from a 9,536 B section, by python3
+  * tools/tft_ui/host_telas.py --idioma pt menus; both figures measured 2026-10-28). In
+  * English the panel only LISTS the pack: it reads the name and the code and keeps
+  * nothing on the heap, so the Idioma screen can offer it and the language has a way back. */
  if (cfg.displayLang != LANG_EN) {
   DisplayManager::findAndLoadLangFile( );
  }
