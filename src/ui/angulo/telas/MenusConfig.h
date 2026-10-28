@@ -96,9 +96,10 @@ constexpr int TEMA_CORES_N = TC_N;
 const char *temaTitulo( );
 const char *temaModo( int m );                    // a segment's label: TM_CLARO, TM_ESCURO, TM_AUTOMATICO
 const char *temaFrase( int m );                   // the mode in words
-// The accent's name, in lower case: a name follows a colon on the words line ("Cor de destaque: azul") and a comma in the catalogue ("Claro, azul"), and the Ângulo's sentence
-// case (ANGULO.md section 7) writes it so (S10c, A'3b). The catalogue (Temas.cpp) is what GET /api/themes serves to the web page, which shows it as it comes, so its names are
-// not looked up: they stay the pt-BR words (S10c, B4a, the web's contract does not change), and tools/tft_ui/test_temas.py holds them equal to the pt-BR pack's words for these.
+// The accent's name, in lower case: a name follows a colon on the words line ("Cor de destaque: azul") and a comma in the catalogue ("Light, blue"), and the Ângulo's sentence
+// case (ANGULO.md section 7) writes it so (S10c, A'3b). The catalogue (Temas.cpp) is what GET /api/themes serves to the web page, so its names are not looked up: they are the English of
+// these words, which the page translates by the theme's code through the pack's @WEBDICT (S10c, sync 7), and tools/tft_ui/test_temas.py holds each equal to that English composition and
+// each thm_ value of both packs equal to the composition of that pack's words for these.
 const char *temaCor( int k );
 void temaLinhaCor( int k, char *out, int cap );   // "<accent colour>: <name>", cut to `cap` bytes
 const char *temaAplicarRotulo( );

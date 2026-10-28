@@ -438,27 +438,27 @@
    }
   },
   {
-   "reason": "a name the web lists: the theme catalogue's display names, served as they are by GET /api/themes (WebManager_Api.cpp, handleApiThemes( )) and written by the web page into its select as it receives them (WebUI.h, loadThemes( )), which translates nothing it receives and whose dictionary has no entry for them. The panel does not draw them: its Tema screen has words of its own (telas/MenusConfig.cpp, UA_TXT). The web's contract does not change in S10c B4a (the coordinator's decision, 2026-10-22); a catalogue that follows the language is the question UI_DRIVERS.md leaves to Stage B (F9, b)",
+   "reason": "a name the web lists: the theme catalogue's display names, in English, served as they are by GET /api/themes (WebManager_Api.cpp, handleApiThemes( )) beside the theme's code; the web page translates each by that code through the pack's @WEBDICT (WebUI.h, themeOptions( ): thm_ and the code), so the translations live in the packs and the page shows the English as sent when a pack has no key. The panel does not draw them: its Tema screen has words of its own (telas/MenusConfig.cpp, UA_TXT). Decided on 2026-10-24 (the device sends English, the page translates), done in S10c sync 7",
    "texts": {
     "src/ui/angulo/Temas.cpp": [
-     "Automático",
-     "Automático, azul",
-     "Automático, magenta",
-     "Automático, petróleo",
-     "Automático, violeta",
-     "Automático, índigo",
-     "Claro",
-     "Claro, azul",
-     "Claro, magenta",
-     "Claro, petróleo",
-     "Claro, violeta",
-     "Claro, índigo",
-     "Escuro",
-     "Escuro, azul",
-     "Escuro, magenta",
-     "Escuro, petróleo",
-     "Escuro, violeta",
-     "Escuro, índigo"
+     "Automatic",
+     "Automatic, blue",
+     "Automatic, indigo",
+     "Automatic, magenta",
+     "Automatic, petrol blue",
+     "Automatic, violet",
+     "Dark",
+     "Dark, blue",
+     "Dark, indigo",
+     "Dark, magenta",
+     "Dark, petrol blue",
+     "Dark, violet",
+     "Light",
+     "Light, blue",
+     "Light, indigo",
+     "Light, magenta",
+     "Light, petrol blue",
+     "Light, violet"
     ]
    }
   },

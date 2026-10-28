@@ -37,6 +37,7 @@ encloses.
 Usage: python3 tools/tft_ui/test_temas.py   exit 0 when all hold, 1 when not, 2 when it cannot build.
 """
 import concurrent.futures
+import json
 import pathlib
 import re
 import subprocess
@@ -573,8 +574,8 @@ def fnv1a32(b):
 
 
 def palavras_do_pacote(caminho=None):
-    """{hash of the English: text} of the @ANGULO section of the pt-BR pack (S10c, B4a): the Tema screen's words are UA_TXT( "<English>" ), and the catalogue (Temas.cpp) keeps
-    the pt-BR words, which this test holds equal to the pack's."""
+    """{hash of the English: text} of the @ANGULO section of the pt-BR pack (S10c, B4a): the Tema screen's words are UA_TXT( "<English>" ), and the catalogue's ids keep the
+    ASCII of the pt-BR accents (the names are English since sync 7); the packs' @WEBDICT carry each pack's own composition of these words."""
     caminho = caminho or ROOT / 'data' / 'lang' / 'language_pt-BR.lng'
     linhas = caminho.read_text(encoding='utf-8').split('\n')
     i = linhas.index('@ANGULO')
@@ -637,11 +638,49 @@ def pedacos_do_catalogo(cat, mh, mc, pt):
     return rows, cores, modos, p
 
 
+def webdict_do_pacote(caminho):
+    """The @WEBDICT of a language pack: one line of JSON under its header."""
+    linhas = caminho.read_text(encoding='utf-8').split('\n')
+    return json.loads(linhas[linhas.index('@WEBDICT') + 1])
+
+
+def chave_thm(i):
+    """The @WEBDICT key of a theme code, as the page builds it (WebUI.h, themeOptions( )): thm_ and the code with every character outside [A-Za-z0-9_] as _."""
+    return 'thm_' + re.sub(r'[^A-Za-z0-9_]', '_', i)
+
+
+def problemas_das_traducoes(cat, mh, mc, pacotes):
+    """S10c, sync 7 (temas_web_20261028, step 5): the web page translates each catalogue name by its code through the pack's @WEBDICT, and thm_<code> is the composition of THAT pack's own
+    @ANGULO words for the Tema screen's English (the mode alone for the stock accent, "<mode>, <accent>" for the others) in every pack: none missing, none different. `pacotes` is
+    {language: (the pack's @ANGULO words, the pack's @WEBDICT)}."""
+    p = []
+    rows = re.findall(r'TEMA\(\s*"([^"]*)"\s*,\s*"([^"]*)"\s*\)', cat)
+    en = ingles_da_tela(mh, mc)
+    for lingua, (palavras, dicionario) in pacotes.items():
+        try:
+            modos = [em_pt(palavras, e) for _, e in en['modos']]
+            cores = [em_pt(palavras, e) for _, e in en['cores']]
+        except KeyError as x:
+            p.append(f'{lingua}: the pack has no @ANGULO line for the English {x}')
+            continue
+        for t, (i, _) in enumerate(rows):
+            m, k = t % 3, t // 3
+            if k >= len(cores):
+                break
+            want = modos[m] if k == 0 else f'{modos[m]}, {cores[k]}'
+            got = dicionario.get(chave_thm(i))
+            if got != want:
+                p.append(f'{lingua}: {chave_thm(i)} is {got!r}, expected {want!r}')
+    return p
+
+
 def problemas_do_catalogo(cat, mh, mc, pt):
     """The 18 ids and names of Temas.cpp: each row at the index ua::escolhaDoIndice( ) gives it (mode t % 3, accent t / 3), the stock accent's three unchanged, an id at most
-    15 B, a name at most 23 B of UTF-8, none repeated, and the static_assert that ties the count to the palette. The names are the pt-BR words of the Tema screen (S10c, B4a: the
-    screen looks them up in the pack, the catalogue keeps them because the web shows them as they come), so each is held equal to the pack's text for the screen's English."""
+    15 B, a name at most 23 B of UTF-8, none repeated, and the static_assert that ties the count to the palette. The names are the English of the Tema screen's words (S10c, sync 7: the
+    device sends English and the page translates by the code), so each is held equal to the composition of temaModo( ) and temaCor( )'s English; the ids keep the ASCII of the pt-BR accents."""
     rows, cores, modos, p = pedacos_do_catalogo(cat, mh, mc, pt)
+    en = ingles_da_tela(mh, mc)
+    modos_en, cores_en = [e for _, e in en['modos']], [e for _, e in en['cores']]
     ids = ['claro', 'escuro', 'auto']
     if len(modos) != 3 or len(cores) < 2:
         return [f'the screen header gives {len(modos)} modes and {len(cores)} accents']
@@ -652,7 +691,7 @@ def problemas_do_catalogo(cat, mh, mc, pt):
         if k >= len(cores):
             break
         chave = unicodedata.normalize('NFKD', cores[k]).encode('ascii', 'ignore').decode().lower()
-        want = (ids[m], modos[m]) if k == 0 else (f'{ids[m]}-{chave}', f'{modos[m]}, {cores[k]}')
+        want = (ids[m], modos_en[m]) if k == 0 else (f'{ids[m]}-{chave}', f'{modos_en[m]}, {cores_en[k]}')
         if (i, n) != want:
             p.append(f'row {t} is ({i!r}, {n!r}), expected {want}')
         if len(i.encode('utf-8')) > 15 or not re.fullmatch(r'[a-z]+(-[a-z]+)?', i):
@@ -1081,20 +1120,28 @@ def main():
     menus = MENUS_GLUE.read_text(encoding='utf-8')
     caso("menus glue: the preview is named only inside the two cases of the Tema screen", problemas_da_previa_nos_menus(menus))
     caso('control: another screen naming the preview is reported', bool(problemas_da_previa_nos_menus(menus + '\nint8_t leMenus( ) { return _uaPrevia; }\n')))
-    caso('catalogue: 18 ids and names, each at the index the decode gives it, ids within 15 B and names within 23 B, the names the pt-BR words of the Tema screen', problemas_do_catalogo(cat, mh, mc, pt))
+    caso('catalogue: 18 ids and names, each at the index the decode gives it, ids within 15 B and names within 23 B, the names the English composition of the Tema screen\'s words', problemas_do_catalogo(cat, mh, mc, pt))
     r0 = re.findall(r'TEMA\(\s*"[^"]*"\s*,\s*"[^"]*"\s*\)', cat)
     caso('control: an id of 16 B is reported', bool(problemas_do_catalogo(cat.replace('"escuro-petroleo"', '"escuro-petroleos"'), mh, mc, pt)))
-    caso('control: a name of 24 B is reported', bool(problemas_do_catalogo(cat.replace('"Automático, petróleo"', '"Automático, petróleos2"'), mh, mc, pt)))
+    caso('control: a name of 24 B is reported', bool(problemas_do_catalogo(cat.replace('"Automatic, petrol blue"', '"Automatic, petrol blues2"'), mh, mc, pt)))
     caso('control: two rows swapped are reported', bool(problemas_do_catalogo(cat.replace(r0[4], '@@').replace(r0[5], r0[4]).replace('@@', r0[5]), mh, mc, pt)))
     caso('control: a catalogue of 17 rows is reported', bool(problemas_do_catalogo(cat.replace(r0[17] + ',', '', 1), mh, mc, pt)))
-    caso('control: a catalogue name that is not the pack\'s pt-BR word for the screen\'s is reported', bool(problemas_do_catalogo(cat, mh, mc, com_texto(pt, 'petrol blue', 'petrol'))))
+    caso('control: an accent whose pt-BR word changes is reported (the ids keep its ASCII)', bool(problemas_do_catalogo(cat, mh, mc, com_texto(pt, 'petrol blue', 'petrol'))))
+    caso('control: an English name that is not the composition is reported', bool(problemas_do_catalogo(cat.replace('"Light, blue"', '"Light, azure"'), mh, mc, pt)))
+    caso('control: a catalogue name left in Portuguese is reported', bool(problemas_do_catalogo(cat.replace('"Light, blue"', '"Claro, azul"'), mh, mc, pt)))
     caso('control: a Tema screen text the pt-BR pack has no line for is reported', bool(problemas_do_catalogo(cat, mh, mc, {h: t for h, t in pt.items() if h != fnv1a32(b'Dark')})))
     caso('control: a mode that is not at its enumerator is reported', bool(problemas_do_catalogo(cat, mh, mc.replace('case TM_ESCURO: return UA_TXT( "Dark" );', 'case TM_CLARO: return UA_TXT( "Dark" );'), pt)))
     caso('control: a catalogue without its static_assert is reported', bool(problemas_do_catalogo(cat.replace('static_assert( NUM_TEMAS == 3 *', 'static_assert( NUM_TEMAS >= 3 *'), mh, mc, pt)))
     caso('microcopy: a colour name is in lower case after the colon of the words line and after the comma of the catalogue (ANGULO.md section 7)', problemas_de_caixa(cat, mh, mc, pt))
     caso('control: a capitalised colour in the screen\'s words is reported', bool(problemas_de_caixa(cat, mh, mc, com_texto(pt, 'blue', 'Azul'))))
-    caso('control: a capitalised colour in the catalogue is reported', bool(problemas_de_caixa(cat.replace('"Claro, azul"', '"Claro, Azul"'), mh, mc, pt)))
+    caso('control: a capitalised colour in the catalogue is reported', bool(problemas_de_caixa(cat.replace('"Light, blue"', '"Light, Blue"'), mh, mc, pt)))
     caso('control: a words line other than "Cor de destaque: %s" is reported', bool(problemas_de_caixa(cat, mh, mc, com_texto(pt, 'Accent color', 'Cor de Destaque'))))
+    pacotes = {l: (palavras_do_pacote(ROOT / 'data' / 'lang' / f'language_{l}.lng'), webdict_do_pacote(ROOT / 'data' / 'lang' / f'language_{l}.lng')) for l in ('pt-BR', 'es-ES')}
+    caso('translations: thm_<id> of the pt-BR and of the es-ES pack is the composition of that pack\'s own @ANGULO words for the Tema screen (the mode, or "<mode>, <accent>"), 18 per pack', problemas_das_traducoes(cat, mh, mc, pacotes))
+    muda = lambda l, f: {k: ((v[0], f(dict(v[1]))) if k == l else v) for k, v in pacotes.items()}
+    caso('control: a thm_ value changed in the es-ES pack is reported', bool(problemas_das_traducoes(cat, mh, mc, muda('es-ES', lambda d: {**d, 'thm_auto_azul': 'Automatic, blue'}))))
+    caso('control: a thm_ key removed from the pt-BR pack is reported', bool(problemas_das_traducoes(cat, mh, mc, muda('pt-BR', lambda d: {k: v for k, v in d.items() if k != 'thm_escuro_magenta'}))))
+    caso('control: an accent word of the es-ES pack that changes without its thm_ values is reported', bool(problemas_das_traducoes(cat, mh, mc, {**pacotes, 'es-ES': (com_texto(pacotes['es-ES'][0], 'petrol blue', 'petroleo'), pacotes['es-ES'][1])})))
     caso('sources: the Tema screen, its touch and uaTema( ) carry no bare 3 or 6 outside static_asserts', problemas_de_literais(mh, mc, menus, glue))
     caso('control: an `i < 3` in the touch is reported', bool(problemas_de_literais(mh, mc, menus.replace('else if ( a->tipo == TT_MODO ) {', 'else if ( a->tipo == TT_MODO && i < 3 ) {'), glue)))
     caso('control: a 6 in the screen is reported', bool(problemas_de_literais(mh, mc.replace('for ( int k = 0; k < TEMA_CORES_N; k++ ) desenharCor', 'for ( int k = 0; k < 6; k++ ) desenharCor'), menus, glue)))

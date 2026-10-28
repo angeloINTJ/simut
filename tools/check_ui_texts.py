@@ -70,8 +70,8 @@ host-harness diagnostic, a measurement probe, the message of a static_assert, a 
 lists and a key's face. Nine go beyond the usual non-text categories (a log tag, a JSON key, a unit, the brand, a format string, an icon
 name, an identifier passed to another API), each a group of its own so that it can be reviewed, or made structural, on its own: seven are
 plainly not drawn (from the linker section to the #pragma), and two were decided one by one. A name the web lists (S10c B4a) is the theme
-catalogue that GET /api/themes serves as it is; the panel draws words of its own for it, and whether the web shows it in the device's
-language is the maintainer's to decide. A key's face (S10c B5b) is the characters a PIN keypad's group or a text keyboard's layer types:
+catalogue that GET /api/themes serves as it is, in English; the panel draws words of its own for it, and the web page translates it by the theme's
+code through the pack's @WEBDICT (S10c sync 7). A key's face (S10c B5b) is the characters a PIN keypad's group or a text keyboard's layer types:
 data, which a pack must not relabel. What is drawn on the panel is NEVER allowed by its kind, even when it is the same in every language (an
 endonym, a keypad legend, a protocol name, a weekday initial): each one was decided with UA_TXT( ) or with an entry and its reason. So the
 count of --report is the work left, and nothing in the allowance file makes it look smaller. Two things are findings of their own: an
