@@ -12,7 +12,7 @@ carry the same clock code and were not measured. A radio that stops answering is
 Core 0 past the hardware watchdog: it is restarted by the planned path (#266). The language pack's log records carry
 their own tag and codes: they were persisted as `?`, two warnings as "OK" and the pack loaded at boot as a language
 changed through the UI (#283). An alpha or a Wire set to a language other than English names its events on the
-console and in the syslog again: both left the name out. After a boot in English the panel's Idioma screen lists the language pack in `/lang`, which it listed only when the pack was loaded, so a unit left in English had no way back: choosing the pack saves the language, and the pack loads at the next boot. The theme and the language chosen at the panel ask Core 0 for the System permission, as the clock, the setup access point and the accounts already did.**
+console and in the syslog again: both left the name out. After a boot in English the panel's Idioma screen lists the language pack in `/lang`, which it listed only when the pack was loaded, so a unit left in English had no way back: choosing the pack saves the language, and the pack loads at the next boot. The theme and the language chosen at the panel ask Core 0 for the System permission, as the clock, the setup access point and the accounts already did. The web page's theme select shows the stock themes in the device's language: `GET /api/themes` sends each theme's code, the page translates by it, and the stock themes are named in English at the source.**
 
 ### The panel's bus
 
@@ -173,6 +173,32 @@ console and in the syslog again: both left the name out. After a boot in English
   event, the permission it checks, and CI fails on an event that is not classified. Four events still save without the
   check (the sounds, the two touch calibrations, the display alignment): they are registered in the gate, for a later
   release.
+
+### Theme names on the web page
+
+- **The theme select follows the device's language.** `GET /api/themes` now sends `{"id","code","name"}`; the code is
+  the theme's `@CODE` (`nordic`, `cafe`, ...). The page asks the active language pack for `thm_<code>` and shows the
+  name the device sent when the pack has none: a theme of your own, the English page, a dictionary that has not
+  arrived yet, a firmware that sends no code. The eleven stock themes have the key in the pt-BR and es-ES packs (the
+  pack files grow from 42,038 to 42,373 B and from 43,773 to 44,107 B, their `@WEBDICT` line from 26,013 to 26,348 B
+  and from 26,922 to 27,256 B, measured 2026-10-28); "Simut Default", compiled in, has none and reads as it always
+  did. A theme of your own that reuses a stock `@CODE` gets the stock translation.
+- **The stock themes are named in English at the source**: Nordic, Industrial graphite, Thermal camera, Coffee with
+  milk, High contrast, Light quartz, Unimed light, Emerald, Unimed dark and Night shift ("Ubuntu" does not change). A
+  device that already has the `.thm` files keeps them as installed: the web page translates their codes in pt-BR and
+  es-ES and shows the installed names on the English page, so an old Portuguese name stays Portuguese there, a `.thm`
+  restored from a `.bkp` included. A new install carries the English names, and the original panel draws `@NAME` as
+  written, so it shows them in English on a pt-BR or es-ES unit too (the maintainer's decision of 2026-10-28: no panel
+  translation); `theme list`, the `CFG_THEME_APPLIED` log record and the console message of `theme <id>` name the
+  stock themes in English as well.
+- **The Spanish names are a proposal**, until a native speaker reviews them.
+- **Under the hood.** `tools/test_webui_theme_names.py` (CI) runs the page's option builder under node as written and
+  minified, with `lang.js`'s own `t( )`, `escHtml( )`, `escAttr( )` and `applyLang( )`, and holds every stock code to
+  a key in both packs. It found that `data/themes/*.thm` are not what `tools/gen_theme_collection.py` writes: 2137ea15
+  (2026-08-23) changed the limit-alarm colours in the files and in `src/Themes.cpp` and not in the generator, whose
+  contrast rules the new colours fail (36 pairs), so a regeneration would turn every stock theme's alarm red again.
+  The new names were written into the generator and, by a script, into the files' `@NAME` line; the test checks the
+  names and codes and prints the colour fields that differ. Syncing the generator and its rules is open.
 
 ## v2.11.1 (2026-10-12)
 

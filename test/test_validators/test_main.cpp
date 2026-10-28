@@ -42,6 +42,8 @@
 #include "WebJsonSlice.h"               /* depth-aware JSON slicing */
 #include "SimutTime.h"                 /* fixed-offset localtime/mktime */
 #include "LangPackIndex.h"             /* where each section of a .lng is */
+#include "ThemeApiRow.h"              /* one row of GET /api/themes */
+#include <string.h>
 #include "Utf8Fold.h"                  /* UTF-8 to what the 5x7 font draws */
 #include "WebDictValue.h"              /* one string out of a pack's @WEBDICT */
 #include "TextWrap.h"                  /* the License screen's line layout */
@@ -5709,6 +5711,82 @@ void test_pl022_a_request_below_what_the_divider_makes_is_refused(void) {
     expect_rung(12000000u, 186u, 254, 253, 186u);
 }
 
+/* ---- ThemeApiRow.h: one row of GET /api/themes (2026-10-28) -------------------
+ * The stock names are English and each row carries the theme's code, which the
+ * page turns into the @WEBDICT key thm_<code> (tools/test_webui_theme_names.py).
+ * WebManager::handleApiThemes( ) formats every row with formatThemeRow( ), so
+ * these cases run the code that ships. */
+static void theme_fill(char* dst, size_t len, char c) { memset(dst, c, len); dst[len] = '\0'; }
+
+void test_theme_row_carries_the_id_the_code_and_the_name(void) {
+    char row[THEME_ROW_MAX];
+    int n = formatThemeRow(row, sizeof(row), 3, "cafe", "Coffee with milk");
+    TEST_ASSERT_EQUAL_STRING(",{\"id\":3,\"code\":\"cafe\",\"name\":\"Coffee with milk\"}", row);
+    TEST_ASSERT_EQUAL_INT((int)strlen(row), n);
+}
+
+void test_theme_row_the_first_row_has_no_leading_comma(void) {
+    char row[THEME_ROW_MAX];
+    formatThemeRow(row, sizeof(row), 0, "simut_def", "Simut Default");
+    TEST_ASSERT_EQUAL_STRING("{\"id\":0,\"code\":\"simut_def\",\"name\":\"Simut Default\"}", row);
+}
+
+void test_theme_row_drops_quotes_backslashes_and_control_bytes_and_keeps_utf8(void) {
+    char row[THEME_ROW_MAX];
+    formatThemeRow(row, sizeof(row), 1, "a\"b\\c", "N\"a\\m\ne\tx\x1f" "y Caf\xc3\xa9");
+    TEST_ASSERT_EQUAL_STRING(",{\"id\":1,\"code\":\"abc\",\"name\":\"Namexy Caf\xc3\xa9\"}", row);
+}
+
+void test_theme_row_cuts_the_name_at_31_bytes_and_the_code_at_15(void) {
+    char code[64], name[128], row[THEME_ROW_MAX], want[THEME_ROW_MAX];
+    theme_fill(code, 20, 'c');
+    theme_fill(name, 40, 'n');
+    formatThemeRow(row, sizeof(row), 4, code, name);
+    snprintf(want, sizeof(want), ",{\"id\":4,\"code\":\"%.15s\",\"name\":\"%.31s\"}", code, name);
+    TEST_ASSERT_EQUAL_STRING(want, row);
+}
+
+void test_theme_row_the_longest_row_is_76_bytes_and_fits_the_buffer(void) {
+    char code[16], name[32], row[THEME_ROW_MAX];
+    theme_fill(code, 15, 'c');
+    theme_fill(name, 31, 'n');
+    int n = formatThemeRow(row, sizeof(row), 99, code, name);
+    TEST_ASSERT_EQUAL_INT(76, n);                      /* ,{"id":99,"code":"<15>","name":"<31>"} */
+    TEST_ASSERT_TRUE(n + 1 <= (int)THEME_ROW_MAX);     /* with its NUL */
+    TEST_ASSERT_EQUAL_INT(n, (int)strlen(row));
+}
+
+void test_theme_row_no_id_code_or_name_length_truncates_the_row(void) {
+    const int ids[] = {0, 1, 9, 10, 99, 100, 999};
+    const size_t codeLens[] = {0, 1, 15, 16, 40};
+    const size_t nameLens[] = {0, 1, 31, 32, 100};
+    char code[64], name[128], row[THEME_ROW_MAX];
+    for (int id : ids) for (size_t cl : codeLens) for (size_t nl : nameLens) {
+        theme_fill(code, cl, 'c');
+        theme_fill(name, nl, 'n');
+        int n = formatThemeRow(row, sizeof(row), id, code, name);
+        TEST_ASSERT_TRUE(n > 0 && n < (int)THEME_ROW_MAX);
+        TEST_ASSERT_EQUAL_INT(n, (int)strlen(row));
+        TEST_ASSERT_EQUAL_CHAR('}', row[n - 1]);
+    }
+}
+
+void test_theme_row_an_empty_missing_or_all_stripped_name_becomes_theme_n(void) {
+    char row[THEME_ROW_MAX];
+    formatThemeRow(row, sizeof(row), 7, "x", "");
+    TEST_ASSERT_EQUAL_STRING(",{\"id\":7,\"code\":\"x\",\"name\":\"Theme 7\"}", row);
+    formatThemeRow(row, sizeof(row), 8, "x", NULL);
+    TEST_ASSERT_EQUAL_STRING(",{\"id\":8,\"code\":\"x\",\"name\":\"Theme 8\"}", row);
+    formatThemeRow(row, sizeof(row), 9, "x", "\"\\\n");
+    TEST_ASSERT_EQUAL_STRING(",{\"id\":9,\"code\":\"x\",\"name\":\"Theme 9\"}", row);
+}
+
+void test_theme_row_a_missing_code_is_an_empty_code(void) {
+    char row[THEME_ROW_MAX];
+    formatThemeRow(row, sizeof(row), 2, NULL, "Mine");
+    TEST_ASSERT_EQUAL_STRING(",{\"id\":2,\"code\":\"\",\"name\":\"Mine\"}", row);
+}
+
 int main(int /*argc*/, char** /*argv*/) {
     UNITY_BEGIN();
 
@@ -6122,6 +6200,15 @@ int main(int /*argc*/, char** /*argv*/) {
     RUN_TEST(test_pl022_a_request_that_is_a_rung_gets_that_rung);
     RUN_TEST(test_pl022_the_baud_never_exceeds_the_request_and_is_the_fastest_that_does);
     RUN_TEST(test_pl022_a_request_below_what_the_divider_makes_is_refused);
+
+    RUN_TEST(test_theme_row_carries_the_id_the_code_and_the_name);
+    RUN_TEST(test_theme_row_the_first_row_has_no_leading_comma);
+    RUN_TEST(test_theme_row_drops_quotes_backslashes_and_control_bytes_and_keeps_utf8);
+    RUN_TEST(test_theme_row_cuts_the_name_at_31_bytes_and_the_code_at_15);
+    RUN_TEST(test_theme_row_the_longest_row_is_76_bytes_and_fits_the_buffer);
+    RUN_TEST(test_theme_row_no_id_code_or_name_length_truncates_the_row);
+    RUN_TEST(test_theme_row_an_empty_missing_or_all_stripped_name_becomes_theme_n);
+    RUN_TEST(test_theme_row_a_missing_code_is_an_empty_code);
 
     return UNITY_END();
 }

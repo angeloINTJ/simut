@@ -585,14 +585,34 @@ static const char DASH_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
         }
 
         /* @IF tft */
+        /* th: the pure part: the <option>s of the theme select. GET /api/themes sends
+           {"id", "code", "name"}: the stock names in English, "code" being the theme's @CODE.
+           The pack's @WEBDICT answers thm_<code> with the name in its language; a code it has
+           no key for (a user's own .thm), the English page, or a firmware that sends no code
+           shows the name as the device wrote it. data-i18n lets applyLang( ) relabel the option
+           when /api/lang answers after /api/themes. data-en holds the device's English the way
+           applyLang( ) keeps it (escaped HTML, escaped again for the attribute), so an option
+           born translated, when /api/lang answered first, is not taken for English by the next
+           applyLang( ). t( ) is lang.js's: no binding in here may be named t.
+           tools/test_webui_theme_names.py runs this part under node, as written and minified. */
+        function themeOptions(themes) {
+            let html = '';
+            themes.forEach(th => {
+                const c = th.code ? String(th.code).replace(/[^A-Za-z0-9_]/g, '_') : '';
+                const name = c ? t('thm_' + c, th.name) : th.name;
+                const attr = c ? ` data-i18n="thm_${c}" data-en="${escAttr(escHtml(th.name))}"` : '';
+                html += `<option value="${escHtml(th.id)}"${attr}>${escHtml(name)}</option>`;
+            });
+            return html;
+        }
+        /* th: end of the pure part */
+
         async function loadThemes() {
             try {
                 let res = await fetchSafe('/api/themes');
                 let text = await res.text(); // Lemos como texto primeiro para evitar falha silenciosa
                 let themes = JSON.parse(text); // Tentamos converter
-                let html = '';
-                themes.forEach(t => html += `<option value="${escHtml(t.id)}">${escHtml(t.name)}</option>`);
-                document.getElementById('themeSel').innerHTML = html;
+                document.getElementById('themeSel').innerHTML = themeOptions(themes);
             } catch(e){
                 // Se o JSON vier quebrado do C++, o botão mostrará o erro na hora!
                 document.getElementById('themeSel').innerHTML = `<option value="0">Err: ${e.message.substring(0,20)}</option>`;
