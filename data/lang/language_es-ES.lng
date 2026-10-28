@@ -605,6 +605,7 @@ time <AAAA-MM-DD> <HH:MM:SS>
 22de1e5e Imagen comprobada
 23065661 1 registro
 23f81076 Cambiar mi PIN
+25184f53 El equipo sale de la red Wi-Fi y abre su propia red de configuración. La telemetría se detiene hasta que vuelva, 15 minutos después.
 25ef3135 Espere antes de tocar la pantalla.
 261bb4ad registros
 267f6920 ¿Quién usa el panel?
@@ -641,6 +642,7 @@ time <AAAA-MM-DD> <HH:MM:SS>
 39b30bc6 Nueva cuenta
 3aa1e990 No hay sitio para otra cuenta.
 3ba7e226 May
+3bd01d0e ¿Abrir la red de configuración?
 3cee9df2 7 d
 3dc65d2f El marco debe tocar el borde.
 3f5aa514 1 h
@@ -918,6 +920,7 @@ fc6ef2f9 Caracteres
 fc731f4d 1 h restante
 fd0c5087 x
 fdad9032 Su cuenta no puede crear cuentas.
+fde1f373 Abrir red
 fde94007 Silenciar todo
 fec6acfb MQTT
 fff3c15d Rehacer calibración

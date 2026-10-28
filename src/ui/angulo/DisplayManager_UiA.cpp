@@ -13,6 +13,7 @@
  */
 
 #include "../../DisplayManager.h"
+#include "../../simut_config.h"   /* SIMUT_NET_WIFI is tested below (the setup-network confirmation, S10c D7): included here, not left to DisplayManager.h's chain */
 #include "../../DisplayManager_Ticks.h"   /* the core's ticks, which uiPass( ) calls */
 #include "../../FlashIrqProbe.h"          /* C1_PHASE */
 #include "../../sensors/SensorHelpers.h"    /* sensorLimitCount( ) */
@@ -654,6 +655,10 @@ bool DisplayManager::uaMontarBase( UaQuadro &q ) {
       uaUsar<VmDialogo, desenharDialogo, alvosDialogo>( q, vm );
       return true;
     }
+    case MODE_CONFIRM_AP:
+      /* The setup network's confirmation (S10c, D7), the dialog's third user: uaMontarConfirmaAp( ), below. A Wi-Fi image's frame; on the Wire the member is a stub that answers
+       * false, so the mode keeps the placeholder it had there (and the Wire cannot reach it). */
+      return uaMontarConfirmaAp( q );
     default:
       return false;
   }
@@ -688,8 +693,48 @@ UaToque DisplayManager::uaToqueBase( const ua::Alvo *a, int16_t &, int16_t & ) {
         actUserDelCancel( );
       }
       return UaToque::TRATADO;
+    case MODE_CONFIRM_AP:
+      return uaToqueConfirmaAp( a );
     default:
       return UaToque::NAO_E_MEU;
   }
 }
+
+/* The setup network's confirmation (MODE_CONFIRM_AP), the dialog's third user after the two above (S10c, D7). Only a Wi-Fi image reaches the mode: MENU_SETUP_AP is not in the wired
+ * build's menu (telas/MenusConfig.h:30) and showApConfirm( ) exists only under SIMUT_NET_WIFI (DisplayManager.h:672). So the one conditional of this file on the network class carries
+ * both members, and the wired Ângulo image gets the stubs of the #else, which claim nothing: it keeps neither the texts nor the code (the sprawl watermark 364 -> 365, recorded in
+ * tools/features.toml next to D2's). The body says only what changes: the unit leaves its station for its own setup network, and the telemetry stops until it rejoins, 15 minutes later
+ * (AP_MODE_TIMEOUT_MS, NetworkManager_Cyw43.cpp:331: with a network configured). It says nothing about sensors, because the loop keeps measuring and alarming in AP mode (6933dcb3).
+ * Touch: Confirm sends the event (actStartAp( ), EVT_START_AP) behind the zone the original's chain held, acceptTouch( 0xC3 ); Core 0 checks PERM_NET_CONFIG before startApMode( )
+ * (AppManager_Events.cpp:368-374). Every other target is Cancel, behind acceptTouch( 0xC2 ): back to the Settings list with showSettingsMain( ), core code, as in ui/original/UiTouchChain.h. */
+#if SIMUT_NET_WIFI
+bool DisplayManager::uaMontarConfirmaAp( UaQuadro &q ) {
+  using namespace ua::tela;
+  VmDialogo &vm = uaVm<VmDialogo>( );
+  ua::copiar( vm.titulo, UA_TXT( "Open the setup network?" ), sizeof vm.titulo );
+  ua::copiar( vm.texto,
+              UA_TXT( "The device leaves its Wi-Fi network and opens its own setup network. Telemetry stops until it rejoins, "
+                      "15 minutes later." ),
+              sizeof vm.texto );
+  ua::copiar( vm.nao, UA_TXT( "Cancel" ), sizeof vm.nao );
+  ua::copiar( vm.sim, UA_TXT( "Open network" ), sizeof vm.sim );
+  vm.destrutivo = true;
+  uaUsar<VmDialogo, desenharDialogo, alvosDialogo>( q, vm );
+  return true;
+}
+
+UaToque DisplayManager::uaToqueConfirmaAp( const ua::Alvo *a ) {
+  using namespace ua::tela;
+  if ( !a ) return UaToque::TRATADO;
+  if ( a->tipo == DLG_SIM ) {
+    if ( acceptTouch( 0xC3 ) ) actStartAp( );
+  } else if ( acceptTouch( 0xC2 ) ) {
+    showSettingsMain( );
+  }
+  return UaToque::TRATADO;
+}
+#else
+bool DisplayManager::uaMontarConfirmaAp( UaQuadro & ) { return false; }
+UaToque DisplayManager::uaToqueConfirmaAp( const ua::Alvo * ) { return UaToque::NAO_E_MEU; }
+#endif
 

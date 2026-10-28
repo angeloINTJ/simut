@@ -32,6 +32,9 @@ private:
 	/* One pair per group of screens (ESPEC_UI_A.md §4), each in its file. */
 	bool uaMontarBase( UaQuadro &q );
 	UaToque uaToqueBase( const ua::Alvo *a, int16_t &x, int16_t &y );
+	/* MODE_CONFIRM_AP's frame and touch, the Base group's third dialog (S10c, D7): defined in DisplayManager_UiA.cpp inside one #if SIMUT_NET_WIFI, with stubs (false, NAO_E_MEU) for the wired image. */
+	bool uaMontarConfirmaAp( UaQuadro &q );
+	UaToque uaToqueConfirmaAp( const ua::Alvo *a );
 	bool uaMontarPainel( UaQuadro &q );
 	UaToque uaToquePainel( const ua::Alvo *a, int16_t &x, int16_t &y );
 	bool uaMontarMenus( UaQuadro &q );

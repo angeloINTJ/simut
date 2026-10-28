@@ -322,6 +322,12 @@ jobs:
       # 19.6 s here on 2026-10-23, 4 min of CPU.
       - name: Angulo screens in the device's three languages (test_idiomas.py)
         run: python3 tools/tft_ui/test_idiomas.py
+      # The setup-network confirmation (S10c D7): the frame's texts fit in the three languages, and the glue's touch, cut out of
+      # DisplayManager_UiA.cpp and compiled with the real kit, sends Confirm to actStartAp( ) behind zone 0xC3 and every other target to
+      # showSettingsMain( ) behind 0xC2, once as a Wi-Fi image and once as the wired one (stubs that claim nothing). Its 14 mutants must
+      # fail it. 82 checks; 7.5 s here on 2026-10-28.
+      - name: Angulo setup-network confirmation on the host (test_confirma_ap.py)
+        run: python3 tools/tft_ui/test_confirma_ap.py
 
       # patch.sh runs again and again: after every override that merges, and in the
       # firmware jobs on a warm ~/.platformio cache that already carries them (see

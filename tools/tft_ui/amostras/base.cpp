@@ -58,6 +58,14 @@ VmDialogo excluir( ) {
                   UA_TXT( "Delete account" ), true );
 }
 
+// The setup network's confirmation (MODE_CONFIRM_AP, a Wi-Fi image's; S10c, D7): the glue's uaMontarConfirmaAp( ) fills the same dialog with these Englishes.
+VmDialogo redeAp( ) {
+  return dialogo( UA_TXT( "Open the setup network?" ),
+                  UA_TXT( "The device leaves its Wi-Fi network and opens its own setup network. Telemetry stops until it rejoins, "
+                          "15 minutes later." ),
+                  UA_TXT( "Cancel" ), UA_TXT( "Open network" ), true );
+}
+
 }  // namespace
 
 namespace amostra {
@@ -68,6 +76,7 @@ const Amostra kAmostras[] = {
   { "mensagem_longa", []( Pintor &p ) { desenharMensagem( p, msgLonga( ) ); }, []( Alvo *o ) { return alvosMensagem( msgLonga( ), o ); } },
   { "dialogo_mudo", []( Pintor &p ) { desenharDialogo( p, mudo( ) ); }, []( Alvo *o ) { return alvosDialogo( mudo( ), o ); } },
   { "dialogo_excluir", []( Pintor &p ) { desenharDialogo( p, excluir( ) ); }, []( Alvo *o ) { return alvosDialogo( excluir( ), o ); } },
+  { "dialogo_ap", []( Pintor &p ) { desenharDialogo( p, redeAp( ) ); }, []( Alvo *o ) { return alvosDialogo( redeAp( ), o ); } },
 };
 const int kAmostrasN = sizeof kAmostras / sizeof kAmostras[0];
 

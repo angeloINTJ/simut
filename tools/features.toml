@@ -252,6 +252,16 @@ lib_deps = ["https://github.com/angeloINTJ/pico-enc28j60.git#4984e2f55727c81cfd6
 # 4290 e 4348 iguais), nenhum simbolo foi perdido ou ganho (5629 e 5706), os construtores e as tabelas de init sao os mesmos e o original nelas continua
 # em 17 B; a showApConfirm( ) era o unico simbolo do arquivo que a imagem do Pico 2 W linkava, e a do Wire nao linkava nenhum. Nos seis produtos com
 # painel TFT, V-ELF sai 0 (nenhuma funcao mudou; so a ordem do link, nos cinco com radio) e os onze .bin mantem o tamanho.
+# O DisplayManager_UiA.cpp ganhou em 2026-10-28 (S10c, D7) o seu primeiro #if SIMUT_NET_WIFI: a confirmacao da rede de configuracao (MODE_CONFIRM_AP), o terceiro uso do dialogo do Angulo
+# (depois do mudo e da exclusao de conta), so e alcancavel numa imagem com radio (o menu cabeado nao tem o MENU_SETUP_AP e a showApConfirm( ) so existe sob SIMUT_NET_WIFI). Os dois membros
+# que a montam e a tocam (uaMontarConfirmaAp e uaToqueConfirmaAp) vivem num unico bloco #if SIMUT_NET_WIFI do arquivo, com stubs no #else (false e NAO_E_MEU) para o Angulo cabeado, e o
+# emaranhamento subiu 1 (364 -> 365: SIMUT_NET_WIFI no DisplayManager_UiA.cpp, de 0 para 1), com o aceite do mantenedor de 2026-10-28, um desvio registrado como o do D2: a [net_class.wifi]
+# segue sem lista `units` por onde o codigo saisse da imagem cabeada em vez de levar um #if (a unidade e das duas imagens do Angulo, e so uma delas tem o modo). Medido nesse dia, de zero:
+# os nove produtos mantem o sha256 do C8; o Angulo cabeado (pico_wiretft_angulo) mantem o tamanho (826736 B) e as secoes .text, .rodata, .data e .bss, nenhuma funcao mudou (V-ELF: 4284
+# iguais, 0 mudaram, dados so-leitura e textos da flash iguais) e nem os dois simbolos nem os tres textos novos estao nele (nm e strings: 0); o pico2_w_angulo cresce 400 B (flash usado
+# 1035592 -> 1035992 B, .bin 1035616 -> 1036016 B; .text +240 B e .rodata +160 B, .data e .bss iguais), com os dois membros e os tres textos so nele; o V-ELF dele traz as duas funcoes
+# novas, a uaMontarBase (241 -> 242 instrucoes) e a uaToqueBase (97 -> 98) mudadas e onze funcoes de biblioteca cuja primeira diferenca e uma palavra de texto no fim da funcao.
+# O .bin do Angulo cabeado difere do do C8 em 579 bytes de 826736, e o veneer_proof.py (exit 0) os prova so da ordem dos veneers do ligador e dos operandos dos desvios que os chamam.
 # A DisplayManager_Calibration.cpp entrou em 2026-10-24 (S10c, D3): as duas entradas de modo das telas de calibracao, showTouchCalibration( ) e
 # showSettingsDisplayOffset( ), que o core0Yield( ), o handleResetTouchCal e a CLI chamam, so guardavam do original dois restos: as sete memorias de
 # desenho (g_*) e as duas sentinelas do desvio. Passaram a avisar o que aconteceu (UiChange::TOUCH_CAL_ENTER e DISPLAY_OFFSET_ENTER, levantados no Core 0,

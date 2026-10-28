@@ -2,11 +2,11 @@
 // The two screens every other one leans on: the result of an action
 // (MODE_PANEL_MESSAGE, the touch calibration's verdict) and the confirmation
 // of something that cannot be undone from the panel (MODE_CONFIRM_MUTE_ALL,
-// MODE_SETTINGS_USER_CONFIRM_DEL). No plan drew them: they are the Ângulo's
-// dialog, in family A's chrome. MODE_CONFIRM_AP has no frame here: the wired
-// Ângulo image cannot reach the mode (src/display/SettingsMenu.h). A Wi-Fi
-// Ângulo image will need a VmDialogo case in uaMontarBase( ) and a touch
-// handler that calls showSettingsMain( ) and actStartAp( )
+// MODE_SETTINGS_USER_CONFIRM_DEL, MODE_CONFIRM_AP). No plan drew them: they are
+// the Ângulo's dialog, in family A's chrome. MODE_CONFIRM_AP's case is
+// uaMontarConfirmaAp( ) and uaToqueConfirmaAp( ) in DisplayManager_UiA.cpp, one
+// #if SIMUT_NET_WIFI (S10c, D7): the wired Ângulo image cannot reach the mode
+// (src/display/SettingsMenu.h), so there both are stubs that claim nothing
 // (docs/analysis/UI_DRIVERS.md, section 2.9).
 #include "Telas.h"
 

@@ -606,6 +606,7 @@ time <AAAA-MM-DD> <HH:MM:SS>
 22de1e5e Imagem conferida
 23065661 1 registro
 23f81076 Alterar meu PIN
+25184f53 O aparelho sai da rede Wi-Fi e abre a própria rede de configuração. A telemetria para até ele voltar, 15 minutos depois.
 25ef3135 Aguarde para tocar na tela.
 261bb4ad registros
 267f6920 Quem está no painel?
@@ -642,6 +643,7 @@ time <AAAA-MM-DD> <HH:MM:SS>
 39b30bc6 Nova conta
 3aa1e990 Não há vaga para outra conta.
 3ba7e226 Mai
+3bd01d0e Abrir a rede de configuração?
 3cee9df2 7 d
 3dc65d2f A moldura deve tocar a borda.
 3f5aa514 1 h
@@ -919,6 +921,7 @@ fc6ef2f9 Caracteres
 fc731f4d 1 h restante
 fd0c5087 x
 fdad9032 Sua conta não pode criar contas.
+fde1f373 Abrir rede
 fde94007 Silenciar tudo
 fec6acfb MQTT
 fff3c15d Refazer a calibração
