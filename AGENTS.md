@@ -900,12 +900,15 @@ calado é.
 - **Painel TFT — não é Ângulo.** As cores vêm do tema ativo (`.thm`, 24 campos,
   11 em `data/themes/`), e o de fábrica usa acento azul
   (`RGB565(0, 150, 255)`, `src/Themes.cpp`). Levar o painel ao Ângulo é decisão
-  de produto em aberto. Enquanto isso, o que não depende de cor vale lá também:
+  de produto em aberto, salvo na Pico 2 W (em 2026-10-21 o mantenedor decidiu que
+  o Ângulo sai primeiro nela; CLAUDE.md). Enquanto isso, o que não depende de cor
+  vale lá também:
   microcopy, a área segura e a grade de 4 px, todo estado desenhado — e emoji
   nem existe na fonte CP437. **Em 2026-10-28, no ramo `feat/ui-drivers`:** isso vale
   para a UI original, que mantém os temas. A UI Ângulo existe nas imagens
-  `pico2_w_angulo` e `pico_wiretft_angulo` (nenhuma release a leva ainda), com os
-  desvios registrados em `docs/analysis/UI_DRIVERS.md` §2.18 (a cor de perigo).
+  `pico2_w_angulo` e `pico_wiretft_angulo` (nenhuma release a leva ainda), com o
+  tema dela (modo e acento) em `docs/analysis/UI_DRIVERS.md` §2.16 e os desvios
+  registrados em §2.18 (a cor de perigo).
 - **LCD 16×2 do alpha:** vale a microcopy.
 - **Documentos Snapshot** (campanhas, auditorias, análises datadas — ver
   `docs/README.md`) **não se editam** para seguir o padrão: um registro editado

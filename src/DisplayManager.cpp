@@ -25,8 +25,8 @@
 #include "DisplayManager_FmtFloat.h"
 #include "HelpLicenseEN.h" /* LICENSE_TEXT_EN inline in PROGMEM */
 #include "display/LicenseOpening.h" /* _licOpening: one declaration for this unit and the original's licence draw, checked against the definition below */
-/* TextWrap.h is not included here: S10c D4b-2 moved its only reader, the licence draw, to DisplayManager_LicenseUi.cpp, which includes it. Dropped in the docs step of S10c (2026-10-28): the eleven images stayed sha256-equal. */
-/* Utf8Fold.h is not included here: S10c D4b-2 moved its only reader, the licence draw, to DisplayManager_LicenseUi.cpp, which includes it. Dropped in the docs step of S10c (2026-10-28): the eleven images stayed sha256-equal. */
+/* TextWrap.h is not included here: S10c D4b-2 moved this unit's only reader, the licence draw, to DisplayManager_LicenseUi.cpp, which includes it. Dropped in the docs step of S10c (2026-10-28): the eleven images stayed sha256-equal. */
+/* Utf8Fold.h is not included here: S10c D4b-2 moved this unit's only reader, the licence draw, to DisplayManager_LicenseUi.cpp, which includes it. Dropped in the docs step of S10c (2026-10-28): the eleven images stayed sha256-equal. */
 #include <LittleFS.h>
 
 #include "hardware/structs/timer.h"

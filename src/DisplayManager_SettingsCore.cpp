@@ -154,7 +154,7 @@ void DisplayManager::showMuteConfirm( ) {
 #if SIMUT_NET_WIFI   /* a wired build has no setup AP to ask about */
 /* Starting the setup AP takes the device off the LAN for up to 15 minutes, so
  * it asks first. The original's screen (drawApConfirm( ) in DisplayManager_Settings.cpp)
- * is the two-button one the Global Mute confirmation uses, with hardcoded EN/PT strings
+ * is the two-button one the Global Mute confirmation uses, with hardcoded EN/PT message and Confirm strings
  * (the rule of the original's confirmations: the TFT renders ASCII only); since S10c D7
  * the Ângulo draws its own VmDialogo from UA_TXT( ) texts (ui/angulo/DisplayManager_UiA.cpp). */
 void DisplayManager::showApConfirm( ) {
