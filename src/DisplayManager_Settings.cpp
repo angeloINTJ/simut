@@ -134,7 +134,7 @@ void DisplayManager::renderAlarmRow(int mapIdx, int16_t& outStatusX) {
  if (mapIdx >= _activeSensorCount) return;
 
  int actualSensorId = _activeSensorsMap[mapIdx];
- SensorRecord* rec = &_sysConfigPtr->sensors[actualSensorId];
+ const SensorRecord* rec = &_sysConfigPtr->sensors[actualSensorId];
  bool isSelected = (mapIdx == _alarmSelection);
  uint16_t bg = isSelected ? C_ACCENT : C_CARD_BG;
  uint16_t txt = isSelected ? C_BG_MAIN : C_TEXT_MAIN;

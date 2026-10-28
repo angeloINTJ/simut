@@ -633,7 +633,7 @@ public:
 	 * on EVT_SAVE_ALARMS; Core 1 never writes the config itself any more. */
 	const SensorRecord& editedAlarmRecord( ) const { return _tempAlarmConfig; }
 	void showSettingsMain( );
-	void showSettingsAlarms(SystemConfig* cfg);
+	void showSettingsAlarms(const SystemConfig* cfg);
 
 	/** Marks the selected row's ON/OFF word as stale without re-entering the
 	 *  screen. showSettingsAlarms() forces a full redraw and resets the cursor
@@ -1282,8 +1282,8 @@ private:
 	LangKey _kbMsgKey = TR_KEYS_COUNT;
 	int8_t _kbPopup = 0; /**< PwdKb popup id: 0 none, 1..8 letter group,
 	                      *   9 digits, 10 symbols. */
-
-	SystemConfig* _sysConfigPtr = nullptr;
+	/** Pointer to const since 2026-10-28 (#295): the panel changes the configuration by sending a UiEvent that Core 0 re-checks, never through this pointer; the compiler now refuses a write. */
+	const SystemConfig* _sysConfigPtr = nullptr;
 	int _alarmPage = 0;
 	int _lastAlarmPage = -1;
 	int _activeSensorCount = 0;

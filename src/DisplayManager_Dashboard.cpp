@@ -858,7 +858,7 @@ void DisplayManager::drawBottomButtons(int selectedIdx) {
 
  /* Detects alarms in ACTIVE slots on other pages (to color the page btn) */
  if (!_sysConfigPtr) { blitCanvas(_driver.canvas, 0, BTNBAR_Y, DASH_W, BTNBAR_H); return; }
- SystemConfig &cfg = *_sysConfigPtr;
+ const SystemConfig &cfg = *_sysConfigPtr;
  bool hasAlarmsOnOtherPages = false;
  if (paging && (_alarmSlotMask != 0 || _alarmErrMask != 0)) {
  for (int s = 0; s < MAX_SENSORS; s++) {

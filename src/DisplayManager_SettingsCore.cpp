@@ -29,7 +29,7 @@ void DisplayManager::refreshAlarmStatus( ) {
  mutex_exit(&_stateMutex);
 }
 
-void DisplayManager::showSettingsAlarms(SystemConfig* cfg) {
+void DisplayManager::showSettingsAlarms(const SystemConfig* cfg) {
  mutex_enter_blocking(&_stateMutex);
  _uiMode = MODE_SETTINGS_ALARMS; _sysConfigPtr = cfg; _activeSensorCount = 0;
  for(int i = 0; i < MAX_SENSORS; i++) { if(cfg->sensors[i].active) { _activeSensorsMap[_activeSensorCount++] = i; } }

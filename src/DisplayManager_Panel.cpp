@@ -216,7 +216,7 @@ int DisplayManager::buildDashLayout(DashBtn out[5], int *totalPages, bool *hasPa
  for (int i = 0; i < 5; i++) { out[i].kind = -1; out[i].slotId = -1; }
 
  if (!_sysConfigPtr) return 0;
- SystemConfig &cfg = *_sysConfigPtr;
+ const SystemConfig &cfg = *_sysConfigPtr;
  DashBtn all[MAX_SENSORS + 2]; /* the slots + 1 CFG + 1 margin */
  int total = 0;
  for (int i = 0; i < MAX_SENSORS; i++) {
