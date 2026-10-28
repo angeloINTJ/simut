@@ -64,7 +64,7 @@ STOCK_STATE = dict(alarmBg=(180,30,30), alarmText=(255,255,255), alarmTextDim=(2
 # botão de silenciar (cautionBg) e no tempWarm; a seleção usa o verde-escuro
 # institucional em vez do cinza genérico.
 THEMES = {
- "unimed_claro": ("Unimed Claro", dict(
+ "unimed_claro": ("Unimed light", dict(
     bgMain=(243,248,245), cardBg=(255,255,255), textMain=(0,78,76), textSub=(85,100,92),
     textOff=(170,185,178), accent=(0,153,93), accentHigh=(0,122,75), barBg=(215,230,222),
     tempHot=(195,55,45), tempWarm=(185,90,0), tempOk=(0,153,93), tempCold=(0,115,160),
@@ -74,7 +74,7 @@ THEMES = {
     alarmBorder=(255,60,60), cautionBg=(175,84,8), selBg=(0,60,58),
     stampText=(130,98,10))),
 
- "unimed_escuro": ("Unimed Escuro", dict(
+ "unimed_escuro": ("Unimed dark", dict(
     bgMain=(10,30,28), cardBg=(18,46,42), textMain=(232,244,238), textSub=(150,180,165),
     textOff=(75,100,90), accent=(0,175,105), accentHigh=(60,210,140), barBg=(35,68,60),
     tempHot=(255,105,90), tempWarm=(255,150,50), tempOk=(177,211,75), tempCold=(95,190,235),
@@ -97,7 +97,7 @@ THEMES = {
     alarmBorder=(255,60,60), cautionBg=(150,110,0), selBg=(66,28,52),
     stampText=(214,184,120))),
 
- "nordic": ("Nordico", dict(
+ "nordic": ("Nordic", dict(
     bgMain=(28,33,42), cardBg=(41,48,61), textMain=(226,232,240), textSub=(154,165,182),
     textOff=(84,95,113), accent=(129,161,193), accentHigh=(136,192,208), barBg=(58,66,82),
     tempHot=(224,108,117), tempWarm=(235,180,100), tempOk=(140,200,130), tempCold=(120,180,230),
@@ -105,7 +105,7 @@ THEMES = {
     sensorName=(226,232,240), btnTextActive=(28,33,42),
     stampText=(200,180,110), **STOCK_STATE)),
 
- "quartzo": ("Quartzo Claro", dict(
+ "quartzo": ("Light quartz", dict(
     bgMain=(243,241,238), cardBg=(255,255,255), textMain=(45,41,38), textSub=(120,112,105),
     textOff=(186,180,174), accent=(150,90,60), accentHigh=(160,97,63), barBg=(224,220,215),
     tempHot=(180,50,40), tempWarm=(170,105,0), tempOk=(55,130,70), tempCold=(40,110,170),
@@ -113,7 +113,7 @@ THEMES = {
     sensorName=(45,41,38), btnTextActive=(255,255,255),
     stampText=(130,95,15), **STOCK_STATE)),
 
- "contraste": ("Alto Contraste", dict(
+ "contraste": ("High contrast", dict(
     bgMain=(0,0,0), cardBg=(20,20,20), textMain=(255,255,255), textSub=(210,210,210),
     textOff=(120,120,120), accent=(255,215,0), accentHigh=(255,235,60), barBg=(55,55,55),
     tempHot=(255,90,90), tempWarm=(255,200,60), tempOk=(90,255,90), tempCold=(90,200,255),
@@ -121,7 +121,7 @@ THEMES = {
     sensorName=(255,255,255), btnTextActive=(0,0,0),
     stampText=(255,235,150), **STOCK_STATE)),
 
- "noturno": ("Turno da Noite", dict(
+ "noturno": ("Night shift", dict(
     bgMain=(24,14,8), cardBg=(38,24,14), textMain=(255,196,130), textSub=(200,140,80),
     textOff=(110,72,40), accent=(230,120,30), accentHigh=(255,160,60), barBg=(58,38,22),
     tempHot=(255,110,80), tempWarm=(255,170,60), tempOk=(230,170,90), tempCold=(200,150,120),
@@ -129,7 +129,7 @@ THEMES = {
     sensorName=(255,196,130), btnTextActive=(24,14,8),
     stampText=(230,180,90), **STOCK_STATE)),
 
- "esmeralda": ("Esmeralda", dict(
+ "esmeralda": ("Emerald", dict(
     bgMain=(14,26,20), cardBg=(24,42,33), textMain=(222,240,230), textSub=(140,180,160),
     textOff=(70,100,85), accent=(60,180,130), accentHigh=(90,215,160), barBg=(40,62,50),
     tempHot=(240,110,90), tempWarm=(230,180,80), tempOk=(110,210,150), tempCold=(100,190,220),
@@ -137,7 +137,7 @@ THEMES = {
     sensorName=(222,240,230), btnTextActive=(14,26,20),
     stampText=(190,180,100), **STOCK_STATE)),
 
- "cafe": ("Cafe com Leite", dict(
+ "cafe": ("Coffee with milk", dict(
     bgMain=(240,233,224), cardBg=(252,248,242), textMain=(60,45,35), textSub=(130,110,95),
     textOff=(190,175,160), accent=(120,80,50), accentHigh=(150,100,65), barBg=(220,210,198),
     tempHot=(175,55,40), tempWarm=(160,100,10), tempOk=(80,125,60), tempCold=(60,105,150),
@@ -145,7 +145,7 @@ THEMES = {
     sensorName=(60,45,35), btnTextActive=(252,248,242),
     stampText=(125,90,15), **STOCK_STATE)),
 
- "termico": ("Camera Termica", dict(
+ "termico": ("Thermal camera", dict(
     bgMain=(16,10,32), cardBg=(30,20,52), textMain=(245,235,220), textSub=(180,150,190),
     textOff=(95,75,120), accent=(250,130,40), accentHigh=(255,170,60), barBg=(50,36,76),
     tempHot=(255,90,60), tempWarm=(255,170,60), tempOk=(255,210,90), tempCold=(90,140,255),
@@ -153,7 +153,7 @@ THEMES = {
     sensorName=(245,235,220), btnTextActive=(16,10,32),
     stampText=(220,190,110), **STOCK_STATE)),
 
- "grafite": ("Grafite Industrial", dict(
+ "grafite": ("Industrial graphite", dict(
     bgMain=(24,26,28), cardBg=(38,41,44), textMain=(232,234,236), textSub=(160,166,172),
     textOff=(88,94,100), accent=(255,120,40), accentHigh=(255,150,70), barBg=(56,60,64),
     tempHot=(255,95,85), tempWarm=(255,180,70), tempOk=(120,210,130), tempCold=(110,185,240),
