@@ -238,7 +238,7 @@ source. The gated events:
 Ungated, with the reason in the table: navigation that writes nothing (slot,
 graph, calendar), opening Settings (it ends the session and asks for the PIN),
 the PIN typed (`EVT_AUTH_PIN`, the identification itself), the menu rows (the
-action each screen sends is checked on its own), silencing an alarm (anyone at
+action each screen sends is checked on its own, except the four below), silencing an alarm (anyone at
 the panel can stop the sound; the alarm line records it) and four enumerators
 nothing sends.
 

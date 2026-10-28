@@ -73,7 +73,9 @@ locally. When one fires, it is usually right:
   translates the panel from `@DICT`, the web page from `@WEBDICT` and the CLI's
   help from `@HELP`.
 - **Authorization matrix** — every new HTTP route needs a gate or an
-  allowlist entry with a reason (`docs/AUTHORIZATION.md`).
+  allowlist entry with a reason, and every new panel `UiEvent` a row in
+  `tools/check_authz.py`'s panel table: the bit Core 0 checks, or why none
+  (`docs/AUTHORIZATION.md`).
 
 ## House style
 

@@ -47,7 +47,8 @@ enum lacks, is a finding; a function the table names that is not there is exit 2
 warning, and becomes a finding the day it checks its bit (the entry then moves to GATED).
 Comments and string contents are stripped first (check_net_boundary.strip_source). It is a text gate, as above: it
 proves that the check is there, with that bit, before the first write; not that its test is the right way round,
-and an `#if 0` is scanned as code.
+that its result is used at all (a `(void)panelAllowed(...)` passes), or that it is joined by `&&` and not `||`; and an
+`#if 0` is scanned as code (the review of 2026-10-28 made each of those four pass with no finding).
 
 Usage:  python3 tools/check_authz.py              (exit 0 clean, 1 on a finding, 2 if the tree cannot be read)
         python3 tools/check_authz.py --list       (print the whole matrix, the routes and then the panel's events, exit 0)
@@ -327,8 +328,8 @@ PANEL_EVENTS = {
     "EVT_OPEN_SETTINGS": _u("ends any session and asks for a PIN: it grants nothing", "has", "_panelUser = -1",
                             "showAuthUser("),
     "EVT_MENU_SELECT": _u("opens the screen of a menu row and writes nothing; the action each screen then sends "
-                          "is checked on its own (the Users, PIN policy, Setup AP and Clock rows also check "
-                          "their bit when they open)", "nowrite"),
+                          "is checked on its own, except the four registered deviations below (the Users, PIN "
+                          "policy, Setup AP and Clock rows also check their bit when they open)", "nowrite"),
     "EVT_AUTH_PIN": _u("the identification itself: the PIN typed is compared in panelIdentify( ), which opens "
                        "the session every GATED event then asks for", "has", "panelIdentify(", at="case"),
     "EVT_ALARM_SILENCE": _u("anyone at the panel can stop the sound; the alarm line records it: the arm calls "
