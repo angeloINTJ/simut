@@ -16,7 +16,11 @@ only a non-zero exit code. The copies are of the real src/ (the gate reads nothi
     one in a comment, which does not count), a navigation arm that saves, ALARM_SILENCE without its alarm record;
   * a registered deviation that starts checking -> a finding (the entry moves to GATED); the real four are warnings;
   * a function the table names that is not there -> exit 2, a gate that cannot look must not pass;
-  * the HTTP half still bites: a route with no gate -> exactly that one finding.
+  * the HTTP half still bites: a route with no gate -> exactly that one finding;
+  * the Ângulo's side (S10c, sync 6; the gate checks receivers, wherever under src/ they are): an ungated EVT_APPLY_LANG arm planted in a
+    `#if SIMUT_UI_ANGULO` region of the dispatch loop -> that event, at the planted line; an inert event named in an Ângulo unit -> that one,
+    naming the unit and the line; actApplyLang( 1 ) planted in another Ângulo unit -> nothing, and the same unit with an inert event beside it
+    -> that one, so the nothing is not blindness.
 """
 import os
 import re
@@ -240,6 +244,75 @@ mutate(t, "src/WebManager_Core.cpp",
 case("(k) a route with no gate -> exactly that HTTP finding, none in the panel", t, 1, http_n=1)
 code, out, _ = run(t)
 check("(k) ... and it names the route", "/api/zz_probe" in "".join(http_of(out)), str(http_of(out)))
+
+# ── the Ângulo's side (S10c, sync 6): the gate checks receivers, wherever under src/ they are ─────────
+
+ANG_UNIT = "src/ui/angulo/DisplayManager_UiA_Menus.cpp"   # a unit of the UI driver
+ANG_OTHER = "src/ui/angulo/DisplayManager_UiA.cpp"        # another one
+# (ui-a) plants at the top level of the dispatch chain, inside a new `#if SIMUT_UI_ANGULO`, before the guard arm. The region of the real file at
+# :175-183 sits inside EVT_OPEN_GRAPH's arm (and :250-254 inside EVT_CALENDAR_DAY's): an arm planted there gives two findings, the planted
+# event and the enclosing one, whose "writes nothing" proof then sees the write (sync 6, stages/sync6_c2/apply_c2.out).
+ARM_ANCHOR = "\n else if (uiEv.type == UiEvent::EVT_MENU_SELECT) {"
+ARM_LINE = "else if (uiEv.type == UiEvent::EVT_APPLY_LANG) { cfg.displayLang = uiEv.id; }"
+ARM_PLANT = "\n#if SIMUT_UI_ANGULO\n " + ARM_LINE + "\n#endif" + ARM_ANCHOR
+
+
+def read_tree(tree, rel):
+    with open(os.path.join(tree, rel), encoding="utf-8", newline="") as fh:
+        return fh.read()
+
+
+def line_of(tree, rel, needle):
+    text = read_tree(tree, rel)
+    assert text.count(needle) == 1, (rel, needle[:50], text.count(needle))
+    return text.count("\n", 0, text.index(needle)) + 1
+
+
+def under_if(tree, rel, line, macro):
+    """True when `line` sits between an #if that names `macro` and its #endif (its #else side included)."""
+    stack = []
+    for n, text in enumerate(read_tree(tree, rel).split("\n"), 1):
+        if n >= line:
+            break
+        s = text.strip()
+        if re.match(r"#\s*if(n?def)?\b", s):
+            stack.append(s)
+        elif re.match(r"#\s*endif\b", s):
+            stack.pop()
+    return any(macro in s for s in stack)
+
+
+def names(out, rel, line):
+    return bool(re.search(r"%s:%d(?!\d)" % (re.escape(rel), line), out))
+
+
+t = clone(); mutate(t, EV, sub_once(ARM_ANCHOR, ARM_PLANT))
+n = line_of(t, EV, ARM_LINE)
+code, out, _ = run(t)
+check("(ui-a) an ungated EVT_APPLY_LANG arm planted in a #if SIMUT_UI_ANGULO region of the dispatch loop -> exactly that event, at the planted line",
+      code == 1 and panel_of(out) == ["EVT_APPLY_LANG"] and not http_of(out) and warns_of(out) == sorted(DEVIATIONS)
+      and under_if(t, EV, n, "SIMUT_UI_ANGULO") and names(out, EV, n),
+      "rc=%s panel=%s http=%s line=%d in the region=%s" % (code, panel_of(out), http_of(out), n, under_if(t, EV, n, "SIMUT_UI_ANGULO")))
+
+PROBE_B = "void zzProbe( ) { (void)UiEvent::EVT_OPEN_STATS; }"
+t = clone(); mutate(t, ANG_UNIT, lambda s: s + "\n" + PROBE_B + "\n")
+n = line_of(t, ANG_UNIT, PROBE_B)
+code, out, _ = run(t)
+check("(ui-b) an inert event named in an Ângulo unit -> exactly that event, naming the unit and the line",
+      code == 1 and panel_of(out) == ["EVT_OPEN_STATS"] and not http_of(out) and warns_of(out) == sorted(DEVIATIONS) and names(out, ANG_UNIT, n),
+      "rc=%s panel=%s http=%s line=%d" % (code, panel_of(out), http_of(out), n))
+
+CALL_C = "void zzPlant( ) { actApplyLang( 1 ); }"
+BOTH_C = "void zzPlant( ) { actApplyLang( 1 ); (void)UiEvent::EVT_OPEN_STATS; }"
+t = clone(); mutate(t, ANG_OTHER, lambda s: s + "\n" + CALL_C + "\n")
+code, out, _ = run(t)
+silent = code == 0 and panel_of(out) == [] and not http_of(out) and warns_of(out) == sorted(DEVIATIONS)
+t2 = clone(); mutate(t2, ANG_OTHER, lambda s: s + "\n" + BOTH_C + "\n")
+n2 = line_of(t2, ANG_OTHER, BOTH_C)
+code2, out2, _ = run(t2)
+reads = code2 == 1 and panel_of(out2) == ["EVT_OPEN_STATS"] and names(out2, ANG_OTHER, n2)
+check("(ui-c) actApplyLang( 1 ) planted in another Ângulo unit -> nothing (the gate checks receivers, not pushers); the same unit with an inert event beside it -> that one, so the nothing is not blindness",
+      silent and reads, "alone: rc=%s panel=%s; with the inert event: rc=%s panel=%s named=%s" % (code, panel_of(out), code2, panel_of(out2), names(out2, ANG_OTHER, n2)))
 
 shutil.rmtree(TREES, ignore_errors=True)
 print(f"\n{len(FAILS)} of {len(RAN)} checks failed" if FAILS else f"\nall {len(RAN)} checks passed")
