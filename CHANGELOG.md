@@ -200,6 +200,29 @@ console and in the syslog again: both left the name out. After a boot in English
   The new names were written into the generator and, by a script, into the files' `@NAME` line; the test checks the
   names and codes and prints the colour fields that differ. Syncing the generator and its rules is open.
 
+### A refused upload on the Files page
+
+- **The Files page no longer says "Upload complete." for a file the device refused.** The device answers an upload it
+  will not take with a 4xx: `400 {"error":"Invalid upload"}` for a file name, a folder or a size it refuses, `403` to a
+  session without the upload permission. `fetchSafe( )` throws only for a status of 500 or more (503 excepted) and
+  `doUpload( )` never read `ok`, so the page refreshed the listing and showed the green "Upload complete." in every
+  product image (`WebUI.h` is shared); a 503 came out the same way. Found on 2026-10-21 by running the page's code
+  under node: a 400 came out as a success, a 500 as an error. Now a refusal shows a red message with the status and
+  the device's reason, "Upload refused (HTTP 400: Invalid upload). Check the file name, the folder, the free space and
+  your permission to upload, then try again."; the listing is not refreshed and the upload is not sent again. A 500
+  or a network failure still says "Upload error". The key is `fil_up_refused` in both packs (the pack files grow from
+  42,373 to 42,517 B and from 44,107 to 44,262 B, their `@WEBDICT` line from 26,348 to 26,492 B and from 27,256 to
+  27,411 B, measured 2026-10-28); the Spanish wording is a proposal until a native speaker reviews it.
+  Two limits remain, read in the code and not exercised on a board: a refusal does not refresh the listing, so an
+  upload of several files that the device took in part shows the ones that arrived only after a refresh; and the
+  device clears its refusal at the start of each file (`handleUploadData( )`), so it reports only the last file's,
+  and a refused file followed by an accepted one still ends in a 200 and in "Upload complete.".
+- **Under the hood.** `tools/test_webui_upload_result.py` (CI) runs `doUpload( )` and the page's own `fetchSafe( )`
+  under node, as written and minified, against twelve answers of the device (the 200, the 400 and the 403 the route
+  sends, a 409, two 413, a 503, two odd 400 bodies, a 500 and a network failure), and again with each pack's
+  `@WEBDICT`. Before the fix it failed on 8 of the 12 (the refusals), on both packs and on the missing key, with the 4
+  controls passing; `--mutations` breaks the code 19 ways and every one fails it.
+
 ## v2.11.1 (2026-10-12)
 
 **Four high-severity defects of the manual's review are fixed: the panel's
