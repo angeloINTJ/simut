@@ -21,7 +21,7 @@
 #include "SystemDefs_Validate.h"     /* PIN_MIN_LEN / PIN_MAX_LEN */
 #include "StorageManager.h"          /* userHasPin */
 #include "display/CountInText.h"     /* the minimum inside the too-short line */
-#include "sensors/SensorChannelTable.h"
+/* sensors/SensorChannelTable.h is not included here: no line of the user and PIN screens reads the channel table (it was dead before S10c D6a too, see DisplayManager_Users.cpp). Dropped in the docs step of S10c (2026-10-28): the eleven images stayed sha256-equal. */
 #include "ui/UiDriverHooks.h"        /* the hook definitions Actions.h leans on (its redrawTopPanel( ) calls uiTopPanel( )): they need the complete class, so after the includes above; this unit is TFT-only by the LCD builds' exclusion lists (tools/features.toml), not by an #if, so the LCD images never parse them */
 #include "DisplayManager_Actions.h"  /* the core's touch actions, which handleTouchPanelV24( ) runs; last, they lean on the hooks above */
 #include "DisplayManager_PinActions.h"   /* the PIN keypad's: this unit is TFT-only, so a panel proves a PIN here */
