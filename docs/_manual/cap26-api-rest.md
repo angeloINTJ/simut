@@ -1004,13 +1004,13 @@ Outras três rotas agem na hora, sem reiniciar:
 
 ### Temas {#cap-26-temas}
 
-[release]{.img} `GET /api/themes` lista os temas do painel na ordem do índice:
+[release]{.img} `GET /api/themes` lista os temas do painel na ordem do índice. Cada linha traz o `id` (o índice), o `code` (o `@CODE` do tema) e o `name`:
 
 ```json
-[{"id":0,"name":"Simut Default"},{"id":1,"name":"Janeiro Branco"},{"id":2,"name":"Fevereiro Roxo"}]
+[{"id":0,"code":"simut_def","name":"Simut Default"},{"id":1,"code":"cafe","name":"Coffee with milk"},{"id":2,"code":"nordic","name":"Nordic"}]
 ```
 
-O índice é o que `theme` do `/api/status` mostra e o que `POST /api/save_sys` recebe ([capítulo 13](#cap-13-tema-painel)).
+O índice é o que `theme` do `/api/status` mostra e o que `POST /api/save_sys` recebe ([capítulo 13](#cap-13-tema-painel)). Os temas de fábrica trazem o `name` em inglês: a página web o traduz pela chave `thm_<code>` do pacote de idioma ativo e mostra o `name` como veio quando o pacote não tem a chave, como acontece com um tema seu.
 
 ### Histórico {#cap-26-historico}
 

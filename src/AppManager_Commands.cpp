@@ -56,9 +56,9 @@ void AppManager::startApMode(uint8_t why) {
 #endif
  if (!_netMgr->beginAP(cfg.deviceName, cfg.wifiSsid)) {
   /* beginAP( ) logged SYS_AP_START -1 and gave the radio back to the
-   * reconnect ladder. _isApMode stays false so the loop keeps measuring: it
-   * used to be set regardless, which left a device with no AP, nothing
-   * measured and "AP mode started" printed on the console. */
+   * reconnect ladder. _isApMode stays false: the loop reads it only to pause
+   * syslog and telemetry (6933dcb3, #204; measuring and alarming go on in AP
+   * mode), and they must not stop for an AP that never opened. */
 #if SIMUT_DISPLAY_TFT
   _displayMgr->endBoot( );
   _displayMgr->showPanelMessage(false, TR_ERROR_LBL, MODE_DASHBOARD);

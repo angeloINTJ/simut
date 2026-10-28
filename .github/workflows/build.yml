@@ -268,6 +268,16 @@ jobs:
       - name: Web UI text viewer (as written and minified)
         run: python3 tools/test_webui_text_viewer.py
 
+      # The theme select of the dashboard shows the stock names in the device's
+      # language: GET /api/themes sends {"id","code","name"} with the name in
+      # English, and the page asks the pack's @WEBDICT for thm_<code>. The pure
+      # part that builds the options is pulled out of WebUI.h and run under node,
+      # as written and minified, with lang.js's own t( ), escHtml( ), escAttr( )
+      # and applyLang( ); the data checks hold every stock code to a key in both
+      # packs and data/themes to the generator's names.
+      - name: Web UI theme names (as written and minified)
+        run: python3 tools/test_webui_theme_names.py
+
       # The telemetry page's Live Preview builds the body the device sends,
       # from this device: its name, MAC, readings, limits and account. A
       # preview that disagrees with the firmware misleads whoever writes the
