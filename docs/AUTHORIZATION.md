@@ -205,11 +205,50 @@ deal is different.
 | Users (list, new account, bits, another account's PIN, delete) | `PERM_USER_MGR` |
 | One's own PIN, License, System status | any identified account |
 
-Core 0 checks the bit again on every event (`AppManager_Panel.cpp`,
-`panelAllowed`) and logs a refusal as `APP_UI_PERM_DENIED` (458); Core 1 only
-decides what to draw. A user created at the panel holds panel bits only — no
-web page opens for it until an administrator grants a page bit and resets its
-password.
+Core 0 checks the bit again when the action arrives (`AppManager_Panel.cpp`,
+`panelAllowed`; the table below says which events do) and logs a refusal as
+`APP_UI_PERM_DENIED` (458); Core 1 only decides what to draw. A user created at
+the panel holds panel bits only — no web page opens for it until an
+administrator grants a page bit and resets its password.
+
+### Which panel event checks which bit
+
+`tools/check_authz.py` holds the panel's half of the matrix, as it holds the
+routes': every `UiEvent` (the touch panel's messages to Core 0,
+`SystemDefs_Records.h`) is classified, and CI fails on one that is not. A
+**gated** event calls `panelAllowed( )` with its bit before its first write — in
+the first arm of the dispatch chain in `AppManager_Events.cpp` that names it, or
+in the function or case of `AppManager_Panel.cpp` the table names.
+`python3 tools/check_authz.py --list` prints the whole table, with the reason of
+every ungated event; this one mirrors it as of 2026-10-28, and the script is the
+source. The gated events:
+
+| Event | Bit | Where Core 0 checks |
+|---|---|---|
+| `EVT_APPLY_THEME`, `EVT_APPLY_LANG` | `PERM_SYS_CONFIG` | one guard arm ahead of both handlers (2026-10-28): a refusal changes, saves and logs nothing |
+| `EVT_SET_CLOCK` | `PERM_SYS_CONFIG` | its arm; with no session, only while the boot's own question stands |
+| `EVT_START_AP` | `PERM_NET_CONFIG` | its arm |
+| `EVT_SAVE_ALARMS` | `PERM_ALARM_LIMITS` | `panelSaveAlarmLimits` |
+| `EVT_ALARM_BLOCK` | `PERM_ALARM_BLOCK` | its case |
+| `EVT_ALARM_DEACTIVATE` | `PERM_ALARM_BLOCK` | `panelDeactivateAlarm`, after the PIN |
+| `EVT_MAINT_SET` | `PERM_MAINT` | its case |
+| `EVT_USER_ADD`, `EVT_USER_DEL`, `EVT_USER_PERMS`, `EVT_PIN_POLICY` | `PERM_USER_MGR` | its case (`EVT_USER_ADD` and `EVT_USER_PERMS` also check the bits they would grant) |
+| `EVT_USER_PIN`, `EVT_SAVE_PASSWORD` | `PERM_USER_MGR`, for another account's PIN | `panelSetUserPin`; one's own PIN needs the session only |
+
+Ungated, with the reason in the table: navigation that writes nothing (slot,
+graph, calendar), opening Settings (it ends the session and asks for the PIN),
+the PIN typed (`EVT_AUTH_PIN`, the identification itself), the menu rows (the
+action each screen sends is checked on its own, except the four below), silencing an alarm (anyone at
+the panel can stop the sound; the alarm line records it) and four enumerators
+nothing sends.
+
+Four events still save the configuration with no check on Core 0, while their
+Settings rows ask for `PERM_SYS_CONFIG`: `EVT_SAVE_SOUNDS`,
+`EVT_APPLY_TOUCH_CAL`, `EVT_SAVE_TOUCH_CAL` and `EVT_APPLY_DISPLAY_OFFSET`. They
+are registered deviations in the gate (the maintainer, 2026-10-28), printed as
+warnings, to be fixed in a later change. The menu lists those rows only to a
+session that holds the bit, so a screen that behaves is not the problem; a
+session that loses the bit with the screen open is.
 
 ## Unauthenticated by design
 
@@ -240,3 +279,7 @@ behaviour) and otherwise returns 404, serving no protected data.
    a missing gate is what CI blocks. Keep this file in sync when a route's
    required permission changes — the table above is the reference the bit-level
    review reads from.
+4. Every panel event (`UiEvent`) is classified in `PANEL_EVENTS`; a gated one
+   asks for its bit before its first write; the four registered deviations
+   print as warnings and become a finding the day one of them checks.
+   `tools/test_check_authz.py` proves each rule on mutated copies of the tree.

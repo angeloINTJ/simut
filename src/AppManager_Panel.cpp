@@ -10,7 +10,8 @@
  * the slot, the alarm line gets a record that names the user, and the panel
  * is told what happened (showPanelMessage / a repaint of the screen it is
  * on). A refusal is logged too — a bit that was not there is a fact worth
- * keeping.
+ * keeping. Which event checks which bit, and where, is the table in
+ * tools/check_authz.py (`--list` prints it), with the four that do not yet.
  *
  * Log context convention (SystemDefs_Logging.h): user * 100 + slot for the
  * slot-bound actions, the user slot alone for the account-bound ones. The
