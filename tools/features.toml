@@ -440,8 +440,9 @@ publish             = true
 #   .bin cai 3.624 B (1.040.068 -> 1.036.444, usado 1.028.036 -> 1.024.412), nao os 4.260
 #   B, porque esta imagem nao servia pagina nenhuma do arquivo e passa a linkar
 #   serveProtectedFsPage( ) (+428 B) e o aviso "Page asset missing" (+212 B de strings em
-#   .rodata). Folga de 3.699 B (assinado 1.036.685 B): ainda menos que um setor, entao o
-#   WARN do portao continua. Suba data/web/license.html.gz para /web/ antes de uma suite
+#   .rodata). Folga de 3.555 B (assinado 1.036.829 B; eram 3.699 B antes do seletor de
+#   temas, 28/10/2026): ainda menos que um setor, entao o WARN do portao continua. Suba
+#   data/web/license.html.gz para /web/ antes de uma suite
 #   (AGENTS.md, "Gravar firmware"): o web_test_suite.py abre /license e acusa "Page asset
 #   missing" sem ele.
 [profiles.pico_w_test]
