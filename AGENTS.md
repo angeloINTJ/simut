@@ -444,8 +444,9 @@ python3 tools/test_flash_budget.py                   # as duas regras que mantê
   o `build_custom.py --finish-signed` refaz o `.uf2` do Pico 2 W a partir do
   `.bin` assinado, como a release faz. A estimativa da página vem de
   `tools/feature_costs.json`, que envelhece com o código: quando uma mudança
-  mexe no tamanho de um recurso, rode `measure_savings.py --matrix` (69 builds
-  e 12 conferências nos quatro produtos publicados, cada uma completa) e depois
+  mexe no tamanho de um recurso, rode `measure_savings.py --matrix` (70 builds
+  e 13 conferências nos quatro produtos publicados, cada uma completa, contadas
+  em 2026-10-29) e depois
   `gen_features.py`, que leva os números ao `docs/configurador/model.json`.
 - `PLATFORMIO_BUILD_FLAGS` muda o checksum do projeto e **apaga `.pio/build`
   inteiro**, todos os ambientes. Cada experimento por flag é uma build completa.

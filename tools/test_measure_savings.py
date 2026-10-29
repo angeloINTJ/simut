@@ -182,25 +182,34 @@ def pio_run_cases():
         seen.clear()
         ms.pio_run("pico_w_alpha")
         check("without linker_map the build inherits the environment untouched", seen.get("env") is None)
-        # SIMUT_PIO names the pio to run, ahead of ~/.platformio/penv/bin/pio: on this host the penv broke under
+        # SIMUT_SAVINGS_PIO names the pio to run, ahead of ~/.platformio/penv/bin/pio: on this host the penv broke under
         # python 3.14 on 2026-10-24 (No module named 'platformio') and the matrix of 2026-10-29 died on its first base.
+        # Not "SIMUT_PIO": build.yml has a SIMUT_PIO_SOURCES that is something else (the review of 2026-10-29).
         cmds = []
         ms.subprocess.run = lambda cmd, **kw: (cmds.append(cmd), types.SimpleNamespace(returncode=0, stdout="", stderr=""))[1]
-        saved_pio = os.environ.get("SIMUT_PIO")
+        saved_pio = os.environ.get("SIMUT_SAVINGS_PIO")
         try:
-            os.environ["SIMUT_PIO"] = "/opt/some/pio"
+            os.environ["SIMUT_SAVINGS_PIO"] = sys.executable          # a file that exists
             ms.pio_run("pico_w_alpha")
-            check("SIMUT_PIO is the pio that runs", cmds and cmds[-1][0] == "/opt/some/pio", cmds[-1:] )
-            os.environ.pop("SIMUT_PIO")
+            check("SIMUT_SAVINGS_PIO is the pio that runs", cmds and cmds[-1][0] == sys.executable, cmds[-1:])
+            os.environ["SIMUT_SAVINGS_PIO"] = "/nonexistent/pio"
+            try:
+                ms.pio_run("pico_w_alpha")
+                said = None
+            except SystemExit as e:
+                said = str(e)
+            check("a SIMUT_SAVINGS_PIO that does not exist stops with its name, not a raw FileNotFoundError",
+                  said is not None and "SIMUT_SAVINGS_PIO" in said and "/nonexistent/pio" in said, said)
+            os.environ.pop("SIMUT_SAVINGS_PIO")
             ms.pio_run("pico_w_alpha")
             penv = os.path.expanduser("~/.platformio/penv/bin/pio")
             want = penv if os.path.exists(penv) else "pio"
-            check("without SIMUT_PIO: the penv's pio when it exists, else the PATH's", cmds[-1][0] == want, cmds[-1:])
+            check("without SIMUT_SAVINGS_PIO: the penv's pio when it exists, else the PATH's", cmds[-1][0] == want, cmds[-1:])
         finally:
             if saved_pio is None:
-                os.environ.pop("SIMUT_PIO", None)
+                os.environ.pop("SIMUT_SAVINGS_PIO", None)
             else:
-                os.environ["SIMUT_PIO"] = saved_pio
+                os.environ["SIMUT_SAVINGS_PIO"] = saved_pio
     finally:
         ms.subprocess.run = saved_run
         if saved_flags is None:
@@ -264,6 +273,28 @@ def flips_cases():
     # for _cost_pico2_w_release_ui_angulo"). The env names the real one whose entry holds it, as build_custom.py does for _custom.
     check("the Ângulo's env names the budget of the real Ângulo env on that hardware (pico2_w_angulo)",
           len(b) == 1 and "\ncustom_ui_ram_budget_env = pico2_w_angulo\n" in "\n" + b[0], b[0][-160:] if b else b)
+    # No real Ângulo env holds this hardware's budget: the flip is not built and says why (the review of 2026-10-29 found
+    # this branch untested). build_custom.ui_ram_env stubbed to answer "none".
+    import build_custom as bc
+    saved_ure = bc.ui_ram_env
+    try:
+        bc.ui_ram_env = lambda prof, M_, budgets=None: (None, "no budget here")
+        b2, pl2 = [], []
+        for key, flipped in ms.flips_of(p2, M, ["ui"]):
+            ms.plan_flip(b2, pl2, "pico2_w_release", key, flipped, M)
+        check("with no real Ângulo env for the hardware the flip is unsupported, with the reason, and not built",
+              b2 == [] and pl2 == [("pico2_w_release", "ui=angulo", None, {"unsupported": "no budget here"})], (b2, pl2))
+    finally:
+        bc.ui_ram_env = saved_ure
+    # The checks: one carries the Ângulo (2026-10-29), so the page's margin covers its line; its env names the budget too.
+    ang = [(i, c) for i, c in enumerate(ms.CHECKS) if c[1].get("ui") == "angulo"]
+    check("a check carries the Ângulo, on the Pico 2 W", len(ang) == 1 and ang[0][1][0] == "pico2_w_release", ang)
+    if ang:
+        prof = gf.resolve_profile(ang[0][1][0], M["profiles"])
+        prof.update(ang[0][1][1])
+        text, why = ms.env_text("_check_x", prof, M)
+        check("the Ângulo check's env names the budget of pico2_w_angulo",
+              why is None and "\ncustom_ui_ram_budget_env = pico2_w_angulo\n" in "\n" + text, why)
     for prod, rule in (("pico_w_release", "angulo-cyw43-needs-rp2350"), ("pico_w_alpha", "angulo-needs-tft"),
                        ("pico_w_air", "angulo-needs-tft")):
         b, pl = plans[prod]

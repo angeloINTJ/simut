@@ -562,6 +562,17 @@
       "used": 1184180,
       "bin": 1185424,
       "ram": 142796
+    },
+    {
+      "base": "pico2_w_release",
+      "set": {
+        "ui": "angulo",
+        "mdns": false,
+        "sound_buzzer": false
+      },
+      "used": 1015984,
+      "bin": 1016008,
+      "ram": 131388
     }
   ]
 }

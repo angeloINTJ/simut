@@ -247,13 +247,19 @@ def parse_sizes(text):
 
 def pio_run(env, linker_map=False):
     """`linker_map`: pede o mapa do linker (MAP_FLAG) somado a qualquer
-    PLATFORMIO_BUILD_FLAGS que ja esteja no ambiente. SIMUT_PIO, quando definido, e o pio que
-    roda, na frente do penv: nesta maquina o penv quebrou com o python 3.14 em 2026-10-24 ("No
-    module named 'platformio'") e a matriz de 2026-10-29 morreu na primeira base por causa dele;
-    o CI nao define a variavel e segue no penv."""
-    pio = os.environ.get("SIMUT_PIO") or os.path.expanduser("~/.platformio/penv/bin/pio")
-    if not os.environ.get("SIMUT_PIO") and not os.path.exists(pio):
-        pio = "pio"
+    PLATFORMIO_BUILD_FLAGS que ja esteja no ambiente. SIMUT_SAVINGS_PIO, quando definido, e o
+    pio que roda, na frente do penv: nesta maquina o penv quebrou com o python 3.14 em 2026-10-24
+    ("No module named 'platformio'") e a matriz de 2026-10-29 morreu na primeira base por causa
+    dele; o CI nao define a variavel e segue no penv. Nao "SIMUT_PIO": o build.yml tem um
+    SIMUT_PIO_SOURCES que e outra coisa. Um caminho que nao existe para aqui, com o nome."""
+    pio = os.environ.get("SIMUT_SAVINGS_PIO")
+    if pio:
+        if not os.path.exists(pio):
+            sys.exit(f"measure_savings: SIMUT_SAVINGS_PIO={pio} nao existe")
+    else:
+        pio = os.path.expanduser("~/.platformio/penv/bin/pio")
+        if not os.path.exists(pio):
+            pio = "pio"
     run_env = None
     if linker_map:
         run_env = dict(os.environ)
@@ -494,6 +500,9 @@ CHECKS = [
     # Bluetooth com a linha de comando completa, que no slot dele cabem.
     ("pico2_w_release", {"mdns": False, "sound_buzzer": False, "sensor_bme280": False}),
     ("pico2_w_release", {"bluetooth": True, "cli_full": True}),
+    # O Angulo numa combinacao (2026-10-29): sem ela nenhuma conferencia leva `ui=`, e a margem de
+    # "No limite" da pagina nao cobria a linha nova (a revisao do C1c/C1d).
+    ("pico2_w_release", {"ui": "angulo", "mdns": False, "sound_buzzer": False}),
 ]
 
 
@@ -510,7 +519,10 @@ def measure_checks():
         if bad:
             sys.exit(f"measure_savings: a conferencia {i} quebra a regra {bad[0]['id']}")
         env = f"_check_{i}"
-        blocks.append(gf.emit_env(env, gf.compose(prof, M)))
+        text, why = env_text(env, prof, M)
+        if text is None:
+            sys.exit(f"measure_savings: a conferencia {i} nao tem como ser construida: {why}")
+        blocks.append(text)
         plan.append((p, changes, env))
     out = []
     with TempEnvs(blocks):
@@ -541,7 +553,7 @@ def print_checks(doc):
                 return region + f["overflow"] - base["bin"]
             return 0
         est = base["used"] + sum(delta(flips[flip_key(k, v)]) for k, v in c["set"].items())
-        what = ", ".join(flip_key(k, v) if k == "net" else f"{k}={'on' if v else 'off'}"
+        what = ", ".join(flip_key(k, v) if k in CHOICES else f"{k}={'on' if v else 'off'}"
                          for k, v in c["set"].items())
         if "used" in c:
             print(f"  {c['base']:<15} {what}: real {c['used']}, soma {est}, erro {c['used'] - est:+} B")
@@ -616,22 +628,33 @@ def plan_flip(blocks, plan, p, key, flipped, M):
         plan.append((p, key, None, {"unsupported": bad[0]["detail"]}))
     else:
         env = cost_env(p, key)
-        text = gf.emit_env(env, gf.compose(flipped, M))
-        if flipped.get("ui", gf.DEFAULT_UI) == "angulo":
-            # O portao de RAM estatica do Angulo (tools/check_ui_ram.py, um extra_script) exige de todo ambiente
-            # uma entrada em tools/ui_ram_budget.json, e um ambiente temporario nao tem: a matriz de 2026-10-29
-            # perdeu esta inversao no fim do link ("[ui-ram] FATAL: no static-RAM budget for
-            # _cost_pico2_w_release_ui_angulo"). A mesma resposta que o build_custom.py da ao _custom: o
-            # ambiente de verdade com o Angulo neste hardware, como teto. Importado aqui, nao no topo: o
-            # build_custom importa este modulo.
-            import build_custom as bc
-            ram_env, why = bc.ui_ram_env(flipped, M)
-            if ram_env is None:
-                plan.append((p, key, None, {"unsupported": why}))
-                return
-            text += f"{bc.cur.OPCAO_ORCAMENTO} = {ram_env}\n"
+        text, why = env_text(env, flipped, M)
+        if text is None:
+            plan.append((p, key, None, {"unsupported": why}))
+            return
         blocks.append(text)
         plan.append((p, key, env, None))
+
+
+def env_text(env, prof, M):
+    """(o texto do [env:<env>] temporario de `prof`, None) ou (None, por que nao ha build).
+
+    O que o gerador escreve para qualquer perfil e, num perfil que leva o Angulo, a opcao que diz
+    ao portao de RAM estatica do Angulo (tools/check_ui_ram.py, um extra_script) de que ambiente de
+    verdade vem o orcamento. O portao exige de todo ambiente uma entrada em tools/ui_ram_budget.json,
+    e um ambiente temporario nao tem: a matriz de 2026-10-29 perdeu a inversao do Angulo no fim do
+    link ("[ui-ram] FATAL: no static-RAM budget for _cost_pico2_w_release_ui_angulo"). A mesma
+    resposta que o build_custom.py da ao _custom: o ambiente de verdade com o Angulo neste
+    hardware, como teto; sem um, nao ha build. Importado aqui, nao no topo: o build_custom
+    importa este modulo."""
+    text = gf.emit_env(env, gf.compose(prof, M))
+    if prof.get("ui", gf.DEFAULT_UI) != "angulo":
+        return text, None
+    import build_custom as bc
+    ram_env, why = bc.ui_ram_env(prof, M)
+    if ram_env is None:
+        return None, why
+    return text + f"{bc.cur.OPCAO_ORCAMENTO} = {ram_env}\n", None
 
 
 def measure_matrix():
@@ -681,8 +704,10 @@ def cmd_matrix_partial(toggles):
     bases sao reconstruidas e comparadas com o que o arquivo guarda (used,
     bin, ram); qualquer diferenca recusa, e a matriz inteira e o caminho. Custa
     uma build de base e uma por chave em cada produto publicado (quatro desde
-    que o Pico 2 W entrou, 2026-10-05), contra 69 e mais 12 conferencias da
-    matriz inteira; `net` custa uma por driver que nao e o do produto."""
+    que o Pico 2 W entrou, 2026-10-05), contra 70 e mais 13 conferencias da
+    matriz inteira (2026-10-29); `net` custa uma por driver que nao e o do
+    produto, e `ui` uma por visual que nao e o do produto e que as regras
+    deixam construir (hoje so a do Angulo no Pico 2 W: 5 builds)."""
     M = gf.load_manifest()
     unknown = [t for t in toggles if t not in CHOICES and t not in gf.TOGGLE_ORDER]
     if unknown:
