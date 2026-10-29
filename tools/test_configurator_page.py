@@ -914,6 +914,18 @@ def noes_model():
 
 MODELS["noes"] = noes_model()
 
+
+def net_priced_model():
+    """O model.json com o custo medido do Wi-Fi no SIMUT Wire (que não tem custo de bancada): a linha do Wi-Fi passa a ter preço."""
+    m = copy.deepcopy(MODEL)
+    base = copy.deepcopy(m["costs"]["products"]["pico_w_release"]["base"])
+    m["costs"]["products"]["pico_wire"] = {"base": base, "flips": {"net=cyw43": {"used": base["used"] + 20480, "bin": base["bin"] + 20480,
+                                                                                   "ram": base["ram"] + 2048}}}
+    return m
+
+
+MODELS["netpriced"] = net_priced_model()
+
 # O JS da lógica: a trava de cada opção de UI, a das chaves com a UI escolhida, o link, o perfil, a estimativa.
 JS_UI = r"""
 import * as L from "./logic.js";
@@ -1046,13 +1058,15 @@ function row(label, root) {
   const input = first(find(label, (e) => e.tag === "input"));
   const el = (c) => first(find(label, (x) => cls(x, c)));
   const text = (c) => { const e = el(c); return e ? e.textContent : null; };
-  const own = { title: el("cfg-chave-nome"), help: el("cfg-apoio"), lock: el("cfg-chave-trava") };
+  const own = { title: el("cfg-chave-nome"), help: el("cfg-apoio"), lock: el("cfg-chave-trava"), price: el("sr-only") };
   return { id: input.attrs.id, radio: input.attrs.name, name: text("cfg-chave-nome"), help: text("cfg-apoio"),
            lock: text("cfg-chave-trava"), cost: text("cfg-chave-custo"),
            costTitle: el("cfg-chave-custo") ? (el("cfg-chave-custo").attrs.title || null) : null,
+           costHidden: el("cfg-chave-custo") ? (el("cfg-chave-custo").attrs["aria-hidden"] || null) : null, priceSentence: text("sr-only"),
            checked: input.checked, disabled: input.disabled,
            labelledby: named(root, input.attrs["aria-labelledby"], own), labelledbyAttr: input.attrs["aria-labelledby"] || null,
-           describedby: named(root, input.attrs["aria-describedby"], own), describedbyAttr: input.attrs["aria-describedby"] || null };
+           describedby: named(root, input.attrs["aria-describedby"], own), describedbyAttr: input.attrs["aria-describedby"] || null,
+           description: described(root, input.attrs["aria-describedby"]) };
 }
 
 // The shell of index.html (the language buttons and the data-i18n elements) of the visit being snapshotted.
@@ -1078,10 +1092,14 @@ function snapshot(appEl, loc) {
   for (const i of find(appEl, (e) => e.tag === "input" && e.attrs.role === "switch")) {
     const r = closest(i, (e) => cls(e, "cfg-chave"));
     const help = first(find(r, (e) => cls(e, "cfg-apoio")));
+    const priceEl = first(find(r, (e) => cls(e, "cfg-chave-custo"))), sentenceEl = first(find(r, (e) => cls(e, "sr-only")));
     snap.switches.push({ id: i.attrs.id, checked: i.checked, disabled: i.disabled,
                          locks: find(r, (e) => cls(e, "cfg-chave-trava")).map((e) => e.textContent),
                          badges: find(r, (e) => cls(e, "selo")).map((e) => e.textContent),
                          help: help ? help.textContent : null,
+                         cost: priceEl ? priceEl.textContent : null, costTitle: priceEl ? (priceEl.attrs.title || null) : null,
+                         costHidden: priceEl ? (priceEl.attrs["aria-hidden"] || null) : null,
+                         priceSentence: sentenceEl ? sentenceEl.textContent : null,
                          description: described(appEl, i.attrs["aria-describedby"]), describedbyAttr: i.attrs["aria-describedby"] || null });
   }
   snap.warnings = find(appEl, (e) => e.tag === "li" && cls(e, "cfg-aviso")).map((e) => ({ tone: e.attrs["data-tom"], text: e.textContent }));
@@ -1308,6 +1326,51 @@ def expected_price(model, pid, u):
     return None
 
 
+def price_sentence(lang, kind, pr):
+    """A frase de um preço (kind: "price", "price.net" ou "price.ui"): a que o leitor de tela lê e a que o título mostra."""
+    if pr["overflow"]:
+        return say(lang, f"{kind}.over")
+    return say(lang, f"{kind}.more" if pr["flash"] >= 0 else f"{kind}.less", n=num_text(lang, abs(pr["flash"])))
+
+
+def expected_toggle_price(model, pid, tid):
+    """O que L.priceOn lê da matriz para ligar a chave `tid`: bytes de flash a mais (a menos, se negativo), ou nada."""
+    prod = next(x for x in model["products"] if x["id"] == pid)
+    costs = (model.get("costs") or {}).get("products", {}).get(pid)
+    f = costs["flips"].get(tid) if costs else None
+    if not f or f.get("same") or "rule" in f or "error" in f:
+        return None
+    if "used" in f:
+        d = f["used"] - costs["base"]["used"]
+    elif "overflow" in f:
+        d = prod["ceilings"]["flash_region"] + f["overflow"] - costs["base"]["bin"]
+    else:
+        return None
+    return {"flash": -d if prod["config"].get(tid) is True else d, "overflow": "overflow" in f}
+
+
+def expected_net_price(model, pid, n):
+    """O mesmo para escolher a rede `n` no lugar da do produto (chave "net=<n>", como L.priceNet)."""
+    prod = next(x for x in model["products"] if x["id"] == pid)
+    costs = (model.get("costs") or {}).get("products", {}).get(pid)
+    f = costs["flips"].get(f"net={n}") if costs else None
+    if costs is None or n == prod["config"]["net"] or not f or f.get("same") or any(k in f for k in ("rule", "error", "unsupported")):
+        return None
+    if "used" in f:
+        return {"flash": f["used"] - costs["base"]["used"], "overflow": False}
+    if "overflow" in f:
+        return {"flash": prod["ceilings"]["flash_region"] + f["overflow"] - costs["base"]["bin"], "overflow": True}
+    return None
+
+
+def expected_net_texts(model, pid, n, lang, ctx=None):
+    """(o texto do preço, a frase dele) da linha da rede `n`, ou (None, None): a linha travada não mostra preço."""
+    pr = expected_net_price(model, pid, n)
+    if pr is None or new_blockers(dict(gf.resolve_profile(pid, M["profiles"]), **(ctx or {})), net=n):
+        return (None, None)
+    return (kb_text(lang, pr["flash"]), price_sentence(lang, "price.net", pr))
+
+
 def expected_ui_price(model, pid, u, lang, ctx=None):
     """(o texto do preço, o título dele) que a linha da UI `u` deve mostrar, ou (None, None): a linha travada
     não mostra preço."""
@@ -1530,6 +1593,9 @@ def ui_scenarios():
         {"name": "price:locked", "hash": "#b=pico2_w_release&off=tft_graph", "lang": "en", "model": "measured", "actions": []},
         # A matriz de verdade, como estiver: com ou sem a entrada `ui=angulo` do Pico 2 W (a conferência lê o próprio modelo).
         {"name": "price:real", "hash": "#b=pico2_w_release", "lang": "en", "actions": [{"click": "u-angulo"}]},
+        # O preço da linha da rede (C1e): o Wi-Fi do SIMUT Wire com uma medida inventada na matriz; o leitor de tela lê a frase.
+        {"name": "price:net", "hash": "#b=pico_wire", "lang": "en", "model": "netpriced", "actions": []},
+        {"name": "price:net:es", "hash": "#b=pico_wire", "lang": "es", "model": "netpriced", "actions": []},
         # Uma chave sem efeito, e uma travada que também não tem efeito: o motivo e a frase chegam ao leitor de tela (C1d).
         {"name": "noeffect:release", "hash": "#b=pico_w_release", "lang": "en", "model": "noeffect", "actions": []},
         {"name": "noeffect:air:pt", "hash": "#b=pico_w_air", "lang": "pt", "model": "noeffect", "actions": []},
@@ -1581,12 +1647,13 @@ def ui_app_findings(res):
 
     def row(s, rid):
         return next((x for f in s["fieldsets"] for x in f["rows"] if x["id"] == rid),
-                    {"id": rid, "radio": None, "name": None, "help": None, "lock": "ausente", "cost": None, "costTitle": None, "checked": None, "disabled": None,
+                    {"id": rid, "radio": None, "name": None, "help": None, "lock": "ausente", "cost": None, "costTitle": None, "costHidden": None, "priceSentence": None, "description": None, "checked": None, "disabled": None,
                      "labelledby": None, "labelledbyAttr": None, "describedby": None, "describedbyAttr": None})
 
     def switch(s, sid):
         return next((x for x in s["switches"] if x["id"] == sid), {"id": sid, "checked": None, "disabled": None, "locks": ["ausente"], "badges": None,
-                                                       "help": None, "description": None, "describedbyAttr": None})
+                                                       "help": None, "description": None, "describedbyAttr": None,
+                                                       "cost": None, "costTitle": None, "costHidden": None, "priceSentence": None})
 
     # 1. A varredura: cada produto, nas duas línguas. A escolha está no grupo do modelo, antes das chaves, com
     #    o título do modelo e uma opção por UI do manifesto, com o nome e a ajuda dele; a do produto marcada;
@@ -1636,11 +1703,20 @@ def ui_app_findings(res):
             # <p> sem id --, e fica fora desta leitura: o que se lê aqui é o que as duas escolhas dividem.
             for choice, group, opts, key in ((f, "visual", UIS, "ui"), (n, "rede", NETS, "net")):
                 for x, o in zip(choice["rows"], opts):
-                    want_desc = ["help", "lock"] if new_blockers(prof, **{key: o}) else ["help"]
+                    want_desc = ["help", "lock"] if new_blockers(prof, **{key: o}) else ["help"] + (["price"] if x["cost"] else [])
                     ok(x["labelledby"] == ["title"],
                        f"{tag}/{key}={o}: o nome do rádio (aria-labelledby={x['labelledbyAttr']!r}) vem de {x['labelledby']}, devia ser só o título da linha")
                     ok((x["describedby"] or ["-"]) == want_desc,
                        f"{tag}/{key}={o}: a descrição do rádio (aria-describedby={x['describedbyAttr']!r}) vem de {x['describedby']}, devia ser {want_desc}, nessa ordem")
+                    # C1e: o que o leitor de tela recebe é o texto dos elementos citados -- a ajuda, o motivo da trava e a frase do preço --
+                    # e a frase é a do título; o valor visível ("36.0 KB") fica escondido do leitor, que o diria sem o sentido.
+                    ok(x["description"] == [x["help"]] + ([x["lock"]] if x["lock"] else []) + ([x["priceSentence"]] if x["priceSentence"] else []),
+                       f"{tag}/{key}={o}: o leitor de tela recebe {x['description']}, devia ser a ajuda, o motivo da trava e a frase do preço da linha")
+                    ok(x["priceSentence"] == x["costTitle"] and x["costHidden"] == ("true" if x["cost"] else None),
+                       f"{tag}/{key}={o}: a frase lida ({x['priceSentence']!r}) devia ser o título ({x['costTitle']!r}) e o valor visível ({x['cost']!r}) estar escondido do leitor ({x['costHidden']!r})")
+                    if key == "net":
+                        wantn = expected_net_texts(MODEL, p, o, lang)
+                        ok((x["cost"], x["costTitle"]) == wantn, f"{tag}/net={o}: a linha da rede mostra {x['cost']!r} ({x['costTitle']!r}), a matriz do modelo dá {wantn}")
                 ok({x["radio"] for x in choice["rows"]} == {group},
                    f"{tag}: os rádios da escolha {key} têm os nomes {sorted(str(x['radio']) for x in choice['rows'])}, devia ser todos {group!r}")
             ids = [r["id"] for r in s["radios"]]
@@ -1826,6 +1902,11 @@ def ui_app_findings(res):
             x = row(by[name]["snaps"][0], f"u-{u}")
             want = expected_ui_price(MODELS[key], pid, u, lang)
             ok((x["cost"], x["costTitle"]) == want, f"{name}/ui={u}: preço {x['cost']!r} com o título {x['costTitle']!r}, devia ser {want}")
+            if want[0]:
+                ok(x["description"] == [x["help"], want[1]] and x["describedby"] == ["help", "price"] and x["priceSentence"] == want[1] and x["costHidden"] == "true",
+                   f"{name}/ui={u}: a linha com preço devia ser descrita pela ajuda e pela frase do preço, com o valor escondido do leitor: {x['description']}, {x['describedby']}, {x['costHidden']!r}")
+            else:
+                ok(x["priceSentence"] is None and "price" not in (x["describedby"] or []), f"{name}/ui={u}: a linha sem preço não devia ter frase de preço: {x['priceSentence']!r}, {x['describedby']}")
     s0, s1 = by["price:measured"]["snaps"]
     a0 = row(s0, "u-angulo")
     ok(a0["cost"] == "41.0 KB" and "41,984 B" in (a0["costTitle"] or "") and not a0["disabled"],
@@ -1864,13 +1945,26 @@ def ui_app_findings(res):
     ok((say("en", "warn.missing", list=ang_en) in texts) == (not has_entry),
        f"price:real: o aviso de 'sem medida' {'não devia' if has_entry else 'devia'} estar na tela: {texts}")
 
+    # 12c. O preço da linha da REDE (C1e): como o da UI, o valor fica escondido do leitor de tela e a frase é lida na descrição da linha.
+    for name, lang in (("price:net", "en"), ("price:net:es", "es")):
+        for n in NETS:
+            x = row(by[name]["snaps"][0], f"n-{n}")
+            want = expected_net_texts(MODELS["netpriced"], "pico_wire", n, lang)
+            ok((x["cost"], x["costTitle"]) == want, f"{name}/net={n}: preço {x['cost']!r} com o título {x['costTitle']!r}, devia ser {want}")
+            if want[0]:
+                ok(x["description"] == [x["help"], want[1]] and x["describedby"] == ["help", "price"] and x["priceSentence"] == want[1] and x["costHidden"] == "true",
+                   f"{name}/net={n}: a linha de rede com preço devia ser descrita pela ajuda e pela frase do preço: {x['description']}, {x['describedby']}")
+    w = row(by["price:net"]["snaps"][0], "n-cyw43")
+    ok(w["cost"] == "20.0 KB" and "20,480 B" in (w["costTitle"] or ""), f"price:net: o Wi-Fi do Wire devia mostrar 20.0 KB e 20,480 B: {w['cost']!r}, {w['costTitle']!r}")
+
     # 13. O que o leitor de tela recebe de cada CHAVE (C1d, 2026-10-29): a descrição (aria-describedby) é a ajuda e, depois
     #     dela, toda linha de motivo que a chave mostra -- a trava e a frase de "não muda nada" -- na ordem da tela. Antes
     #     só a ajuda: o motivo de uma chave travada estava na tela e em descrição nenhuma. Cada id citado existe uma vez
     #     só ("missing" e "duplicate" são achados). Quatro classes de chave, e cada uma tem de aparecer para a conferência
     #     valer: a travada, a sem efeito, a que é as duas e a livre (só a ajuda).
-    seen = {"locked": 0, "noeffect": 0, "both": 0, "free": 0}
-    for name, lang in [(f"sweep:{lg}:{p}", lg) for lg in ("en", "pt", "es") for p in PRODUCTS] + [("noeffect:release", "en"), ("noeffect:air:pt", "pt")]:
+    seen = {"locked": 0, "noeffect": 0, "both": 0, "free": 0, "priced": 0}
+    for name, lang, model13, pid13 in ([(f"sweep:{lg}:{p}", lg, MODEL, p) for lg in ("en", "pt", "es") for p in PRODUCTS]
+                                       + [("noeffect:release", "en", MODELS["noeffect"], "pico_w_release"), ("noeffect:air:pt", "pt", MODELS["noeffect"], "pico_w_air")]):
         prefix, noeff = say(lang, "locked", why=""), say(lang, "noeffect")
         for sw in by[name]["snaps"][0]["switches"]:
             help_text = M["ui_toggles"][sw["id"][2:]]["help"][lang]
@@ -1878,9 +1972,16 @@ def ui_app_findings(res):
             kind = "both" if has_lock and has_same else "locked" if has_lock else "noeffect" if has_same else "free"
             seen[kind] += 1
             ok(sw["help"] == help_text, f"{name}/{sw['id']}: a ajuda na tela é {sw['help']!r}, devia ser a do manifesto")
-            ok(sw["description"] == [help_text] + sw["locks"],
+            # C1e: uma chave livre com preço na matriz mostra o valor (escondido do leitor) e a frase dele, e a frase entra na descrição.
+            pr = expected_toggle_price(model13, pid13, sw["id"][2:]) if kind == "free" else None
+            sentence = price_sentence(lang, "price", pr) if pr else None
+            ok(sw["description"] == [help_text] + sw["locks"] + ([sentence] if sentence else []),
                f"{name}/{sw['id']} ({kind}): a descrição que o leitor de tela recebe (aria-describedby={sw['describedbyAttr']!r}) é "
-               f"{sw['description']}, devia ser a ajuda e depois {sw['locks']}")
+               f"{sw['description']}, devia ser a ajuda, as linhas de motivo {sw['locks']} e a frase do preço {sentence!r}")
+            got = (sw["cost"], sw["costTitle"], sw["priceSentence"], sw["costHidden"])
+            want = (kb_text(lang, pr["flash"]), sentence, sentence, "true") if pr else (None, None, None, None)
+            ok(got == want, f"{name}/{sw['id']} ({kind}): preço na tela {got}, a matriz dá {want}")
+            seen["priced"] += bool(pr)
     ok(all(seen.values()), f"as classes de chave lidas (cada uma devia aparecer): {seen}")
 
     # 14. O espanhol (C1d, 2026-10-29). A página em es mostra o casco (index.html) e o que está em #app na língua certa: o atributo
@@ -1927,6 +2028,7 @@ def ui_app_findings(res):
     a0 = row(s0, "u-angulo")
     ok(a0["cost"] == "41,0 KB" and "41.984 B" in (a0["costTitle"] or ""),
        f"es:flow: o preço do Ângulo é {a0['cost']!r}, título {a0['costTitle']!r}, devia ser 41,0 KB e 41.984 B")
+    ok(a0["description"] == [a0["help"], a0["costTitle"]], f"es:flow: o leitor de tela devia receber a ajuda e a frase do preço: {a0['description']}")
     ok(switch(s1, "t-tft_graph")["locks"] == [say("es", "locked", why=chart["es"])], f"es:flow: a trava da chave do gráfico: {switch(s1, 't-tft_graph')['locks']}")
     ok(s1["summary"] == say("es", "result.changes1", p=label_of("pico2_w_release", "es")), f"es:flow: o resumo é {s1['summary']!r}")
     ok(s3 == s0, "es:flow: voltar ao visual original devia deixar a tela como a de partida")
@@ -2051,11 +2153,11 @@ CONTROLS = [
     ("a trava da UI não mostra o motivo", "app",
      '''          lock ? h("span", { class: "cfg-chave-trava", id: lockId, text: t("locked", { why: label(lock.why) }) }) : null),
         h("span", { class: "cfg-chave-lado" },
-          priceText ? h("span", { class: "cfg-chave-custo", title: priceTitle, text: priceText }) : null,
+          priceText ? priceTags(priceId, priceText, priceTitle) : null,
           h("input", { type: "radio", class: "cfg-radio", name: "visual",''',
      '''          null),
         h("span", { class: "cfg-chave-lado" },
-          priceText ? h("span", { class: "cfg-chave-custo", title: priceTitle, text: priceText }) : null,
+          priceText ? priceTags(priceId, priceText, priceTitle) : null,
           h("input", { type: "radio", class: "cfg-radio", name: "visual",'''),
     ("a marcada não é a escolha de agora", "app", "checked: config.ui === o.id", "checked: state.set.ui === o.id"),
     ("missingName não sabe ui", "app",
@@ -2081,29 +2183,29 @@ CONTROLS = [
     ("a trava da rede não mostra o motivo (instrumento)", "app",
      '''          lock ? h("span", { class: "cfg-chave-trava", id: lockId, text: t("locked", { why: label(lock.why) }) }) : null),
         h("span", { class: "cfg-chave-lado" },
-          priceText ? h("span", { class: "cfg-chave-custo", title: priceTitle, text: priceText }) : null,
+          priceText ? priceTags(priceId, priceText, priceTitle) : null,
           h("input", { type: "radio", class: "cfg-radio", name: "rede",''',
      '''          null),
         h("span", { class: "cfg-chave-lado" },
-          priceText ? h("span", { class: "cfg-chave-custo", title: priceTitle, text: priceText }) : null,
+          priceText ? priceTags(priceId, priceText, priceTitle) : null,
           h("input", { type: "radio", class: "cfg-radio", name: "rede",'''),
     ("o rádio da rede não desabilita (instrumento)", "app",
      "checked: config.net === o.id, disabled: Boolean(lock),", "checked: config.net === o.id,"),
     # As dez quebras da revisão (C1b-b). A âncora de cada uma é a da revisão; a quebra é acusada pela leitura de
     # uma tela (o nome, a descrição, o grupo, a marca, a build), e não por uma âncora de outro controle.
     ("B1 a trava da UI diz um motivo vazio", "app",
-     'lock ? h("span", { class: "cfg-chave-trava", id: lockId, text: t("locked", { why: label(lock.why) }) }) : null),\n        h("span", { class: "cfg-chave-lado" },\n          priceText ? h("span", { class: "cfg-chave-custo", title: priceTitle, text: priceText }) : null,\n          h("input", { type: "radio", class: "cfg-radio", name: "visual",',
-     'lock ? h("span", { class: "cfg-chave-trava", id: lockId, text: t("locked", { why: "" }) }) : null),\n        h("span", { class: "cfg-chave-lado" },\n          priceText ? h("span", { class: "cfg-chave-custo", title: priceTitle, text: priceText }) : null,\n          h("input", { type: "radio", class: "cfg-radio", name: "visual",'),
+     'lock ? h("span", { class: "cfg-chave-trava", id: lockId, text: t("locked", { why: label(lock.why) }) }) : null),\n        h("span", { class: "cfg-chave-lado" },\n          priceText ? priceTags(priceId, priceText, priceTitle) : null,\n          h("input", { type: "radio", class: "cfg-radio", name: "visual",',
+     'lock ? h("span", { class: "cfg-chave-trava", id: lockId, text: t("locked", { why: "" }) }) : null),\n        h("span", { class: "cfg-chave-lado" },\n          priceText ? priceTags(priceId, priceText, priceTitle) : null,\n          h("input", { type: "radio", class: "cfg-radio", name: "visual",'),
     ("B2 o rádio da UI nunca é desabilitado", "app",
      "checked: config.ui === o.id, disabled: Boolean(lock),", "checked: config.ui === o.id, disabled: Boolean(lock) && false,"),
     ("B3 o segundo rádio da UI sai do grupo", "app",
      'name: "visual", id, value: o.id,', 'name: o.id === "original" ? "visual" : "visual2", id, value: o.id,'),
     ("B4 a descrição do rádio da UI perde a trava", "app",
-     '"aria-describedby": lock ? `${helpId} ${lockId}` : helpId,\n                       checked: config.ui',
+     '"aria-describedby": described,\n                       checked: config.ui',
      '"aria-describedby": helpId,\n                       checked: config.ui'),
     ("B5 o nome do rádio da UI aponta para um id que não existe", "app",
-     '"aria-labelledby": `${id}-nome`, "aria-describedby": lock ? `${helpId} ${lockId}` : helpId,\n                       checked: config.ui',
-     '"aria-labelledby": `${id}-nom`, "aria-describedby": lock ? `${helpId} ${lockId}` : helpId,\n                       checked: config.ui'),
+     '"aria-labelledby": `${id}-nome`, "aria-describedby": described,\n                       checked: config.ui',
+     '"aria-labelledby": `${id}-nom`, "aria-describedby": described,\n                       checked: config.ui'),
     ("B6 a UI do próprio produto vai para o link", "logic",
      'if (Object.prototype.hasOwnProperty.call(set, "ui") && set.ui !== base.ui) out.ui = set.ui;',
      'if (Object.prototype.hasOwnProperty.call(set, "ui") && set.ui !== undefined) out.ui = set.ui;'),
@@ -2122,10 +2224,10 @@ CONTROLS = [
     # O que B4 e B5 deixam solto: um id que existe mas é de outro elemento (a ajuda no lugar do título), e a
     # trava citada na descrição de uma opção que não tem trava (o id não existe).
     ("o nome do rádio da UI é a ajuda, que existe", "app",
-     '"aria-labelledby": `${id}-nome`, "aria-describedby": lock ? `${helpId} ${lockId}` : helpId,\n                       checked: config.ui',
-     '"aria-labelledby": helpId, "aria-describedby": lock ? `${helpId} ${lockId}` : helpId,\n                       checked: config.ui'),
+     '"aria-labelledby": `${id}-nome`, "aria-describedby": described,\n                       checked: config.ui',
+     '"aria-labelledby": helpId, "aria-describedby": described,\n                       checked: config.ui'),
     ("a descrição do rádio da UI cita a trava que a opção livre não tem", "app",
-     '"aria-describedby": lock ? `${helpId} ${lockId}` : helpId,\n                       checked: config.ui',
+     '"aria-describedby": described,\n                       checked: config.ui',
      '"aria-describedby": `${helpId} ${lockId}`,\n                       checked: config.ui'),
     ("a trava da UI repete o id da ajuda", "app",
      "const lock = L.uiLockOf(m, config, o.id, state.productId);\n      const helpId = `${id}-ajuda`, lockId = `${id}-trava`;",
@@ -2133,21 +2235,21 @@ CONTROLS = [
     # A ordem da descrição (a ajuda, depois o motivo da trava): a quebra que a revisão do B2a achou (2026-10-22), `lockId helpId` no lugar de
     # `helpId lockId`, passava por todas as conferências, que liam o conjunto e não a ordem.
     ("a descrição do rádio da UI lê a trava antes da ajuda", "app",
-     '"aria-describedby": lock ? `${helpId} ${lockId}` : helpId,\n                       checked: config.ui',
+     '"aria-describedby": described,\n                       checked: config.ui',
      '"aria-describedby": lock ? `${lockId} ${helpId}` : helpId,\n                       checked: config.ui'),
     ("a descrição do rádio da rede lê a trava antes da ajuda", "app",
-     '"aria-describedby": lock ? `${helpId} ${lockId}` : helpId,\n                       checked: config.net',
+     '"aria-describedby": described,\n                       checked: config.net',
      '"aria-describedby": lock ? `${lockId} ${helpId}` : helpId,\n                       checked: config.net'),
     # Os mesmos achados, na escolha da rede, na chave e na build em curso: sem estes, uma conferência que
     # lê as duas escolhas poderia estar lendo só uma.
     ("o segundo rádio da rede sai do grupo (instrumento)", "app",
      'name: "rede", id, value: o.id,', 'name: o.id === "cyw43" ? "rede" : "rede2", id, value: o.id,'),
     ("a descrição do rádio da rede perde a trava (instrumento)", "app",
-     '"aria-describedby": lock ? `${helpId} ${lockId}` : helpId,\n                       checked: config.net',
+     '"aria-describedby": described,\n                       checked: config.net',
      '"aria-describedby": helpId,\n                       checked: config.net'),
     ("o nome do rádio da rede aponta para um id que não existe (instrumento)", "app",
-     '"aria-labelledby": `${id}-nome`, "aria-describedby": lock ? `${helpId} ${lockId}` : helpId,\n                       checked: config.net',
-     '"aria-labelledby": `${id}-nom`, "aria-describedby": lock ? `${helpId} ${lockId}` : helpId,\n                       checked: config.net'),
+     '"aria-labelledby": `${id}-nome`, "aria-describedby": described,\n                       checked: config.net',
+     '"aria-labelledby": `${id}-nom`, "aria-describedby": described,\n                       checked: config.net'),
     ("a marca 'mudou' da rede sai sem texto (instrumento)", "app",
      'changed ? [" ", h("span", { class: "selo", text: t("changed") })] : null),\n    m.net.options.map',
      'changed ? [" ", h("span", { class: "selo", text: "" })] : null),\n    m.net.options.map'),
@@ -2166,7 +2268,7 @@ CONTROLS = [
     ("o preço da escolha conta a do próprio produto", "logic",
      "  if (value === productById(model, productId).config[key]) return null;\n", ""),
     ("a linha da UI não mostra o preço", "app",
-     '          priceText ? h("span", { class: "cfg-chave-custo", title: priceTitle, text: priceText }) : null,\n          h("input", { type: "radio", class: "cfg-radio", name: "visual",',
+     '          priceText ? priceTags(priceId, priceText, priceTitle) : null,\n          h("input", { type: "radio", class: "cfg-radio", name: "visual",',
      '          null,\n          h("input", { type: "radio", class: "cfg-radio", name: "visual",'),
     ("a linha travada da UI mostra o preço", "app",
      '      if (price && !lock) {\n        priceText = kb(price.flash);\n        priceTitle = price.overflow ? t("price.ui.over")',
@@ -2223,6 +2325,27 @@ CONTROLS = [
     ("label( ) perde o inglês de reserva", "app", '  return entry[state.lang] || entry.en;', '  return entry[state.lang];'),
     ("falta no es o texto do preço da UI", "app",
      '    "price.ui.more": "Elegido en lugar del aspecto propio de este producto, la imagen pesa {n} B más (medido).",\n', ''),
+    # O preço lido pelo leitor de tela (C1e, 2026-10-29): a descrição de cada controle, o id da frase, o valor escondido.
+    ("a descrição da chave perde o preço", "app",
+     '"aria-describedby": priceText && !same ? `${described} ${priceId}` : described,', '"aria-describedby": described,'),
+    ("a descrição do rádio da UI perde o preço", "app",
+     '"aria-describedby": described,\n                       checked: config.ui',
+     '"aria-describedby": lock ? `${helpId} ${lockId}` : helpId,\n                       checked: config.ui'),
+    ("a descrição do rádio da rede perde o preço", "app",
+     '"aria-describedby": described,\n                       checked: config.net',
+     '"aria-describedby": lock ? `${helpId} ${lockId}` : helpId,\n                       checked: config.net'),
+    ("o valor visível do preço não é escondido do leitor de tela", "app",
+     'title: sentence, "aria-hidden": "true", text }', 'title: sentence, text }'),
+    ("a frase do preço não tem id", "app",
+     'h("span", { class: "sr-only", id: priceId, text: sentence })', 'h("span", { class: "sr-only", text: sentence })'),
+    ("a frase do preço é o valor, sem o sentido", "app",
+     'h("span", { class: "sr-only", id: priceId, text: sentence })', 'h("span", { class: "sr-only", id: priceId, text })'),
+    ("o id do preço da chave é o da ajuda", "app",
+     '  const priceId = `${id}-preco`;\n  // What a screen reader says', '  const priceId = `${id}-ajuda`;\n  // What a screen reader says'),
+    ("o id do preço da rede é o da ajuda", "app",
+     '      const priceId = `${id}-preco`;\n      const price = L.priceNet(', '      const priceId = `${id}-ajuda`;\n      const price = L.priceNet('),
+    ("o id do preço da UI é o da ajuda", "app",
+     '      const priceId = `${id}-preco`;\n      const price = L.priceUi(', '      const priceId = `${id}-ajuda`;\n      const price = L.priceUi('),
     ("a linha de revisão perde o link", "app",
      '  return h("p", { class: "cfg-apoio", id: "cfg-revisao" }, before,\n    h("a", { href: reviewUrl(), target: "_blank", rel: "noopener", text: t("lang.review.link") }), after);',
      '  return h("p", { class: "cfg-apoio", id: "cfg-revisao" }, before, after);'),

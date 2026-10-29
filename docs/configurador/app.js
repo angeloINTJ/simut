@@ -605,6 +605,15 @@ function renderFeatures() {
     h("h2", { class: "cfg-secao-titulo", id: "h-recursos", text: t("sec.features") }), groups);
 }
 
+/* A price beside a control, as the cost matrix measured it: the figure for the eye (with its sentence as a title, for the pointer)
+ * and the sentence for a screen reader. The figure alone ("36.0 KB") means nothing read aloud, and a title is not part of a
+ * control's description, so the sentence is a visually hidden element that the control cites in its aria-describedby, and the
+ * figure is hidden from the reader so that it is not said twice. */
+function priceTags(priceId, text, sentence) {
+  return [h("span", { class: "cfg-chave-custo", title: sentence, "aria-hidden": "true", text }),
+          h("span", { class: "sr-only", id: priceId, text: sentence })];
+}
+
 function renderToggle(x, config) {
   const m = state.model;
   const id = `t-${x.id}`;
@@ -619,9 +628,11 @@ function renderToggle(x, config) {
       : t(price.flash >= 0 ? "price.more" : "price.less", { n: num(Math.abs(price.flash)) });
   }
   const helpId = `${id}-ajuda`, lockId = `${id}-trava`, sameId = `${id}-sem-efeito`;
+  const priceId = `${id}-preco`;
   // What a screen reader says about the switch is the help and then every line of reason the switch shows (the lock,
   // "changes nothing"), in the order they are on the page. A switch that cannot be turned is disabled, and without
   // these ids its reason was on the screen and in no description (the radios of renderNet and renderUi already cite theirs).
+  // A price the switch shows is said last: its sentence (priceTags) is cited after these.
   const described = [helpId, lock ? lockId : null, same ? sameId : null].filter(Boolean).join(" ");
   return h("div", { class: "cfg-chave" },
     h("div", { class: "cfg-chave-texto" },
@@ -632,9 +643,9 @@ function renderToggle(x, config) {
       lock ? h("p", { class: "cfg-chave-trava", id: lockId, text: t("locked", { why: label(lock.why) }) }) : null,
       same ? h("p", { class: "cfg-chave-trava", id: sameId, text: t("noeffect") }) : null),
     h("div", { class: "cfg-chave-lado" },
-      priceText && !same ? h("span", { class: "cfg-chave-custo", title: priceTitle, text: priceText }) : null,
+      priceText && !same ? priceTags(priceId, priceText, priceTitle) : null,
       h("input", { type: "checkbox", role: "switch", class: "cfg-interruptor", id,
-                   "aria-describedby": described, checked: config[x.id] === true,
+                   "aria-describedby": priceText && !same ? `${described} ${priceId}` : described, checked: config[x.id] === true,
                    disabled: Boolean(lock) || same,
                    onchange: (e) => flip(x.id, e.target.checked) })));
 }
@@ -654,6 +665,7 @@ function renderNet(config) {
     m.net.options.map((o) => {
       const id = `n-${o.id}`;
       const lock = L.netLockOf(m, config, o.id, state.productId);
+      const priceId = `${id}-preco`;
       const price = L.priceNet(m, state.productId, o.id);
       let priceText = null, priceTitle = null;
       if (price && !lock) {
@@ -662,15 +674,18 @@ function renderNet(config) {
           : t(price.flash >= 0 ? "price.net.more" : "price.net.less", { n: num(Math.abs(price.flash)) });
       }
       const helpId = `${id}-ajuda`, lockId = `${id}-trava`;
+      // What a screen reader says about the option: the help, then the reason it is locked or the sentence of its price (a
+      // priced option is never locked).
+      const described = [helpId, lock ? lockId : null, priceText ? priceId : null].filter(Boolean).join(" ");
       return h("label", { class: "cfg-chave cfg-rede-opcao", for: id },
         h("span", { class: "cfg-chave-texto" },
           h("span", { class: "cfg-chave-nome", id: `${id}-nome`, text: label(o.label) }),
           h("span", { class: "cfg-apoio", id: helpId, text: label(o.help) }),
           lock ? h("span", { class: "cfg-chave-trava", id: lockId, text: t("locked", { why: label(lock.why) }) }) : null),
         h("span", { class: "cfg-chave-lado" },
-          priceText ? h("span", { class: "cfg-chave-custo", title: priceTitle, text: priceText }) : null,
+          priceText ? priceTags(priceId, priceText, priceTitle) : null,
           h("input", { type: "radio", class: "cfg-radio", name: "rede", id, value: o.id,
-                       "aria-labelledby": `${id}-nome`, "aria-describedby": lock ? `${helpId} ${lockId}` : helpId,
+                       "aria-labelledby": `${id}-nome`, "aria-describedby": described,
                        checked: config.net === o.id, disabled: Boolean(lock),
                        onchange: () => chooseNet(o.id) })));
     }));
@@ -697,6 +712,7 @@ function renderUi(config) {
       const id = `u-${o.id}`;
       const lock = L.uiLockOf(m, config, o.id, state.productId);
       const helpId = `${id}-ajuda`, lockId = `${id}-trava`;
+      const priceId = `${id}-preco`;
       const price = L.priceUi(m, state.productId, o.id);
       let priceText = null, priceTitle = null;
       if (price && !lock) {
@@ -704,15 +720,18 @@ function renderUi(config) {
         priceTitle = price.overflow ? t("price.ui.over")
           : t(price.flash >= 0 ? "price.ui.more" : "price.ui.less", { n: num(Math.abs(price.flash)) });
       }
+      // What a screen reader says about the option: the help, then the reason it is locked or the sentence of its price (a
+      // priced option is never locked).
+      const described = [helpId, lock ? lockId : null, priceText ? priceId : null].filter(Boolean).join(" ");
       return h("label", { class: "cfg-chave cfg-rede-opcao", for: id },
         h("span", { class: "cfg-chave-texto" },
           h("span", { class: "cfg-chave-nome", id: `${id}-nome`, text: label(o.label) }),
           h("span", { class: "cfg-apoio", id: helpId, text: label(o.help) }),
           lock ? h("span", { class: "cfg-chave-trava", id: lockId, text: t("locked", { why: label(lock.why) }) }) : null),
         h("span", { class: "cfg-chave-lado" },
-          priceText ? h("span", { class: "cfg-chave-custo", title: priceTitle, text: priceText }) : null,
+          priceText ? priceTags(priceId, priceText, priceTitle) : null,
           h("input", { type: "radio", class: "cfg-radio", name: "visual", id, value: o.id,
-                       "aria-labelledby": `${id}-nome`, "aria-describedby": lock ? `${helpId} ${lockId}` : helpId,
+                       "aria-labelledby": `${id}-nome`, "aria-describedby": described,
                        checked: config.ui === o.id, disabled: Boolean(lock),
                        onchange: () => chooseUi(o.id) })));
     }));
