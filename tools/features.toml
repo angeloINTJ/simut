@@ -797,22 +797,28 @@ ota_trust_bench = false
 order    = 1
 label.en = "SIMUT"
 label.pt = "SIMUT"
+label.es = "SIMUT"
 desc.en  = "Touch display, web interface over HTTPS, sensors, alarms and telemetry."
 desc.pt  = "Tela touch, interface web por HTTPS, sensores, alarmes e telemetria."
+desc.es  = "Pantalla táctil, interfaz web por HTTPS, sensores, alarmas y telemetría."
 
 [ui_products.pico_w_alpha]
 order    = 2
 label.en = "SIMUT Alpha"
 label.pt = "SIMUT Alpha"
+label.es = "SIMUT Alpha"
 desc.en  = "16x2 character LCD instead of the touch display, and a Bluetooth console."
 desc.pt  = "LCD de caracteres 16x2 no lugar da tela touch, e um console por Bluetooth."
+desc.es  = "LCD de caracteres 16x2 en lugar de la pantalla táctil, y una consola por Bluetooth."
 
 [ui_products.pico_w_air]
 order    = 3
 label.en = "SIMUT Air"
 label.pt = "SIMUT Air"
+label.es = "SIMUT Air"
 desc.en  = "No display: wakes, reads, sends and sleeps again, to run on battery."
 desc.pt  = "Sem mostrador: acorda, lê, envia e volta a dormir, para rodar na bateria."
+desc.es  = "Sin pantalla: despierta, lee, envía y vuelve a dormir, para funcionar con batería."
 
 [ui_products.pico2_w_release]
 order    = 4
@@ -821,30 +827,37 @@ label.pt = "SIMUT para o Pico 2 W"
 label.es = "SIMUT para la Pico 2 W"   # a coluna dele no FEATURES.es-ES.md
 desc.en  = "The touch display product on the Pico 2 W (RP2350), with twice the flash: it boots from slot A or B, and an update over the air goes into the other slot and runs on trial."
 desc.pt  = "O produto com tela touch no Pico 2 W (RP2350), com o dobro de flash: sobe do slot A ou B, e uma atualização pelo ar vai para o outro slot e roda em teste."
+desc.es  = "El producto con pantalla táctil en la Pico 2 W (RP2350), con el doble de flash: arranca desde la ranura A o B, y una actualización inalámbrica va a la otra ranura y se ejecuta a prueba."
 
 [ui_products.pico_w_test]
 order    = 5
 bench    = true
 label.en = "Bench image"
 label.pt = "Imagem de bancada"
+label.es = "Imagen de banco"
 desc.en  = "Full command line for the test suites. Not published."
 desc.pt  = "Linha de comando completa para as suítes de teste. Não publicada."
+desc.es  = "Línea de comandos completa para las suites de pruebas. No publicada."
 
 [ui_products.pico_w_test_https]
 order    = 6
 bench    = true
 label.en = "Bench image with HTTPS"
 label.pt = "Imagem de bancada com HTTPS"
+label.es = "Imagen de banco con HTTPS"
 desc.en  = "The only image with the full command line and the TLS server together. Not published."
 desc.pt  = "A única imagem com linha de comando completa e servidor TLS juntos. Não publicada."
+desc.es  = "La única imagen con la línea de comandos completa y el servidor TLS juntos. No publicada."
 
 [ui_products.pico_w_asserts]
 order    = 7
 bench    = true
 label.en = "Concurrency soak image"
 label.pt = "Imagem de soak de concorrência"
+label.es = "Imagen de soak de concurrencia"
 desc.en  = "The release image with the concurrency tripwire armed. Not published."
 desc.pt  = "A imagem de release com a armadilha de concorrência armada. Não publicada."
+desc.es  = "La imagen de release con la trampa de concurrencia armada. No publicada."
 
 [ui_products.pico_wire]
 order    = 8
@@ -889,14 +902,17 @@ desc.es  = "El producto con panel táctil en la Pico 2 W (RP2350) en el aspecto 
 [ui_displays.tft]
 label.en = "Touch display (ILI9341, 320x240)"
 label.pt = "Tela touch (ILI9341, 320x240)"
+label.es = "Pantalla táctil (ILI9341, 320x240)"
 
 [ui_displays.alpha_paralelo]
 label.en = "16x2 character LCD (HD44780)"
 label.pt = "LCD de caracteres 16x2 (HD44780)"
+label.es = "LCD de caracteres 16x2 (HD44780)"
 
 [ui_displays.nenhum]
 label.en = "No display"
 label.pt = "Sem mostrador"
+label.es = "Sin pantalla"
 
 # A escolha da rede (2026-10-13, pedido do mantenedor de um configurador "o mais modular
 # possivel"). Fica no grupo Rede, como o interruptor `lan` ficava, e o aviso
@@ -1182,6 +1198,7 @@ when     = { air = true }
 require  = { display = "nenhum" }
 why.en   = "Hibernation needs a build without a display."
 why.pt   = "A hibernação exige uma build sem mostrador."
+why.es   = "La hibernación exige una compilación sin pantalla."
 evidence = "TFT+air and alpha+air fail to link: multiple definition of DisplayManager::DisplayManager(). SIMUT_AIR switches on DisplayManager_None.cpp, which collides with the chosen display's DisplayManager."
 
 [[rules]]
@@ -1190,6 +1207,7 @@ when     = { display = "nenhum" }
 require  = { air = true }
 why.en   = "A build without a display exists only with hibernation."
 why.pt   = "Uma build sem mostrador só existe com a hibernação."
+why.es   = "Una compilación sin pantalla solo existe con la hibernación."
 evidence = "The air profile with air=false fails to link: undefined reference to DisplayManager::begin(). The headless display drops DisplayManager.cpp and the non-air boot path calls it."
 
 [[rules]]
@@ -1198,6 +1216,7 @@ when     = { tft_graph = true }
 require  = { display = "tft" }
 why.en   = "The graph draws on the touch display."
 why.pt   = "O gráfico é desenhado na tela touch."
+why.es   = "El gráfico se dibuja en la pantalla táctil."
 evidence = "SIMUT_TFT_GRAPH follows SIMUT_DISPLAY_TFT in simut_config.h, so an alpha or Air profile with the switch on still comes out without the graph (its three units leave with the display), and forcing -DSIMUT_TFT_GRAPH=1 without the TFT stops at an #error there."
 
 [[rules]]
@@ -1206,6 +1225,7 @@ when     = { air = true }
 require  = { sound_buzzer = false }
 why.en   = "The hibernating build carries no buzzer: its sound code does not compile with hibernation on."
 why.pt   = "A build que hiberna não leva o buzzer: o código de som não compila com a hibernação ligada."
+why.es   = "La compilación que hiberna no lleva zumbador: su código de sonido no compila con la hibernación activada."
 evidence = "air+sound_buzzer fails to compile: SoundManager.cpp: 'BuzzerNote' does not name a type. SIMUT_AIR turns SoundManager.h into the no-op class, and SoundManager.cpp has no guard of its own."
 
 # As duas regras abaixo pedem o radio (net = "cyw43"), e nao a ausencia do cabo (2026-10-13):
@@ -1283,18 +1303,24 @@ evidence = "pico2_w_release with ui = angulo and tft_graph = false passed the ma
 [ui_budget.pio-budget]
 why.en     = "This does not fit the PIO blocks of this chip."
 why.pt     = "Isto não cabe nos blocos PIO deste chip."
+why.es     = "Esto no cabe en los bloques PIO de este chip."
 fix.en     = "Turn off one of these: {list}."
 fix.pt     = "Desligue um destes: {list}."
+fix.es     = "Desactive uno de estos: {list}."
 fix_one.en = "Turn off: {list}."
 fix_one.pt = "Desligue: {list}."
+fix_one.es = "Desactive: {list}."
 
 [ui_budget.pin-conflict]
 why.en     = "Two features claim GP{pin}."
 why.pt     = "Dois recursos disputam o GP{pin}."
+why.es     = "Dos funciones se disputan el GP{pin}."
 fix.en     = "Turn off one of these: {list}."
 fix.pt     = "Desligue um destes: {list}."
+fix.es     = "Desactive uno de estos: {list}."
 fix_one.en = "Turn off: {list}."
 fix_one.pt = "Desligue: {list}."
+fix_one.es = "Desactive: {list}."
 
 # Avisos: combinações que compilam mas carregam um risco conhecido. Não travam
 # nada; a página mostra o motivo e de onde vem a evidência.
@@ -1303,6 +1329,7 @@ id       = "enc28j60-unsoaked"
 when     = { net = "enc28j60" }
 why.en   = "The ENC28J60 connection has run on the bench, not yet through a soak: a build with it is a bench build."
 why.pt   = "A conexão ENC28J60 rodou na bancada, mas ainda não passou por um soak: uma build com ela é de bancada."
+why.es   = "La conexión ENC28J60 ha funcionado en el banco, pero aún no ha pasado por un soak: una compilación con ella es de banco."
 evidence = "2026-10-13: pico_wiretft on the Wire rig, web and console over the cable for hours; no image with the ENC28J60 has run a 72 h soak."
 
 [[hazards]]
@@ -1310,4 +1337,5 @@ id       = "bt-flash-core1"
 when     = { bluetooth = true, display = "tft" }
 why.en   = "Bluetooth writes its pairing data to flash without pausing Core 1, which draws the touch display. Inferred from the framework source, never reproduced."
 why.pt   = "O Bluetooth grava os dados de pareamento no flash sem pausar o Core 1, que desenha a tela touch. Inferido do código do framework, nunca reproduzido."
+why.es   = "El Bluetooth graba los datos de emparejamiento en la flash sin pausar el Core 1, que dibuja la pantalla táctil. Deducido del código del framework, nunca reproducido."
 evidence = "MODELO_DE_RECURSOS.md R-H24 (inferred): btstack_flash_bank.cpp:53-56 writes the TLV without Core1FlashPause."

@@ -8,7 +8,8 @@
       "advanced": false,
       "label": {
         "en": "Network",
-        "pt": "Rede"
+        "pt": "Rede",
+        "es": "Red"
       }
     },
     {
@@ -17,7 +18,8 @@
       "advanced": false,
       "label": {
         "en": "Telemetry and integrations",
-        "pt": "Telemetria e integrações"
+        "pt": "Telemetria e integrações",
+        "es": "Telemetría e integraciones"
       }
     },
     {
@@ -26,7 +28,8 @@
       "advanced": false,
       "label": {
         "en": "Interface",
-        "pt": "Interface"
+        "pt": "Interface",
+        "es": "Interfaz"
       }
     },
     {
@@ -35,7 +38,8 @@
       "advanced": false,
       "label": {
         "en": "Sensors",
-        "pt": "Sensores"
+        "pt": "Sensores",
+        "es": "Sensores"
       }
     },
     {
@@ -44,7 +48,8 @@
       "advanced": false,
       "label": {
         "en": "Sound",
-        "pt": "Som"
+        "pt": "Som",
+        "es": "Sonido"
       }
     },
     {
@@ -53,7 +58,8 @@
       "advanced": false,
       "label": {
         "en": "Power",
-        "pt": "Energia"
+        "pt": "Energia",
+        "es": "Energía"
       }
     },
     {
@@ -62,7 +68,8 @@
       "advanced": true,
       "label": {
         "en": "Bench and diagnostics",
-        "pt": "Bancada e diagnóstico"
+        "pt": "Bancada e diagnóstico",
+        "es": "Banco y diagnóstico"
       }
     }
   ],
@@ -73,11 +80,13 @@
       "bit": 0,
       "label": {
         "en": "Full command line",
-        "pt": "Linha de comando completa"
+        "pt": "Linha de comando completa",
+        "es": "Línea de comandos completa"
       },
       "help": {
         "en": "Every serial and Bluetooth command. Without it only the emergency console remains.",
-        "pt": "Todos os comandos por serial e Bluetooth. Sem ela fica só o console de emergência."
+        "pt": "Todos os comandos por serial e Bluetooth. Sem ela fica só o console de emergência.",
+        "es": "Todos los comandos por serie y Bluetooth. Sin ella queda solo la consola de emergencia."
       }
     },
     {
@@ -86,11 +95,13 @@
       "bit": 1,
       "label": {
         "en": "HTTPS web server",
-        "pt": "Servidor web HTTPS"
+        "pt": "Servidor web HTTPS",
+        "es": "Servidor web HTTPS"
       },
       "help": {
         "en": "Serves the web interface over TLS. Without it the device answers plain HTTP only.",
-        "pt": "Serve a interface web por TLS. Sem ele o aparelho responde só em HTTP."
+        "pt": "Serve a interface web por TLS. Sem ele o aparelho responde só em HTTP.",
+        "es": "Sirve la interfaz web por TLS. Sin él, el dispositivo responde solo en HTTP."
       }
     },
     {
@@ -99,11 +110,13 @@
       "bit": 2,
       "label": {
         "en": "Short license text on the touch display",
-        "pt": "Texto curto da licença na tela touch"
+        "pt": "Texto curto da licença na tela touch",
+        "es": "Texto corto de la licencia en la pantalla táctil"
       },
       "help": {
         "en": "The touch display's License screen shows two lines that point to the LICENSE file instead of the full MIT text and credits. The /license web page always keeps the full text.",
-        "pt": "A tela de Licença do mostrador touch mostra duas linhas que apontam para o arquivo LICENSE, em vez do texto MIT completo e dos créditos. A página web /license mantém sempre o texto completo."
+        "pt": "A tela de Licença do mostrador touch mostra duas linhas que apontam para o arquivo LICENSE, em vez do texto MIT completo e dos créditos. A página web /license mantém sempre o texto completo.",
+        "es": "La pantalla de Licencia del panel táctil muestra dos líneas que remiten al archivo LICENSE, en vez del texto MIT completo y los créditos. La página web /license mantiene siempre el texto completo."
       }
     },
     {
@@ -112,11 +125,13 @@
       "bit": 3,
       "label": {
         "en": "Find by name on the network (mDNS)",
-        "pt": "Achar pelo nome na rede (mDNS)"
+        "pt": "Achar pelo nome na rede (mDNS)",
+        "es": "Encontrarlo por nombre en la red (mDNS)"
       },
       "help": {
         "en": "Answers to <device name>.local, so a browser finds it without the IP address.",
-        "pt": "Responde por <nome do aparelho>.local, para o navegador achá-lo sem o endereço IP."
+        "pt": "Responde por <nome do aparelho>.local, para o navegador achá-lo sem o endereço IP.",
+        "es": "Responde a <nombre del dispositivo>.local, para que el navegador lo encuentre sin la dirección IP."
       }
     },
     {
@@ -125,11 +140,13 @@
       "bit": 4,
       "label": {
         "en": "Concurrency tripwire",
-        "pt": "Armadilha de concorrência"
+        "pt": "Armadilha de concorrência",
+        "es": "Trampa de concurrencia"
       },
       "help": {
         "en": "Logs an error when a flash operation starts while the state mutex is held. For soak runs, not for field images.",
-        "pt": "Registra um erro quando uma operação de flash começa com o mutex de estado preso. Para soak, não para campo."
+        "pt": "Registra um erro quando uma operação de flash começa com o mutex de estado preso. Para soak, não para campo.",
+        "es": "Registra un error cuando una operación de flash empieza con el mutex de estado tomado. Para soaks, no para equipos en campo."
       }
     },
     {
@@ -138,11 +155,13 @@
       "bit": 5,
       "label": {
         "en": "Bluetooth serial console",
-        "pt": "Console serial por Bluetooth"
+        "pt": "Console serial por Bluetooth",
+        "es": "Consola serie por Bluetooth"
       },
       "help": {
         "en": "A password-protected console over classic Bluetooth (SPP). It advertises for the first 5 minutes after power-up, so it reaches a device whose Wi-Fi is not set up yet.",
-        "pt": "Um console protegido por senha, por Bluetooth clássico (SPP). Ele se anuncia nos primeiros 5 minutos depois de ligar e assim alcança um aparelho com o Wi-Fi ainda por configurar."
+        "pt": "Um console protegido por senha, por Bluetooth clássico (SPP). Ele se anuncia nos primeiros 5 minutos depois de ligar e assim alcança um aparelho com o Wi-Fi ainda por configurar.",
+        "es": "Una consola protegida por contraseña, por Bluetooth clásico (SPP). Se anuncia durante los primeros 5 minutos después de encenderlo, así que llega a un dispositivo con el Wi-Fi aún sin configurar."
       }
     },
     {
@@ -151,11 +170,13 @@
       "bit": 6,
       "label": {
         "en": "Hibernation between readings",
-        "pt": "Hibernação entre leituras"
+        "pt": "Hibernação entre leituras",
+        "es": "Hibernación entre lecturas"
       },
       "help": {
         "en": "The Air cycle: wake, read, send, sleep. Exists only without a display.",
-        "pt": "O ciclo do Air: acorda, lê, envia, dorme. Só existe sem mostrador."
+        "pt": "O ciclo do Air: acorda, lê, envia, dorme. Só existe sem mostrador.",
+        "es": "El ciclo del Air: despierta, lee, envía, duerme. Solo existe sin pantalla."
       }
     },
     {
@@ -164,11 +185,13 @@
       "bit": 7,
       "label": {
         "en": "Buzzer sounds",
-        "pt": "Sons no buzzer"
+        "pt": "Sons no buzzer",
+        "es": "Sonidos en el zumbador"
       },
       "help": {
         "en": "Touch clicks, confirmations and alarm sounds on the buzzer (GP22).",
-        "pt": "Cliques de toque, confirmações e sons de alarme no buzzer (GP22)."
+        "pt": "Cliques de toque, confirmações e sons de alarme no buzzer (GP22).",
+        "es": "Clics de toque, confirmaciones y sonidos de alarma en el zumbador (GP22)."
       }
     },
     {
@@ -177,11 +200,13 @@
       "bit": 8,
       "label": {
         "en": "DS18B20 temperature probes",
-        "pt": "Sondas de temperatura DS18B20"
+        "pt": "Sondas de temperatura DS18B20",
+        "es": "Sondas de temperatura DS18B20"
       },
       "help": {
         "en": "1-Wire probes, one per pin, each recognized by its serial number.",
-        "pt": "Sondas 1-Wire, uma por pino, cada uma reconhecida pelo número de série."
+        "pt": "Sondas 1-Wire, uma por pino, cada uma reconhecida pelo número de série.",
+        "es": "Sondas 1-Wire, una por pin, cada una reconocida por su número de serie."
       }
     },
     {
@@ -190,11 +215,13 @@
       "bit": 9,
       "label": {
         "en": "DHT22 temperature and humidity",
-        "pt": "DHT22 temperatura e umidade"
+        "pt": "DHT22 temperatura e umidade",
+        "es": "DHT22 temperatura y humedad"
       },
       "help": {
         "en": "One sensor per pin.",
-        "pt": "Um sensor por pino."
+        "pt": "Um sensor por pino.",
+        "es": "Un sensor por pin."
       }
     },
     {
@@ -203,11 +230,13 @@
       "bit": 10,
       "label": {
         "en": "BME280 / BMP280 temperature, humidity and pressure",
-        "pt": "BME280 / BMP280 temperatura, umidade e pressão"
+        "pt": "BME280 / BMP280 temperatura, umidade e pressão",
+        "es": "BME280 / BMP280 temperatura, humedad y presión"
       },
       "help": {
         "en": "I2C sensor on a pin pair; the BMP280 variant has no humidity.",
-        "pt": "Sensor I2C num par de pinos; a variante BMP280 não mede umidade."
+        "pt": "Sensor I2C num par de pinos; a variante BMP280 não mede umidade.",
+        "es": "Sensor I2C en un par de pines; la variante BMP280 no mide humedad."
       }
     },
     {
@@ -216,11 +245,13 @@
       "bit": 11,
       "label": {
         "en": "Encrypted telemetry (HTTPS and MQTTS)",
-        "pt": "Telemetria criptografada (HTTPS e MQTTS)"
+        "pt": "Telemetria criptografada (HTTPS e MQTTS)",
+        "es": "Telemetría cifrada (HTTPS y MQTTS)"
       },
       "help": {
         "en": "Sends to the collector over TLS, and validates it against /cert.pem when one is uploaded. Without it telemetry goes over plain HTTP or MQTT only, and a configuration that asks for encryption is refused instead of being sent in the clear.",
-        "pt": "Envia ao coletor por TLS, e o valida contra o /cert.pem quando há um. Sem ela a telemetria vai só por HTTP ou MQTT sem criptografia, e uma configuração que pede criptografia é recusada em vez de ir em claro."
+        "pt": "Envia ao coletor por TLS, e o valida contra o /cert.pem quando há um. Sem ela a telemetria vai só por HTTP ou MQTT sem criptografia, e uma configuração que pede criptografia é recusada em vez de ir em claro.",
+        "es": "Envía al colector por TLS, y lo valida contra /cert.pem cuando hay uno. Sin ella, la telemetría va solo por HTTP o MQTT sin cifrar, y una configuración que pide cifrado se rechaza en vez de enviarse en claro."
       }
     },
     {
@@ -229,11 +260,13 @@
       "bit": 12,
       "label": {
         "en": "MQTT and Home Assistant",
-        "pt": "MQTT e Home Assistant"
+        "pt": "MQTT e Home Assistant",
+        "es": "MQTT y Home Assistant"
       },
       "help": {
         "en": "Publishes to an MQTT broker (MQTT, or MQTTS with the TLS switch), takes the alarm line's receipts on the ack topic, and announces the sensors to Home Assistant by MQTT Discovery. Without it telemetry goes by HTTP only.",
-        "pt": "Publica num broker MQTT (MQTT, ou MQTTS com a chave de TLS), recebe as confirmações da linha de alarmes no tópico de ack e anuncia os sensores ao Home Assistant pelo MQTT Discovery. Sem ele a telemetria vai só por HTTP."
+        "pt": "Publica num broker MQTT (MQTT, ou MQTTS com a chave de TLS), recebe as confirmações da linha de alarmes no tópico de ack e anuncia os sensores ao Home Assistant pelo MQTT Discovery. Sem ele a telemetria vai só por HTTP.",
+        "es": "Publica en un broker MQTT (MQTT, o MQTTS con el interruptor de TLS), recibe las confirmaciones de la línea de alarmas en el tópico de ack y anuncia los sensores a Home Assistant por MQTT Discovery. Sin él, la telemetría va solo por HTTP."
       }
     },
     {
@@ -242,11 +275,13 @@
       "bit": 13,
       "label": {
         "en": "History page in the web interface",
-        "pt": "Página de histórico na interface web"
+        "pt": "Página de histórico na interface web",
+        "es": "Página de histórico en la interfaz web"
       },
       "help": {
         "en": "The /history page: charts, calendar, CSV export in the browser and the event log viewer. The device records history either way, and the history files stay downloadable from the Files page.",
-        "pt": "A página /history: gráficos, calendário, CSV no navegador e o visor de eventos. O aparelho grava o histórico do mesmo jeito, e os arquivos de histórico continuam na página Arquivos."
+        "pt": "A página /history: gráficos, calendário, CSV no navegador e o visor de eventos. O aparelho grava o histórico do mesmo jeito, e os arquivos de histórico continuam na página Arquivos.",
+        "es": "La página /history: gráficos, calendario, exportación CSV en el navegador y el visor de eventos. El dispositivo graba el histórico igual, y los archivos de histórico siguen descargables desde la página Archivos."
       }
     },
     {
@@ -255,11 +290,13 @@
       "bit": 14,
       "label": {
         "en": "History export API",
-        "pt": "API de exportação do histórico"
+        "pt": "API de exportação do histórico",
+        "es": "API de exportación del histórico"
       },
       "help": {
         "en": "Routes that return several sensors' history in one call (/api/history_multi) and export the history and the log as .simx. No page uses them; bench tools and integrations do.",
-        "pt": "Rotas que devolvem o histórico de vários sensores numa chamada (/api/history_multi) e exportam o histórico e o log em .simx. Nenhuma página as usa; ferramentas de bancada e integrações, sim."
+        "pt": "Rotas que devolvem o histórico de vários sensores numa chamada (/api/history_multi) e exportam o histórico e o log em .simx. Nenhuma página as usa; ferramentas de bancada e integrações, sim.",
+        "es": "Rutas que devuelven el histórico de varios sensores en una llamada (/api/history_multi) y exportan el histórico y el log como .simx. Ninguna página las usa; las herramientas de banco y las integraciones, sí."
       }
     },
     {
@@ -268,11 +305,13 @@
       "bit": 15,
       "label": {
         "en": "Prometheus metrics (/metrics)",
-        "pt": "Métricas para o Prometheus (/metrics)"
+        "pt": "Métricas para o Prometheus (/metrics)",
+        "es": "Métricas para Prometheus (/metrics)"
       },
       "help": {
         "en": "A /metrics endpoint in the Prometheus text format, with Basic authentication for the scraper.",
-        "pt": "Um endpoint /metrics no formato de texto do Prometheus, com autenticação Basic para o coletor."
+        "pt": "Um endpoint /metrics no formato de texto do Prometheus, com autenticação Basic para o coletor.",
+        "es": "Un endpoint /metrics en el formato de texto de Prometheus, con autenticación Basic para el recolector."
       }
     },
     {
@@ -281,11 +320,13 @@
       "bit": 16,
       "label": {
         "en": "Remote syslog (audit trail)",
-        "pt": "Syslog remoto (trilha de auditoria)"
+        "pt": "Syslog remoto (trilha de auditoria)",
+        "es": "Syslog remoto (registro de auditoría)"
       },
       "help": {
         "en": "Forwards log events to a syslog collector (RFC 5424 over UDP), so the audit trail survives outside the device.",
-        "pt": "Encaminha os eventos do log a um coletor syslog (RFC 5424 por UDP), para a trilha de auditoria sobreviver fora do aparelho."
+        "pt": "Encaminha os eventos do log a um coletor syslog (RFC 5424 por UDP), para a trilha de auditoria sobreviver fora do aparelho.",
+        "es": "Reenvía los eventos del log a un colector syslog (RFC 5424 por UDP), para que el registro de auditoría sobreviva fuera del dispositivo."
       }
     },
     {
@@ -294,11 +335,13 @@
       "bit": 17,
       "label": {
         "en": "Graph and calendar on the touch display",
-        "pt": "Gráfico e calendário na tela touch"
+        "pt": "Gráfico e calendário na tela touch",
+        "es": "Gráfico y calendario en la pantalla táctil"
       },
       "help": {
         "en": "The history graph opened from the min/max strip, its detail screen and the calendar to pick a day. Without it the strip has no graph button; the history is still recorded and stays on the web.",
-        "pt": "O gráfico do histórico aberto pela faixa de min/max, a tela de detalhe e o calendário para escolher o dia. Sem ele a faixa não tem o botão do gráfico; o histórico continua gravado e na web."
+        "pt": "O gráfico do histórico aberto pela faixa de min/max, a tela de detalhe e o calendário para escolher o dia. Sem ele a faixa não tem o botão do gráfico; o histórico continua gravado e na web.",
+        "es": "El gráfico del histórico que se abre desde la franja de mín/máx, su pantalla de detalle y el calendario para elegir el día. Sin él, la franja no tiene el botón del gráfico; el histórico se sigue grabando y sigue en la web."
       }
     }
   ],
@@ -306,19 +349,22 @@
     "tft": {
       "label": {
         "en": "Touch display (ILI9341, 320x240)",
-        "pt": "Tela touch (ILI9341, 320x240)"
+        "pt": "Tela touch (ILI9341, 320x240)",
+        "es": "Pantalla táctil (ILI9341, 320x240)"
       }
     },
     "alpha_paralelo": {
       "label": {
         "en": "16x2 character LCD (HD44780)",
-        "pt": "LCD de caracteres 16x2 (HD44780)"
+        "pt": "LCD de caracteres 16x2 (HD44780)",
+        "es": "LCD de caracteres 16x2 (HD44780)"
       }
     },
     "nenhum": {
       "label": {
         "en": "No display",
-        "pt": "Sem mostrador"
+        "pt": "Sem mostrador",
+        "es": "Sin pantalla"
       }
     }
   },
@@ -326,7 +372,8 @@
     "group": "network",
     "label": {
       "en": "Connection",
-      "pt": "Conexão"
+      "pt": "Conexão",
+      "es": "Conexión"
     },
     "options": [
       {
@@ -334,11 +381,13 @@
         "class": "wifi",
         "label": {
           "en": "Wi-Fi (the board's CYW43 radio)",
-          "pt": "Wi-Fi (o rádio CYW43 da placa)"
+          "pt": "Wi-Fi (o rádio CYW43 da placa)",
+          "es": "Wi-Fi (la radio CYW43 de la placa)"
         },
         "help": {
           "en": "The radio of the Pico W and the Pico 2 W: the device joins a network by its name and password, and offers a setup access point.",
-          "pt": "O rádio do Pico W e do Pico 2 W: o aparelho entra numa rede pelo nome e pela senha, e oferece um ponto de acesso para a configuração."
+          "pt": "O rádio do Pico W e do Pico 2 W: o aparelho entra numa rede pelo nome e pela senha, e oferece um ponto de acesso para a configuração.",
+          "es": "La radio de la Pico W y la Pico 2 W: el equipo entra en una red por su nombre y contraseña, y ofrece un punto de acceso para la configuración."
         }
       },
       {
@@ -346,11 +395,13 @@
         "class": "lan",
         "label": {
           "en": "Network cable (ENC28J60 module)",
-          "pt": "Cabo de rede (módulo ENC28J60)"
+          "pt": "Cabo de rede (módulo ENC28J60)",
+          "es": "Cable de red (módulo ENC28J60)"
         },
         "help": {
           "en": "Builds for a plain Raspberry Pi Pico, which has no radio, with an ENC28J60 module on GP11 to GP15: sensor slots go from 16 to 11. Bluetooth and hibernation run on the radio, so they are not available.",
-          "pt": "Compila para um Raspberry Pi Pico comum, que não tem rádio, com um módulo ENC28J60 nos GP11 a GP15: os slots de sensor caem de 16 para 11. O Bluetooth e a hibernação rodam no rádio, então não ficam disponíveis."
+          "pt": "Compila para um Raspberry Pi Pico comum, que não tem rádio, com um módulo ENC28J60 nos GP11 a GP15: os slots de sensor caem de 16 para 11. O Bluetooth e a hibernação rodam no rádio, então não ficam disponíveis.",
+          "es": "Compila para una Raspberry Pi Pico común, que no tiene radio, con un módulo ENC28J60 en los GP11 a GP15: las ranuras de sensor bajan de 16 a 11. El Bluetooth y la hibernación funcionan con la radio, así que no están disponibles."
         }
       }
     ]
@@ -359,29 +410,34 @@
     "group": "interface",
     "label": {
       "en": "Touch display look",
-      "pt": "Visual da tela touch"
+      "pt": "Visual da tela touch",
+      "es": "Aspecto de la pantalla táctil"
     },
     "options": [
       {
         "id": "original",
         "label": {
           "en": "Original look",
-          "pt": "Visual original"
+          "pt": "Visual original",
+          "es": "Aspecto original"
         },
         "help": {
           "en": "The touch display as every release has shipped it, with its themes. It is the only choice on the 16x2 LCD and with no display.",
-          "pt": "A tela touch como toda release a entregou, com os temas dela. É a única opção no LCD 16x2 e sem mostrador."
+          "pt": "A tela touch como toda release a entregou, com os temas dela. É a única opção no LCD 16x2 e sem mostrador.",
+          "es": "La pantalla táctil como la entregó cada versión, con sus temas. Es la única opción con el LCD 16x2 y sin pantalla."
         }
       },
       {
         "id": "angulo",
         "label": {
           "en": "Ângulo look (study)",
-          "pt": "Visual Ângulo (estudo)"
+          "pt": "Visual Ângulo (estudo)",
+          "es": "Aspecto Ángulo (estudio)"
         },
         "help": {
           "en": "A study of a new look for the touch display, drawn to the Ângulo standard. Not approved for products yet: it needs the touch display.",
-          "pt": "Um estudo de um visual novo para a tela touch, desenhado no padrão Ângulo. Ainda não aprovado para produtos: exige a tela touch."
+          "pt": "Um estudo de um visual novo para a tela touch, desenhado no padrão Ângulo. Ainda não aprovado para produtos: exige a tela touch.",
+          "es": "Un estudio de un aspecto nuevo para la pantalla táctil, dibujado según el estándar Ángulo. Aún no aprobado para productos: requiere la pantalla táctil."
         }
       }
     ]
@@ -400,11 +456,13 @@
       },
       "label": {
         "en": "SIMUT",
-        "pt": "SIMUT"
+        "pt": "SIMUT",
+        "es": "SIMUT"
       },
       "desc": {
         "en": "Touch display, web interface over HTTPS, sensors, alarms and telemetry.",
-        "pt": "Tela touch, interface web por HTTPS, sensores, alarmes e telemetria."
+        "pt": "Tela touch, interface web por HTTPS, sensores, alarmes e telemetria.",
+        "es": "Pantalla táctil, interfaz web por HTTPS, sensores, alarmas y telemetría."
       },
       "config": {
         "display": "tft",
@@ -444,11 +502,13 @@
       },
       "label": {
         "en": "SIMUT Alpha",
-        "pt": "SIMUT Alpha"
+        "pt": "SIMUT Alpha",
+        "es": "SIMUT Alpha"
       },
       "desc": {
         "en": "16x2 character LCD instead of the touch display, and a Bluetooth console.",
-        "pt": "LCD de caracteres 16x2 no lugar da tela touch, e um console por Bluetooth."
+        "pt": "LCD de caracteres 16x2 no lugar da tela touch, e um console por Bluetooth.",
+        "es": "LCD de caracteres 16x2 en lugar de la pantalla táctil, y una consola por Bluetooth."
       },
       "config": {
         "display": "alpha_paralelo",
@@ -488,11 +548,13 @@
       },
       "label": {
         "en": "SIMUT Air",
-        "pt": "SIMUT Air"
+        "pt": "SIMUT Air",
+        "es": "SIMUT Air"
       },
       "desc": {
         "en": "No display: wakes, reads, sends and sleeps again, to run on battery.",
-        "pt": "Sem mostrador: acorda, lê, envia e volta a dormir, para rodar na bateria."
+        "pt": "Sem mostrador: acorda, lê, envia e volta a dormir, para rodar na bateria.",
+        "es": "Sin pantalla: despierta, lee, envía y vuelve a dormir, para funcionar con batería."
       },
       "config": {
         "display": "nenhum",
@@ -528,7 +590,8 @@
       "refused": {
         "net=enc28j60": {
           "en": "The ENC28J60 exists only for the plain Pico (RP2040) so far: the Pico 2 W (RP2350) has no board for it.",
-          "pt": "O ENC28J60 só existe, por enquanto, para o Pico comum (RP2040): o Pico 2 W (RP2350) não tem placa para ele."
+          "pt": "O ENC28J60 só existe, por enquanto, para o Pico comum (RP2040): o Pico 2 W (RP2350) não tem placa para ele.",
+          "es": "El ENC28J60 solo existe, por ahora, para la Pico común (RP2040): la Pico 2 W (RP2350) no tiene placa para él."
         }
       },
       "ceilings": {
@@ -537,11 +600,13 @@
       },
       "label": {
         "en": "SIMUT for the Pico 2 W",
-        "pt": "SIMUT para o Pico 2 W"
+        "pt": "SIMUT para o Pico 2 W",
+        "es": "SIMUT para la Pico 2 W"
       },
       "desc": {
         "en": "The touch display product on the Pico 2 W (RP2350), with twice the flash: it boots from slot A or B, and an update over the air goes into the other slot and runs on trial.",
-        "pt": "O produto com tela touch no Pico 2 W (RP2350), com o dobro de flash: sobe do slot A ou B, e uma atualização pelo ar vai para o outro slot e roda em teste."
+        "pt": "O produto com tela touch no Pico 2 W (RP2350), com o dobro de flash: sobe do slot A ou B, e uma atualização pelo ar vai para o outro slot e roda em teste.",
+        "es": "El producto con pantalla táctil en la Pico 2 W (RP2350), con el doble de flash: arranca desde la ranura A o B, y una actualización inalámbrica va a la otra ranura y se ejecuta a prueba."
       },
       "config": {
         "display": "tft",
@@ -581,11 +646,13 @@
       },
       "label": {
         "en": "Bench image",
-        "pt": "Imagem de bancada"
+        "pt": "Imagem de bancada",
+        "es": "Imagen de banco"
       },
       "desc": {
         "en": "Full command line for the test suites. Not published.",
-        "pt": "Linha de comando completa para as suítes de teste. Não publicada."
+        "pt": "Linha de comando completa para as suítes de teste. Não publicada.",
+        "es": "Línea de comandos completa para las suites de pruebas. No publicada."
       },
       "config": {
         "display": "tft",
@@ -625,11 +692,13 @@
       },
       "label": {
         "en": "Bench image with HTTPS",
-        "pt": "Imagem de bancada com HTTPS"
+        "pt": "Imagem de bancada com HTTPS",
+        "es": "Imagen de banco con HTTPS"
       },
       "desc": {
         "en": "The only image with the full command line and the TLS server together. Not published.",
-        "pt": "A única imagem com linha de comando completa e servidor TLS juntos. Não publicada."
+        "pt": "A única imagem com linha de comando completa e servidor TLS juntos. Não publicada.",
+        "es": "La única imagen con la línea de comandos completa y el servidor TLS juntos. No publicada."
       },
       "config": {
         "display": "tft",
@@ -669,11 +738,13 @@
       },
       "label": {
         "en": "Concurrency soak image",
-        "pt": "Imagem de soak de concorrência"
+        "pt": "Imagem de soak de concorrência",
+        "es": "Imagen de soak de concurrencia"
       },
       "desc": {
         "en": "The release image with the concurrency tripwire armed. Not published.",
-        "pt": "A imagem de release com a armadilha de concorrência armada. Não publicada."
+        "pt": "A imagem de release com a armadilha de concorrência armada. Não publicada.",
+        "es": "La imagen de release con la trampa de concurrencia armada. No publicada."
       },
       "config": {
         "display": "tft",
@@ -713,11 +784,13 @@
       },
       "label": {
         "en": "SIMUT Wire",
-        "pt": "SIMUT Wire"
+        "pt": "SIMUT Wire",
+        "es": "SIMUT Wire"
       },
       "desc": {
         "en": "A plain Raspberry Pi Pico with no radio: the network comes through an ENC28J60 module on the cable. Not published.",
-        "pt": "Um Raspberry Pi Pico comum, sem rádio: a rede vem por um módulo ENC28J60, no cabo. Não publicada."
+        "pt": "Um Raspberry Pi Pico comum, sem rádio: a rede vem por um módulo ENC28J60, no cabo. Não publicada.",
+        "es": "Una Raspberry Pi Pico común, sin radio: la red llega por un módulo ENC28J60, por el cable. No publicada."
       },
       "config": {
         "display": "alpha_paralelo",
@@ -757,11 +830,13 @@
       },
       "label": {
         "en": "SIMUT Wire TFT",
-        "pt": "SIMUT Wire TFT"
+        "pt": "SIMUT Wire TFT",
+        "es": "SIMUT Wire TFT"
       },
       "desc": {
         "en": "The SIMUT Wire with the touch display: a plain Raspberry Pi Pico with no radio, the network coming through an ENC28J60 module on the cable. Not published.",
-        "pt": "O SIMUT Wire com a tela touch: um Raspberry Pi Pico comum, sem rádio, com a rede por um módulo ENC28J60, no cabo. Não publicada."
+        "pt": "O SIMUT Wire com a tela touch: um Raspberry Pi Pico comum, sem rádio, com a rede por um módulo ENC28J60, no cabo. Não publicada.",
+        "es": "El SIMUT Wire con el panel táctil: una Raspberry Pi Pico común, sin radio, con la red por un módulo ENC28J60, por el cable. No publicada."
       },
       "config": {
         "display": "tft",
@@ -801,11 +876,13 @@
       },
       "label": {
         "en": "SIMUT Wire TFT Ângulo",
-        "pt": "SIMUT Wire TFT Ângulo"
+        "pt": "SIMUT Wire TFT Ângulo",
+        "es": "SIMUT Wire TFT Ángulo"
       },
       "desc": {
         "en": "The SIMUT Wire with the touch display in the Ângulo look, a study that is not approved for products. Not published.",
-        "pt": "O SIMUT Wire com a tela touch no visual Ângulo, um estudo ainda não aprovado para produtos. Não publicada."
+        "pt": "O SIMUT Wire com a tela touch no visual Ângulo, um estudo ainda não aprovado para produtos. Não publicada.",
+        "es": "El SIMUT Wire con el panel táctil en el aspecto Ángulo, un estudio aún no aprobado para productos. No publicada."
       },
       "config": {
         "display": "tft",
@@ -841,7 +918,8 @@
       "refused": {
         "net=enc28j60": {
           "en": "The ENC28J60 exists only for the plain Pico (RP2040) so far: the Pico 2 W (RP2350) has no board for it.",
-          "pt": "O ENC28J60 só existe, por enquanto, para o Pico comum (RP2040): o Pico 2 W (RP2350) não tem placa para ele."
+          "pt": "O ENC28J60 só existe, por enquanto, para o Pico comum (RP2040): o Pico 2 W (RP2350) não tem placa para ele.",
+          "es": "El ENC28J60 solo existe, por ahora, para la Pico común (RP2040): la Pico 2 W (RP2350) no tiene placa para él."
         }
       },
       "ceilings": {
@@ -850,11 +928,13 @@
       },
       "label": {
         "en": "SIMUT Pico 2 W Ângulo",
-        "pt": "SIMUT Pico 2 W Ângulo"
+        "pt": "SIMUT Pico 2 W Ângulo",
+        "es": "SIMUT Pico 2 W Ángulo"
       },
       "desc": {
         "en": "The touch display product on the Pico 2 W (RP2350) in the Ângulo look, a study that is not approved for products. Not published.",
-        "pt": "O produto com tela touch no Pico 2 W (RP2350) no visual Ângulo, um estudo ainda não aprovado para produtos. Não publicada."
+        "pt": "O produto com tela touch no Pico 2 W (RP2350) no visual Ângulo, um estudo ainda não aprovado para produtos. Não publicada.",
+        "es": "El producto con panel táctil en la Pico 2 W (RP2350) en el aspecto Ángulo, un estudio aún no aprobado para productos. No publicada."
       },
       "config": {
         "display": "tft",
@@ -893,7 +973,8 @@
       },
       "why": {
         "en": "Hibernation needs a build without a display.",
-        "pt": "A hibernação exige uma build sem mostrador."
+        "pt": "A hibernação exige uma build sem mostrador.",
+        "es": "La hibernación exige una compilación sin pantalla."
       },
       "evidence": "TFT+air and alpha+air fail to link: multiple definition of DisplayManager::DisplayManager(). SIMUT_AIR switches on DisplayManager_None.cpp, which collides with the chosen display's DisplayManager."
     },
@@ -907,7 +988,8 @@
       },
       "why": {
         "en": "A build without a display exists only with hibernation.",
-        "pt": "Uma build sem mostrador só existe com a hibernação."
+        "pt": "Uma build sem mostrador só existe com a hibernação.",
+        "es": "Una compilación sin pantalla solo existe con la hibernación."
       },
       "evidence": "The air profile with air=false fails to link: undefined reference to DisplayManager::begin(). The headless display drops DisplayManager.cpp and the non-air boot path calls it."
     },
@@ -921,7 +1003,8 @@
       },
       "why": {
         "en": "The graph draws on the touch display.",
-        "pt": "O gráfico é desenhado na tela touch."
+        "pt": "O gráfico é desenhado na tela touch.",
+        "es": "El gráfico se dibuja en la pantalla táctil."
       },
       "evidence": "SIMUT_TFT_GRAPH follows SIMUT_DISPLAY_TFT in simut_config.h, so an alpha or Air profile with the switch on still comes out without the graph (its three units leave with the display), and forcing -DSIMUT_TFT_GRAPH=1 without the TFT stops at an #error there."
     },
@@ -935,7 +1018,8 @@
       },
       "why": {
         "en": "The hibernating build carries no buzzer: its sound code does not compile with hibernation on.",
-        "pt": "A build que hiberna não leva o buzzer: o código de som não compila com a hibernação ligada."
+        "pt": "A build que hiberna não leva o buzzer: o código de som não compila com a hibernação ligada.",
+        "es": "La compilación que hiberna no lleva zumbador: su código de sonido no compila con la hibernación activada."
       },
       "evidence": "air+sound_buzzer fails to compile: SoundManager.cpp: 'BuzzerNote' does not name a type. SIMUT_AIR turns SoundManager.h into the no-op class, and SoundManager.cpp has no guard of its own."
     },
@@ -949,7 +1033,8 @@
       },
       "why": {
         "en": "Bluetooth runs on the CYW43 radio, so it needs the Wi-Fi connection.",
-        "pt": "O Bluetooth roda no rádio CYW43, então precisa da conexão Wi-Fi."
+        "pt": "O Bluetooth roda no rádio CYW43, então precisa da conexão Wi-Fi.",
+        "es": "El Bluetooth funciona en la radio CYW43, así que necesita la conexión Wi-Fi."
       },
       "evidence": "With net = enc28j60, SIMUT_BLUETOOTH stops at an #error in simut_config.h, pinned by tools/test_pin_masks.py (2026-10-12). The test of that #error was SIMUT_NET_LAN && SIMUT_BLUETOOTH, the cable; since 2026-10-13 it is SIMUT_BLUETOOTH && !SIMUT_NET_CYW43, the chip. Not compiled past that #error: the Bluetooth stack (SerialBT, BTstack) rides on the CYW43, and board = rpipico has none. The rule asks for the radio, not for the absence of the cable: a wired board added later has no CYW43 either, and the #error already refuses it."
     },
@@ -963,7 +1048,8 @@
       },
       "why": {
         "en": "Hibernation is built around the CYW43 radio, which it powers down between wakes, so it needs the Wi-Fi connection.",
-        "pt": "A hibernação é feita em torno do rádio CYW43, que ela desliga entre os despertares, então precisa da conexão Wi-Fi."
+        "pt": "A hibernação é feita em torno do rádio CYW43, que ela desliga entre os despertares, então precisa da conexão Wi-Fi.",
+        "es": "La hibernación gira en torno a la radio CYW43, que apaga entre los despertares, así que necesita la conexión Wi-Fi."
       },
       "evidence": "With net = enc28j60, SIMUT_AIR stops at an #error in simut_config.h, pinned by tools/test_pin_masks.py (2026-10-12). The test of that #error was SIMUT_NET_LAN && SIMUT_AIR, the cable; since 2026-10-13 it is SIMUT_AIR && !SIMUT_NET_CYW43, the chip. Not compiled past that #error: AppManager_Air.cpp powers the CYW43 down through GPIO23 (WL_REG_ON) before every sleep, and board = rpipico has no CYW43. The rule asks for the radio, not for the absence of the cable: a wired board added later has no CYW43 either, and the #error already refuses it."
     },
@@ -977,7 +1063,8 @@
       },
       "why": {
         "en": "The Ângulo look draws on the touch display.",
-        "pt": "O visual Ângulo é desenhado na tela touch."
+        "pt": "O visual Ângulo é desenhado na tela touch.",
+        "es": "El aspecto Ángulo se dibuja en la pantalla táctil."
       },
       "evidence": "pico_w_alpha with ui = angulo (the composed environment plus -DSIMUT_UI_ANGULO=1, built with pio run on 2026-10-14) stops on every unit that includes simut_config.h, with: src/simut_config.h:99:2: error: #error \"SIMUT_UI_ANGULO needs SIMUT_DISPLAY_TFT\". The Air (no display) stops at the same #error, pinned by tools/test_ui_caps.py. Not compiled past it: the Ângulo panel draws on the ILI9341 and reads the XPT2046, which neither the 16x2 LCD nor the headless image has, and the manifest refuses the combination before a build starts."
     },
@@ -992,7 +1079,8 @@
       },
       "why": {
         "en": "On the Pico W with Wi-Fi the Ângulo look is not offered yet. Choose the Pico 2 W, or the original look.",
-        "pt": "No Pico W com Wi-Fi o visual Ângulo ainda não é oferecido. Escolha o Pico 2 W ou o visual original."
+        "pt": "No Pico W com Wi-Fi o visual Ângulo ainda não é oferecido. Escolha o Pico 2 W ou o visual original.",
+        "es": "En la Pico W con Wi-Fi el aspecto Ángulo aún no se ofrece. Elija la Pico 2 W o el aspecto original."
       },
       "evidence": "The rule applies a decision, not a measurement: the maintainer decided on 2026-10-21 that the Ângulo ships first on the Pico 2 W only, with a smaller version for the Pico W later, so the rule refuses every Pico W profile (the RP2040 with the CYW43 radio, whatever its display, the Wire TFT with the Wi-Fi back included), and the measurement below covers the Pico W's Wi-Fi release image only. No Ângulo build of the Pico W exists, so there is no compiler error to quote; the gap is measured on other images (docs/analysis/UI_DRIVERS.md section 3.6). Measured on 2026-10-14 (baseline images of 192e1ad, the study's Ângulo): 45,856 B above the plain pico_wiretft, against 5,643 B of OTA headroom in the Pico W's Wi-Fi release (PLANO_STABLE.md section 3.1), a gap of 34 to 40 kB. Rerun on 2026-10-21 (after S10b-1): pico2_w_angulo, a real Wi-Fi Ângulo build, is 31,008 B above pico2_w_release (.bin 1,029,952 against 998,944 B), and the Pico W's Wi-Fi release has 5,195 B of headroom in the same record and no Ângulo build, so a transposition of the 31 kB would not fit it. The SIMUT Wire TFT (RP2040 with the ENC28J60, pico_wiretft_angulo) has no radio and is not refused: it is the Ângulo's bench image."
     },
@@ -1006,7 +1094,8 @@
       },
       "why": {
         "en": "The Ângulo look draws its charts on the touch display, so it needs the switch \"Graph and calendar on the touch display\" on.",
-        "pt": "O visual Ângulo desenha os gráficos na tela touch, então precisa da chave \"Gráfico e calendário na tela touch\" ligada."
+        "pt": "O visual Ângulo desenha os gráficos na tela touch, então precisa da chave \"Gráfico e calendário na tela touch\" ligada.",
+        "es": "El aspecto Ángulo dibuja sus gráficos en la pantalla táctil, así que necesita el interruptor \"Gráfico y calendario en la pantalla táctil\" activado."
       },
       "evidence": "pico2_w_release with ui = angulo and tft_graph = false passed the manifest and did not compile. Run on 2026-10-22 on the tree of a6859ce5, before this rule existed: python3 tools/build_custom.py --profile '{\"v\":1,\"base\":\"pico2_w_release\",\"set\":{\"ui\":\"angulo\",\"tft_graph\":false}}' exits 1 with src/ui/angulo/DisplayManager_UiA.cpp:293:44: error: '_graphData' was not declared in this scope, and five more of the same error in src/ui/angulo/DisplayManager_UiA_Graficos.cpp (its --validate-only exited 0). The Wire TFT (base pico_wiretft, the same two choices) fails the same way. The Ângulo reads the data package of the panel chart, DisplayManager::_graphData (a GraphDataPackage), a member that exists only when SIMUT_TFT_GRAPH is set (src/DisplayManager.h), so the Ângulo needs the chart switch on. The manifest refuses the combination before a build starts; making the Ângulo compile without the chart is a change in src/, not in the manifest."
     }
@@ -1019,7 +1108,8 @@
       },
       "why": {
         "en": "The ENC28J60 connection has run on the bench, not yet through a soak: a build with it is a bench build.",
-        "pt": "A conexão ENC28J60 rodou na bancada, mas ainda não passou por um soak: uma build com ela é de bancada."
+        "pt": "A conexão ENC28J60 rodou na bancada, mas ainda não passou por um soak: uma build com ela é de bancada.",
+        "es": "La conexión ENC28J60 ha funcionado en el banco, pero aún no ha pasado por un soak: una compilación con ella es de banco."
       },
       "evidence": "2026-10-13: pico_wiretft on the Wire rig, web and console over the cable for hours; no image with the ENC28J60 has run a 72 h soak."
     },
@@ -1031,7 +1121,8 @@
       },
       "why": {
         "en": "Bluetooth writes its pairing data to flash without pausing Core 1, which draws the touch display. Inferred from the framework source, never reproduced.",
-        "pt": "O Bluetooth grava os dados de pareamento no flash sem pausar o Core 1, que desenha a tela touch. Inferido do código do framework, nunca reproduzido."
+        "pt": "O Bluetooth grava os dados de pareamento no flash sem pausar o Core 1, que desenha a tela touch. Inferido do código do framework, nunca reproduzido.",
+        "es": "El Bluetooth graba los datos de emparejamiento en la flash sin pausar el Core 1, que dibuja la pantalla táctil. Deducido del código del framework, nunca reproducido."
       },
       "evidence": "MODELO_DE_RECURSOS.md R-H24 (inferred): btstack_flash_bank.cpp:53-56 writes the TLV without Core1FlashPause."
     }
@@ -1048,7 +1139,8 @@
       },
       "why": {
         "en": "This does not fit the PIO blocks of this chip. Turn off one of these: DS18B20 temperature probes; DHT22 temperature and humidity.",
-        "pt": "Isto não cabe nos blocos PIO deste chip. Desligue um destes: Sondas de temperatura DS18B20; DHT22 temperatura e umidade."
+        "pt": "Isto não cabe nos blocos PIO deste chip. Desligue um destes: Sondas de temperatura DS18B20; DHT22 temperatura e umidade.",
+        "es": "Esto no cabe en los bloques PIO de este chip. Desactive uno de estos: Sondas de temperatura DS18B20; DHT22 temperatura y humedad."
       },
       "detail": "enc28j60 needs 17 instructions and 1 state machine and finds no block where it leaves room for the programs that load after it: pio0 has 32 instructions and 4 state machines free, but then onewire would not fit; pio1 has 32 instructions and 4 state machines free, but then dht22 would not fit.",
       "fix": [
@@ -1058,11 +1150,13 @@
       "lock": {
         "sensor_ds18b20": {
           "en": "This does not fit the PIO blocks of this chip. Turn off: DHT22 temperature and humidity.",
-          "pt": "Isto não cabe nos blocos PIO deste chip. Desligue: DHT22 temperatura e umidade."
+          "pt": "Isto não cabe nos blocos PIO deste chip. Desligue: DHT22 temperatura e umidade.",
+          "es": "Esto no cabe en los bloques PIO de este chip. Desactive: DHT22 temperatura y humedad."
         },
         "sensor_dht22": {
           "en": "This does not fit the PIO blocks of this chip. Turn off: DS18B20 temperature probes.",
-          "pt": "Isto não cabe nos blocos PIO deste chip. Desligue: Sondas de temperatura DS18B20."
+          "pt": "Isto não cabe nos blocos PIO deste chip. Desligue: Sondas de temperatura DS18B20.",
+          "es": "Esto no cabe en los bloques PIO de este chip. Desactive: Sondas de temperatura DS18B20."
         }
       }
     },
@@ -1077,7 +1171,8 @@
       },
       "why": {
         "en": "This does not fit the PIO blocks of this chip. Turn off one of these: DS18B20 temperature probes; DHT22 temperature and humidity.",
-        "pt": "Isto não cabe nos blocos PIO deste chip. Desligue um destes: Sondas de temperatura DS18B20; DHT22 temperatura e umidade."
+        "pt": "Isto não cabe nos blocos PIO deste chip. Desligue um destes: Sondas de temperatura DS18B20; DHT22 temperatura e umidade.",
+        "es": "Esto no cabe en los bloques PIO de este chip. Desactive uno de estos: Sondas de temperatura DS18B20; DHT22 temperatura y humedad."
       },
       "detail": "enc28j60 needs 17 instructions and 1 state machine and finds no block where it leaves room for the programs that load after it: pio0 has 32 instructions and 4 state machines free, but then onewire would not fit; pio1 has 28 instructions and 2 state machines free, but then dht22 would not fit.",
       "fix": [
@@ -1087,11 +1182,13 @@
       "lock": {
         "sensor_ds18b20": {
           "en": "This does not fit the PIO blocks of this chip. Turn off: DHT22 temperature and humidity.",
-          "pt": "Isto não cabe nos blocos PIO deste chip. Desligue: DHT22 temperatura e umidade."
+          "pt": "Isto não cabe nos blocos PIO deste chip. Desligue: DHT22 temperatura e umidade.",
+          "es": "Esto no cabe en los bloques PIO de este chip. Desactive: DHT22 temperatura y humedad."
         },
         "sensor_dht22": {
           "en": "This does not fit the PIO blocks of this chip. Turn off: DS18B20 temperature probes.",
-          "pt": "Isto não cabe nos blocos PIO deste chip. Desligue: Sondas de temperatura DS18B20."
+          "pt": "Isto não cabe nos blocos PIO deste chip. Desligue: Sondas de temperatura DS18B20.",
+          "es": "Esto no cabe en los bloques PIO de este chip. Desactive: Sondas de temperatura DS18B20."
         }
       }
     }

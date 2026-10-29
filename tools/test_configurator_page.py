@@ -386,7 +386,7 @@ for lk in js["locks"]:
 #     se, o Python tem um bloqueio NOVO para o perfil com o driver trocado -- o primeiro, com as mesmas
 #     palavras --; o veredito é "blocked" se, e só se, o Python tem algum bloqueio; a recusa do chip
 #     (unsupported-net) é a que o gerador faz; e o texto de uma trava nunca cita a própria opção.
-cable_texts = {lang: M["ui_nets"]["enc28j60"]["unsupported"][lang] for lang in ("en", "pt")}
+cable_texts = {lang: M["ui_nets"]["enc28j60"]["unsupported"][lang] for lang in gf.LANGS}
 locked_kinds = set()
 for r in js["nets"]:
     p, n, ctx = r["p"], r["n"], r["ctx"]
@@ -697,7 +697,7 @@ for p in MODEL["products"]:
     want = {}
     for net_id in M["net"]:
         if gf.net_refusal(dict(prof, net=net_id), M):
-            want[f"net={net_id}"] = {lang: M["ui_nets"][net_id]["unsupported"][lang] for lang in ("en", "pt")}
+            want[f"net={net_id}"] = {lang: M["ui_nets"][net_id]["unsupported"][lang] for lang in gf.LANGS}
     check(p.get("refused") == want, f"{p['id']}: refused {p.get('refused')!r} != o que o gerador recusa {want!r}")
 by_id = {p["id"]: p for p in MODEL["products"]}
 check(list(by_id["pico2_w_release"].get("refused", {})) == ["net=enc28j60"],
@@ -821,6 +821,16 @@ for o in MODEL["ui"]["options"]:
     for lang, text in o["help"].items():
         check(not re.search(r"\d[\d.,]*\s?(?:KB|B)\b", text),
               f"model.json: a ajuda da UI {o['id']} ({lang}) traz um tamanho em bytes, que a linha mostra pela matriz: {text!r}")
+
+
+# 13a''. O espanhol no modelo (C1d, 2026-10-29): todo texto de duas línguas do model.json também tem es, e o gerador o põe ali
+#        quando o manifesto o tem. A página mostra o inglês onde um texto não o tem (label( ), testado nas visitas em es),
+#        mas o que se publica tem todos: um texto novo sem es é um achado, e não um inglês calado.
+n_lang_texts = 0
+for where, texts in lang_dicts(MODEL):
+    n_lang_texts += 1
+    check(str(texts.get("es", "")).strip(), f"model.json: o texto {where} não tem es: {texts}")
+check(n_lang_texts >= 90, f"model.json: só {n_lang_texts} textos de duas línguas lidos, devia haver uns cem")
 
 # 13b. O preço da UI (2026-10-29, C1d). A matriz de custo guarda o da UI na chave "ui=<id>", como o da rede
 #      ("net=<id>"): sem a entrada a linha da UI não mostra preço e a estimativa diz "sem medida"; com ela a linha

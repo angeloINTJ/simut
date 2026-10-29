@@ -66,11 +66,14 @@ OUT_INI = os.path.join(ROOT, "tools", "generated", "profiles.ini")
 OUT_MODEL = os.path.join(ROOT, "docs", "configurador", "model.json")
 OUT_HEADER = os.path.join(ROOT, "src", "FeatureBits.h")
 COSTS = os.path.join(ROOT, "tools", "feature_costs.json")
-LANGS = ("en", "pt")
+LANGS = ("en", "pt", "es")
+# Toda frase precisa de en e pt. O es (2026-10-29, C1d) vai para o model.json quando o manifesto o tem, e a pagina mostra o
+# ingles onde ele falta (label( ) em app.js); tools/test_configurator_page.py reprova um texto publicado sem es.
+REQUIRED_LANGS = ("en", "pt")
 
 # A tabela das chaves nos tres FEATURES*.md — o A-07 da revisao externa da v2.7.3,
 # que pedia o mapa do que e nucleo e do que e opcional. Os textos sao os do
-# configurador; o espanhol, que a pagina nao mostra, mora no mesmo manifesto
+# configurador; o espanhol, que a pagina mostra onde o manifesto o tem (2026-10-29, C1d), mora no mesmo manifesto
 # (label.es / help.es). Sem o custo em flash, de proposito: ele e medido numa data
 # e sobre uma base, e quem o mostra com as duas e o configurador.
 OUT_FEATURES = {
@@ -379,9 +382,9 @@ def hazard_hits(cfg: dict, M: dict) -> list[dict]:
 
 def _texts(entry: dict, key: str, where: str) -> dict:
     t = entry.get(key)
-    if not isinstance(t, dict) or any(not str(t.get(lang, "")).strip() for lang in LANGS):
-        sys.exit(f"gen_features: {where}.{key} precisa de texto em " + " e ".join(LANGS))
-    return {lang: t[lang] for lang in LANGS}
+    if not isinstance(t, dict) or any(not str(t.get(lang, "")).strip() for lang in REQUIRED_LANGS):
+        sys.exit(f"gen_features: {where}.{key} precisa de texto em " + " e ".join(REQUIRED_LANGS))
+    return {lang: t[lang] for lang in LANGS if str(t.get(lang, "")).strip()}
 
 
 def budget_why(r: dict, M: dict, without: str | None = None) -> dict:
@@ -399,6 +402,8 @@ def budget_why(r: dict, M: dict, without: str | None = None) -> dict:
     keys = [k for k in r["fix"] if k != without]
     out = {}
     for lang in LANGS:
+        if lang not in why or lang not in fix or lang not in one or any(not M["ui_toggles"][k]["label"].get(lang) for k in keys):
+            continue   # falta o es de uma das partes: a pagina mostra o ingles
         names = [M["ui_toggles"][k]["label"][lang] for k in keys]
         text = why[lang]
         if names:
