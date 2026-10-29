@@ -11195,7 +11195,7 @@ python3 tools/history_v5.py --dump-csv 20260923.h5 --interval 300 &gt; 20260923.
 </ol>
 <p>Um arquivo com o mesmo nome de outro da pasta o substitui. O aparelho recusa um nome de arquivo inválido, um envio maior que o espaço livre e qualquer destino dentro de <code>/config</code>.</p>
 <aside class="faixa faixa-atencao"><span class="selo selo-alerta"><i></i>Atenção</span>
-<p><strong>Confira a lista depois de enviar.</strong> A página mostra <strong>Upload concluído.</strong> mesmo quando o aparelho recusa o arquivo. Confirme que o arquivo aparece na pasta com o tamanho certo.</p>
+<p><strong>Confira a lista depois de enviar.</strong> Se o aparelho recusar o envio, a página mostra o motivo em vermelho, por exemplo <strong>Envio recusado (HTTP 400: Invalid upload).</strong>, e pede para conferir o nome do arquivo, a pasta, o espaço livre e a permissão de envio; a lista não muda. Num envio com vários arquivos, só a recusa do último é informada: um arquivo recusado seguido de um aceito termina em <strong>Upload concluído.</strong> Envie um arquivo por vez quando algum puder ser recusado e confirme que o arquivo aparece na pasta com o tamanho certo.</p>
 </aside>
 <p>Alguns arquivos têm tratamento próprio:</p>
 <ul>
@@ -24297,9 +24297,9 @@ echo</code></pre>
 <td>Não reinicie; repita a restauração: os arquivos já gravados ficam, e ela completa o resto</td>
 </tr>
 <tr class="odd">
-<td>A página diz <strong>Upload concluído.</strong>, mas o arquivo não aparece</td>
-<td>O aparelho recusou o envio (nome inválido, sem espaço ou destino proibido)</td>
-<td>Confira o nome, o espaço livre e a pasta</td>
+<td>A página diz <strong>Envio recusado (HTTP 400: Invalid upload).</strong></td>
+<td>O aparelho recusou o envio (nome inválido, sem espaço ou destino proibido); com HTTP 403, a conta não tem a permissão de envio</td>
+<td>Confira o nome do arquivo, o espaço livre e a pasta; com HTTP 403, entre com uma conta que possa enviar arquivos</td>
 </tr>
 <tr class="even">
 <td>Um pacote de idioma enviado não fez efeito</td>
@@ -24318,6 +24318,9 @@ echo</code></pre>
 </tr>
 </tbody>
 </table></div>
+<aside class="faixa faixa-atencao"><span class="selo selo-alerta"><i></i>Atenção</span>
+<p><strong>Vários arquivos num envio.</strong> O aparelho só informa a recusa do último arquivo: se um arquivo recusado vier antes de um aceito, a página diz <strong>Upload concluído.</strong> e o arquivo recusado não aparece. Envie um arquivo por vez quando algum puder ser recusado, e confira a lista.</p>
+</aside>
 <h3 id="cap-30-recuperacao">Recuperação</h3>
 <p>Detalhes no <a href="#cap-18">capítulo 18</a>.</p>
 <div class="tw"><table>

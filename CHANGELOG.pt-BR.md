@@ -211,6 +211,30 @@ no console e no syslog: os dois saíam sem o nome. Depois de um boot em inglês 
   script, na linha `@NAME` dos arquivos; o teste confere nomes e códigos e imprime os campos de cor que diferem.
   Sincronizar o gerador e suas regras está em aberto.
 
+### Um envio recusado na página Arquivos
+
+- **A página Arquivos não diz mais "Upload concluído." de um arquivo que o aparelho recusou.** O aparelho responde a
+  um envio que não aceita com um 4xx: `400 {"error":"Invalid upload"}` para um nome de arquivo, uma pasta ou um
+  tamanho que ele recusa, `403` para uma sessão sem a permissão de envio. O `fetchSafe( )` só lança para 500 ou mais
+  (fora o 503) e o `doUpload( )` não lia o `ok`, então a página atualizava a lista e mostrava o "Upload concluído."
+  verde em todas as imagens de produto (o `WebUI.h` é compartilhado); um 503 saía igual. Achado em 21/10/2026 rodando
+  o código da página no node: um 400 saía como sucesso, um 500 como erro. Agora a recusa mostra uma mensagem vermelha
+  com o status e o motivo do aparelho, "Envio recusado (HTTP 400: Invalid upload). Confira o nome do arquivo, a
+  pasta, o espaço livre e a sua permissão de envio, e tente de novo."; a lista não é atualizada e o envio não é
+  repetido. Um 500 ou uma falha de rede continuam dizendo "Erro no upload." A chave é `fil_up_refused` nos dois
+  pacotes (os arquivos de pacote passam de 42.373 para 42.517 B e de 44.107 para 44.262 B, e a linha `@WEBDICT`
+  deles de 26.348 para 26.492 B e de 27.256 para 27.411 B, medidos em 28/10/2026); o texto em espanhol é uma
+  proposta, até que um falante nativo o revise.
+  Dois limites continuam, lidos no código e não exercitados numa placa: uma recusa não atualiza a lista, então um
+  envio de vários arquivos que o aparelho aceitou em parte só mostra os que chegaram depois de uma atualização; e o
+  aparelho zera a recusa no início de cada arquivo (`handleUploadData( )`), então só informa a do último, e um
+  arquivo recusado seguido de um aceito ainda termina em 200 e em "Upload concluído.".
+- **Por baixo.** O `tools/test_webui_upload_result.py` (CI) roda o `doUpload( )` e o `fetchSafe( )` da própria página
+  no node, como escritos e minificados, contra doze respostas do aparelho (o 200, o 400 e o 403 que a rota manda, um
+  409, dois 413, um 503, dois corpos de 400 fora do comum, um 500 e uma falha de rede), e de novo com o `@WEBDICT` de
+  cada pacote. Antes do conserto falhava em 8 dos 12 (as recusas), nos dois pacotes e na chave que faltava, com os 4
+  controles passando; o `--mutations` quebra o código de 19 jeitos e todos o reprovam.
+
 ## v2.11.1 (2026-10-12)
 
 **Quatro defeitos de severidade alta da revisão do manual estão consertados: a

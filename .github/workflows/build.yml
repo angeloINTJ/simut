@@ -298,6 +298,18 @@ jobs:
       - name: Web UI firmware refusal (every stage refusal in words)
         run: python3 tools/test_webui_firmware_refusal.py
 
+      # The Files page said "Upload complete." for an upload the device had
+      # refused. The device answers a refusal with a 4xx (400 {"error":"Invalid
+      # upload"}, or 403), fetchSafe( ) throws only for a 5xx, and doUpload( )
+      # never read resp.ok, so the listing was refreshed and the toast was green
+      # for a file that never arrived. doUpload( ) runs under node with the
+      # page's own fetchSafe( ), as written and minified, against the answers the
+      # route gives (and a few it does not) and again with each pack's @WEBDICT;
+      # the firmware's answers and showToast( ) are read off the sources.
+      # --mutations (by hand) breaks the code nineteen ways and expects a failure.
+      - name: Web UI upload result (a refused upload is not a success)
+        run: python3 tools/test_webui_upload_result.py
+
       # The Pico 2 W's update boots on trial and can go back by itself, and
       # /api/status says so (slot, trial, reverted). The dashboard and the Files
       # page show it, from @IF slot blocks every RP2040 image cuts. fwSlotNote( )
