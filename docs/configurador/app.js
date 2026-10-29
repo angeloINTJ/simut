@@ -26,12 +26,16 @@ const LANG_KEY = "simut-lang";          // the landing page's key: one choice fo
 const THEME_KEY = "angulo:tema";        // every Ângulo page's key
 const TOKEN_RE = /^(github_pat_[A-Za-z0-9_]{20,250}|ghp_[A-Za-z0-9]{36})$/;
 const POLL_MS = 10000;
+// The page's languages, and the locale each one formats numbers and dates in (and sets the document's lang to). es is
+// es-ES (2026-10-29): its texts are proposals that await a native review, and the page says so (renderReview).
+const LOCALES = { en: "en", pt: "pt-BR", es: "es-ES" };
 
 const STR = {
   en: {
     "skip": "Skip to content", "nav.home": "Home", "nav.manual": "Manual",
     "title": "Build configurator",
     "lede": "Pick a product, switch features on or off, and see whether the image still fits before you compile it.",
+    "lang.review": "Spanish translation under review: tell us if something does not read well.",
     "loading": "Loading the feature model…",
     "ft.colophon": "SIMUT — Sistema Integrado de Monitoramento Universal e Telemetria. MIT licensed.",
     "ft.source": "Feature model", "ft.design": "How it works", "ft.edit": "Edit this page",
@@ -119,6 +123,7 @@ const STR = {
     "skip": "Pular para o conteúdo", "nav.home": "Início", "nav.manual": "Manual",
     "title": "Configurador de build",
     "lede": "Escolha um produto, ligue e desligue recursos, e veja se a imagem ainda cabe antes de compilar.",
+    "lang.review": "Tradução para o espanhol em revisão: avise se algo não estiver claro.",
     "loading": "Carregando o modelo de recursos…",
     "ft.colophon": "SIMUT — Sistema Integrado de Monitoramento Universal e Telemetria. Licença MIT.",
     "ft.source": "Modelo de recursos", "ft.design": "Como funciona", "ft.edit": "Editar esta página",
@@ -202,6 +207,94 @@ const STR = {
     "err.hash": "O link pedia algo que este modelo não conhece (“{v}”), e foi ignorado.",
     "err.hashLong": "O link é longo demais para ser desta página, e foi ignorado.",
   },
+  es: {
+    "skip": "Saltar al contenido", "nav.home": "Inicio", "nav.manual": "Manual",
+    "title": "Configurador de compilación",
+    "lede": "Elija un producto, active o desactive funciones y compruebe si la imagen sigue cabiendo antes de compilarla.",
+    "lang.review": "Traducción en revisión: avísenos si algo no se lee bien.",
+    "loading": "Cargando el modelo de funciones…",
+    "ft.colophon": "SIMUT — Sistema Integrado de Monitoramento Universal e Telemetria. Licencia MIT.",
+    "ft.source": "Modelo de funciones", "ft.design": "Cómo funciona", "ft.edit": "Editar esta página",
+    "theme.dark": "Usar el tema oscuro", "theme.light": "Usar el tema claro",
+    "sec.product": "Producto", "sec.features": "Funciones", "sec.result": "Resultado",
+    "bench.show": "Mostrar imágenes de banco",
+    "product.size": "{n} B de flash",
+    "product.nosize": "Sin medir: imagen de banco",
+    "changed": "Cambiado",
+    "locked": "Bloqueada. {why}",
+    "noeffect": "No cambia nada en este producto: compilada de las dos formas, la imagen salió idéntica, byte a byte.",
+    "price.more": "Activada, la imagen de este producto pesa {n} B más (medido).",
+    "price.less": "Activada, la imagen de este producto pesa {n} B menos (medido).",
+    "price.over": "Activada, este producto deja de caber en la ranura de flash (medido).",
+    "price.net.more": "Elegida en lugar de la conexión propia de este producto, la imagen pesa {n} B más (medido).",
+    "price.net.less": "Elegida en lugar de la conexión propia de este producto, la imagen pesa {n} B menos (medido).",
+    "price.net.over": "Elegida en lugar de la conexión propia de este producto, deja de caber en la ranura de flash (medido).",
+    "price.ui.more": "Elegido en lugar del aspecto propio de este producto, la imagen pesa {n} B más (medido).",
+    "price.ui.less": "Elegido en lugar del aspecto propio de este producto, la imagen pesa {n} B menos (medido).",
+    "price.ui.over": "Elegido en lugar del aspecto propio de este producto, deja de caber en la ranura de flash (medido).",
+    "result.title": "Esta compilación", "selo.estimate": "Estimación", "selo.none": "Sin estimación",
+    "fit.ok": "Cabe", "fit.near": "Al límite", "fit.over": "No cabe", "fit.blocked": "Bloqueada",
+    "fixa.link": "Ver el resultado",
+    "result.stock": "{p}, como se publicó",
+    "result.changes1": "{p}, 1 cambio", "result.changesN": "{p}, {n} cambios",
+    "meter.flash": "Ranura de flash", "meter.ota": ".bin para OTA",
+    "meter.of": "{a} de {b} B", "meter.left": "sobran {n} B", "meter.over": "se pasa en {n} B",
+    "ram": "RAM en uso: {n} B", "ram.unknown": "RAM: sin estimación, porque una imagen que no cabe no tiene cifra de RAM.",
+    "note": "Suma de las diferencias medidas de una en una el {date}; la compilación mide la cifra exacta.",
+    "note.acc": "Frente a {n} compilaciones reales de cambios combinados, la suma se equivocó hasta en {used} B de flash y {bin} B de .bin; por eso, a menos de {margin} B de un techo, la página dice Al límite.",
+    "warn.over": "No cabe en la ranura de flash. Desactive alguna función.",
+    "warn.near": "Cerca del límite, más cerca de lo que la estimación ha llegado a errar. La compilación da la cifra exacta.",
+    "warn.otaOver": "El .bin supera el techo de OTA: grabe el .uf2 por USB.",
+    "warn.rule": "No permitido. {why}",
+    "warn.hazard": "Riesgo. {why}",
+    "warn.missing": "Sin medida para {list}, así que la estimación lo deja fuera.",
+    "warn.bench": "Sin estimación: la matriz de coste mide solo los productos publicados. La compilación da la cifra.",
+    "warn.stock": "Sin cambios. La imagen publicada de este producto está en la última release; compilar aquí genera el main de hoy, que puede ir por delante.",
+    "warn.stockLink": "Abrir la última release",
+    "two.files": "En la Pico 2 W los dos archivos son imágenes distintas. El .bin es una actualización: se instala en la otra ranura y se ejecuta a prueba hasta que se confirma. El .uf2 es la imagen de fábrica, con la tabla de particiones, para la unidad que aparece como RP2350 al mantener pulsado BOOTSEL.",
+    "action.build": "Compilar esta configuración", "action.building": "Compilando…",
+    "action.copy": "Copiar enlace", "action.copied": "Enlace copiado",
+    "action.copyFailed": "El navegador no permitió copiar. El enlace es la dirección de la barra del navegador.",
+    "action.request": "Solicitar esta compilación",
+    "local.title": "Compilar en su equipo",
+    "local.help": "Desde un clon del repositorio, con PlatformIO instalado:",
+    "local.gh": "O inicie el workflow con la CLI de GitHub:",
+    "token.title": "Acceso a GitHub",
+    "token.help": "Compilar ejecuta un workflow en el repositorio, y solo las cuentas con acceso de escritura pueden iniciar uno. Pegue un token fine-grained limitado a este repositorio, con Actions: lectura y escritura y caducidad corta. Se queda en este navegador y solo va a api.github.com.",
+    "token.label": "Token",
+    "token.remember": "Recordar en este navegador",
+    "token.save": "Guardar token",
+    "token.create": "Crear un token fine-grained",
+    "token.saved": "Token guardado, termina en {last}.",
+    "token.forget": "Olvidar el token",
+    "token.bad": "Esto no es un token de GitHub. Uno fine-grained empieza por github_pat_.",
+    "token.noaccess": "¿Sin acceso de escritura? Solicite esta compilación: abre una solicitud en GitHub con esta configuración.",
+    "run.for": "Compilación solicitada: {what}.",
+    "run.dispatching": "Enviando a GitHub…",
+    "run.finding": "Esperando a que aparezca la ejecución…",
+    "run.queued": "En la cola de GitHub.",
+    "run.approval": "Compilada. Esperando a que el mantenedor apruebe la firma: el dispositivo solo instala imágenes firmadas por el aire.",
+    "run.progress": "Compilando: {m} min hasta ahora.",
+    "run.ok": "Compilada: .bin {bin} B, RAM {ram} B.",
+    "run.okOta": "Cabe en el techo de OTA: instale el .bin desde la interfaz web, o el .uf2 por USB.",
+    "run.okUsb": "El .bin supera el techo de OTA: grabe el .uf2 por USB.",
+    "run.okOtaTwo": "Cabe en su ranura: instale el .bin desde la interfaz web, en la otra ranura y a prueba, o el .uf2 por USB, en la unidad RP2350.",
+    "run.download": "Descargar .uf2 y .bin",
+    "run.page": "Abrir la ejecución",
+    "run.failed": "La compilación falló en el paso «{step}».",
+    "run.refused": "El workflow rechazó el perfil: abra la ejecución para ver la regla que citó.",
+    "run.cancelled": "Se canceló la ejecución.",
+    "run.lost": "La ejecución no apareció en un minuto. Búsquela en la pestaña Actions del repositorio.",
+    "err.401": "GitHub rechazó el token (401): caducó o se revocó. Olvídelo y pegue uno nuevo.",
+    "err.403": "El token no puede iniciar workflows aquí (403). Necesita Actions: lectura y escritura en este repositorio.",
+    "err.404": "GitHub no encontró el workflow (404): el token no tiene acceso a este repositorio.",
+    "err.422": "GitHub rechazó la solicitud (422): {m}",
+    "err.other": "GitHub respondió {status}: {m}",
+    "err.net": "No se pudo contactar con GitHub: {m}",
+    "err.model": "No se pudo cargar el modelo de funciones ({m}). Recargue la página.",
+    "err.hash": "El enlace pedía algo que este modelo no conoce («{v}»), y se ignoró.",
+    "err.hashLong": "El enlace es demasiado largo para ser de esta página, y se ignoró.",
+  },
 };
 
 const state = {
@@ -230,11 +323,11 @@ function t(key, vars) {
 }
 
 function num(n) {
-  return new Intl.NumberFormat(state.lang === "pt" ? "pt-BR" : "en").format(n);
+  return new Intl.NumberFormat(LOCALES[state.lang]).format(n);
 }
 
 function kb(n) {
-  const f = new Intl.NumberFormat(state.lang === "pt" ? "pt-BR" : "en",
+  const f = new Intl.NumberFormat(LOCALES[state.lang],
                                   { minimumFractionDigits: 1, maximumFractionDigits: 1 });
   return `${n < 0 ? "−" : ""}${f.format(Math.abs(n) / 1024)} KB`;
 }
@@ -274,19 +367,22 @@ function storageSet(store, key, value) {
 
 /* ---- language and theme (the shell outside #app) -------------------------- */
 
+function isLang(code) {
+  return Object.prototype.hasOwnProperty.call(LOCALES, code);
+}
+
 function detectLang() {
   const saved = storageGet("localStorage", LANG_KEY);
-  if (saved === "en" || saved === "pt") return saved;
+  if (isLang(saved)) return saved;
   for (const l of navigator.languages || [navigator.language || "en"]) {
-    const s = String(l).toLowerCase();
-    if (s.startsWith("pt")) return "pt";
-    if (s.startsWith("en")) return "en";
+    const code = String(l).toLowerCase().split(/[-_]/)[0];
+    if (isLang(code)) return code;
   }
   return "en";
 }
 
 function applyShell() {
-  document.documentElement.lang = state.lang === "pt" ? "pt-BR" : "en";
+  document.documentElement.lang = LOCALES[state.lang];
   document.title = `SIMUT — ${t("title")}`;
   for (const el of document.querySelectorAll("[data-i18n]")) el.textContent = t(el.dataset.i18n);
   for (const b of document.querySelectorAll(".lang-btn")) {
@@ -303,7 +399,7 @@ function applyShell() {
 function wireShell() {
   for (const b of document.querySelectorAll(".lang-btn")) {
     b.addEventListener("click", () => {
-      state.lang = b.dataset.lang === "pt" ? "pt" : "en";
+      state.lang = isLang(b.dataset.lang) ? b.dataset.lang : "en";
       storageSet("localStorage", LANG_KEY, state.lang);
       applyShell();
       if (state.model) render();
@@ -395,7 +491,7 @@ function render() {
   const focused = document.activeElement && document.activeElement.id;
   app.replaceChildren(
     h("div", { class: "cfg-grade" },
-      h("div", { class: "cfg-coluna" }, state.notice ? renderNotice() : null, renderProducts(), renderFeatures()),
+      h("div", { class: "cfg-coluna" }, renderReview(), state.notice ? renderNotice() : null, renderProducts(), renderFeatures()),
       renderResult()),
     renderFixa());
   if (focused) {
@@ -439,6 +535,12 @@ function renderFixa() {
     est ? h("span", { class: "cfg-fixa-valor",
                       text: t("meter.of", { a: num(est.bin), b: num(L.ceilingsOf(m, state.productId).flash_region) }) }) : null,
     h("a", { href: "#resultado", text: t("fixa.link") }));
+}
+
+/* The Spanish texts are proposals that await a native review (the device's es-ES texts are too), and the page says so, once, in
+ * Spanish, above the choice. The other languages have no such line. */
+function renderReview() {
+  return state.lang === "es" ? h("p", { class: "cfg-apoio", id: "cfg-revisao", text: t("lang.review") }) : null;
 }
 
 function renderNotice() {
@@ -725,7 +827,7 @@ function noteText() {
 function formatDate(iso) {
   const d = new Date(`${iso}T12:00:00Z`);
   if (Number.isNaN(d.getTime())) return iso;
-  return new Intl.DateTimeFormat(state.lang === "pt" ? "pt-BR" : "en", { dateStyle: "long", timeZone: "UTC" }).format(d);
+  return new Intl.DateTimeFormat(LOCALES[state.lang], { dateStyle: "long", timeZone: "UTC" }).format(d);
 }
 
 function renderLocal() {

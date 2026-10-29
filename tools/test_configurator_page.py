@@ -567,8 +567,8 @@ check(selo and "L.verdictOf(state.model, state.productId, state.set)" in selo.gr
       and "slotFit" not in selo.group(1),
       "app.js: o selo do veredito (fitSelo) deveria vir de L.verdictOf, que põe o bloqueio antes do slot, "
       "e não do L.slotFit sozinho")
-check(APP.count('"fit.blocked":') == 2,
-      f"app.js: o texto fit.blocked deveria existir em en e em pt, existe {APP.count(chr(34) + 'fit.blocked' + chr(34) + ':')} vez(es)")
+check(APP.count('"fit.blocked":') == 3,
+      f"app.js: o texto fit.blocked deveria existir em en, pt e es, existe {APP.count(chr(34) + 'fit.blocked' + chr(34) + ':')} vez(es)")
 lock_calls = re.findall(r"L\.lockOf\(([^()]*)\)", APP)
 check(lock_calls and all(len([a for a in c.split(",") if a.strip()]) == 4 for c in lock_calls),
       f"app.js: toda chamada de L.lockOf deveria passar o produto (4 argumentos): {lock_calls}")
@@ -618,12 +618,27 @@ def str_keys(lang):
     return set(re.findall(r'"([\w.]+)":', block.group(1))) if block else set()
 
 
-check(str_keys("en") and str_keys("en") == str_keys("pt"),
-      f"app.js: os textos em en e em pt deveriam ter as mesmas chaves; só em um deles: {sorted(str_keys('en') ^ str_keys('pt'))}")
+check(str_keys("en") and str_keys("en") == str_keys("pt") == str_keys("es"),
+      f"app.js: os textos em en, pt e es deveriam ter as mesmas chaves; só em um deles: pt {sorted(str_keys('en') ^ str_keys('pt'))}, es {sorted(str_keys('en') ^ str_keys('es'))}")
 check({"price.net.more", "price.net.less", "price.net.over"} <= str_keys("en") & str_keys("pt"),
       "app.js: faltam os textos do preço de uma opção de rede (price.net.*) em en ou em pt")
 check({"price.ui.more", "price.ui.less", "price.ui.over"} <= str_keys("en") & str_keys("pt"),
       "app.js: faltam os textos do preço de uma opção de UI (price.ui.*) em en ou em pt")
+
+
+def str_texts(lang):
+    block = re.search(r"\n  %s: \{\n(.*?)\n  \},\n" % lang, APP, re.S)
+    return {k: json.loads('"' + v + '"') for k, v in re.findall(r'"([\w.]+)":\s*"((?:[^"\\]|\\.)*)"', block.group(1))} if block else {}
+
+
+PLACEHOLDER = re.compile(r"\{(\w+)\}")
+for lang in ("pt", "es"):
+    texts = str_texts(lang)
+    for key, en_text in str_texts("en").items():
+        check(texts.get(key, "").strip(), f"app.js: o texto {key} está ausente ou vazio em {lang}")
+        have, want = sorted(PLACEHOLDER.findall(texts.get(key, ""))), sorted(PLACEHOLDER.findall(en_text))
+        check(have == want, f"app.js: {key} em {lang} tem os marcadores {have}, o inglês tem {want}")
+        check(not re.search("[\U0001F000-\U0001FAFF\u2600-\u27BF]", texts.get(key, "")), f"app.js: {key} em {lang} traz um emoji")
 
 # 6. O erro que a página diz ter.
 import check_flash_budget as cfb  # noqa: E402
@@ -876,6 +891,17 @@ def noeffect_model(pairs):
 # No Air o buzzer está travado (air-no-buzzer): a chave que tem as duas linhas, o motivo e o "não muda nada".
 MODELS["noeffect"] = noeffect_model([("pico_w_release", "mdns"), ("pico_w_air", "sound_buzzer")])
 
+
+def noes_model():
+    """O model.json sem o es de dois textos: a descrição do Alpha e a ajuda do mdns."""
+    m = copy.deepcopy(MODEL)
+    next(p for p in m["products"] if p["id"] == "pico_w_alpha")["desc"].pop("es", None)
+    next(t for t in m["toggles"] if t["id"] == "mdns")["help"].pop("es", None)
+    return m
+
+
+MODELS["noes"] = noes_model()
+
 # O JS da lógica: a trava de cada opção de UI, a das chaves com a UI escolhida, o link, o perfil, a estimativa.
 JS_UI = r"""
 import * as L from "./logic.js";
@@ -965,7 +991,7 @@ class Txt extends NodeBase {
   get textContent() { return this.data; }
 }
 class El extends NodeBase {
-  constructor(tag) { super(); this.tag = tag; this.attrs = {}; this.kids = []; this.listeners = {}; this.parent = null; this.style = {}; }
+  constructor(tag) { super(); this.tag = tag; this.attrs = {}; this.kids = []; this.listeners = {}; this.parent = null; this.style = {}; this.dataset = {}; }
   setAttribute(k, v) { this.attrs[k] = String(v); }
   hasAttribute(k) { return k in this.attrs; }
   append(...kids) { for (const k of kids) { k.parent = this; this.kids.push(k); } }
@@ -1017,6 +1043,9 @@ function row(label, root) {
            describedby: named(root, input.attrs["aria-describedby"], own), describedbyAttr: input.attrs["aria-describedby"] || null };
 }
 
+// The shell of index.html (the language buttons and the data-i18n elements) of the visit being snapshotted.
+let shell = { langBtns: [], i18nEls: [] };
+
 function snapshot(appEl, loc) {
   const snap = { hash: loc.hash, fieldsets: [], switches: [], warnings: [], notice: null, product: null,
                  build: null, summary: null, selos: [], profile: null, issue: null, radios: [], run: null };
@@ -1065,6 +1094,12 @@ function snapshot(appEl, loc) {
   const runBox = first(find(appEl, (e) => cls(e, "cfg-estado")));
   snap.run = runBox ? { texts: find(runBox, (e) => e.tag === "p").map((e) => e.textContent),
                         links: find(runBox, (e) => e.tag === "a").map((e) => e.attrs.href) } : null;
+  snap.text = appEl.textContent;
+  snap.shell = { lang: document.documentElement.lang, title: document.title,
+                 pressed: shell.langBtns.map((b) => [b.dataset.lang, b.attrs["aria-pressed"]]),
+                 i18n: shell.i18nEls.map((e) => [e.dataset.i18n, e.textContent]) };
+  const review = first(find(appEl, (e) => e.attrs.id === "cfg-revisao"));
+  snap.review = review ? review.textContent : null;
   return snap;
 }
 
@@ -1080,16 +1115,21 @@ for (const sc of input.scenarios) {
   appEl.attrs.id = "app"; ann.attrs.id = "cfg-anuncio"; body.append(ann, appEl);
   const loc = { hash: sc.hash, get href() { return "https://example.test/configurador/" + this.hash; } };
   const store = () => { const m = new Map(); return { getItem: (k) => (m.has(k) ? m.get(k) : null), setItem: (k, v) => m.set(k, v), removeItem: (k) => m.delete(k) }; };
+  // The shell outside #app: the language buttons and the data-i18n elements, as index.html has them.
+  const langBtns = input.shell.langs.map((l) => { const b = new El("button"); b.dataset.lang = l; b.attrs.class = "lang-btn"; return b; });
+  const i18nEls = input.shell.i18n.map((k) => { const e = new El("span"); e.dataset.i18n = k; return e; });
+  shell = { langBtns, i18nEls };
   define("Node", NodeBase);
   define("document", { documentElement: { dataset: {}, lang: "" }, title: "", activeElement: null,
                        createElement: (t) => new El(t), createTextNode: (t) => new Txt(t),
                        getElementById: (id) => [...walk(body)].find((e) => e.attrs.id === id) || null,
-                       querySelectorAll: () => [], querySelector: () => null });
+                       querySelectorAll: (sel) => (sel === "[data-i18n]" ? i18nEls : sel === ".lang-btn" ? langBtns : []), querySelector: () => null });
   define("location", loc);
   define("history", { replaceState: (a, b, h) => { loc.hash = h; } });
-  define("navigator", { languages: [sc.lang === "pt" ? "pt-BR" : "en"], language: sc.lang });
+  define("navigator", { languages: [sc.nav || { en: "en", pt: "pt-BR", es: "es-ES" }[sc.lang]], language: sc.lang });
   define("window", { localStorage: store(), sessionStorage: store(), addEventListener() {} });
   if (sc.token) window.sessionStorage.setItem(input.api.tokenKey, input.api.token);
+  if (sc.saved) window.localStorage.setItem(input.api.langKey, sc.saved);
   // The model for the page's own fetch; for GitHub's API (the one address the page may send the token to) the
   // answers of a build that is asked for, found, followed and finished -- or never answered ("hang").
   const gh = { dispatched: [] };
@@ -1121,6 +1161,14 @@ for (const sc of input.scenarios) {
     await settle(appEl);
     rec.snaps.push(snapshot(appEl, loc));
     for (const a of sc.actions) {
+      if (a.lang) {   // a click on a language button of the shell
+        const btn = langBtns.find((b) => b.dataset.lang === a.lang);
+        const step = { click: "lang:" + a.lang, result: btn ? "clicked" : "missing" };
+        if (btn) { try { for (const fn of btn.listeners.click || []) fn({ target: btn }); } catch (e) { step.result = "threw: " + brief(e); } }
+        rec.steps.push(step);
+        rec.snaps.push(snapshot(appEl, loc));
+        continue;
+      }
       const id = a.click || a.press;
       const el = first(find(body, (e) => e.attrs.id === id));
       const step = { click: id, result: null };
@@ -1212,19 +1260,21 @@ def label_of(pid, lang):
 
 
 # Como o Intl.NumberFormat da página escreve um inteiro e um tamanho em KB (en e pt-BR agrupam de 4 dígitos para cima).
-LOCALE_SEPS = {"en": (",", "."), "pt": (".", ",")}
+LOCALE_SEPS = {"en": (",", "."), "pt": (".", ","), "es": (".", ",")}
 
 
 def num_text(lang, n):
-    th = LOCALE_SEPS[lang][0]
-    return ("-" if n < 0 else "") + f"{abs(n):,}".replace(",", th)
+    digits = f"{abs(n)}"
+    if len(digits) >= (5 if lang == "es" else 4):   # CLDR: o espanhol só agrupa de cinco dígitos (minimumGroupingDigits 2)
+        digits = f"{abs(n):,}".replace(",", LOCALE_SEPS[lang][0])
+    return ("-" if n < 0 else "") + digits
 
 
 def kb_text(lang, n):
-    th, dec = LOCALE_SEPS[lang]
+    dec = LOCALE_SEPS[lang][1]
     q = (Decimal(abs(n)) / 1024).quantize(Decimal("0.1"), rounding=ROUND_HALF_UP)
     whole, frac = str(q).split(".")
-    return ("−" if n < 0 else "") + f"{int(whole):,}".replace(",", th) + dec + frac + " KB"
+    return ("−" if n < 0 else "") + num_text(lang, int(whole)) + dec + frac + " KB"
 
 
 def expected_price(model, pid, u):
@@ -1266,8 +1316,17 @@ def app_const(name):
 # O GitHub de mentira da página (2026-10-22): os endereços e a chave do token são lidos do app.js, de onde a página
 # os tira; o que a build "terminada" devolve (a execução, o artefato, os tamanhos) é inventado aqui.
 PAGE_API = {"base": app_const("API"), "repo": app_const("REPO"), "tokenKey": app_const("STORAGE_KEY"),
-            "token": "github_pat_" + "x" * 30, "runId": 777, "artifactId": 5, "bin": 900000, "ram": 120000}
-check(all(PAGE_API[k] for k in ("base", "repo", "tokenKey")), f"app.js: não achei as constantes API, REPO e STORAGE_KEY: {PAGE_API}")
+            "token": "github_pat_" + "x" * 30, "runId": 777, "artifactId": 5, "bin": 900000, "ram": 120000,
+            "langKey": app_const("LANG_KEY")}
+check(all(PAGE_API[k] for k in ("base", "repo", "tokenKey", "langKey")), f"app.js: não achei as constantes API, REPO, STORAGE_KEY e LANG_KEY: {PAGE_API}")
+
+# O casco da página (index.html), que o app.js preenche e que o DOM de mentira reproduz: os botões de língua e os elementos data-i18n.
+INDEX = open(os.path.join(PAGE, "index.html"), encoding="utf-8").read()
+SHELL = {"langs": re.findall(r'<button[^>]*class="lang-btn"[^>]*data-lang="(\w+)"', INDEX),
+         "i18n": re.findall(r'data-i18n="([\w.]+)"', INDEX)}
+check(SHELL["langs"] == ["en", "pt", "es"], f"index.html: os botões de língua são {SHELL['langs']}, devia ser en, pt, es")
+check('data-lang="es" lang="es-ES">ES<' in INDEX, 'index.html: o botão do espanhol devia ser <button ... data-lang="es" lang="es-ES">ES</button>')
+MESES_ES = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"]
 
 
 def ui_logic_findings(js):
@@ -1419,7 +1478,7 @@ def ui_logic_findings(js):
 def ui_scenarios():
     """As visitas à página: cada produto nas duas línguas, e as que se fazem com cliques."""
     sc = [{"name": f"sweep:{lang}:{p}", "hash": f"#b={p}", "lang": lang, "actions": []}
-          for lang in ("en", "pt") for p in PRODUCTS]
+          for lang in ("en", "pt", "es") for p in PRODUCTS]
     sc += [
         {"name": "two", "hash": "#b=pico2_w_release", "lang": "en", "model": "unmeasured",
          "actions": [{"click": "u-angulo"}, {"click": "t-tft_graph"}, {"click": "u-original"}]},
@@ -1455,9 +1514,23 @@ def ui_scenarios():
         {"name": "price:unmeasured", "hash": "#b=pico2_w_release&ui=angulo", "lang": "en", "model": "unmeasured", "actions": []},
         # A matriz mediu o Ângulo no produto como publicado; com o gráfico desligado a opção está travada, e a linha travada não mostra preço.
         {"name": "price:locked", "hash": "#b=pico2_w_release&off=tft_graph", "lang": "en", "model": "measured", "actions": []},
+        # A matriz de verdade, como estiver: com ou sem a entrada `ui=angulo` do Pico 2 W (a conferência lê o próprio modelo).
+        {"name": "price:real", "hash": "#b=pico2_w_release", "lang": "en", "actions": [{"click": "u-angulo"}]},
         # Uma chave sem efeito, e uma travada que também não tem efeito: o motivo e a frase chegam ao leitor de tela (C1d).
         {"name": "noeffect:release", "hash": "#b=pico_w_release", "lang": "en", "model": "noeffect", "actions": []},
         {"name": "noeffect:air:pt", "hash": "#b=pico_w_air", "lang": "pt", "model": "noeffect", "actions": []},
+        # O espanhol (C1d, 2026-10-29): o fluxo do Ângulo com o preço, a língua pelo botão, a salva, a do navegador, o texto
+        # que falta em es, a build pedida e a janela do token (os textos de STR que só aparecem aí). Toda visita em es, e as
+        # marcadas "mark", rodam também na passada em que os textos em inglês de STR levam uma marca (ui_marker_findings).
+        {"name": "es:flow", "hash": "#b=pico2_w_release", "lang": "es", "model": "measured",
+         "actions": [{"click": "u-angulo"}, {"click": "t-tft_graph"}, {"click": "u-original"}]},
+        {"name": "es:saved", "hash": "#b=pico2_w_release", "lang": "en", "saved": "es", "mark": True, "actions": []},
+        {"name": "es:nav", "hash": "#b=pico2_w_release", "lang": "en", "nav": "es-MX", "mark": True, "actions": []},
+        {"name": "es:fr", "hash": "#b=pico2_w_release", "lang": "en", "nav": "fr-FR", "actions": []},
+        {"name": "es:buttons", "hash": "#b=pico2_w_release", "lang": "en", "actions": [{"lang": "es"}, {"lang": "pt"}, {"lang": "en"}]},
+        {"name": "es:noes", "hash": "#b=pico_w_alpha", "lang": "es", "model": "noes", "actions": []},
+        {"name": "es:run", "hash": "#b=pico2_w_release", "lang": "es", "api": "finish", "token": True, "actions": [{"press": "compilar"}]},
+        {"name": "es:token", "hash": "#b=pico2_w_release", "lang": "es", "actions": [{"press": "compilar"}]},
     ]
     return sc
 
@@ -1505,7 +1578,7 @@ def ui_app_findings(res):
     #    o título do modelo e uma opção por UI do manifesto, com o nome e a ajuda dele; a do produto marcada;
     #    a opção que uma regra recusa desabilitada, com o motivo da regra à vista, no texto de toda trava.
     #    A escolha da rede, que já existia, é lida do mesmo jeito: é o controle do instrumento.
-    for lang in ("en", "pt"):
+    for lang in ("en", "pt", "es"):
         for p in PRODUCTS:
             s = by[f"sweep:{lang}:{p}"]["snaps"][0]
             tag = f"{p} ({lang})"
@@ -1765,13 +1838,25 @@ def ui_app_findings(res):
     ok(row(s0, "u-angulo")["cost"] is None and say("en", "warn.missing", list=ang_en) in [w["text"] for w in s0["warnings"]],
        f"price:unmeasured: sem a entrada na matriz a linha não mostra preço e o aviso de 'sem medida' fica: {row(s0, 'u-angulo')['cost']!r}, {[w['text'] for w in s0['warnings']]}")
 
+    # 12b. A matriz de verdade (C1d): com a entrada `ui=angulo` do Pico 2 W a linha mostra o preço e o aviso de "sem medida" some; sem
+    #      ela a linha não mostra nada e o aviso fica. A conferência lê a entrada do próprio modelo e vale nos dois estados.
+    s0, s1 = by["price:real"]["snaps"]
+    has_entry = expected_price(MODEL, "pico2_w_release", "angulo") is not None
+    want = expected_ui_price(MODEL, "pico2_w_release", "angulo", "en")
+    got = (row(s0, "u-angulo")["cost"], row(s0, "u-angulo")["costTitle"])
+    ok(got == want and (want[0] is not None) == has_entry,
+       f"price:real: o preço do Ângulo no Pico 2 W é {got}, devia ser {want}; a matriz de verdade {'tem' if has_entry else 'não tem'} a entrada")
+    texts = [w["text"] for w in s1["warnings"]]
+    ok((say("en", "warn.missing", list=ang_en) in texts) == (not has_entry),
+       f"price:real: o aviso de 'sem medida' {'não devia' if has_entry else 'devia'} estar na tela: {texts}")
+
     # 13. O que o leitor de tela recebe de cada CHAVE (C1d, 2026-10-29): a descrição (aria-describedby) é a ajuda e, depois
     #     dela, toda linha de motivo que a chave mostra -- a trava e a frase de "não muda nada" -- na ordem da tela. Antes
     #     só a ajuda: o motivo de uma chave travada estava na tela e em descrição nenhuma. Cada id citado existe uma vez
     #     só ("missing" e "duplicate" são achados). Quatro classes de chave, e cada uma tem de aparecer para a conferência
     #     valer: a travada, a sem efeito, a que é as duas e a livre (só a ajuda).
     seen = {"locked": 0, "noeffect": 0, "both": 0, "free": 0}
-    for name, lang in [(f"sweep:{lg}:{p}", lg) for lg in ("en", "pt") for p in PRODUCTS] + [("noeffect:release", "en"), ("noeffect:air:pt", "pt")]:
+    for name, lang in [(f"sweep:{lg}:{p}", lg) for lg in ("en", "pt", "es") for p in PRODUCTS] + [("noeffect:release", "en"), ("noeffect:air:pt", "pt")]:
         prefix, noeff = say(lang, "locked", why=""), say(lang, "noeffect")
         for sw in by[name]["snaps"][0]["switches"]:
             help_text = M["ui_toggles"][sw["id"][2:]]["help"][lang]
@@ -1783,6 +1868,61 @@ def ui_app_findings(res):
                f"{name}/{sw['id']} ({kind}): a descrição que o leitor de tela recebe (aria-describedby={sw['describedbyAttr']!r}) é "
                f"{sw['description']}, devia ser a ajuda e depois {sw['locks']}")
     ok(all(seen.values()), f"as classes de chave lidas (cada uma devia aparecer): {seen}")
+
+    # 14. O espanhol (C1d, 2026-10-29). A página em es mostra o casco (index.html) e o que está em #app na língua certa: o atributo
+    #     lang é es-ES, só o botão ES está marcado, os elementos data-i18n dizem o texto de STR.es e a linha de revisão da
+    #     tradução está na tela só em es. Os números e a data seguem o es-ES (ponto de milhar de cinco dígitos em diante,
+    #     vírgula decimal). O texto do modelo que falta em es cai para o inglês (label( )); o de STR.es que falta, na passada
+    #     marcada (ui_marker_findings). Cada conferência da língua vale também para en e pt: é o controle do instrumento.
+    locales = {"en": "en", "pt": "pt-BR", "es": "es-ES"}
+
+    def shell_ok(name, i, snap, lang):
+        sh = snap["shell"]
+        ok(sh["lang"] == locales[lang] and sh["title"] == f"SIMUT — {say(lang, 'title')}",
+           f"{name}[{i}]: lang={sh['lang']!r} e título {sh['title']!r}, devia ser {locales[lang]!r} e SIMUT — {say(lang, 'title')}")
+        ok(sh["pressed"] == [[l, str(l == lang).lower()] for l in SHELL["langs"]],
+           f"{name}[{i}]: os botões de língua são {sh['pressed']}, só {lang} devia estar marcado")
+        ok(sh["i18n"] == [[k, say(lang, k)] for k in SHELL["i18n"]], f"{name}[{i}]: os textos do casco não são os de STR.{lang}: {sh['i18n']}")
+        ok(snap["review"] == (say("es", "lang.review") if lang == "es" else None),
+           f"{name}[{i}]: a linha de revisão da tradução é {snap['review']!r} em {lang}")
+
+    for lang in ("en", "pt", "es"):
+        for p in PRODUCTS:
+            shell_ok(f"sweep:{lang}:{p}", 0, by[f"sweep:{lang}:{p}"]["snaps"][0], lang)
+    page = by["sweep:es:pico2_w_release"]["snaps"][0]["text"]
+    cost0 = MODEL["costs"]["products"]["pico2_w_release"]["base"]
+    flash = next(x for x in MODEL["products"] if x["id"] == "pico2_w_release")["ceilings"]["flash_region"]
+    year, month, day = MODEL["costs"]["measured_at"]["date"].split("-")
+    for want in (say("es", "product.size", n=num_text("es", cost0["bin"])),
+                 say("es", "meter.of", a=num_text("es", cost0["bin"]), b=num_text("es", flash)),
+                 say("es", "note", date=f"{int(day)} de {MESES_ES[int(month) - 1]} de {year}")):
+        ok(want in page, f"sweep:es:pico2_w_release: falta na tela {want!r} (números e data em es-ES)")
+    r = by["es:flow"]
+    ok([st["result"] for st in r["steps"]] == ["clicked", "disabled", "clicked"], f"es:flow: cliques {r['steps']}")
+    s0, s1, s2, s3 = r["snaps"]
+    a0 = row(s0, "u-angulo")
+    ok(a0["cost"] == "41,0 KB" and "41.984 B" in (a0["costTitle"] or ""),
+       f"es:flow: o preço do Ângulo é {a0['cost']!r}, título {a0['costTitle']!r}, devia ser 41,0 KB e 41.984 B")
+    ok(switch(s1, "t-tft_graph")["locks"] == [say("es", "locked", why=chart["es"])], f"es:flow: a trava da chave do gráfico: {switch(s1, 't-tft_graph')['locks']}")
+    ok(s1["summary"] == say("es", "result.changes1", p=label_of("pico2_w_release", "es")), f"es:flow: o resumo é {s1['summary']!r}")
+    ok(s3 == s0, "es:flow: voltar ao visual original devia deixar a tela como a de partida")
+    r = by["es:buttons"]
+    ok([st["result"] for st in r["steps"]] == ["clicked"] * 3, f"es:buttons: cliques {r['steps']}")
+    for i, lang in enumerate(("en", "es", "pt", "en")):
+        shell_ok("es:buttons", i, r["snaps"][i], lang)
+        ok(r["snaps"][i]["summary"] == say(lang, "result.stock", p=label_of("pico2_w_release", lang)),
+           f"es:buttons[{i}]: o resumo não está em {lang}: {r['snaps'][i]['summary']!r}")
+    for name, lang in (("es:saved", "es"), ("es:nav", "es"), ("es:fr", "en")):
+        shell_ok(name, 0, by[name]["snaps"][0], lang)
+    s = by["es:noes"]["snaps"][0]
+    alpha, air = M["ui_products"]["pico_w_alpha"]["desc"], M["ui_products"]["pico_w_air"]["desc"]
+    ok(alpha["en"] in s["text"] and alpha["es"] not in s["text"], "es:noes: sem o es a descrição do Alpha devia aparecer em inglês")
+    ok(air["es"] in s["text"], "es:noes: a descrição do Air, que tem es, devia aparecer em espanhol")
+    ok(switch(s, "t-mdns")["help"] == M["ui_toggles"]["mdns"]["help"]["en"] and switch(s, "t-web_https")["help"] == M["ui_toggles"]["web_https"]["help"]["es"],
+       f"es:noes: a ajuda do mdns (sem es) devia estar em inglês e a das outras em espanhol: {switch(s, 't-mdns')['help']!r}")
+    done = (by["es:run"]["snaps"][1]["run"] or {"texts": []})["texts"]
+    ok(say("es", "run.ok", bin=num_text("es", PAGE_API["bin"]), ram=num_text("es", PAGE_API["ram"])) in done and say("es", "run.okOtaTwo") in done,
+       f"es:run: a build pronta em espanhol não está na tela: {done}")
     return fs
 
 
@@ -1799,12 +1939,42 @@ def ui_source_findings(app_text):
     return fs
 
 
+EN_MARK = "⁣⁣"   # dois separadores invisíveis (U+2063): em nenhum texto de verdade da página
+
+
+def mark_english(app_text):
+    """Uma cópia do app.js em que todo texto em inglês de STR leva a marca: numa visita em es, um texto que cai para o inglês
+    (a chave falta em STR.es) aparece com ela."""
+    m = re.search(r"(\n  en: \{\n)(.*?)(\n  \},\n)", app_text, re.S)
+    body = re.sub(r'("[\w.]+":\s*")((?:[^"\\]|\\.)*")', lambda mm: mm.group(1) + EN_MARK + mm.group(2), m.group(2))
+    return app_text[:m.start()] + m.group(1) + body + m.group(3) + app_text[m.end():]
+
+
+def ui_marker_findings(res):
+    """A passada marcada: a página em es não pode mostrar texto nenhum marcado como inglês. Uma chave que falta em STR.es cai
+    para o inglês sem erro algum, e é assim que ela aparece."""
+    if isinstance(res, dict):
+        return [f"o node falhou na passada marcada: {res['node_error']}"]
+    fs = []
+    for r in res:
+        fs += [f"{r['name']}: a página deu erro: {e}" for e in r["errors"]]
+        for i, snap in enumerate(r["snaps"]):
+            blob = json.dumps(snap, ensure_ascii=False)
+            if EN_MARK in blob:
+                at = blob.index(EN_MARK)
+                fs.append(f"{r['name']}[{i}]: um texto da página em es cai para o inglês: ...{blob[max(0, at - 30):at + 70]!r}")
+    return fs
+
+
 def ui_run(logic_text=None, app_text=None):
     """A lógica e a página, conferidas: a lista de achados e as telas de cada visita."""
     fs = ui_logic_findings(run_node(JS_UI, {"model": MODEL, "products": PRODUCTS, "toggles": TOGGLES, "uis": UIS,
                                             "contexts": CONTEXTS, "hostile": list(HOSTILE_UI), "fixtures": MODELS}, logic_text=logic_text))
     fs += ui_source_findings(APP if app_text is None else app_text)
-    res = run_node(JS_APP, {"models": MODELS, "scenarios": ui_scenarios(), "api": PAGE_API}, logic_text=logic_text, app_text=app_text)
+    marked = [w for w in ui_scenarios() if w.get("mark") or w["lang"] == "es"]
+    fs += ui_marker_findings(run_node(JS_APP, {"models": MODELS, "scenarios": marked, "api": PAGE_API, "shell": SHELL}, logic_text=logic_text,
+                                      app_text=mark_english(APP if app_text is None else app_text)))
+    res = run_node(JS_APP, {"models": MODELS, "scenarios": ui_scenarios(), "api": PAGE_API, "shell": SHELL}, logic_text=logic_text, app_text=app_text)
     if isinstance(res, dict):
         return fs + [f"o node falhou na página: {res['node_error']}"], []
     return fs + ui_app_findings(res), res
@@ -2009,6 +2179,28 @@ CONTROLS = [
     ("o id da trava é o mesmo em toda chave", "app",
      '  const helpId = `${id}-ajuda`, lockId = `${id}-trava`, sameId = `${id}-sem-efeito`;',
      '  const helpId = `${id}-ajuda`, lockId = "trava", sameId = `${id}-sem-efeito`;'),
+    # O espanhol (C1d, 2026-10-29): o mapa de locales, a detecção, o botão, a linha de revisão, o inglês de reserva, as chaves.
+    ("o mapa de locales perde o es", "app",
+     'const LOCALES = { en: "en", pt: "pt-BR", es: "es-ES" };', 'const LOCALES = { en: "en", pt: "pt-BR" };'),
+    ("a língua do botão volta a ser só en ou pt", "app",
+     '      state.lang = isLang(b.dataset.lang) ? b.dataset.lang : "en";', '      state.lang = b.dataset.lang === "pt" ? "pt" : "en";'),
+    ("a língua salva não conhece o es", "app",
+     '  if (isLang(saved)) return saved;', '  if (saved === "en" || saved === "pt") return saved;'),
+    ("a língua do navegador não conhece o es", "app",
+     '    if (isLang(code)) return code;', '    if (code === "en" || code === "pt") return code;'),
+    ("a linha de revisão aparece em toda língua", "app",
+     '  return state.lang === "es" ? h("p", {', '  return true ? h("p", {'),
+    ("o atributo lang do documento não é posto", "app",
+     '  document.documentElement.lang = LOCALES[state.lang];', '  document.documentElement.lang = "en";'),
+    ("o número usa o locale do inglês", "app",
+     '  return new Intl.NumberFormat(LOCALES[state.lang]).format(n);', '  return new Intl.NumberFormat("en").format(n);'),
+    ("a data usa o locale do inglês", "app",
+     'new Intl.DateTimeFormat(LOCALES[state.lang], {', 'new Intl.DateTimeFormat("en", {'),
+    ("label( ) perde o inglês de reserva", "app", '  return entry[state.lang] || entry.en;', '  return entry[state.lang];'),
+    ("falta no es o texto do preço da UI", "app",
+     '    "price.ui.more": "Elegido en lugar del aspecto propio de este producto, la imagen pesa {n} B más (medido).",\n', ''),
+    ("falta no es o texto da barra fixa", "app",
+     '    "fixa.link": "Ver el resultado",\n', ''),
 ]
 control_hits = {}
 for cname, which, old, new in CONTROLS:
