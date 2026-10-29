@@ -643,13 +643,13 @@ for lang in ("pt", "es"):
 # A revisão do C1d (2026-10-29): o inglês é "installs only signed images over the air", e o "por el aire" é da instalação. Depois de
 # "imágenes firmadas" o espanhol dizia "imágenes firmadas por el aire": as imagens assinadas pelo ar.
 approval_es = str_texts("es").get("run.approval", "")
-check("solo instala por el aire imágenes firmadas" in approval_es and "firmadas por el aire" not in approval_es,
-      f"app.js: run.approval em es devia dizer «solo instala por el aire imágenes firmadas»: {approval_es!r}")
+check("solo instala, por el aire, imágenes firmadas" in approval_es and "firmadas por el aire" not in approval_es,
+      f"app.js: run.approval em es devia dizer «solo instala, por el aire, imágenes firmadas»: {approval_es!r}")
 # O português tinha a mesma ordem ("só instala imagem assinada pelo ar": a imagem assinada pelo ar), e o implementador a apontou ao
 # consertar o espanhol (2026-10-29).
 approval_pt = str_texts("pt").get("run.approval", "")
-check("só instala pelo ar imagem assinada" in approval_pt and "assinada pelo ar" not in approval_pt,
-      f"app.js: run.approval em pt devia dizer «só instala pelo ar imagem assinada»: {approval_pt!r}")
+check("só instala, pelo ar, imagem assinada" in approval_pt and "assinada pelo ar" not in approval_pt,
+      f"app.js: run.approval em pt devia dizer «só instala, pelo ar, imagem assinada»: {approval_pt!r}")
 
 # A revisão do C1d (2026-10-29): a linha de revisão diz ONDE avisar. O texto traz {link}, que vira o link, nas três línguas, e o
 # canal se chama GitHub.

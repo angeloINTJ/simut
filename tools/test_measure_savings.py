@@ -295,6 +295,45 @@ def flips_cases():
         text, why = ms.env_text("_check_x", prof, M)
         check("the Ângulo check's env names the budget of pico2_w_angulo",
               why is None and "\ncustom_ui_ram_budget_env = pico2_w_angulo\n" in "\n" + text, why)
+    # measure_checks( ) itself builds its environments through env_text( ): the TempEnvs and the builds stubbed, exactly one of
+    # the CHECKS environments names an Ângulo budget, and it is the one whose set carries the Ângulo (the review of 1414638d:
+    # a revert of measure_checks( ) to the bare emit_env( ), or an env_text( ) that looks the budget up for every profile, both
+    # passed the suite then; either kills `--checks` at the end of a link, hours later).
+    seen_blocks = []
+
+    class FakeTempEnvs:
+        def __init__(self, blocks):
+            seen_blocks.extend(blocks)
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *exc):
+            return False
+    saved_te, saved_pbf = ms.TempEnvs, ms.pio_build_full
+    try:
+        ms.TempEnvs = FakeTempEnvs
+        ms.pio_build_full = lambda env, echo=False: {"used": 1, "bin": 1, "ram": 1, "sha256": "x"}
+        out = ms.measure_checks()
+    finally:
+        ms.TempEnvs, ms.pio_build_full = saved_te, saved_pbf
+    with_budget = [b.splitlines()[0] for b in seen_blocks if "custom_ui_ram_budget_env = " in b]
+    want = [f"[env:_check_{i}]" for i, c in enumerate(ms.CHECKS) if c[1].get("ui") == "angulo"]
+    check("measure_checks( ): one environment per check, and only the Ângulo's names a RAM budget",
+          len(seen_blocks) == len(ms.CHECKS) and len(out) == len(ms.CHECKS) and with_budget == want and len(want) == 1,
+          (len(seen_blocks), with_budget, want))
+    # print_checks( ) names a choice by its value: "ui=angulo", not "ui=on" (a switch prints on/off).
+    import io, contextlib
+    doc = {"products": {"pico2_w_release": {"base": {"used": 100, "bin": 100, "ram": 10},
+                                            "flips": {"ui=angulo": {"used": 130, "bin": 130, "ram": 12},
+                                                      "mdns": {"used": 90, "bin": 90, "ram": 9}}}},
+           "checks": [{"base": "pico2_w_release", "set": {"ui": "angulo", "mdns": False}, "used": 120, "bin": 120, "ram": 11}]}
+    buf = io.StringIO()
+    with contextlib.redirect_stdout(buf):
+        ms.print_checks(doc)
+    printed = buf.getvalue()
+    check("print_checks( ) prints a choice with its value and a switch on/off",
+          "ui=angulo, mdns=off" in printed and "ui=on" not in printed, printed.strip())
     for prod, rule in (("pico_w_release", "angulo-cyw43-needs-rp2350"), ("pico_w_alpha", "angulo-needs-tft"),
                        ("pico_w_air", "angulo-needs-tft")):
         b, pl = plans[prod]
