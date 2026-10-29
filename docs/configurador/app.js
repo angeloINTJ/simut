@@ -507,19 +507,23 @@ function renderToggle(x, config) {
     priceTitle = price.overflow ? t("price.over")
       : t(price.flash >= 0 ? "price.more" : "price.less", { n: num(Math.abs(price.flash)) });
   }
-  const helpId = `${id}-ajuda`;
+  const helpId = `${id}-ajuda`, lockId = `${id}-trava`, sameId = `${id}-sem-efeito`;
+  // What a screen reader says about the switch is the help and then every line of reason the switch shows (the lock,
+  // "changes nothing"), in the order they are on the page. A switch that cannot be turned is disabled, and without
+  // these ids its reason was on the screen and in no description (the radios of renderNet and renderUi already cite theirs).
+  const described = [helpId, lock ? lockId : null, same ? sameId : null].filter(Boolean).join(" ");
   return h("div", { class: "cfg-chave" },
     h("div", { class: "cfg-chave-texto" },
       h("div", { class: "cfg-chave-nome" },
         h("label", { for: id, text: label(x.label) }),
         changed ? h("span", { class: "selo", text: t("changed") }) : null),
       h("p", { class: "cfg-apoio", id: helpId, text: label(x.help) }),
-      lock ? h("p", { class: "cfg-chave-trava", text: t("locked", { why: label(lock.why) }) }) : null,
-      same ? h("p", { class: "cfg-chave-trava", text: t("noeffect") }) : null),
+      lock ? h("p", { class: "cfg-chave-trava", id: lockId, text: t("locked", { why: label(lock.why) }) }) : null,
+      same ? h("p", { class: "cfg-chave-trava", id: sameId, text: t("noeffect") }) : null),
     h("div", { class: "cfg-chave-lado" },
       priceText && !same ? h("span", { class: "cfg-chave-custo", title: priceTitle, text: priceText }) : null,
       h("input", { type: "checkbox", role: "switch", class: "cfg-interruptor", id,
-                   "aria-describedby": helpId, checked: config[x.id] === true,
+                   "aria-describedby": described, checked: config[x.id] === true,
                    disabled: Boolean(lock) || same,
                    onchange: (e) => flip(x.id, e.target.checked) })));
 }

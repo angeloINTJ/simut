@@ -854,6 +854,18 @@ MODELS = {
     "overflow": matrix_model({("pico2_w_release", "ui=angulo"): {"overflow": 3148}}),
 }
 
+
+def noeffect_model(pairs):
+    """O model.json de verdade com a matriz dizendo que virar a chave não muda a imagem (`same`), para (produto, chave)."""
+    m = copy.deepcopy(MODEL)
+    for pid, tid in pairs:
+        m["costs"]["products"][pid]["flips"][tid] = {"same": True}
+    return m
+
+
+# No Air o buzzer está travado (air-no-buzzer): a chave que tem as duas linhas, o motivo e o "não muda nada".
+MODELS["noeffect"] = noeffect_model([("pico_w_release", "mdns"), ("pico_w_air", "sound_buzzer")])
+
 # O JS da lógica: a trava de cada opção de UI, a das chaves com a UI escolhida, o link, o perfil, a estimativa.
 JS_UI = r"""
 import * as L from "./logic.js";
@@ -975,6 +987,12 @@ function role(root, id, own) {
   return Object.keys(own).find((r) => own[r] === hits[0]) || "other";
 }
 const named = (root, attr, own) => (attr === undefined ? null : attr.split(/\s+/).filter(Boolean).map((id) => role(root, id, own)));
+// The texts a reader of the page is given for the ids an aria-describedby names, in the order it names them: the text of the
+// element, or "missing" / "duplicate" for an id that names none / more than one element.
+const described = (root, attr) => (attr === undefined ? [] : attr.split(/\s+/).filter(Boolean).map((id) => {
+  const hits = find(root, (e) => e.attrs.id === id);
+  return hits.length === 1 ? hits[0].textContent : hits.length ? "duplicate" : "missing";
+}));
 
 function row(label, root) {
   const input = first(find(label, (e) => e.tag === "input"));
@@ -1008,9 +1026,12 @@ function snapshot(appEl, loc) {
   }
   for (const i of find(appEl, (e) => e.tag === "input" && e.attrs.role === "switch")) {
     const r = closest(i, (e) => cls(e, "cfg-chave"));
+    const help = first(find(r, (e) => cls(e, "cfg-apoio")));
     snap.switches.push({ id: i.attrs.id, checked: i.checked, disabled: i.disabled,
                          locks: find(r, (e) => cls(e, "cfg-chave-trava")).map((e) => e.textContent),
-                         badges: find(r, (e) => cls(e, "selo")).map((e) => e.textContent) });
+                         badges: find(r, (e) => cls(e, "selo")).map((e) => e.textContent),
+                         help: help ? help.textContent : null,
+                         description: described(appEl, i.attrs["aria-describedby"]), describedbyAttr: i.attrs["aria-describedby"] || null });
   }
   snap.warnings = find(appEl, (e) => e.tag === "li" && cls(e, "cfg-aviso")).map((e) => ({ tone: e.attrs["data-tom"], text: e.textContent }));
   const notice = first(find(appEl, (e) => e.tag === "p" && cls(e, "cfg-aviso") && e.attrs.role === "status"));
@@ -1424,6 +1445,9 @@ def ui_scenarios():
         {"name": "price:unmeasured", "hash": "#b=pico2_w_release&ui=angulo", "lang": "en", "model": "unmeasured", "actions": []},
         # A matriz mediu o Ângulo no produto como publicado; com o gráfico desligado a opção está travada, e a linha travada não mostra preço.
         {"name": "price:locked", "hash": "#b=pico2_w_release&off=tft_graph", "lang": "en", "model": "measured", "actions": []},
+        # Uma chave sem efeito, e uma travada que também não tem efeito: o motivo e a frase chegam ao leitor de tela (C1d).
+        {"name": "noeffect:release", "hash": "#b=pico_w_release", "lang": "en", "model": "noeffect", "actions": []},
+        {"name": "noeffect:air:pt", "hash": "#b=pico_w_air", "lang": "pt", "model": "noeffect", "actions": []},
     ]
     return sc
 
@@ -1464,7 +1488,8 @@ def ui_app_findings(res):
                      "labelledby": None, "labelledbyAttr": None, "describedby": None, "describedbyAttr": None})
 
     def switch(s, sid):
-        return next((x for x in s["switches"] if x["id"] == sid), {"id": sid, "checked": None, "disabled": None, "locks": ["ausente"], "badges": None})
+        return next((x for x in s["switches"] if x["id"] == sid), {"id": sid, "checked": None, "disabled": None, "locks": ["ausente"], "badges": None,
+                                                       "help": None, "description": None, "describedbyAttr": None})
 
     # 1. A varredura: cada produto, nas duas línguas. A escolha está no grupo do modelo, antes das chaves, com
     #    o título do modelo e uma opção por UI do manifesto, com o nome e a ajuda dele; a do produto marcada;
@@ -1729,6 +1754,25 @@ def ui_app_findings(res):
     s0 = by["price:unmeasured"]["snaps"][0]
     ok(row(s0, "u-angulo")["cost"] is None and say("en", "warn.missing", list=ang_en) in [w["text"] for w in s0["warnings"]],
        f"price:unmeasured: sem a entrada na matriz a linha não mostra preço e o aviso de 'sem medida' fica: {row(s0, 'u-angulo')['cost']!r}, {[w['text'] for w in s0['warnings']]}")
+
+    # 13. O que o leitor de tela recebe de cada CHAVE (C1d, 2026-10-29): a descrição (aria-describedby) é a ajuda e, depois
+    #     dela, toda linha de motivo que a chave mostra -- a trava e a frase de "não muda nada" -- na ordem da tela. Antes
+    #     só a ajuda: o motivo de uma chave travada estava na tela e em descrição nenhuma. Cada id citado existe uma vez
+    #     só ("missing" e "duplicate" são achados). Quatro classes de chave, e cada uma tem de aparecer para a conferência
+    #     valer: a travada, a sem efeito, a que é as duas e a livre (só a ajuda).
+    seen = {"locked": 0, "noeffect": 0, "both": 0, "free": 0}
+    for name, lang in [(f"sweep:{lg}:{p}", lg) for lg in ("en", "pt") for p in PRODUCTS] + [("noeffect:release", "en"), ("noeffect:air:pt", "pt")]:
+        prefix, noeff = say(lang, "locked", why=""), say(lang, "noeffect")
+        for sw in by[name]["snaps"][0]["switches"]:
+            help_text = M["ui_toggles"][sw["id"][2:]]["help"][lang]
+            has_lock, has_same = any(x.startswith(prefix) for x in sw["locks"]), noeff in sw["locks"]
+            kind = "both" if has_lock and has_same else "locked" if has_lock else "noeffect" if has_same else "free"
+            seen[kind] += 1
+            ok(sw["help"] == help_text, f"{name}/{sw['id']}: a ajuda na tela é {sw['help']!r}, devia ser a do manifesto")
+            ok(sw["description"] == [help_text] + sw["locks"],
+               f"{name}/{sw['id']} ({kind}): a descrição que o leitor de tela recebe (aria-describedby={sw['describedbyAttr']!r}) é "
+               f"{sw['description']}, devia ser a ajuda e depois {sw['locks']}")
+    ok(all(seen.values()), f"as classes de chave lidas (cada uma devia aparecer): {seen}")
     return fs
 
 
@@ -1929,6 +1973,32 @@ CONTROLS = [
     ("o título do preço da UI é sempre 'maior'", "app",
      't(price.flash >= 0 ? "price.ui.more" : "price.ui.less", {', 't("price.ui.more", {'),
     ("o título do estouro da UI usa a frase da rede", "app", 'price.overflow ? t("price.ui.over")', 'price.overflow ? t("price.net.over")'),
+    # O que o leitor de tela recebe de uma chave (C1d, 2026-10-29): a descrição, e os ids das linhas de motivo.
+    ("a descrição da chave perde o motivo da trava", "app",
+     '  const described = [helpId, lock ? lockId : null, same ? sameId : null].filter(Boolean).join(" ");',
+     '  const described = [helpId, same ? sameId : null].filter(Boolean).join(" ");'),
+    ("a descrição da chave perde a frase de sem efeito", "app",
+     '  const described = [helpId, lock ? lockId : null, same ? sameId : null].filter(Boolean).join(" ");',
+     '  const described = [helpId, lock ? lockId : null].filter(Boolean).join(" ");'),
+    ("a descrição da chave lê o motivo antes da ajuda", "app",
+     '  const described = [helpId, lock ? lockId : null, same ? sameId : null].filter(Boolean).join(" ");',
+     '  const described = [lock ? lockId : null, helpId, same ? sameId : null].filter(Boolean).join(" ");'),
+    ("a descrição da chave só tem a ajuda", "app",
+     '  const described = [helpId, lock ? lockId : null, same ? sameId : null].filter(Boolean).join(" ");', '  const described = helpId;'),
+    ("a descrição da chave cita a trava que a chave livre não tem", "app",
+     '  const described = [helpId, lock ? lockId : null, same ? sameId : null].filter(Boolean).join(" ");',
+     '  const described = [helpId, lockId, sameId].join(" ");'),
+    ("a trava da chave não tem id", "app",
+     'lock ? h("p", { class: "cfg-chave-trava", id: lockId, text: t("locked", { why: label(lock.why) }) }) : null,\n      same',
+     'lock ? h("p", { class: "cfg-chave-trava", text: t("locked", { why: label(lock.why) }) }) : null,\n      same'),
+    ("a frase de sem efeito não tem id", "app",
+     'h("p", { class: "cfg-chave-trava", id: sameId, text: t("noeffect") })', 'h("p", { class: "cfg-chave-trava", text: t("noeffect") })'),
+    ("o id da trava da chave é o da ajuda", "app",
+     '  const helpId = `${id}-ajuda`, lockId = `${id}-trava`, sameId = `${id}-sem-efeito`;',
+     '  const helpId = `${id}-ajuda`, lockId = helpId, sameId = `${id}-sem-efeito`;'),
+    ("o id da trava é o mesmo em toda chave", "app",
+     '  const helpId = `${id}-ajuda`, lockId = `${id}-trava`, sameId = `${id}-sem-efeito`;',
+     '  const helpId = `${id}-ajuda`, lockId = "trava", sameId = `${id}-sem-efeito`;'),
 ]
 control_hits = {}
 for cname, which, old, new in CONTROLS:
