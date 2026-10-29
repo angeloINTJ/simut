@@ -247,9 +247,12 @@ def parse_sizes(text):
 
 def pio_run(env, linker_map=False):
     """`linker_map`: pede o mapa do linker (MAP_FLAG) somado a qualquer
-    PLATFORMIO_BUILD_FLAGS que ja esteja no ambiente."""
-    pio = os.path.expanduser("~/.platformio/penv/bin/pio")
-    if not os.path.exists(pio):
+    PLATFORMIO_BUILD_FLAGS que ja esteja no ambiente. SIMUT_PIO, quando definido, e o pio que
+    roda, na frente do penv: nesta maquina o penv quebrou com o python 3.14 em 2026-10-24 ("No
+    module named 'platformio'") e a matriz de 2026-10-29 morreu na primeira base por causa dele;
+    o CI nao define a variavel e segue no penv."""
+    pio = os.environ.get("SIMUT_PIO") or os.path.expanduser("~/.platformio/penv/bin/pio")
+    if not os.environ.get("SIMUT_PIO") and not os.path.exists(pio):
         pio = "pio"
     run_env = None
     if linker_map:

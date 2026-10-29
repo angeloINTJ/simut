@@ -182,6 +182,25 @@ def pio_run_cases():
         seen.clear()
         ms.pio_run("pico_w_alpha")
         check("without linker_map the build inherits the environment untouched", seen.get("env") is None)
+        # SIMUT_PIO names the pio to run, ahead of ~/.platformio/penv/bin/pio: on this host the penv broke under
+        # python 3.14 on 2026-10-24 (No module named 'platformio') and the matrix of 2026-10-29 died on its first base.
+        cmds = []
+        ms.subprocess.run = lambda cmd, **kw: (cmds.append(cmd), types.SimpleNamespace(returncode=0, stdout="", stderr=""))[1]
+        saved_pio = os.environ.get("SIMUT_PIO")
+        try:
+            os.environ["SIMUT_PIO"] = "/opt/some/pio"
+            ms.pio_run("pico_w_alpha")
+            check("SIMUT_PIO is the pio that runs", cmds and cmds[-1][0] == "/opt/some/pio", cmds[-1:] )
+            os.environ.pop("SIMUT_PIO")
+            ms.pio_run("pico_w_alpha")
+            penv = os.path.expanduser("~/.platformio/penv/bin/pio")
+            want = penv if os.path.exists(penv) else "pio"
+            check("without SIMUT_PIO: the penv's pio when it exists, else the PATH's", cmds[-1][0] == want, cmds[-1:])
+        finally:
+            if saved_pio is None:
+                os.environ.pop("SIMUT_PIO", None)
+            else:
+                os.environ["SIMUT_PIO"] = saved_pio
     finally:
         ms.subprocess.run = saved_run
         if saved_flags is None:
