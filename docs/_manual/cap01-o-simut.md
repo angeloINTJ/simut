@@ -99,7 +99,7 @@ O aparelho em blocos: os sensores entram pelo Core 0, a tela fica com o Core 1, 
 
 ## Versões {#cap-01-versoes}
 
-Este manual descreve a **v2.12.0**, de 28/10/2026, a versão publicada mais recente. A linha 2.7 saiu do beta com a v2.7.0.
+Este manual descreve a **v2.12.0**, de 29/10/2026, a versão publicada mais recente. A linha 2.7 saiu do beta com a v2.7.0.
 
 O que a v2.12.0 mudou para quem usa o aparelho:
 

@@ -4,7 +4,7 @@
 
 All notable changes to SIMUT firmware.
 
-## v2.12.0 (2026-10-28)
+## v2.12.0 (2026-10-29)
 
 **The panel's SPI is set to 66.5 MHz on the Pico W; on the build measured before the change (arduino-pico 5.6.1,
 2026-10-15) it ran at 24 MHz, whatever `SIMUT_TFT_SPI_HZ` asked for. A radio that stops answering is no longer joined
@@ -21,8 +21,8 @@ images, and the release does not publish them.**
 
 `CONFIG_VERSION` stays at 26 and the security version at 1. `keys/` and `src/ota/ota_layout.h` are the files of
 v2.11.1 (`git diff v2.11.1 HEAD -- keys src/ota/ota_layout.h` is empty, 2026-10-28), so v2.11.1 reads the
-configuration and verifies this release's signature, and an update can go over the air both ways; the gate's round
-trip is recorded under *The bench* once it has run. The 35 pull requests merged since v2.11.1 are each named under the
+configuration and verifies this release's signature, and an update can go over the air both ways; the gate ran the round
+trip on the Pico W (*The bench*). The 35 pull requests merged since v2.11.1 are each named under the
 heading they belong to.
 
 ### The panel's bus (#278)
@@ -146,8 +146,9 @@ heading they belong to.
   and `show net status` adds the short write to the send aborts it lists. On the bench, 4 replies cut in 5,000 were
   counted exactly, one for one.
 - **The fix is two framework overrides** (`webserver_short_write.patch`, 2m, and `webserver_fewer_writes.patch`, 2n)
-  that `patch.sh` applies to every image. It was measured on a Pico W; the Pico 2 W, which lost 4 of 119 reads in
-  v2.11.1's gate, has not been measured with them. This closes the #189 item of v2.11.1's *Known* list.
+  that `patch.sh` applies to every image. It was measured on a Pico W. On the Pico 2 W, which lost 4 of 119 reads in
+  v2.11.1's gate, the release gate's soak of 2026-10-29 lost none of 120 (*The bench*): two soaks of 30 minutes, not a
+  rate. This closes the #189 item of v2.11.1's *Known* list.
 
 ### A plain client on the TLS port (#274, #277)
 
@@ -196,8 +197,8 @@ heading they belong to.
   failure in between stayed off flash as the second fault of a failing family, and the next history record was written
   as a recovery. 441 stays for the change a person makes on the panel or at the CLI.
 - **The SIMUT Air's wake** silences the pack's boot record where it silenced 441, so a wake still writes one record
-  instead of eight. The language change is out of that list, so it is written even during a boot. Host-tested; not
-  measured again on an Air.
+  instead of eight. The language change is out of that list, so it is written even during a boot. Host-tested. The
+  gate's wake test on an Air ran without a pack in `/lang`, so it did not see this record silenced (*The bench*).
 - **A tag the table lacks no longer builds.** The `LOG_` macros assert at compile time that each tag is the name of
   the id it maps to (`logTagIsKnown( )`). Added to `main` alone, the check finds exactly the five records above: the
   language pack's four and the Air's `"AIR"`, which was persisted as `APP` and now says `APP`.
@@ -222,8 +223,9 @@ heading they belong to.
   other images. The alpha answered that way from its first build (2026-06-06), the Wire from its first (2026-10-12).
 - **The manual** said the console and the syslog speak the pack's language. They speak English on every image, and
   chapters 14, 16 and 25 say so; their example lines are now the text the device sends (`Login failed`, `Show IP`).
-- Checked in the images, not yet on the rig: the alpha's two lookups returned the address of an empty string and now
-  return 0. The seven images that do not build that code are byte-identical.
+- Checked in the images, and seen on an alpha's console at the gate, 2026-10-29 (*The bench*): the alpha's two lookups
+  returned the address of an empty string and now return 0. The seven images that do not build that code are
+  byte-identical.
 
 ### English has a way back on the panel (#294)
 
@@ -393,30 +395,126 @@ has 155 B above the one flash sector that `check_flash_budget.py` warns under. T
 
 ### The bench
 
-The release gate (`AGENTS.md` §2) has not run on this release's candidate yet. This section is filled in by the gate's
-documentation change, from the candidate the CI signs on `main`. Until then, each figure above names the build and the
-date it was measured on. Not run on a signed image: the update from v2.11.1, the panel at 66.5 MHz on the Pico W's
-glass, the Air's single record per wake, and the alpha's event names in Portuguese.
+The release gate (`AGENTS.md` §2) ran on the candidate the CI signed on `main` 229d5d59 (`release-ota.yml`, run
+40798427593, with the maintainer's approval of `sign`), on both boards: the Pico W from 2026-10-28 22:19 to 2026-10-29
+08:44, the Pico 2 W on 2026-10-29 from 17:36 to 18:32. `ci_check.py` ended in ALL GOOD: the four signatures verify
+(`v` 0) against the release root, each image part is the local build's, the Pico 2 W's update is flagged for trial, a
+copy with one byte changed gives `v` 9, and the image signed by the bench key gives `v` 12.
+
+**On the Pico 2 W,** the bench board (an RP2350 A2) with three sensors, from the published v2.11.1 in slot A. The board
+had been running a development image: its whole flash was dumped first, two equal reads, and written back at the end.
+v2.11.1's factory `.uf2` was copied onto its BOOTSEL drive, reached by the 1200-baud touch on the board's own USB
+serial, and v2.11.1's Portuguese pack replaced the development image's in `/lang`.
+- **The update, over the air:** stage 200 in 16.8 s, the board back 42.4 s later from slot B on trial, and kept 47.8 s
+  after that. All 527 configuration values the web API reports unchanged (555 in v2.11.1's gate, with five sensors).
+- **Refused,** the board left running on its slot and version, its uptime still growing: the candidate with one byte
+  changed (9) and an image signed by the bench key (12), both with 422.
+- **The candidate over itself,** from slot B to slot A (stage 17.8 s, back 77.9 s later, kept 44.8 s after that) and from
+  slot A to slot B (16.8 s, 30.8 s, 56.7 s), the configuration unchanged both times.
+- **The candidate's factory `.uf2`,** copied onto the BOOTSEL drive: up on 2.12.0 from slot A, not on trial, the
+  configuration unchanged. **A deviation, and its control.** The first copy proved nothing: v2.11.1's factory image had
+  put the board on slot A (v2.11.1's gate started on B), so the update over itself had ended on A, and a copy the
+  bootrom ignored would have shown the same. The update over itself was run again, A to B; then BOOTSEL by the
+  1200-baud touch with nothing written and a reboot left the board on B; the copy then took it to A.
+- **30 minutes** without a restart: 120 reads and no error, none of them with a lost
+  chunked framing (4 of 119 in v2.11.1's gate), the three sensors valued in every sample, free heap 302,868 to
+  302,972 B. **The web suite on the candidate,** as the bench admin: 67 passed, 0 failed, 1 skipped.
+- **The panel's bus:** `sys.clk_peri` 150 MHz and `tft_hz` 37.50 MHz, where the first section says it stays.
+- **The way back:** the development image's dump written back with `picotool load --ignore-partitions` and read again,
+  byte for byte; the configuration and the alarms equal to those before the gate.
+
+**On the Pico W,** the bench board with the touch display, from the published v2.11.1 with the bench's configuration, a
+throwaway admin account and the web on port 8080. That start was made as v2.11.1's gate made its own: that gate's
+start (v2.11.0 with the bench's configuration) written by USB and read back, updated over the air to v2.11.1, its `.bkp`
+put back. The board's flash was dumped first, two equal reads, and written back at the end. Two of its five sensor
+slots (a DS18B20 on GP1 and a BMP280 on GP4) were switched off at the maintainer's word, because those sensors sit on
+the Pico 2 W's breadboard, so the web API reports 539 configuration values here against the 567 of v2.11.1's gate (530
+against 558 on the alpha and the Air). The telemetry server of that configuration, a phone, was off the network that
+night, so it was pointed at a receiver on the bench PC; the sends below are the ones that receiver saw.
+- **The update from v2.11.1,** complete, over the air, on the release: backup 200 (76 files), stage 200 (`v` 0) in
+  35.4 s, the board back 46.2 s after the apply, `2.12.0`, the three sensors reading, all 539 configuration values
+  unchanged, and unchanged again after the `.bkp` was put back (validate and apply 200); `system.bin` identical byte
+  for byte, the app slot equal to the signed image with its signature after it, and 73 of the 76 files identical. The
+  other three are the log, the open history block and the day's history file, which move while the device runs. Run
+  again with the telemetry on the receiver: 35.5 s and 47.4 s, and 72 of 76 (the telemetry cursor moves too).
+- **The same on the alpha and the Air** (530 values, and 73 of 76 files on each): the slot equals the image except the
+  4 KiB sector of BTstack's flash bank (`0xee000` on the alpha, `0xf9000` on the Air), and the Air's own option `air
+  idle`, which an update erases (777 became 300), came back with the `.bkp` (777).
+- **The candidate over itself,** on all three, the candidate checking the signature (`v` 0; the release's serial showed
+  `image verified, 1036133 B`): the same.
+- **Back to v2.11.1 and up again,** over the air, on the release, both at security version 1: accepted (`v` 0) both
+  ways (stage 35.3 s and the board back 46.1 s later; then 35.5 s and 50.0 s), the 539 values unchanged. Run a second
+  time with the receiver on: v2.11.1 and the candidate each sent a batch of 10 records, 570 s and 568 s after their
+  boot, the queue rebuilt from the cursor, and the receiver's records had no duplicate and no hole, apart from the
+  minutes of the updates themselves.
+- **Refused** with 422, the version still 2.12.0, the uptime still growing, the configuration unchanged before and
+  after a reset: an unsigned image (8), the Air's signed image (7), the Pico 2 W's signed update (6) and the candidate
+  with one byte changed (9).
+- **An upload cut at 400 kB, then a reset,** and the same with the filesystem filled to its last 8 KB and emptied
+  between the cut and the reset: the 539 values unchanged, and the boot did not fall to factory defaults.
+- **30 minutes** without a restart, with the RESET wire on RUN: 120 reads, no failure, the three sensors
+  valued in every sample, free heap 54,908 to 55,300 B. The receiver got the telemetry through it, a record a minute,
+  without a hole. **The web suite on the candidate,** as an admin account: 67 passed, 0 failed, 1 skipped.
+- **The panel at 66.5 MHz,** on the Pico W's glass: `sys.clk_peri` 133,000,000 Hz and `tft_hz` 66.50 MHz after the
+  update and again during the soak. The maintainer looked at the glass while the soak ran: no stray pixels in the flat
+  regions, and the touch responded. A capture (`/api/screenshot`, 1.4 s) shows the two cards of the switched-off slots
+  as "Empty / Inactive", the #262 fix. The alpha and the Air have neither field.
+- **The Air's wake and the alpha's names** (#283, #286). On the Air, eleven wakes watched, a minute apart (08:18 to
+  08:29): the candidate wrote three records at each wake that stayed off the network (545 `TEL_CERT_MISSING`, 544
+  `TEL_CERT_READ_ERR`, 567 `STO_H5_WIP`), and v2.11.1 five on the same board, at the second and third of three wakes
+  (those three, another 567 and a record of code 0 with context 156, the old pack's warning stored as "OK"). **That is
+  not a test of #283:** the candidate's Air had no pack in `/lang` (its last update reformatted the filesystem, the `.bkp`
+  was not put back, and its log has no pack record at any boot), v2.11.1's had one, so the pack's record silenced at a
+  wake stays host-tested. The tenth wake brought the network up (an address 8 s into it, the time 9 s) and the receiver
+  got a batch of 10 records. On the alpha, with `debug on`: v2.11.1 printed the logins as `[SEC] : wtest (4)`, nothing
+  before the colon; the candidate prints `[SEC] Login success: Login OK: wtest (4)`, the name and the detail in English.
+- **The themes and the packs.** With the eleven stock `.thm` files uploaded, `/api/themes` lists nine rows on both
+  boards, `simut_def` and eight (see *Known*). The candidate's pt-BR pack alone in `/lang` has 539 keys and names eight
+  of the nine in Portuguese; `simut_def` is compiled in, has no key, and the page shows "Simut Default". The es-ES pack
+  names the same eight in Spanish. On the Pico 2 W, v2.11.1's pack had 519 keys and none of a theme's. With both packs
+  in `/lang` the Pico W loaded the es-ES one (see *Upgrading*).
+- **The way back:** the arrival dump (the board as it came, running the SIMUT Wire image with the panel) written back by
+  USB and read again, byte for byte; the board answers on the cable again.
+
+**The PicoHand's RESET wire stayed on the RUN pin during the Pico W's part of the gate,** on the maintainer's word of
+2026-10-28: the restarts that the gates of v2.11.0 and v2.11.1 put down to it (2026-10-04, three in two hours;
+2026-10-05, four in six hours) came from how the boards' grounds were bonded on the bench, which has been fixed since.
+That part took about 10 hours of bench with the wire on RUN (22:19 to 08:44), but the board sat in BOOTSEL, running
+only the ROM, from 23:25 to 23:40 and from 00:40 to 06:00: the firmware ran about 4.8 hours of them (66, 60 and 164
+minutes), the soak included, with no restart that was not ours in those hours. The Pico W's USB dropped three times in
+the middle of flash writes (23:25, 00:40, 05:59) and the PicoHand's serial went mute twice: the host's USB, not
+restarts of the firmware. Each write was done again and read back byte for byte before the gate went on. On the Pico 2
+W nobody checked where the wire went after the boards were swapped, and no step used the hand: its soak's numbers
+stand without a statement about the wire.
+
+Not run on this candidate: the way back to v2.11.1 on the Pico 2 W, and the Air's wake with a language pack in `/lang`.
 
 ### Upgrading
 
 - **From v2.11.1, on a Pico W (release, alpha or Air):** over the air, from the Files page, with this release's `.bin`
   and with no other page of the device open. Download the `.bkp` the page offers first. The apply reformats the
-  filesystem and keeps only `/config/system.bin`: `/lang` is gone, so the device shows English until the packs are
-  back and it has rebooted, and the history, the themes in `/themes` and the Air's own options come back only with the
-  `.bkp`. Restore the `.bkp` (it brings the old packs back), upload the two language packs attached to this release
-  and reboot; a pack is read at boot.
+  filesystem and keeps only `/config/system.bin`: `/lang` is gone, so the device shows English until the pack is back
+  and it has rebooted, and the history, the themes in `/themes` and the Air's own options come back only with the
+  `.bkp`. Restore the `.bkp` (it brings the old pack back), upload **the pack of the device's language** attached to this
+  release, over the old one, and reboot; a pack is read at boot.
 - **From v2.11.1, on a Pico 2 W:** over the air, with this release's `.bin`: the update goes to the other slot, leaves
-  the filesystem alone and boots on trial, as since v2.11.0. The packs in `/lang` stay, so the labels added in this
-  release read in English until the two new packs replace them.
+  the filesystem alone and boots on trial, as since v2.11.0. The pack in `/lang` stays, so the labels added in this
+  release read in English until the new pack of the device's language replaces it.
 - **Back to v2.11.1:** over the air with its signed `.bin` (both carry security version 1 and series 1), or over USB.
-  The round trip is recorded under *The bench* once the gate has run it.
+  The gate ran it on the Pico W: candidate to v2.11.1 and up again, twice, the configuration unchanged and the
+  telemetry queue rebuilt from the cursor at each boot. It did not run it on the Pico 2 W.
 - **From an older version, or a Pico 2 W's first install:** as for v2.11.0, in its entry below.
-- **Language packs:** a v2.11.1 pack should still load, since a key a pack lacks shows its English text; the theme
-  names on the web page and the refused-upload message then read in English. After a boot in English, the panel's
-  Idioma screen lists the pack put in `/lang` (#294).
+- **Language packs: upload only the one of the device's language.** With more than one `language_*.lng` in `/lang` the
+  device loads the first in alphabetical order (every image does, by the code; all but the alpha also log 622,
+  `I18N_PACK_MULTIPLE`), and `language_es-ES.lng` comes before `language_pt-BR.lng`: a Portuguese device with both turns
+  Spanish (measured on the Pico W's release image, 2026-10-29: with both, `/api/lang` named the themes in Spanish; with
+  es-ES deleted and a reboot, in Portuguese). The Upgrading text of
+  v2.11.1 and of the releases before it says to upload the two; do not. A device that has both gets its language back by
+  deleting the other pack from `/lang` on the Files page and rebooting. A v2.11.1 pack should still load, since a key a
+  pack lacks shows its English text; the theme names on the web page and the refused-upload message then read in
+  English. After a boot in English, the panel's Idioma screen lists the pack put in `/lang` (#294).
 - **Themes:** a `.thm` restored from a `.bkp` keeps the name it was installed with, in Portuguese for the stock themes
-  of an older install; the web page translates their codes (#298).
+  of an older install; the web page translates their codes (#298). The device loads eight `.thm` files (see *Known*).
 - **simut-rx** does not know `releasetwo` yet, so it offers no update to a Pico 2 W (its pull request #14 is still
   open, 2026-10-28).
 
@@ -459,9 +557,24 @@ glass, the Air's single record per wake, and the alpha's event names in Portugue
 - **After a boot, a probe that is not the slot's can have its first reading recorded.** The read path checks the ROM
   on every fifth read, from the fifth on. On the bench, with another probe on the slot's GPIO, the reading of 20 s
   after the boot went into the history as the slot's, and the quarantine began within the next minute.
+- **An Air with telemetry over TLS and no `/cert.pem` writes two records at every wake:** 545 (`TEL_CERT_MISSING`, "No
+  cert.pem, insecure mode") and 544 (`TEL_CERT_READ_ERR`, context 1: TLS on without certificate validation).
+  `TelemetryManager::begin( )` writes them at every start, and the boot preamble list in `LogPolicy.cpp`, which
+  silences the other start-up records of a wake, does not hold them. Not new: on the same Air, v2.11.1 wrote them at
+  each of three wakes and the candidate at each of eleven (2026-10-29).
+- **The alpha and the Air log an error after each update:** `Config changed: image CRC mismatch over 990720 B, want
+  4f5041ca` on the alpha, `over 1035776 B, want 299abf18` on the Air (`AppManager_Boot.cpp`; 2026-10-29, and the same
+  on both in v2.11.1's gate, 2026-10-05). The slot equals the signed image except the 4 KiB sector of BTstack's flash
+  bank, which lies inside the range the check sums: the likely cause. The update installs and boots, and the version
+  and the configuration are the new ones; the release image logs `image verified` instead.
+- **Only eight of the eleven stock themes load.** `MAX_CUSTOM_THEMES` is 8 (`src/Themes.cpp`, since v1.0.0) and the
+  directory is read in order, so with all eleven `.thm` files uploaded `ubuntu`, `unimed_claro` and `unimed_escuro`,
+  the last in that order, are left out: `GET /api/themes` lists nine rows, `simut_def` and eight, on both boards
+  (2026-10-29). The packs carry the eleven names (#298); R-R14 of `docs/analysis/MODELO_DE_RECURSOS.md` has the limit.
 - **Closed since v2.11.1's list**, each under its heading above: the build configurator for the Pico 2 W (#260), the
-  chunked reply that lost its framing (#189, fixed by #272 and #273 and measured on a Pico W only) and the alpha's
-  empty event names (#286, checked in the images and not yet seen on an alpha's console).
+  chunked reply that lost its framing (#189, fixed by #272 and #273, measured on a Pico W, and the Pico 2 W's gate
+  soak lost none of 120 reads) and the alpha's empty event names (#286, seen on an alpha's console at the gate,
+  2026-10-29).
 
 ## v2.11.1 (2026-10-12)
 
