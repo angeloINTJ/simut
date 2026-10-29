@@ -259,6 +259,11 @@ def flips_cases():
         plans[prod] = (blocks, plan)
     b, pl = plans["pico2_w_release"]
     check("the Ângulo on the Pico 2 W is built: one env, no rule", len(b) == 1 and pl[0][2] and pl[0][3] is None, pl)
+    # The Ângulo's static-RAM gate (tools/check_ui_ram.py) holds every environment to an entry in tools/ui_ram_budget.json, and a
+    # temporary one has none: the matrix of 2026-10-29 lost this flip at the end of its link ("[ui-ram] FATAL: no static-RAM budget
+    # for _cost_pico2_w_release_ui_angulo"). The env names the real one whose entry holds it, as build_custom.py does for _custom.
+    check("the Ângulo's env names the budget of the real Ângulo env on that hardware (pico2_w_angulo)",
+          len(b) == 1 and "\ncustom_ui_ram_budget_env = pico2_w_angulo\n" in "\n" + b[0], b[0][-160:] if b else b)
     for prod, rule in (("pico_w_release", "angulo-cyw43-needs-rp2350"), ("pico_w_alpha", "angulo-needs-tft"),
                        ("pico_w_air", "angulo-needs-tft")):
         b, pl = plans[prod]

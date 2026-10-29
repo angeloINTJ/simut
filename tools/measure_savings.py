@@ -616,7 +616,21 @@ def plan_flip(blocks, plan, p, key, flipped, M):
         plan.append((p, key, None, {"unsupported": bad[0]["detail"]}))
     else:
         env = cost_env(p, key)
-        blocks.append(gf.emit_env(env, gf.compose(flipped, M)))
+        text = gf.emit_env(env, gf.compose(flipped, M))
+        if flipped.get("ui", gf.DEFAULT_UI) == "angulo":
+            # O portao de RAM estatica do Angulo (tools/check_ui_ram.py, um extra_script) exige de todo ambiente
+            # uma entrada em tools/ui_ram_budget.json, e um ambiente temporario nao tem: a matriz de 2026-10-29
+            # perdeu esta inversao no fim do link ("[ui-ram] FATAL: no static-RAM budget for
+            # _cost_pico2_w_release_ui_angulo"). A mesma resposta que o build_custom.py da ao _custom: o
+            # ambiente de verdade com o Angulo neste hardware, como teto. Importado aqui, nao no topo: o
+            # build_custom importa este modulo.
+            import build_custom as bc
+            ram_env, why = bc.ui_ram_env(flipped, M)
+            if ram_env is None:
+                plan.append((p, key, None, {"unsupported": why}))
+                return
+            text += f"{bc.cur.OPCAO_ORCAMENTO} = {ram_env}\n"
+        blocks.append(text)
         plan.append((p, key, env, None))
 
 
