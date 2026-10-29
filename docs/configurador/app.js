@@ -189,7 +189,7 @@ const STR = {
     "run.dispatching": "Enviando ao GitHub…",
     "run.finding": "Esperando a execução aparecer…",
     "run.queued": "Na fila do GitHub.",
-    "run.approval": "Compilada. Esperando o mantenedor aprovar a assinatura: o aparelho só instala imagem assinada pelo ar.",
+    "run.approval": "Compilada. Esperando o mantenedor aprovar a assinatura: o aparelho só instala pelo ar imagem assinada.",
     "run.progress": "Compilando: {m} min até agora.",
     "run.ok": "Compilada: .bin {bin} B, RAM {ram} B.",
     "run.okOta": "Cabe no teto de OTA: instale o .bin pela interface web, ou o .uf2 pelo USB.",
