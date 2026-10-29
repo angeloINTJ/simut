@@ -212,10 +212,46 @@ def measure_cases():
         os.unlink(fh.name)
 
 
+def flips_cases():
+    """The cost matrix's flips for the look of the touch display (2026-10-29): `ui` is a choice, like the network, so a product's flips
+    have one `ui=<id>` per [ui.<id>] of the manifest that is not its own, built where the rules allow it and recorded with the rule
+    where they do not. Read from the real manifest: these are the four published products the configurator prices."""
+    gf = ms.gf
+    M = gf.load_manifest()
+    check("a choice's key carries its value: ui=angulo", ms.flip_key("ui", "angulo") == "ui=angulo", ms.flip_key("ui", "angulo"))
+    check("the network's key is unchanged: net=enc28j60", ms.flip_key("net", "enc28j60") == "net=enc28j60")
+    check("a switch's key is its name", ms.flip_key("buzzer", True) == "buzzer")
+    check("the build env of a ui flip has no '=' (PlatformIO refuses it)", "=" not in ms.cost_env("pico2_w_release", "ui=angulo"))
+    p2 = gf.resolve_profile("pico2_w_release", M["profiles"])
+    flips = dict(ms.flips_of(p2, M))
+    check("pico2_w_release flips to the Ângulo", "ui=angulo" in flips, sorted(k for k in flips if "=" in k))
+    check("the flipped profile asks for the Ângulo and keeps the rest",
+          "ui=angulo" in flips and flips["ui=angulo"].get("ui") == "angulo"
+          and {k: v for k, v in flips["ui=angulo"].items() if k != "ui"} == {k: v for k, v in p2.items() if k != "ui"})
+    check("no flip to the product's own look", "ui=" + p2.get("ui", gf.DEFAULT_UI) not in flips)
+    only = ms.flips_of(p2, M, ["ui"])
+    check("--only ui gives the ui flips alone", [k for k, _ in only] == ["ui=angulo"], [k for k, _ in only])
+    plans = {}
+    for prod in ("pico_w_release", "pico_w_alpha", "pico_w_air", "pico2_w_release"):
+        prof = gf.resolve_profile(prod, M["profiles"])
+        blocks, plan = [], []
+        for key, flipped in ms.flips_of(prof, M, ["ui"]):
+            ms.plan_flip(blocks, plan, prod, key, flipped, M)
+        plans[prod] = (blocks, plan)
+    b, pl = plans["pico2_w_release"]
+    check("the Ângulo on the Pico 2 W is built: one env, no rule", len(b) == 1 and pl[0][2] and pl[0][3] is None, pl)
+    for prod, rule in (("pico_w_release", "angulo-cyw43-needs-rp2350"), ("pico_w_alpha", "angulo-needs-tft"),
+                       ("pico_w_air", "angulo-needs-tft")):
+        b, pl = plans[prod]
+        check(f"the Ângulo on {prod} is not built and names its rule ({rule})",
+              not b and len(pl) == 1 and pl[0][2] is None and pl[0][3] == rule, pl)
+
+
 bank_pad_cases()
 pio_build_cases()
 pio_run_cases()
 measure_cases()
+flips_cases()
 print(f"\n{len(RAN) - len(FAILS)}/{len(RAN)} ok")
 if FAILS:
     sys.exit(1)

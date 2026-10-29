@@ -25,6 +25,7 @@ economia cai e o portao reprova: o recurso vazou para o caminho sempre-ligado.
   tools/measure_savings.py --matrix        # custos POR PRODUTO p/ o configurador
   tools/measure_savings.py --matrix --only tel_mqtt   # so as inversoes desta chave
   tools/measure_savings.py --matrix --only net        # so as trocas de rede (net=<id>)
+  tools/measure_savings.py --matrix --only ui         # so as trocas de visual da tela touch (ui=<id>)
   tools/measure_savings.py --checks        # so as combinacoes de conferencia
 
 --matrix mede, para cada produto publicado, o que muda ao inverter CADA chave a
@@ -37,6 +38,9 @@ anotada; inversao que estoura o flash registra o excesso que o linker da.
 A rede e uma escolha de driver, nao um interruptor (2026-10-13): alem das chaves,
 a matriz troca o driver de cada produto por cada outro [net.<id>] do manifesto, e
 a chave da inversao e `net=<id>` (um texto com "=", que nenhum interruptor tem).
+O visual da tela touch e outra escolha (2026-10-29, S10c C1c): a matriz troca o [ui.<id>] de
+cada produto por cada outro, e a chave e `ui=<id>`. Onde uma regra proibe (a Angulo no Pico W
+com Wi-Fi, ou sem a tela touch), a inversao fica anotada com a regra, sem build.
 Depois das inversoes, compila as combinacoes de CHECKS de verdade: a pagina
 soma as diferencas, e e contra estas builds que ela mede o quanto a soma erra.
 
@@ -554,32 +558,42 @@ def cmd_checks():
     return 0
 
 
+# As chaves que sao escolhas, nao interruptores: a rede (2026-10-13) e o visual da tela touch
+# (2026-10-29). A pagina monta a mesma chave para todo valor que nao e booleano (flipKey de
+# docs/configurador/logic.js).
+CHOICES = ("net", "ui")
+
+
 def flip_key(key, value):
     """A chave de `flips` (tools/feature_costs.json) de uma mudanca de `set`, a de um perfil ou a
-    de CHECKS: um interruptor e o proprio nome, e a rede e `net=<id>`, um texto com "=" que
-    nenhum interruptor tem, entao os dois nunca colidem."""
-    return f"{key}={value}" if key == "net" else key
+    de CHECKS: um interruptor e o proprio nome, e uma escolha e `<chave>=<id>` (`net=<id>`,
+    `ui=<id>`), um texto com "=" que nenhum interruptor tem, entao os dois nunca colidem."""
+    return f"{key}={value}" if key in CHOICES else key
 
 
 def cost_env(product, key):
     """O ambiente temporario que mede uma inversao. O PlatformIO so aceita letras, digitos, "_" e
     "-" num nome de ambiente (ENVNAME_RE de platformio/project/config.py, conferido na fonte em
     2026-10-13), e `validate( )` olha TODOS os [env:*] a cada `pio run`: um "=" no nome
-    derrubaria a medicao inteira, nao so a dele. A chave da rede, `net=<id>`, tem um."""
+    derrubaria a medicao inteira, nao so a dele. As chaves das escolhas, `net=<id>` e `ui=<id>`, tem um."""
     return f"_cost_{product}_{key}".replace("=", "_")
 
 
 def flips_of(prof, M, names=None):
     """As mudancas simples que a matriz mede a partir de um produto: [(chave em `flips`, o perfil
     com ela)]. Um interruptor vira ao contrario; a rede vira para cada [net.<id>] do manifesto
-    que nao e o do produto (flip_key: `net=<id>`). `names`: so estas (interruptores e/ou "net"),
-    na ordem dada; sem elas, todas, na ordem da pagina."""
+    que nao e o do produto (flip_key: `net=<id>`), e o visual da tela touch para cada [ui.<id>]
+    que nao e o dele (`ui=<id>`). `names`: so estas (interruptores, "net" e/ou "ui"), na ordem
+    dada; sem elas, todas, na ordem da pagina."""
     if names is None:
-        names = [*gf.TOGGLE_ORDER, "net"]
+        names = [*gf.TOGGLE_ORDER, "net", "ui"]
     out = []
     for name in names:
         if name == "net":
             out += [(flip_key("net", n), dict(prof, net=n)) for n in M["net"] if n != prof["net"]]
+        elif name == "ui":
+            own = prof.get("ui", gf.DEFAULT_UI)
+            out += [(flip_key("ui", u), dict(prof, ui=u)) for u in M["ui"] if u != own]
         else:
             out.append((name, dict(prof, **{name: not bool(prof.get(name, False))})))
     return out
@@ -641,8 +655,9 @@ def measure_matrix():
 
 def cmd_matrix_partial(toggles):
     """So as inversoes de `toggles`, gravadas no feature_costs.json que existe.
-    Cada nome e uma chave do TOGGLE_ORDER ou "net", que vale por toda troca de
-    rede de cada produto (as chaves `net=<id>` de flips_of).
+    Cada nome e uma chave do TOGGLE_ORDER, "net", que vale por toda troca de
+    rede de cada produto (as chaves `net=<id>` de flips_of), ou "ui", por toda
+    troca de visual da tela touch (`ui=<id>`).
 
     Vale quando a chave nova nasce desligavel sem mudar nada ligada: as bases
     e as outras inversoes continuam as mesmas imagens. Isso nao se supoe — as
@@ -652,7 +667,7 @@ def cmd_matrix_partial(toggles):
     que o Pico 2 W entrou, 2026-10-05), contra 69 e mais 12 conferencias da
     matriz inteira; `net` custa uma por driver que nao e o do produto."""
     M = gf.load_manifest()
-    unknown = [t for t in toggles if t != "net" and t not in gf.TOGGLE_ORDER]
+    unknown = [t for t in toggles if t not in CHOICES and t not in gf.TOGGLE_ORDER]
     if unknown:
         sys.exit(f"measure_savings: chave desconhecida: {', '.join(unknown)}")
     with open(COSTS_PATH, encoding="utf-8") as fh:
@@ -730,7 +745,8 @@ def cmd_matrix():
             "`flips.net=<id>` e a mesma coisa para a rede, que e uma escolha de driver e",
             "nao um interruptor: a MESMA imagem com o driver de rede trocado para <id>,",
             "uma entrada por driver que nao e o do produto, medida ou anotada do mesmo",
-            "jeito.",
+            "jeito. `flips.ui=<id>` e o mesmo para o visual da tela touch (2026-10-29): a",
+            "MESMA imagem com o [ui.<id>] trocado, ou a regra que proibe a troca.",
             "`same: true` diz que a imagem saiu identica a base, byte a byte: a chave nao",
             "tem consumidor naquele produto, e a pagina diz isso em vez de mostrar +0 B.",
             "A pagina SOMA as diferencas quando mais de uma chave muda: estimativa, e ela",
