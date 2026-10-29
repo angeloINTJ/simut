@@ -640,6 +640,12 @@ for lang in ("pt", "es"):
         check(have == want, f"app.js: {key} em {lang} tem os marcadores {have}, o inglês tem {want}")
         check(not re.search("[\U0001F000-\U0001FAFF\u2600-\u27BF]", texts.get(key, "")), f"app.js: {key} em {lang} traz um emoji")
 
+# A revisão do C1d (2026-10-29): o inglês é "installs only signed images over the air", e o "por el aire" é da instalação. Depois de
+# "imágenes firmadas" o espanhol dizia "imágenes firmadas por el aire": as imagens assinadas pelo ar.
+approval_es = str_texts("es").get("run.approval", "")
+check("solo instala por el aire imágenes firmadas" in approval_es and "firmadas por el aire" not in approval_es,
+      f"app.js: run.approval em es devia dizer «solo instala por el aire imágenes firmadas»: {approval_es!r}")
+
 # 6. O erro que a página diz ter.
 import check_flash_budget as cfb  # noqa: E402
 checks = MODEL["costs"].get("checks", []) if MODEL.get("costs") else []
