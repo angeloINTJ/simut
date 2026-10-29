@@ -722,7 +722,7 @@ figcaption b{color:var(--tinta);font-weight:600}
 </table></div>
 <p>O firmware não controla a luz de fundo: com o pino LED no 3V3, ela fica sempre acesa.</p>
 <aside class="faixa faixa-atencao"><span class="selo selo-alerta"><i></i>Atenção</span>
-<p><strong>Fios curtos no TFT.</strong> A imagem publicada escreve no TFT a 66,5 MHz e lê a tela de volta, para o espelho da web, a cerca de 11 MHz. Fios longos ou ruins aparecem como pontos soltos em áreas lisas da tela ou do espelho. Encurte a fiação. Se não resolver, a saída é compilar o firmware com uma frequência menor (<a href="#cap-03-fonte">capítulo 3</a>).</p>
+<p><strong>Fios curtos no TFT.</strong> A imagem publicada tem o barramento do TFT ajustado a 66,5 MHz na escrita e lê a tela de volta, para o espelho da web, a cerca de 11 MHz. Fios longos ou ruins aparecem como pontos soltos em áreas lisas da tela ou do espelho. Encurte a fiação. Se não resolver, a saída é compilar o firmware com uma frequência menor (<a href="#cap-03-fonte">capítulo 3</a>).</p>
 </aside>
 <h4 id="cap-02-lcd">A alpha: LCD 16×2</h4>
 <p><span class="selo selo-img">alpha</span> A alpha usa um LCD de 16×2 caracteres com controlador HD44780, ligado em modo paralelo de 4 bits.</p>
@@ -22946,7 +22946,7 @@ echo</code></pre>
 </tr>
 <tr class="odd">
 <td>Pontos soltos em áreas lisas do painel ou do espelho da web</td>
-<td>Fios longos ou ruins para os 66,5 MHz do TFT</td>
+<td>Fios longos ou ruins para o barramento do TFT ajustado a 66,5 MHz</td>
 <td>Encurte a fiação; se não resolver, compile com frequência menor (<a href="#cap-03-fonte">capítulo 3</a>)</td>
 </tr>
 <tr class="even">

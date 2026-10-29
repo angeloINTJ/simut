@@ -36,7 +36,7 @@ Detalhes nos capítulos [2](#cap-02), [3](#cap-03) e [4](#cap-04).
 |---|---|---|
 | O aparelho reinicia sozinho, sem causa no log de eventos | Queda de tensão no cabo USB ou na fonte | Troque por um cabo de pelo menos 22 AWG e uma fonte firme ([capítulo 2](#cap-02-pico)) |
 | O painel fica branco ou sem imagem | Fiação do SPI, do CS, do DC ou do RESET trocada ou solta | Confira a tabela do TFT pino a pino ([capítulo 2](#cap-02-tft)) |
-| Pontos soltos em áreas lisas do painel ou do espelho da web | Fios longos ou ruins para os 66,5 MHz do TFT | Encurte a fiação; se não resolver, compile com frequência menor ([capítulo 3](#cap-03-fonte)) |
+| Pontos soltos em áreas lisas do painel ou do espelho da web | Fios longos ou ruins para o barramento do TFT ajustado a 66,5 MHz | Encurte a fiação; se não resolver, compile com frequência menor ([capítulo 3](#cap-03-fonte)) |
 | O toque não responde | T_CS fora do GP17 ou T_IRQ fora do GP20 | Confira as ligações do toque ([capítulo 2](#cap-02-tft)) |
 | O LCD mostra blocos cheios ou fica em branco | Contraste desajustado, ou LCD no 3V3 | Ajuste o potenciômetro do VO; alimente o LCD pelo 5 V ([capítulo 2](#cap-02-lcd)) |
 | DS18B20 com **Erro de CRC** (103) ou falha ao ler a ROM (999) | Falta o resistor de 4,7 kΩ, ou há duas sondas no mesmo GPIO | Ponha o resistor entre o dado e o 3V3 e deixe uma sonda por GPIO ([capítulo 2](#cap-02-ds18b20)) |

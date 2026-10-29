@@ -297,9 +297,10 @@ td:first-child { color: var(--tinta); font-weight: 600; white-space: nowrap; }
             firmware asked for, and now follows the system clock. A radio that stops
             answering is no longer joined blind, which held Core 0 past the hardware
             watchdog: the board restarts by the planned path. A reply to
-            <code>/api/status</code> no longer reaches the client with writes missing: on
-            the bench, <strong>24 of 2,000</strong> replies had a hole before the fix and
-            <strong>0 of 6,000</strong> after it. The Files page no longer says "Upload
+            <code>/api/status</code> no longer reaches the client with writes missing from
+            its middle: a write that stalls now ends the reply, and a second fix makes
+            stalls rare. On the bench, <strong>3 of 1,000</strong> replies were cut before
+            the second fix and <strong>0 of 1,000</strong> after it. The Files page no longer says "Upload
             complete." for a file the device refused, and the web page names the stock
             themes in the device's language.
           </p>
@@ -657,7 +658,7 @@ td:first-child { color: var(--tinta); font-weight: 600; white-space: nowrap; }
     'new.d1': 'out 2026',
     'new.d2': 'out 2026',
     'new.t0': 'Um rádio mudo não aciona mais o watchdog, e as respostas não perdem mais o meio',
-    'new.b0': 'No Pico W o barramento do painel rodava a <strong>24 MHz</strong> fosse qual fosse o pedido do firmware, e agora segue o clock do sistema. Um rádio que para de responder não é mais associado às cegas, o que segurava o Core 0 além do watchdog de hardware: a placa reinicia pelo caminho planejado. Uma resposta do <code>/api/status</code> não chega mais ao cliente com escritas faltando: na bancada, <strong>24 de 2.000</strong> respostas tinham um buraco antes do conserto, e <strong>0 de 6.000</strong> depois. A página Arquivos não diz mais "Upload concluído." para um arquivo que o aparelho recusou, e a página web mostra os temas de fábrica no idioma do aparelho.',
+    'new.b0': 'No Pico W o barramento do painel rodava a <strong>24 MHz</strong> fosse qual fosse o pedido do firmware, e agora segue o clock do sistema. Um rádio que para de responder não é mais associado às cegas, o que segurava o Core 0 além do watchdog de hardware: a placa reinicia pelo caminho planejado. Uma resposta do <code>/api/status</code> não chega mais ao cliente com escritas faltando no meio: uma escrita que trava encerra a resposta, e um segundo conserto torna as travas raras. Na bancada, <strong>3 de 1.000</strong> respostas foram cortadas antes do segundo conserto e <strong>0 de 1.000</strong> depois. A página Arquivos não diz mais "Upload concluído." para um arquivo que o aparelho recusou, e a página web mostra os temas de fábrica no idioma do aparelho.',
     'new.t1': 'Quatro consertos de severidade alta, e nenhum PIN trancado pela própria política',
     'new.b1': 'A troca obrigatória de PIN do painel não pode mais ser pulada, e o editor de contas do painel só concede o que a conta identificada tem. Um mínimo de PIN mais exigente não tranca mais PINs mais curtos: na bancada, um PIN de 4 dígitos com mínimo 5 agora identifica e vai direto para a troca. "Adotar a sonda" lê a sonda no GPIO do próprio slot e recarrega: depois de adotar uma sonda trocada, <strong>14 de 14</strong> leituras foram válidas nos 90 s seguintes, onde a v2.11.0 leu <strong>0 de 15</strong>. O AP de configuração do gesto no boot segue o prazo de 15 minutos, e a página Arquivos diz por que uma imagem do Pico 2 W é recusada num Pico W.',
     'new.t2': 'O Pico 2 W chega, com uma atualização que volta sozinha',
@@ -788,7 +789,7 @@ td:first-child { color: var(--tinta); font-weight: 600; white-space: nowrap; }
     'new.d1': 'oct 2026',
     'new.d2': 'oct 2026',
     'new.t0': 'Una radio muda ya no activa el watchdog, y las respuestas ya no pierden su parte central',
-    'new.b0': 'En la Pico W el bus del panel funcionaba a <strong>24 MHz</strong> pidiera lo que pidiera el firmware, y ahora sigue el reloj del sistema. Una radio que deja de responder ya no se asocia a ciegas, lo que retenía el Core 0 más allá del watchdog de hardware: la placa se reinicia por el camino planificado. Una respuesta de <code>/api/status</code> ya no llega al cliente con escrituras que faltan: en el banco, <strong>24 de 2.000</strong> respuestas tenían un hueco antes del arreglo, y <strong>0 de 6.000</strong> después. La página Archivos ya no dice que la subida terminó cuando el dispositivo rechazó el archivo, y la página web muestra los temas de fábrica en el idioma del dispositivo.',
+    'new.b0': 'En la Pico W el bus del panel funcionaba a <strong>24 MHz</strong> pidiera lo que pidiera el firmware, y ahora sigue el reloj del sistema. Una radio que deja de responder ya no se asocia a ciegas, lo que retenía el Core 0 más allá del watchdog de hardware: la placa se reinicia por el camino planificado. Una respuesta de <code>/api/status</code> ya no llega al cliente con escrituras que faltan en el medio: una escritura que se atasca termina la respuesta, y un segundo arreglo hace raros los atascos. En el banco, <strong>3 de 1.000</strong> respuestas se cortaron antes del segundo arreglo y <strong>0 de 1.000</strong> después. La página Archivos ya no dice que la subida terminó cuando el dispositivo rechazó el archivo, y la página web muestra los temas de fábrica en el idioma del dispositivo.',
     'new.t1': 'Cuatro arreglos de severidad alta, y ningún PIN bloqueado por su propia política',
     'new.b1': 'El cambio obligatorio de PIN del panel ya no se puede saltar, y el editor de cuentas del panel solo concede lo que tiene la cuenta identificada. Un mínimo de PIN más exigente ya no bloquea los PIN más cortos: en el banco, un PIN de 4 dígitos con mínimo 5 ahora identifica y va directo al cambio. "Adoptar la sonda" lee la sonda en el GPIO del propio slot y recarga: tras adoptar una sonda cambiada, <strong>14 de 14</strong> lecturas fueron válidas en los 90 s siguientes, donde la v2.11.0 leyó <strong>0 de 15</strong>. El AP de configuración del gesto de arranque sigue el plazo de 15 minutos, y la página Archivos dice por qué una imagen de la Pico 2 W se rechaza en una Pico W.',
     'new.t2': 'Llega la Pico 2 W, con una actualización que vuelve sola',

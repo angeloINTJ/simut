@@ -6,7 +6,7 @@ All notable changes to SIMUT firmware.
 
 ## v2.12.0 (2026-10-28)
 
-**The panel's SPI runs at 66.5 MHz on the Pico W; on the build measured before the change (arduino-pico 5.6.1,
+**The panel's SPI is set to 66.5 MHz on the Pico W; on the build measured before the change (arduino-pico 5.6.1,
 2026-10-15) it ran at 24 MHz, whatever `SIMUT_TFT_SPI_HZ` asked for. A radio that stops answering is no longer joined
 blind, which held Core 0 past the hardware watchdog: the board is restarted by the planned path (#266). A link lost
 while the clock is being set is noticed, and the Air's flush no longer sleeps without sending for want of a signal
@@ -141,6 +141,10 @@ heading they belong to.
   38 ms; with #273, 1.22 segments a reply, no refusal, no cut, 24 ms, and then 5,000 replies at 1.21 segments, with no
   hole and no cut, 23 ms. The bytes are the same: 34 read-only GET routes returned the same status, headers and chunk
   count on the three images compared, and the same body wherever the content does not change.
+- **The cut replies are counted** (#272). `GET /api/status` gains `metr.cgw`, the replies the server ended because a
+  write was cut short, beside `cgd`, `cgg` and `cgx`; `/metrics` gains `simut_web_aborts_total{cause="short_write"}`,
+  and `show net status` adds the short write to the send aborts it lists. On the bench, 4 replies cut in 5,000 were
+  counted exactly, one for one.
 - **The fix is two framework overrides** (`webserver_short_write.patch`, 2m, and `webserver_fewer_writes.patch`, 2n)
   that `patch.sh` applies to every image. It was measured on a Pico W; the Pico 2 W, which lost 4 of 119 reads in
   v2.11.1's gate, has not been measured with them. This closes the #189 item of v2.11.1's *Known* list.
@@ -320,6 +324,15 @@ heading they belong to.
   `link` where it sent `rssi`, `/metrics` sends `simut_link_up`, and the cable's events have codes of their own, 529
   to 532 (#263). It ran on the bench from 2026-10-12, on a Pico W running the plain-Pico image with the module, a
   DHT22 and the panel.
+- **A top panel pinned to an empty slot no longer draws memory** (every image with the TFT panel, #262). The bottom
+  panel falls back to "Empty / Inactive" when its slot has no running sensor, and the top panel had no such branch:
+  pinned to a slot that is inactive, or whose sensor driver the image lacks (a configuration with a DS18B20 brought to
+  a build without that driver), it drew its name from `topSlotName`, which the `DisplayManager` constructor never
+  wrote, and that object lives on the heap. On the Wire's bench on 2026-10-12 the title read garbage over "Erro"; with
+  the fix it reads "Empty / Inactive" over "Erro", captured through `/api/screenshot`. The constructor now also writes
+  the other fields it skipped: both panels' humidity, pressure and type, the top panel's index and name, the AP flag
+  and the alarm mask.
+- **The Wire's emergency console has `ip` and `dns`**, which save at once (#263); the Wire is not published.
 - **The module's receive buffer sits at `0x141C`** (#276), the library's default since 1.3.0: three full-size frames
   to receive and room for two to send from, so a frame goes into the chip while the one before is on the wire.
   Measured on the bench on 2026-10-15, `pico_wiretft`, the old address against the new: a 32 KB upload took 1,598 to
@@ -389,11 +402,13 @@ glass, the Air's single record per wake, and the alpha's event names in Portugue
 
 - **From v2.11.1, on a Pico W (release, alpha or Air):** over the air, from the Files page, with this release's `.bin`
   and with no other page of the device open. Download the `.bkp` the page offers first. The apply reformats the
-  filesystem: the configuration comes back from the snapshot taken before it, and the history, the packs in `/lang`,
-  the themes in `/themes` and the Air's own options come back with the `.bkp`. Restore the `.bkp`, upload the two
-  language packs attached to this release and reboot; a pack is read at boot.
+  filesystem and keeps only `/config/system.bin`: `/lang` is gone, so the device shows English until the packs are
+  back and it has rebooted, and the history, the themes in `/themes` and the Air's own options come back only with the
+  `.bkp`. Restore the `.bkp` (it brings the old packs back), upload the two language packs attached to this release
+  and reboot; a pack is read at boot.
 - **From v2.11.1, on a Pico 2 W:** over the air, with this release's `.bin`: the update goes to the other slot, leaves
-  the filesystem alone and boots on trial, as since v2.11.0.
+  the filesystem alone and boots on trial, as since v2.11.0. The packs in `/lang` stay, so the labels added in this
+  release read in English until the two new packs replace them.
 - **Back to v2.11.1:** over the air with its signed `.bin` (both carry security version 1 and series 1), or over USB.
   The round trip is recorded under *The bench* once the gate has run it.
 - **From an older version, or a Pico 2 W's first install:** as for v2.11.0, in its entry below.

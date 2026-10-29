@@ -6,18 +6,18 @@ Todas as mudanças notáveis do firmware SIMUT.
 
 ## v2.12.0 (2026-10-28)
 
-**O SPI do painel roda a 66,5 MHz no Pico W; na imagem medida antes da mudança (arduino-pico 5.6.1, 15/10/2026) rodava
-a 24 MHz, fosse qual fosse o `SIMUT_TFT_SPI_HZ`. Um rádio que para de responder não é mais associado às cegas, o que
-segurava o Core 0 além do watchdog de hardware: a placa é reiniciada pelo caminho planejado (#266). Um link perdido
-enquanto o relógio é acertado passa a ser notado, e a descarga do Air não dorme mais sem enviar por falta de um nível
-de sinal (#269, #271). Uma resposta do `/api/status` não chega mais ao cliente com escritas faltando no meio (#189), e
-um cliente `http://` simples na porta TLS não reinicia mais um Wire com painel (#274). Os registros de log do pacote
-de idioma têm tag e códigos próprios (#283), um Alpha ou um Wire num idioma que não é o inglês volta a dar nome aos
-eventos (#286), o inglês tem volta no painel (#294), e o tema e o idioma escolhidos no painel pedem a permissão
-Sistema ao Core 0 (#295). A página web mostra os temas de fábrica no idioma do aparelho (#298), e a página Arquivos
-não diz mais "Upload concluído." para um arquivo que o aparelho recusou (#299). O SIMUT Wire, um Pico simples com a
-rede num módulo ENC28J60 a cabo, entra no código junto com a rede como driver: o CI compila as duas imagens dele, e a
-release não as publica.**
+**O SPI do painel é ajustado a 66,5 MHz no Pico W; na imagem medida antes da mudança (arduino-pico 5.6.1, 15/10/2026)
+rodava a 24 MHz, fosse qual fosse o `SIMUT_TFT_SPI_HZ`. Um rádio que para de responder não é mais associado às cegas,
+o que segurava o Core 0 além do watchdog de hardware: a placa é reiniciada pelo caminho planejado (#266). Um link
+perdido enquanto o relógio é acertado passa a ser notado, e a descarga do Air não dorme mais sem enviar por falta de
+um nível de sinal (#269, #271). Uma resposta do `/api/status` não chega mais ao cliente com escritas faltando no meio
+(#189), e um cliente `http://` simples na porta TLS não reinicia mais um Wire com painel (#274). Os registros de log
+do pacote de idioma têm tag e códigos próprios (#283), um Alpha ou um Wire num idioma que não é o inglês volta a dar
+nome aos eventos (#286), o inglês tem volta no painel (#294), e o tema e o idioma escolhidos no painel pedem a
+permissão Sistema ao Core 0 (#295). A página web mostra os temas de fábrica no idioma do aparelho (#298), e a página
+Arquivos não diz mais "Upload concluído." para um arquivo que o aparelho recusou (#299). O SIMUT Wire, um Pico simples
+com a rede num módulo ENC28J60 a cabo, entra no código junto com a rede como driver: o CI compila as duas imagens
+dele, e a release não as publica.**
 
 O `CONFIG_VERSION` continua 26, e o nível de segurança continua 1. O `keys/` e o `src/ota/ota_layout.h` são os da
 v2.11.1 (`git diff v2.11.1 HEAD -- keys src/ota/ota_layout.h` vazio, 28/10/2026), então a v2.11.1 lê a configuração e
@@ -34,7 +34,7 @@ título a que pertencem.
   clear de tela cheia 56,7 ms. O `setup( )` agora liga o `clk_peri` ao `clk_sys` antes de iniciar qualquer coisa, nas
   imagens que acionam o painel (`pico_w_release`, `pico_w_test`, `pico_w_test_https`, `pico_w_asserts`,
   `pico2_w_release`, `pico_wiretft`), e o `SIMUT_TFT_SPI_HZ` é 66,5 MHz, o teto desse clock. O Pico 2 W já tinha o
-  `clk_peri` no `clk_sys` e continua em 37,5 MHz. A alpha, a Air e o Wire simples mantêm os clocks e os bytes.
+  `clk_peri` no `clk_sys` e continua em 37,5 MHz. A alpha, o Air e o Wire simples mantêm os clocks e os bytes.
 - **Uma correção à v2.1.6.** O "31,25 -> 62,5 MHz" dela não chegou ao fio em nenhuma imagem medida (os dois pedidos dão
   24 MHz com o `clk_peri` a 48 MHz, e o framework em que a v2.1.6 foi compilada tem o mesmo código de clock), e a
   leitura da GRAM que a validou provou que os pixels estavam certos, não a velocidade. Os comentários que diziam "clk_peri a
@@ -116,7 +116,7 @@ título a que pertencem.
   console Bluetooth, um registro de log espera na RAM (`writeCompactToFlash( )`), e só uma gravação seguinte ou o fim
   do toque o leva à flash. Um reinício planejado nessa
   janela o perdia, e a marca de reinício limpo ainda escondia o reinício da autópsia do boot seguinte: um reboot sem
-  registro nenhum. A console espera o painel, mas a máquina de estados da rede roda a toda passada, então os
+  registro nenhum. O console espera o painel, mas a máquina de estados da rede roda a toda passada, então os
   reinícios planejados do rádio (`SYS_WIFI_CONNECT` ctx 3 e 4) e o fim do ponto de acesso de configuração estavam
   expostos. O `safeReboot( )` agora grava esses registros primeiro, antes do bloco aberto do histórico. Medido na
   bancada em 18/10/2026 (`pico_w_test`, rádio emudecido, um toque no painel 3 s antes do reinício, a guarda do
@@ -147,6 +147,10 @@ título a que pertencem.
   nenhuma recusa, nenhum corte, 24 ms, e depois 5.000 respostas a 1,21 segmento, sem buraco e sem corte, 23 ms. Os
   bytes são os mesmos: 34 rotas GET só de leitura devolveram o mesmo status, os mesmos cabeçalhos e a mesma contagem
   de pedaços nas três imagens comparadas, e o mesmo corpo onde o conteúdo não muda.
+- **As respostas cortadas são contadas** (#272). O `GET /api/status` ganha o `metr.cgw`, as respostas que o servidor
+  encerrou porque uma escrita foi cortada, ao lado de `cgd`, `cgg` e `cgx`; o `/metrics` ganha o
+  `simut_web_aborts_total{cause="short_write"}`, e o `show net status` põe a escrita curta entre os abortos de envio
+  que lista. Na bancada, 4 respostas cortadas em 5.000 foram contadas exatamente, uma a uma.
 - **O conserto são dois overrides do framework** (`webserver_short_write.patch`, o 2m, e
   `webserver_fewer_writes.patch`, o 2n) que o `patch.sh` aplica a toda imagem. Foi medido num Pico W; o Pico 2 W, que
   perdeu 4 de 119 leituras no portão da v2.11.1, não foi medido com eles. Isso fecha o item do #189 do *Conhecido* da
@@ -336,6 +340,15 @@ título a que pertencem.
   redes, sem SSID nem senha, sem barras de sinal; o `/api/status` manda `link` onde mandava `rssi`, o `/metrics` manda
   `simut_link_up`, e os eventos do cabo têm códigos próprios, de 529 a 532 (#263). Ele rodou na bancada desde
   12/10/2026, num Pico W com a imagem do Pico simples, o módulo, um DHT22 e o painel.
+- **Um painel de cima fixado num slot vazio não desenha mais lixo da memória** (toda imagem com o painel TFT, #262). O
+  painel de baixo cai em "Empty / Inactive" quando o slot dele não tem sensor rodando, e o de cima não tinha esse
+  caminho: fixado num slot inativo, ou cujo driver de sensor a imagem não tem (uma configuração com um DS18B20 levada
+  a uma build sem esse driver), ele desenhava o nome a partir do `topSlotName`, que o construtor do `DisplayManager`
+  nunca escrevia, e esse objeto mora no heap. Na bancada do Wire, em 12/10/2026, o título saía como lixo sobre "Erro";
+  com o conserto sai "Empty / Inactive" sobre "Erro", capturado pelo `/api/screenshot`. O construtor agora escreve
+  também os outros campos que pulava: umidade, pressão e tipo dos dois painéis, o índice e o nome do painel de cima, a
+  bandeira do AP e a máscara de alarmes.
+- **O console de emergência do Wire tem `ip` e `dns`**, que gravam na hora (#263); o Wire não é publicado.
 - **O buffer de recepção do módulo fica em `0x141C`** (#276), o padrão da biblioteca desde a 1.3.0: três quadros
   cheios para receber e espaço para dois para enviar, de modo que um quadro entra no chip enquanto o anterior está no
   fio. Medido na bancada em 15/10/2026, `pico_wiretft`, o endereço antigo contra o novo: um envio de 32 KB levou de
@@ -406,11 +419,13 @@ vidro do Pico W, o registro único por despertar do Air e os nomes de evento da 
 
 - **A partir da v2.11.1, num Pico W (release, alpha ou Air):** pelo ar, na página Arquivos, com o `.bin` desta release
   e sem outra página do aparelho aberta. Baixe antes o `.bkp` que a página oferece. A aplicação reformata o sistema de
-  arquivos: a configuração volta do snapshot tirado antes dela, e o histórico, os pacotes de `/lang`, os temas de
-  `/themes` e as opções próprias do Air voltam com o `.bkp`. Restaure o `.bkp`, envie os dois pacotes de idioma
-  anexados a esta release e reinicie; um pacote é lido no boot.
+  arquivos e guarda só o `/config/system.bin`: o `/lang` some, então o aparelho mostra inglês até os pacotes voltarem
+  e ele reiniciar, e o histórico, os temas de `/themes` e as opções próprias do Air voltam só com o `.bkp`. Restaure o
+  `.bkp` (ele traz os pacotes antigos de volta), envie os dois pacotes de idioma anexados a esta release e reinicie;
+  um pacote é lido no boot.
 - **A partir da v2.11.1, num Pico 2 W:** pelo ar, com o `.bin` desta release: a atualização vai para o outro slot, não
-  mexe no sistema de arquivos e sobe em teste, como desde a v2.11.0.
+  mexe no sistema de arquivos e sobe em teste, como desde a v2.11.0. Os pacotes de `/lang` ficam, então os textos
+  novos desta release saem em inglês até os dois pacotes novos os substituírem.
 - **De volta à v2.11.1:** pelo ar, com o `.bin` assinado dela (as duas têm o nível de segurança 1 e a série 1), ou
   pelo USB. A ida e volta fica registrada em *A bancada* depois que o portão a rodar.
 - **A partir de uma versão mais antiga, ou a primeira instalação de um Pico 2 W:** como na v2.11.0, na entrada dela,
