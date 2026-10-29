@@ -163,7 +163,7 @@ Todo o resto é uma chave no [`tools/features.toml`](../tools/features.toml). Es
 |  | Métricas para o Prometheus (/metrics) | Um endpoint /metrics no formato de texto do Prometheus, com autenticação Basic para o coletor. | sim | sim | sim | sim |
 |  | Syslog remoto (trilha de auditoria) | Encaminha os eventos do log a um coletor syslog (RFC 5424 por UDP), para a trilha de auditoria sobreviver fora do aparelho. | sim | sim | sim | sim |
 | Interface | Visual original | A tela touch como toda release a entregou, com os temas dela. É a única opção no LCD 16x2 e sem mostrador. | sim | sim | sim | sim |
-|  | Visual Ângulo (estudo) | Um estudo de um visual novo para a tela touch, desenhado no padrão Ângulo. Ainda não aprovado para produtos: exige a tela touch. No Pico 2 W a imagem dele é 31.008 B maior que a do visual original (medido em 21/10/2026; docs/analysis/UI_DRIVERS.md seção 3.6). | não | não | não | não |
+|  | Visual Ângulo (estudo) | Um estudo de um visual novo para a tela touch, desenhado no padrão Ângulo. Ainda não aprovado para produtos: exige a tela touch. | não | não | não | não |
 |  | Página de histórico na interface web | A página /history: gráficos, calendário, CSV no navegador e o visor de eventos. O aparelho grava o histórico do mesmo jeito, e os arquivos de histórico continuam na página Arquivos. | sim | sim | sim | sim |
 |  | API de exportação do histórico | Rotas que devolvem o histórico de vários sensores numa chamada (/api/history_multi) e exportam o histórico e o log em .simx. Nenhuma página as usa; ferramentas de bancada e integrações, sim. | sim | sim | sim | sim |
 |  | Linha de comando completa | Todos os comandos por serial e Bluetooth. Sem ela fica só o console de emergência. | não | não | sim | não |

@@ -380,8 +380,8 @@
           "pt": "Visual Ângulo (estudo)"
         },
         "help": {
-          "en": "A study of a new look for the touch display, drawn to the Ângulo standard. Not approved for products yet: it needs the touch display. On the Pico 2 W its image is 31,008 B larger than the original look's (measured on 2026-10-21; docs/analysis/UI_DRIVERS.md section 3.6).",
-          "pt": "Um estudo de um visual novo para a tela touch, desenhado no padrão Ângulo. Ainda não aprovado para produtos: exige a tela touch. No Pico 2 W a imagem dele é 31.008 B maior que a do visual original (medido em 21/10/2026; docs/analysis/UI_DRIVERS.md seção 3.6)."
+          "en": "A study of a new look for the touch display, drawn to the Ângulo standard. Not approved for products yet: it needs the touch display.",
+          "pt": "Um estudo de um visual novo para a tela touch, desenhado no padrão Ângulo. Ainda não aprovado para produtos: exige a tela touch."
         }
       }
     ]

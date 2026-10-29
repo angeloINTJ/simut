@@ -348,8 +348,13 @@ def main():
             ajuda = M["ui_panels"]["angulo"]["help"][lang]
             if vazio in ajuda:
                 fails.append(f"ui_panels.angulo.help.{lang} diz que o custo em flash «{vazio}», e a regra do Pico W cita a medida dele: {ajuda!r}")
-            if not fig or f"{fig} B" not in ajuda:
-                fails.append(f"ui_panels.angulo.help.{lang} não traz a medida que a evidência da regra do Pico W dá ({fig} B): {ajuda!r}")
+            # C1d (2026-10-29): a ajuda NÃO traz a medida nem o caminho de um documento. A linha da opção mostra o preço que a matriz de
+            # custos mediu (priceUi, no configurador), e um segundo número escrito no texto, o desta evidência, envelhece ao lado do
+            # primeiro; a evidência é que guarda a medida e a citação (os tokens acima exigem os 31,008 B).
+            if not fig:
+                fails.append(f"a evidência da regra do Pico W não diz «is N B above pico2_w_release»: {pico_w['evidence']!r}")
+            elif f"{fig} B" in ajuda or "docs/" in ajuda:
+                fails.append(f"ui_panels.angulo.help.{lang} traz a medida ({fig} B) ou o caminho de um documento, e a linha da opção mostra a da matriz: {ajuda!r}")
 
     # 6. O gerador, com manifestos de brinquedo. As unidades de um driver de UI saem das imagens dos outros e o
     #    `include` entra so na dele, como as de um driver de rede. Nenhum driver do manifesto de hoje tem unidades

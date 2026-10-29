@@ -795,6 +795,33 @@ for p in MODEL["products"]:
     check(p["config"].get("ui") == gf.config_of(gf.resolve_profile(p["id"], M["profiles"]))["ui"] and p["config"]["ui"] in UIS,
           f"{p['id']}: config.ui {p['config'].get('ui')!r} não é a UI que o manifesto dá ao produto")
 
+
+# 13a'. O que o leitor lê na página não cita um caminho do repositório (C1d, 2026-10-29): "docs/..." não serve a quem usa
+#       o configurador, e o lugar da citação é o comentário do manifesto, onde o mantenedor a lê. E a ajuda de uma UI não
+#       traz um tamanho em bytes: a linha mostra o que a matriz mediu, com a data da medida na própria página, e um
+#       segundo número escrito no texto envelhece sozinho (o "31.008 B" de 21/10 ficaria ao lado do da matriz).
+def lang_dicts(node, path=""):
+    """Todo texto de duas línguas ou mais do modelo ({en, pt, ...}) com o seu caminho no model.json (fora da matriz)."""
+    if isinstance(node, dict):
+        if "en" in node and "pt" in node and all(isinstance(v, str) for v in node.values()):
+            yield path, node
+            return
+        for k, v in node.items():
+            if k != "costs":
+                yield from lang_dicts(v, f"{path}.{k}" if path else k)
+    elif isinstance(node, list):
+        for i, v in enumerate(node):
+            yield from lang_dicts(v, f"{path}[{i}]")
+
+
+for where, texts in lang_dicts(MODEL):
+    for lang, text in texts.items():
+        check("docs/" not in text, f"model.json: o texto {where}.{lang} cita um caminho do repositório: {text!r}")
+for o in MODEL["ui"]["options"]:
+    for lang, text in o["help"].items():
+        check(not re.search(r"\d[\d.,]*\s?(?:KB|B)\b", text),
+              f"model.json: a ajuda da UI {o['id']} ({lang}) traz um tamanho em bytes, que a linha mostra pela matriz: {text!r}")
+
 # 13b. O preço da UI (2026-10-29, C1d). A matriz de custo guarda o da UI na chave "ui=<id>", como o da rede
 #      ("net=<id>"): sem a entrada a linha da UI não mostra preço e a estimativa diz "sem medida"; com ela a linha
 #      mostra o que a matriz mediu. Os modelos abaixo são o model.json de verdade com SÓ a matriz trocada; os

@@ -933,10 +933,13 @@ unsupported.pt = "O ENC28J60 só existe, por enquanto, para o Pico comum (RP2040
 unsupported.es = "El ENC28J60 solo existe, por ahora, para la Pico común (RP2040): la Pico 2 W (RP2350) no tiene placa para él."
 
 # A escolha da UI do painel touch (2026-10-14). Fica no grupo Interface, com as chaves da tela. O
-# Ângulo é um estudo ainda não aprovado para produtos, e o texto dele diz isso e diz o que custa: só
-# existe com a tela touch (a regra angulo-needs-tft trava a opção nas outras, com o motivo à vista),
-# e o custo em flash dele, medido em 2026-10-21 como a diferença entre duas imagens do Pico 2 W (docs/analysis/UI_DRIVERS.md seção 3.6, a medida que a evidência de
-# angulo-cyw43-needs-rp2350 cita), vai no texto com a data: a matriz de custos só conhece chaves e redes, e não o traz.
+# Ângulo é um estudo ainda não aprovado para produtos, e o texto dele diz isso e diz de que depende: só
+# existe com a tela touch (a regra angulo-needs-tft trava a opção nas outras, com o motivo à vista).
+# O custo em flash dele NÃO vai no texto (desde 2026-10-29, C1d): a linha da opção mostra o que a matriz de
+# custos mediu para `ui=angulo` (priceUi), com a data da medida na página, e um número escrito aqui seria um
+# segundo, mais velho ao lado do primeiro. A medida de 2026-10-21, 31.008 B a mais que o visual original na
+# comparação de duas imagens do Pico 2 W, está em docs/analysis/UI_DRIVERS.md seção 3.6, que a evidência de
+# angulo-cyw43-needs-rp2350 cita; o caminho fica aqui, onde o mantenedor o lê, e não na página.
 [ui_panel]
 group    = "interface"
 label.en = "Touch display look"
@@ -957,9 +960,9 @@ order    = 2
 label.en = "Ângulo look (study)"
 label.pt = "Visual Ângulo (estudo)"
 label.es = "Aspecto Ángulo (estudio)"
-help.en  = "A study of a new look for the touch display, drawn to the Ângulo standard. Not approved for products yet: it needs the touch display. On the Pico 2 W its image is 31,008 B larger than the original look's (measured on 2026-10-21; docs/analysis/UI_DRIVERS.md section 3.6)."
-help.pt  = "Um estudo de um visual novo para a tela touch, desenhado no padrão Ângulo. Ainda não aprovado para produtos: exige a tela touch. No Pico 2 W a imagem dele é 31.008 B maior que a do visual original (medido em 21/10/2026; docs/analysis/UI_DRIVERS.md seção 3.6)."
-help.es  = "Un estudio de un aspecto nuevo para la pantalla táctil, dibujado según el estándar Ángulo. Aún no aprobado para productos: requiere la pantalla táctil. En la Pico 2 W su imagen es 31.008 B mayor que la del aspecto original (medido el 21/10/2026; docs/analysis/UI_DRIVERS.md sección 3.6)."
+help.en  = "A study of a new look for the touch display, drawn to the Ângulo standard. Not approved for products yet: it needs the touch display."
+help.pt  = "Um estudo de um visual novo para a tela touch, desenhado no padrão Ângulo. Ainda não aprovado para produtos: exige a tela touch."
+help.es  = "Un estudio de un aspecto nuevo para la pantalla táctil, dibujado según el estándar Ángulo. Aún no aprobado para productos: requiere la pantalla táctil."
 
 [ui_groups.network]
 order    = 1

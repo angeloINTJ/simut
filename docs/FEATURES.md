@@ -163,7 +163,7 @@ Everything else is a switch in [`tools/features.toml`](../tools/features.toml). 
 |  | Prometheus metrics (/metrics) | A /metrics endpoint in the Prometheus text format, with Basic authentication for the scraper. | on | on | on | on |
 |  | Remote syslog (audit trail) | Forwards log events to a syslog collector (RFC 5424 over UDP), so the audit trail survives outside the device. | on | on | on | on |
 | Interface | Original look | The touch display as every release has shipped it, with its themes. It is the only choice on the 16x2 LCD and with no display. | on | on | on | on |
-|  | Ângulo look (study) | A study of a new look for the touch display, drawn to the Ângulo standard. Not approved for products yet: it needs the touch display. On the Pico 2 W its image is 31,008 B larger than the original look's (measured on 2026-10-21; docs/analysis/UI_DRIVERS.md section 3.6). | off | off | off | off |
+|  | Ângulo look (study) | A study of a new look for the touch display, drawn to the Ângulo standard. Not approved for products yet: it needs the touch display. | off | off | off | off |
 |  | History page in the web interface | The /history page: charts, calendar, CSV export in the browser and the event log viewer. The device records history either way, and the history files stay downloadable from the Files page. | on | on | on | on |
 |  | History export API | Routes that return several sensors' history in one call (/api/history_multi) and export the history and the log as .simx. No page uses them; bench tools and integrations do. | on | on | on | on |
 |  | Full command line | Every serial and Bluetooth command. Without it only the emergency console remains. | off | off | on | off |
