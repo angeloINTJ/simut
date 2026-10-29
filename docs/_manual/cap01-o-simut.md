@@ -99,9 +99,20 @@ O aparelho em blocos: os sensores entram pelo Core 0, a tela fica com o Core 1, 
 
 ## Versões {#cap-01-versoes}
 
-Este manual descreve a **v2.11.1**, de 12/10/2026, a versão publicada mais recente. A linha 2.7 saiu do beta com a v2.7.0.
+Este manual descreve a **v2.12.0**, de 28/10/2026, a versão publicada mais recente. A linha 2.7 saiu do beta com a v2.7.0.
 
-O que a v2.11.1 mudou para quem usa o aparelho:
+O que a v2.12.0 mudou para quem usa o aparelho:
+
+- no Pico W, o barramento do painel passa a ser ajustado a 66,5 MHz, onde rodava a 24 MHz (lido na bancada em 15/10/2026);
+- um rádio que para de responder não é mais associado às cegas: o aparelho reinicia pelo caminho planejado em vez de pelo watchdog, e o log registra `SYS_WIFI_CONNECT` com contexto 4 ([capítulo 9](#cap-09-mudo));
+- um ponto de acesso que some enquanto o aparelho espera a hora é notado, e a descarga do Air não dorme mais sem enviar quando a hora demora a chegar;
+- uma resposta da web não chega mais ao navegador com pedaços faltando, e uma aba `http://` esquecida na porta HTTPS não reinicia mais o aparelho;
+- depois de um boot em inglês, a tela **Idioma** do painel lista o pacote de `/lang`, e escolhê-lo grava o idioma para o próximo boot ([capítulo 11](#cap-11-menu));
+- o tema e o idioma escolhidos no painel pedem a permissão **Sistema**, como o relógio e as contas já faziam;
+- a página web mostra os nomes dos temas de fábrica no idioma do aparelho;
+- a página **Arquivos** mostra, em vermelho, o motivo de um arquivo que o aparelho recusou, em vez de "Upload concluído." ([capítulo 17](#cap-17-enviar)).
+
+A v2.11.1, de 12/10/2026, tinha trazido:
 
 - a troca obrigatória de PIN não pode mais ser pulada: **SAIR** volta à tela inicial, e o menu só abre depois da troca ([capítulo 8](#cap-08-pin-fabrica));
 - no painel, uma conta com a permissão **Usuários** só concede as permissões de painel que ela mesma tem ([capítulo 8](#cap-08-usuarios-painel));
@@ -110,14 +121,7 @@ O que a v2.11.1 mudou para quem usa o aparelho:
 - o AP aberto pelo gesto no boot segue o prazo de 15 min num aparelho com rede configurada ([capítulo 9](#cap-09-ap-aberto));
 - a página **Arquivos** explica a recusa `v=6`, a de uma imagem de outro chip ([capítulo 17](#cap-17-ota-conferencias)).
 
-A v2.11.0, de 04/10/2026, tinha trazido:
-
-- o Pico 2 W (RP2350) passa a ter imagens publicadas: o `.uf2` de fábrica, que traz a tabela de partições, e o `.bin` de atualização ([capítulo 3](#cap-03-arquivos));
-- no Pico 2 W, a atualização pela rede vai para o outro slot, sem tocar no sistema de arquivos, e sobe em teste. Se não se confirmar em cinco minutos, ou se o aparelho reiniciar antes, ele volta sozinho para a versão anterior, e o painel e a página **Arquivos** dizem isso ([capítulo 26](#cap-26-ota));
-- uma transferência longa, como uma atualização, um backup ou uma restauração, não cai mais quando outra página do aparelho está aberta no navegador ([capítulo 18](#cap-18-sem-web));
-- na alpha, gravar a configuração não reinicia mais o aparelho pelo watchdog.
-
-Um aparelho com a v2.11.0 não tem os itens da v2.11.1, e o que as versões anteriores trouxeram está no apêndice [Histórico de versões](#ap-c). Onde este manual diz "na v2.7.1" ou "pelo código da v2.7.1", o texto vale também para as versões seguintes, salvo nas mudanças que o apêndice registra da v2.7.2 em diante. Como conferir a versão do seu aparelho está no [capítulo 17](#cap-17-ota-conferir).
+Um aparelho com a v2.11.1 não tem os itens da v2.12.0, e o que as versões anteriores trouxeram está no apêndice [Histórico de versões](#ap-c). Onde este manual diz "na v2.7.1" ou "pelo código da v2.7.1", o texto vale também para as versões seguintes, salvo nas mudanças que o apêndice registra da v2.7.2 em diante. Como conferir a versão do seu aparelho está no [capítulo 17](#cap-17-ota-conferir).
 
 ## Como ler este manual {#cap-01-como-ler}
 
