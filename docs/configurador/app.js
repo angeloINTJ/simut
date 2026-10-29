@@ -49,6 +49,9 @@ const STR = {
     "price.net.more": "Chosen over this product's own connection, the image is {n} B larger (measured).",
     "price.net.less": "Chosen over this product's own connection, the image is {n} B smaller (measured).",
     "price.net.over": "Chosen over this product's own connection, it no longer fits the flash slot (measured).",
+    "price.ui.more": "Chosen over this product's own look, the image is {n} B larger (measured).",
+    "price.ui.less": "Chosen over this product's own look, the image is {n} B smaller (measured).",
+    "price.ui.over": "Chosen over this product's own look, it no longer fits the flash slot (measured).",
     "result.title": "This build", "selo.estimate": "Estimate", "selo.none": "No estimate",
     "fit.ok": "Fits", "fit.near": "Tight", "fit.over": "Does not fit", "fit.blocked": "Blocked",
     "fixa.link": "See the result",
@@ -133,6 +136,9 @@ const STR = {
     "price.net.more": "Escolhida no lugar da conexão deste produto, a imagem fica {n} B maior (medido).",
     "price.net.less": "Escolhida no lugar da conexão deste produto, a imagem fica {n} B menor (medido).",
     "price.net.over": "Escolhida no lugar da conexão deste produto, ele deixa de caber no slot de flash (medido).",
+    "price.ui.more": "Escolhido no lugar do visual deste produto, a imagem fica {n} B maior (medido).",
+    "price.ui.less": "Escolhido no lugar do visual deste produto, a imagem fica {n} B menor (medido).",
+    "price.ui.over": "Escolhido no lugar do visual deste produto, ele deixa de caber no slot de flash (medido).",
     "result.title": "Esta build", "selo.estimate": "Estimativa", "selo.none": "Sem estimativa",
     "fit.ok": "Cabe", "fit.near": "No limite", "fit.over": "Não cabe", "fit.blocked": "Bloqueada",
     "fixa.link": "Ver o resultado",
@@ -560,9 +566,12 @@ function renderNet(config) {
  * same reason: native radios in one fieldset, the arrow keys move between them. An
  * option a rule refuses for this choice is disabled with the rule's reason on the
  * row (L.uiLockOf, which asks the same question lockOf does): the Ângulo on the
- * Pico W with Wi-Fi, without the touch display, and without the panel chart. No
- * price is shown: the cost matrix has no "ui=<id>" flip yet, so choosing the
- * Ângulo adds "no measurement" to the warnings (est.missing) and nothing to the sum. */
+ * Pico W with Wi-Fi, without the touch display, and without the panel chart. A free
+ * option that is not the product's own shows the price the cost matrix measured for
+ * choosing it ("ui=<id>", L.priceUi), the way a driver's row does (renderNet). With
+ * no entry in the matrix it shows none, and choosing the Ângulo adds "no measurement"
+ * to the warnings (est.missing) and nothing to the sum: how the page says that a
+ * cost has not been measured yet. */
 function renderUi(config) {
   const m = state.model;
   const changed = "ui" in state.set;
@@ -573,12 +582,20 @@ function renderUi(config) {
       const id = `u-${o.id}`;
       const lock = L.uiLockOf(m, config, o.id, state.productId);
       const helpId = `${id}-ajuda`, lockId = `${id}-trava`;
+      const price = L.priceUi(m, state.productId, o.id);
+      let priceText = null, priceTitle = null;
+      if (price && !lock) {
+        priceText = kb(price.flash);
+        priceTitle = price.overflow ? t("price.ui.over")
+          : t(price.flash >= 0 ? "price.ui.more" : "price.ui.less", { n: num(Math.abs(price.flash)) });
+      }
       return h("label", { class: "cfg-chave cfg-rede-opcao", for: id },
         h("span", { class: "cfg-chave-texto" },
           h("span", { class: "cfg-chave-nome", id: `${id}-nome`, text: label(o.label) }),
           h("span", { class: "cfg-apoio", id: helpId, text: label(o.help) }),
           lock ? h("span", { class: "cfg-chave-trava", id: lockId, text: t("locked", { why: label(lock.why) }) }) : null),
         h("span", { class: "cfg-chave-lado" },
+          priceText ? h("span", { class: "cfg-chave-custo", title: priceTitle, text: priceText }) : null,
           h("input", { type: "radio", class: "cfg-radio", name: "visual", id, value: o.id,
                        "aria-labelledby": `${id}-nome`, "aria-describedby": lock ? `${helpId} ${lockId}` : helpId,
                        checked: config.ui === o.id, disabled: Boolean(lock),

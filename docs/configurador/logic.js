@@ -15,8 +15,10 @@
  * "angulo"), the product's own look is not a change, and the rules that refuse
  * the Ângulo (on the Pico W with Wi-Fi, without the touch display, without the
  * panel chart) lock the option with their reason, the way a refused network
- * driver is locked. The cost matrix has no "ui=<id>" flip yet, so the estimate
- * leaves the look out and says so.
+ * driver is locked. The cost matrix names the look's flip "ui=<id>", as it does
+ * the network's, and the row shows its price (priceUi) the way a driver's row does;
+ * while the matrix has no such entry the estimate leaves the look out and says so
+ * (`missing`), and the row shows no price.
  *
  * The estimate is the measured cost matrix (tools/measure_savings.py --matrix):
  * each published product built once as shipped and once per switch flipped.
@@ -114,17 +116,28 @@ export function priceOn(model, productId, toggleId) {
   return { flash: onByDefault ? -d.used : d.used, overflow: "overflow" in f };
 }
 
-/* The price of choosing a network driver over the product's own, as the matrix
- * measured it ("net=<id>"): bytes of flash the choice adds, negative when it
- * saves. null when there is nothing to show: it is the product's own driver, no
+/* The price of choosing a driver over the product's own, as the matrix measured
+ * it ("net=<id>", "ui=<id>"): bytes of flash the choice adds, negative when it
+ * saves. null when there is nothing to show: it is the product's own choice, no
  * measurement, or the matrix found a rule, an error or no board there. */
-export function priceNet(model, productId, netId) {
-  if (netId === productById(model, productId).config.net) return null;
-  const f = flipOf(model, productId, flipKey("net", netId));
+function choicePrice(model, productId, key, value) {
+  if (value === productById(model, productId).config[key]) return null;
+  const f = flipOf(model, productId, flipKey(key, value));
   if (!f || f.same || f.rule || f.error || f.unsupported) return null;
   const d = flipDelta(model, productId, f);
   if (!d) return null;
   return { flash: d.used, overflow: "overflow" in f };
+}
+
+/* The price of a network driver. */
+export function priceNet(model, productId, netId) {
+  return choicePrice(model, productId, "net", netId);
+}
+
+/* The price of a look of the touch display (2026-10-29): the Ângulo's over the
+ * product's own. The same answer as a driver's; null until the matrix has it. */
+export function priceUi(model, productId, uiId) {
+  return choicePrice(model, productId, "ui", uiId);
 }
 
 /* A choice the generator refuses for this product's chip: it asks for a board
@@ -220,7 +233,8 @@ export function noEffect(model, productId, toggleId) {
 
 /* The sum. `missing` names the changes with no measurement behind them: the
  * key of `set` ("net" for the network, whose flip is "net=<id>", and "ui" for
- * the look of the touch display, whose flip would be "ui=<id>"). */
+ * the look of the touch display, whose flip is "ui=<id>"): a key whose flip the
+ * matrix does not have yet is named, and left out of the sum. */
 export function estimate(model, productId, set) {
   const c = costsOf(model, productId);
   if (!c) return null;

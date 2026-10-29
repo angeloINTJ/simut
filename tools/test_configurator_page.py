@@ -41,6 +41,7 @@ com o lado Python, que é a autoridade:
 @project SIMUT
 @license MIT License
 """
+import copy
 import itertools
 import json
 import os
@@ -49,6 +50,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+from decimal import Decimal, ROUND_HALF_UP
 from urllib.parse import parse_qs
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -620,6 +622,8 @@ check(str_keys("en") and str_keys("en") == str_keys("pt"),
       f"app.js: os textos em en e em pt deveriam ter as mesmas chaves; só em um deles: {sorted(str_keys('en') ^ str_keys('pt'))}")
 check({"price.net.more", "price.net.less", "price.net.over"} <= str_keys("en") & str_keys("pt"),
       "app.js: faltam os textos do preço de uma opção de rede (price.net.*) em en ou em pt")
+check({"price.ui.more", "price.ui.less", "price.ui.over"} <= str_keys("en") & str_keys("pt"),
+      "app.js: faltam os textos do preço de uma opção de UI (price.ui.*) em en ou em pt")
 
 # 6. O erro que a página diz ter.
 import check_flash_budget as cfb  # noqa: E402
@@ -791,6 +795,38 @@ for p in MODEL["products"]:
     check(p["config"].get("ui") == gf.config_of(gf.resolve_profile(p["id"], M["profiles"]))["ui"] and p["config"]["ui"] in UIS,
           f"{p['id']}: config.ui {p['config'].get('ui')!r} não é a UI que o manifesto dá ao produto")
 
+# 13b. O preço da UI (2026-10-29, C1d). A matriz de custo guarda o da UI na chave "ui=<id>", como o da rede
+#      ("net=<id>"): sem a entrada a linha da UI não mostra preço e a estimativa diz "sem medida"; com ela a linha
+#      mostra o que a matriz mediu. Os modelos abaixo são o model.json de verdade com SÓ a matriz trocada; os
+#      números são inventados aqui (provam a conta da página, e não são uma medida do firmware).
+def matrix_model(flips):
+    """O model.json com a matriz de custo trocada: nenhum flip `ui=...` além dos de `flips`, que mapeia
+    (produto, chave) a um flip, ou a uma função da base do produto que o devolve."""
+    m = copy.deepcopy(MODEL)
+    for pc in m["costs"]["products"].values():
+        pc["flips"] = {k: v for k, v in pc["flips"].items() if not k.startswith("ui=")}
+    for (pid, key), f in flips.items():
+        pc = m["costs"]["products"][pid]
+        pc["flips"][key] = f(pc["base"]) if callable(f) else f
+    return m
+
+
+MODELS = {
+    "real": MODEL,
+    "unmeasured": matrix_model({}),
+    # 41 KB a mais no Pico 2 W, um estouro do slot no Air, uma regra no Pico W, um erro no Alpha; e um flip de
+    # `ui=original` no Alpha, que a página não pode mostrar (é a UI do próprio produto).
+    "measured": matrix_model({
+        ("pico2_w_release", "ui=angulo"): lambda b: {"used": b["used"] + 41984, "bin": b["bin"] + 42336, "ram": b["ram"] + 7036},
+        ("pico_w_air", "ui=angulo"): {"overflow": 3148},
+        ("pico_w_release", "ui=angulo"): {"rule": "angulo-cyw43-needs-rp2350"},
+        ("pico_w_alpha", "ui=angulo"): {"error": "the build failed"},
+        ("pico_w_alpha", "ui=original"): lambda b: {"used": b["used"] + 1024, "bin": b["bin"] + 1024, "ram": b["ram"]},
+    }),
+    "smaller": matrix_model({("pico2_w_release", "ui=angulo"): lambda b: {"used": b["used"] - 1024, "bin": b["bin"] - 1024, "ram": b["ram"]}}),
+    "overflow": matrix_model({("pico2_w_release", "ui=angulo"): {"overflow": 3148}}),
+}
+
 # O JS da lógica: a trava de cada opção de UI, a das chaves com a UI escolhida, o link, o perfil, a estimativa.
 JS_UI = r"""
 import * as L from "./logic.js";
@@ -826,6 +862,16 @@ for (const p of input.products) {
     const set = L.normalizeSet(model, p, { ui: u });
     out.profiles.push({ p, u, set, profile: L.profileJson(p, set), hash: L.formatHash(p, set) });
     out.estimates.push({ p, u, set, est: L.estimate(model, p, set) });
+  }
+}
+// O preço de escolher cada UI no lugar da do produto (priceUi), em cada modelo: o de verdade e os de matriz trocada.
+const priceUi = typeof L.priceUi === "function" ? L.priceUi : () => "sem priceUi";
+out.prices = [];
+for (const [name, fx] of Object.entries(input.fixtures)) {
+  for (const p of input.products) {
+    for (const u of input.uis) {
+      out.prices.push({ fixture: name, p, u, price: priceUi(fx, p, u), est: L.estimate(fx, p, L.normalizeSet(fx, p, { ui: u })) });
+    }
   }
 }
 out.links = {
@@ -909,7 +955,9 @@ function row(label, root) {
   const text = (c) => { const e = el(c); return e ? e.textContent : null; };
   const own = { title: el("cfg-chave-nome"), help: el("cfg-apoio"), lock: el("cfg-chave-trava") };
   return { id: input.attrs.id, radio: input.attrs.name, name: text("cfg-chave-nome"), help: text("cfg-apoio"),
-           lock: text("cfg-chave-trava"), cost: text("cfg-chave-custo"), checked: input.checked, disabled: input.disabled,
+           lock: text("cfg-chave-trava"), cost: text("cfg-chave-custo"),
+           costTitle: el("cfg-chave-custo") ? (el("cfg-chave-custo").attrs.title || null) : null,
+           checked: input.checked, disabled: input.disabled,
            labelledby: named(root, input.attrs["aria-labelledby"], own), labelledbyAttr: input.attrs["aria-labelledby"] || null,
            describedby: named(root, input.attrs["aria-describedby"], own), describedbyAttr: input.attrs["aria-describedby"] || null };
 }
@@ -989,7 +1037,7 @@ for (const sc of input.scenarios) {
   const gh = { dispatched: [] };
   define("fetch", async (url, opts = {}) => {
     const u = String(url);
-    if (!u.startsWith(input.api.base)) return { ok: true, status: 200, json: async () => JSON.parse(JSON.stringify(input.model)) };
+    if (!u.startsWith(input.api.base)) return { ok: true, status: 200, json: async () => JSON.parse(JSON.stringify(input.models[sc.model || "real"])) };
     const path = u.slice(input.api.base.length);
     const reply = (data, status = 200) => ({ ok: status < 400, status, statusText: String(status), json: async () => data });
     if (path.endsWith("/dispatches")) {
@@ -1077,8 +1125,10 @@ def run_node(script, payload, logic_text=None, app_text=None):
 
 def str_of(lang, key):
     """O texto que o app.js diz em `lang` para `key`, lido do STR dele."""
-    block = re.search(r"\n  %s: \{\n(.*?)\n  \},\n" % lang, APP, re.S).group(1)
-    m = re.search(r'"%s":\s*"((?:[^"\\]|\\.)*)"' % re.escape(key), block)
+    block = re.search(r"\n  %s: \{\n(.*?)\n  \},\n" % lang, APP, re.S)
+    m = re.search(r'"%s":\s*"((?:[^"\\]|\\.)*)"' % re.escape(key), block.group(1)) if block else None
+    if not m:   # ausência é um achado legível, e não um traceback
+        return f"<texto {key!r} ausente em {lang}>"
     return json.loads('"' + m.group(1) + '"')
 
 
@@ -1101,6 +1151,50 @@ def new_blockers(prof, **change):
 
 def label_of(pid, lang):
     return M["ui_products"][pid]["label"][lang]
+
+
+# Como o Intl.NumberFormat da página escreve um inteiro e um tamanho em KB (en e pt-BR agrupam de 4 dígitos para cima).
+LOCALE_SEPS = {"en": (",", "."), "pt": (".", ",")}
+
+
+def num_text(lang, n):
+    th = LOCALE_SEPS[lang][0]
+    return ("-" if n < 0 else "") + f"{abs(n):,}".replace(",", th)
+
+
+def kb_text(lang, n):
+    th, dec = LOCALE_SEPS[lang]
+    q = (Decimal(abs(n)) / 1024).quantize(Decimal("0.1"), rounding=ROUND_HALF_UP)
+    whole, frac = str(q).split(".")
+    return ("−" if n < 0 else "") + f"{int(whole):,}".replace(",", th) + dec + frac + " KB"
+
+
+def expected_price(model, pid, u):
+    """O que a página deve a quem escolhe a UI `u` no lugar da do produto, lido da matriz do modelo (chave
+    "ui=<id>", como "net=<id>"): bytes de flash a mais (a menos, se negativo), ou nada."""
+    prod = next(x for x in model["products"] if x["id"] == pid)
+    costs = (model.get("costs") or {}).get("products", {}).get(pid)
+    if costs is None or u == prod["config"]["ui"]:
+        return None
+    f = costs["flips"].get(f"ui={u}")
+    if not f or f.get("same") or any(k in f for k in ("rule", "error", "unsupported")):
+        return None
+    if "used" in f:
+        return {"flash": f["used"] - costs["base"]["used"], "overflow": False}
+    if "overflow" in f:
+        return {"flash": prod["ceilings"]["flash_region"] + f["overflow"] - costs["base"]["bin"], "overflow": True}
+    return None
+
+
+def expected_ui_price(model, pid, u, lang, ctx=None):
+    """(o texto do preço, o título dele) que a linha da UI `u` deve mostrar, ou (None, None): a linha travada
+    não mostra preço."""
+    pr = expected_price(model, pid, u)
+    if pr is None or new_blockers(dict(gf.resolve_profile(pid, M["profiles"]), **(ctx or {})), ui=u):
+        return (None, None)
+    title = say(lang, "price.ui.over") if pr["overflow"] else say(
+        lang, "price.ui.more" if pr["flash"] >= 0 else "price.ui.less", n=num_text(lang, abs(pr["flash"])))
+    return (kb_text(lang, pr["flash"]), title)
 
 
 ANGULO_RULES = {"angulo-needs-tft", "angulo-cyw43-needs-rp2350", "angulo-needs-tft-graph"}
@@ -1245,6 +1339,22 @@ def ui_logic_findings(js):
         elif "used" in flip:
             ok(e["used"] == flip["used"] and e["bin"] == flip["bin"] and e["ram"] == flip["ram"] and e["missing"] == [],
                f"{p}/ui={u}: a estimativa {e} != a medida {flip}")
+
+    # 5b. O preço de escolher a UI (L.priceUi, C1d): em cada modelo, o que a matriz dele diz de `ui=<id>`.
+    for r in js["prices"]:
+        want = expected_price(MODELS[r["fixture"]], r["p"], r["u"])
+        ok(r["price"] == want, f"{r['fixture']}/{r['p']}/ui={r['u']}: priceUi deu {r['price']!r}, devia ser {want!r}")
+    priced = {(r["p"], r["u"]) for r in js["prices"] if r["fixture"] == "measured" and isinstance(r["price"], dict)}
+    ok(priced == {("pico2_w_release", "angulo"), ("pico_w_air", "angulo")},
+       f"o modelo medido devia dar preço ao Ângulo do Pico 2 W e ao do Air (estouro) e a mais nenhuma UI: {sorted(priced)}")
+    ok(all(r["price"] is None for r in js["prices"] if r["fixture"] == "unmeasured"), "sem a entrada na matriz nenhuma UI tem preço")
+    cell = {(r["fixture"], r["p"], r["u"]): r["est"] for r in js["prices"]}
+    b = MODELS["measured"]["costs"]["products"]["pico2_w_release"]["base"]
+    e = cell[("measured", "pico2_w_release", "angulo")]
+    ok(e and e["missing"] == [] and e["used"] == b["used"] + 41984 and e["bin"] == b["bin"] + 42336 and e["ram"] == b["ram"] + 7036,
+       f"measured/pico2_w_release/angulo: a estimativa com a medida é a base mais ela: {e}")
+    e = cell[("unmeasured", "pico2_w_release", "angulo")]
+    ok(e and e["missing"] == ["ui"], f"unmeasured/pico2_w_release/angulo: sem a entrada `ui` fica em missing: {e}")
     return fs
 
 
@@ -1253,7 +1363,7 @@ def ui_scenarios():
     sc = [{"name": f"sweep:{lang}:{p}", "hash": f"#b={p}", "lang": lang, "actions": []}
           for lang in ("en", "pt") for p in PRODUCTS]
     sc += [
-        {"name": "two", "hash": "#b=pico2_w_release", "lang": "en",
+        {"name": "two", "hash": "#b=pico2_w_release", "lang": "en", "model": "unmeasured",
          "actions": [{"click": "u-angulo"}, {"click": "t-tft_graph"}, {"click": "u-original"}]},
         {"name": "nochart", "hash": "#b=pico2_w_release&off=tft_graph", "lang": "en",
          "actions": [{"click": "u-angulo"}, {"click": "t-tft_graph"}, {"click": "u-angulo"}]},
@@ -1263,7 +1373,7 @@ def ui_scenarios():
          "actions": [{"click": "u-original"}, {"click": "u-angulo"}]},
         {"name": "linkblocked", "hash": "#b=pico_w_release&ui=angulo", "lang": "en", "actions": [{"click": "u-original"}]},
         {"name": "linkunknown", "hash": "#b=pico2_w_release&ui=nonsense", "lang": "en", "actions": []},
-        {"name": "ptflow", "hash": "#b=pico2_w_release", "lang": "pt", "actions": [{"click": "u-angulo"}]},
+        {"name": "ptflow", "hash": "#b=pico2_w_release", "lang": "pt", "model": "unmeasured", "actions": [{"click": "u-angulo"}]},
         # A rede mudada e de volta, e a chave mudada, nas duas línguas: a marca "mudou" de cada uma (C1b-b).
         {"name": "netchange:en", "hash": "#b=pico_wire", "lang": "en", "actions": [{"click": "n-cyw43"}, {"click": "n-enc28j60"}]},
         {"name": "netchange:pt", "hash": "#b=pico_wire", "lang": "pt", "actions": [{"click": "n-cyw43"}]},
@@ -1276,6 +1386,17 @@ def ui_scenarios():
          "actions": [{"press": "compilar"}, {"click": "n-cyw43"}]},
         {"name": "run:busy", "hash": "#b=pico2_w_release", "lang": "en", "api": "hang", "token": True,
          "actions": [{"press": "compilar"}, {"click": "u-angulo"}]},
+        # O preço da linha da UI (C1d): a matriz com a medida, com uma economia, com o estouro do slot, com uma regra
+        # (o Pico W) e sem a entrada. As do "two" e do "ptflow" (sem medida) rodam no modelo sem a entrada, para
+        # valerem também no dia em que a matriz de verdade a tiver.
+        {"name": "price:measured", "hash": "#b=pico2_w_release", "lang": "en", "model": "measured", "actions": [{"click": "u-angulo"}]},
+        {"name": "price:measured:pt", "hash": "#b=pico2_w_release", "lang": "pt", "model": "measured", "actions": []},
+        {"name": "price:smaller", "hash": "#b=pico2_w_release", "lang": "en", "model": "smaller", "actions": []},
+        {"name": "price:overflow", "hash": "#b=pico2_w_release", "lang": "en", "model": "overflow", "actions": []},
+        {"name": "price:rule", "hash": "#b=pico_w_release", "lang": "en", "model": "measured", "actions": [{"click": "u-angulo"}]},
+        {"name": "price:unmeasured", "hash": "#b=pico2_w_release&ui=angulo", "lang": "en", "model": "unmeasured", "actions": []},
+        # A matriz mediu o Ângulo no produto como publicado; com o gráfico desligado a opção está travada, e a linha travada não mostra preço.
+        {"name": "price:locked", "hash": "#b=pico2_w_release&off=tft_graph", "lang": "en", "model": "measured", "actions": []},
     ]
     return sc
 
@@ -1312,7 +1433,7 @@ def ui_app_findings(res):
 
     def row(s, rid):
         return next((x for f in s["fieldsets"] for x in f["rows"] if x["id"] == rid),
-                    {"id": rid, "radio": None, "name": None, "help": None, "lock": "ausente", "cost": None, "checked": None, "disabled": None,
+                    {"id": rid, "radio": None, "name": None, "help": None, "lock": "ausente", "cost": None, "costTitle": None, "checked": None, "disabled": None,
                      "labelledby": None, "labelledbyAttr": None, "describedby": None, "describedbyAttr": None})
 
     def switch(s, sid):
@@ -1347,7 +1468,9 @@ def ui_app_findings(res):
                 ok(x["disabled"] == bool(new), f"{tag}/{u}: desabilitada={x['disabled']}, bloqueios novos {[b['id'] for b in new]}")
                 ok(x["lock"] == (say(lang, "locked", why=new[0]["why"][lang]) if new else None),
                    f"{tag}/{u}: o texto da trava é {x['lock']!r}, devia ser o motivo de {new[0]['id'] if new else None}")
-                ok(x["cost"] is None, f"{tag}/{u}: a opção mostra um preço ({x['cost']!r}) que nenhuma medida sustenta")
+                want = expected_ui_price(MODEL, p, u, lang)
+                ok((x["cost"], x["costTitle"]) == want,
+                   f"{tag}/{u}: a opção mostra o preço {x['cost']!r} (título {x['costTitle']!r}), a matriz do modelo dá {want}")
             n = fieldset(s, "rede")
             ok([x["id"] for x in n["rows"]] == [f"n-{o}" for o in NETS], f"{tag}: a escolha da rede não foi lida")
             for x, o in zip(n["rows"], NETS):
@@ -1541,24 +1664,66 @@ def ui_app_findings(res):
        f"run:busy: escolhida a UI, a build em curso devia ficar, com o nome do que ela compila: {s2['run']}, {s2['build']}")
     ok(s2["summary"] == say("en", "result.changes1", p=label_of("pico2_w_release", "en")),
        f"run:busy: o resumo da página devia ser o da escolha nova: {s2['summary']!r}")
+
+    # 12. O preço da linha da UI (C1d, 2026-10-29), no formato da linha da rede (L.priceNet): "41.0 KB" na linha e a
+    #     frase no título, só na linha livre que não é a do produto. A linha travada, a do produto e a sem medida
+    #     não mostram nada; com a medida, escolher o Ângulo não deixa o aviso de "sem medida" na tela. Cada
+    #     conferência traz também a literal esperada: a de um instrumento contra ele mesmo não prova nada.
+    for name, lang, key in (("price:measured", "en", "measured"), ("price:measured:pt", "pt", "measured"), ("price:smaller", "en", "smaller"),
+                            ("price:overflow", "en", "overflow"), ("price:rule", "en", "measured"), ("price:unmeasured", "en", "unmeasured")):
+        sc = next(w for w in ui_scenarios() if w["name"] == name)
+        pid = sc["hash"][1:].split("&")[0].split("=")[1]
+        for u in UIS:
+            x = row(by[name]["snaps"][0], f"u-{u}")
+            want = expected_ui_price(MODELS[key], pid, u, lang)
+            ok((x["cost"], x["costTitle"]) == want, f"{name}/ui={u}: preço {x['cost']!r} com o título {x['costTitle']!r}, devia ser {want}")
+    s0, s1 = by["price:measured"]["snaps"]
+    a0 = row(s0, "u-angulo")
+    ok(a0["cost"] == "41.0 KB" and "41,984 B" in (a0["costTitle"] or "") and not a0["disabled"],
+       f"price:measured: a linha do Ângulo mostra {a0['cost']!r} com o título {a0['costTitle']!r}, devia ser 41.0 KB e 41,984 B")
+    ok(row(s0, "u-original")["cost"] is None, "price:measured: a UI do próprio produto não devia ter preço")
+    ok(row(s1, "u-angulo")["checked"] and row(s1, "u-angulo")["cost"] == "41.0 KB",
+       "price:measured: escolhido o Ângulo o preço continua na linha (é o de escolhê-lo)")
+    texts = [w["text"] for w in s1["warnings"]]
+    ok(say("en", "warn.missing", list=ang_en) not in texts, f"price:measured: com a medida na matriz o aviso de 'sem medida' não devia estar na tela: {texts}")
+    ok(row(by["price:measured:pt"]["snaps"][0], "u-angulo")["cost"] == "41,0 KB", "price:measured:pt: o preço em português é 41,0 KB")
+    a = row(by["price:smaller"]["snaps"][0], "u-angulo")
+    ok(a["cost"] == "−1.0 KB" and "1,024 B" in (a["costTitle"] or ""), f"price:smaller: {a['cost']!r}, {a['costTitle']!r}")
+    a = row(by["price:overflow"]["snaps"][0], "u-angulo")
+    ok(a["cost"] is not None and a["costTitle"] == say("en", "price.ui.over"), f"price:overflow: {a['cost']!r}, {a['costTitle']!r}")
+    a = row(by["price:rule"]["snaps"][0], "u-angulo")
+    ok(a["disabled"] and a["cost"] is None and a["lock"] == say("en", "locked", why=rule_why("angulo-cyw43-needs-rp2350")["en"]),
+       f"price:rule: o Ângulo no Pico W devia estar travado pela regra e sem preço: {a}")
+    ok([st["result"] for st in by["price:rule"]["steps"]] == ["disabled"], f"price:rule: cliques {by['price:rule']['steps']}")
+    a = row(by["price:locked"]["snaps"][0], "u-angulo")
+    ok(a["disabled"] and a["cost"] is None and a["costTitle"] is None and a["lock"] == say("en", "locked", why=chart["en"])
+       and expected_ui_price(MODELS["measured"], "pico2_w_release", "angulo", "en", {"tft_graph": False}) == (None, None),
+       f"price:locked: sem o gráfico a opção está travada e a linha travada não mostra o preço que a matriz mediu: {a}")
+    s0 = by["price:unmeasured"]["snaps"][0]
+    ok(row(s0, "u-angulo")["cost"] is None and say("en", "warn.missing", list=ang_en) in [w["text"] for w in s0["warnings"]],
+       f"price:unmeasured: sem a entrada na matriz a linha não mostra preço e o aviso de 'sem medida' fica: {row(s0, 'u-angulo')['cost']!r}, {[w['text'] for w in s0['warnings']]}")
     return fs
 
 
 def ui_source_findings(app_text):
     """O que só se vê no texto do app.js: o produto passa a toda trava de UI, sem o qual a recusa por chip some
     sem erro nenhum."""
+    fs = []
     calls = re.findall(r"L\.uiLockOf\(([^()]*)\)", app_text)
-    if len(calls) == 1 and len([a for a in calls[0].split(",") if a.strip()]) == 4:
-        return []
-    return [f"app.js: a escolha da UI deveria chamar L.uiLockOf uma vez, com o produto (4 argumentos): {calls}"]
+    if not (len(calls) == 1 and len([a for a in calls[0].split(",") if a.strip()]) == 4):
+        fs.append(f"app.js: a escolha da UI deveria chamar L.uiLockOf uma vez, com o produto (4 argumentos): {calls}")
+    calls = re.findall(r"L\.priceUi\(([^()]*)\)", app_text)
+    if not (len(calls) == 1 and len([a for a in calls[0].split(",") if a.strip()]) == 3):
+        fs.append(f"app.js: a linha da UI deveria pedir o preço a L.priceUi uma vez, com o produto (3 argumentos): {calls}")
+    return fs
 
 
 def ui_run(logic_text=None, app_text=None):
     """A lógica e a página, conferidas: a lista de achados e as telas de cada visita."""
     fs = ui_logic_findings(run_node(JS_UI, {"model": MODEL, "products": PRODUCTS, "toggles": TOGGLES, "uis": UIS,
-                                            "contexts": CONTEXTS, "hostile": list(HOSTILE_UI)}, logic_text=logic_text))
+                                            "contexts": CONTEXTS, "hostile": list(HOSTILE_UI), "fixtures": MODELS}, logic_text=logic_text))
     fs += ui_source_findings(APP if app_text is None else app_text)
-    res = run_node(JS_APP, {"model": MODEL, "scenarios": ui_scenarios(), "api": PAGE_API}, logic_text=logic_text, app_text=app_text)
+    res = run_node(JS_APP, {"models": MODELS, "scenarios": ui_scenarios(), "api": PAGE_API}, logic_text=logic_text, app_text=app_text)
     if isinstance(res, dict):
         return fs + [f"o node falhou na página: {res['node_error']}"], []
     return fs + ui_app_findings(res), res
@@ -1611,9 +1776,11 @@ CONTROLS = [
     ("a trava da UI não mostra o motivo", "app",
      '''          lock ? h("span", { class: "cfg-chave-trava", id: lockId, text: t("locked", { why: label(lock.why) }) }) : null),
         h("span", { class: "cfg-chave-lado" },
+          priceText ? h("span", { class: "cfg-chave-custo", title: priceTitle, text: priceText }) : null,
           h("input", { type: "radio", class: "cfg-radio", name: "visual",''',
      '''          null),
         h("span", { class: "cfg-chave-lado" },
+          priceText ? h("span", { class: "cfg-chave-custo", title: priceTitle, text: priceText }) : null,
           h("input", { type: "radio", class: "cfg-radio", name: "visual",'''),
     ("a marcada não é a escolha de agora", "app", "checked: config.ui === o.id", "checked: state.set.ui === o.id"),
     ("missingName não sabe ui", "app",
@@ -1639,17 +1806,19 @@ CONTROLS = [
     ("a trava da rede não mostra o motivo (instrumento)", "app",
      '''          lock ? h("span", { class: "cfg-chave-trava", id: lockId, text: t("locked", { why: label(lock.why) }) }) : null),
         h("span", { class: "cfg-chave-lado" },
-          priceText''',
+          priceText ? h("span", { class: "cfg-chave-custo", title: priceTitle, text: priceText }) : null,
+          h("input", { type: "radio", class: "cfg-radio", name: "rede",''',
      '''          null),
         h("span", { class: "cfg-chave-lado" },
-          priceText'''),
+          priceText ? h("span", { class: "cfg-chave-custo", title: priceTitle, text: priceText }) : null,
+          h("input", { type: "radio", class: "cfg-radio", name: "rede",'''),
     ("o rádio da rede não desabilita (instrumento)", "app",
      "checked: config.net === o.id, disabled: Boolean(lock),", "checked: config.net === o.id,"),
     # As dez quebras da revisão (C1b-b). A âncora de cada uma é a da revisão; a quebra é acusada pela leitura de
     # uma tela (o nome, a descrição, o grupo, a marca, a build), e não por uma âncora de outro controle.
     ("B1 a trava da UI diz um motivo vazio", "app",
-     'lock ? h("span", { class: "cfg-chave-trava", id: lockId, text: t("locked", { why: label(lock.why) }) }) : null),\n        h("span", { class: "cfg-chave-lado" },\n          h("input", { type: "radio", class: "cfg-radio", name: "visual",',
-     'lock ? h("span", { class: "cfg-chave-trava", id: lockId, text: t("locked", { why: "" }) }) : null),\n        h("span", { class: "cfg-chave-lado" },\n          h("input", { type: "radio", class: "cfg-radio", name: "visual",'),
+     'lock ? h("span", { class: "cfg-chave-trava", id: lockId, text: t("locked", { why: label(lock.why) }) }) : null),\n        h("span", { class: "cfg-chave-lado" },\n          priceText ? h("span", { class: "cfg-chave-custo", title: priceTitle, text: priceText }) : null,\n          h("input", { type: "radio", class: "cfg-radio", name: "visual",',
+     'lock ? h("span", { class: "cfg-chave-trava", id: lockId, text: t("locked", { why: "" }) }) : null),\n        h("span", { class: "cfg-chave-lado" },\n          priceText ? h("span", { class: "cfg-chave-custo", title: priceTitle, text: priceText }) : null,\n          h("input", { type: "radio", class: "cfg-radio", name: "visual",'),
     ("B2 o rádio da UI nunca é desabilitado", "app",
      "checked: config.ui === o.id, disabled: Boolean(lock),", "checked: config.ui === o.id, disabled: Boolean(lock) && false,"),
     ("B3 o segundo rádio da UI sai do grupo", "app",
@@ -1715,6 +1884,24 @@ CONTROLS = [
      "  const next = { ...state.set, net: netId };\n  state.set = L.normalizeSet(state.model, state.productId, next);"),
     ("dropFinishedRun larga também a build em curso (instrumento)", "app",
      "  if (state.run && state.run.done) state.run = null;", "  state.run = null;"),
+    # O preço da UI (C1d, 2026-10-29): a conta (logic), a linha (app) e as frases do título.
+    ("priceUi nunca dá preço", "logic", '  return choicePrice(model, productId, "ui", uiId);', "  return null;"),
+    ("priceUi pergunta pela chave da rede", "logic",
+     '  return choicePrice(model, productId, "ui", uiId);', '  return choicePrice(model, productId, "net", uiId);'),
+    ("o preço da escolha conta a do próprio produto", "logic",
+     "  if (value === productById(model, productId).config[key]) return null;\n", ""),
+    ("a linha da UI não mostra o preço", "app",
+     '          priceText ? h("span", { class: "cfg-chave-custo", title: priceTitle, text: priceText }) : null,\n          h("input", { type: "radio", class: "cfg-radio", name: "visual",',
+     '          null,\n          h("input", { type: "radio", class: "cfg-radio", name: "visual",'),
+    ("a linha travada da UI mostra o preço", "app",
+     '      if (price && !lock) {\n        priceText = kb(price.flash);\n        priceTitle = price.overflow ? t("price.ui.over")',
+     '      if (price) {\n        priceText = kb(price.flash);\n        priceTitle = price.overflow ? t("price.ui.over")'),
+    ("o preço da UI sai em bytes e não em KB", "app",
+     '        priceText = kb(price.flash);\n        priceTitle = price.overflow ? t("price.ui.over")',
+     '        priceText = String(price.flash);\n        priceTitle = price.overflow ? t("price.ui.over")'),
+    ("o título do preço da UI é sempre 'maior'", "app",
+     't(price.flash >= 0 ? "price.ui.more" : "price.ui.less", {', 't("price.ui.more", {'),
+    ("o título do estouro da UI usa a frase da rede", "app", 'price.overflow ? t("price.ui.over")', 'price.overflow ? t("price.net.over")'),
 ]
 control_hits = {}
 for cname, which, old, new in CONTROLS:
