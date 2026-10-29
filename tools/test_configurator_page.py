@@ -646,6 +646,12 @@ approval_es = str_texts("es").get("run.approval", "")
 check("solo instala por el aire imágenes firmadas" in approval_es and "firmadas por el aire" not in approval_es,
       f"app.js: run.approval em es devia dizer «solo instala por el aire imágenes firmadas»: {approval_es!r}")
 
+# A revisão do C1d (2026-10-29): a linha de revisão diz ONDE avisar. O texto traz {link}, que vira o link, nas três línguas, e o
+# canal se chama GitHub.
+for lang in ("en", "pt", "es"):
+    check("link" in PLACEHOLDER.findall(str_texts(lang).get("lang.review", "")), f"app.js: lang.review em {lang} devia trazer {{link}}")
+    check(str_texts(lang).get("lang.review.link", "").strip() == "GitHub", f"app.js: lang.review.link em {lang} devia ser GitHub, o canal")
+
 # 6. O erro que a página diz ter.
 import check_flash_budget as cfb  # noqa: E402
 checks = MODEL["costs"].get("checks", []) if MODEL.get("costs") else []
@@ -1106,6 +1112,8 @@ function snapshot(appEl, loc) {
                  i18n: shell.i18nEls.map((e) => [e.dataset.i18n, e.textContent]) };
   const review = first(find(appEl, (e) => e.attrs.id === "cfg-revisao"));
   snap.review = review ? review.textContent : null;
+  const rlink = review ? first(find(review, (e) => e.tag === "a")) : null;
+  snap.reviewLink = rlink ? { href: rlink.attrs.href, target: rlink.attrs.target || null, rel: rlink.attrs.rel || null, text: rlink.textContent } : null;
   return snap;
 }
 
@@ -1889,8 +1897,18 @@ def ui_app_findings(res):
         ok(sh["pressed"] == [[l, str(l == lang).lower()] for l in SHELL["langs"]],
            f"{name}[{i}]: os botões de língua são {sh['pressed']}, só {lang} devia estar marcado")
         ok(sh["i18n"] == [[k, say(lang, k)] for k in SHELL["i18n"]], f"{name}[{i}]: os textos do casco não são os de STR.{lang}: {sh['i18n']}")
-        ok(snap["review"] == (say("es", "lang.review") if lang == "es" else None),
+        ok(snap["review"] == (say("es", "lang.review", link=say("es", "lang.review.link")) if lang == "es" else None),
            f"{name}[{i}]: a linha de revisão da tradução é {snap['review']!r} em {lang}")
+        lk = snap["reviewLink"]
+        if lang != "es":
+            ok(lk is None, f"{name}[{i}]: só o espanhol tem a linha de revisão, e {lang} tem um link nela: {lk}")
+        else:
+            qs = parse_qs((lk or {"href": ""})["href"].partition("?")[2])
+            ok(lk is not None and lk["href"].startswith(f"https://github.com/{PAGE_API['repo']}/issues/new?") and lk["target"] == "_blank"
+               and "noopener" in (lk["rel"] or "") and lk["text"] == say("es", "lang.review.link")
+               and qs.get("title") == ["Build configurator: Spanish translation"]
+               and any("Configurator: https://angelointj.github.io/simut/configurador/#b=" in b for b in qs.get("body", [])),
+               f"{name}[{i}]: o link da linha de revisão devia abrir um pedido novo do repositório, em inglês, numa aba nova: {lk}")
 
     for lang in ("en", "pt", "es"):
         for p in PRODUCTS:
@@ -2195,7 +2213,7 @@ CONTROLS = [
     ("a língua do navegador não conhece o es", "app",
      '    if (isLang(code)) return code;', '    if (code === "en" || code === "pt") return code;'),
     ("a linha de revisão aparece em toda língua", "app",
-     '  return state.lang === "es" ? h("p", {', '  return true ? h("p", {'),
+     '  if (state.lang !== "es") return null;', '  if (false) return null;'),
     ("o atributo lang do documento não é posto", "app",
      '  document.documentElement.lang = LOCALES[state.lang];', '  document.documentElement.lang = "en";'),
     ("o número usa o locale do inglês", "app",
@@ -2205,6 +2223,15 @@ CONTROLS = [
     ("label( ) perde o inglês de reserva", "app", '  return entry[state.lang] || entry.en;', '  return entry[state.lang];'),
     ("falta no es o texto do preço da UI", "app",
      '    "price.ui.more": "Elegido en lugar del aspecto propio de este producto, la imagen pesa {n} B más (medido).",\n', ''),
+    ("a linha de revisão perde o link", "app",
+     '  return h("p", { class: "cfg-apoio", id: "cfg-revisao" }, before,\n    h("a", { href: reviewUrl(), target: "_blank", rel: "noopener", text: t("lang.review.link") }), after);',
+     '  return h("p", { class: "cfg-apoio", id: "cfg-revisao" }, before, after);'),
+    ("o link da revisão não abre numa aba nova", "app",
+     'target: "_blank", rel: "noopener", text: t("lang.review.link")', 'text: t("lang.review.link")'),
+    ("o link da revisão é o do pedido de build", "app", 'href: reviewUrl(),', 'href: issueUrl(),'),
+    ("o texto em espanhol da revisão perde o {link}", "app",
+     '    "lang.review": "Traducción en revisión: avísenos en {link} si algo no se lee bien.",\n',
+     '    "lang.review": "Traducción en revisión: avísenos en GitHub si algo no se lee bien.",\n'),
     ("falta no es o texto da barra fixa", "app",
      '    "fixa.link": "Ver el resultado",\n', ''),
 ]

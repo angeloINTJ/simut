@@ -29,13 +29,16 @@ const POLL_MS = 10000;
 // The page's languages, and the locale each one formats numbers and dates in (and sets the document's lang to). es is
 // es-ES (2026-10-29): its texts are proposals that await a native review, and the page says so (renderReview).
 const LOCALES = { en: "en", pt: "pt-BR", es: "es-ES" };
+// A text that holds one link says {link} where it goes (renderReview): this character stands in for it while the text is split.
+const LINK_MARK = "\u0001";
 
 const STR = {
   en: {
     "skip": "Skip to content", "nav.home": "Home", "nav.manual": "Manual",
     "title": "Build configurator",
     "lede": "Pick a product, switch features on or off, and see whether the image still fits before you compile it.",
-    "lang.review": "Spanish translation under review: tell us if something does not read well.",
+    "lang.review": "Spanish translation under review: tell us on {link} if something does not read well.",
+    "lang.review.link": "GitHub",
     "loading": "Loading the feature model…",
     "ft.colophon": "SIMUT — Sistema Integrado de Monitoramento Universal e Telemetria. MIT licensed.",
     "ft.source": "Feature model", "ft.design": "How it works", "ft.edit": "Edit this page",
@@ -123,7 +126,8 @@ const STR = {
     "skip": "Pular para o conteúdo", "nav.home": "Início", "nav.manual": "Manual",
     "title": "Configurador de build",
     "lede": "Escolha um produto, ligue e desligue recursos, e veja se a imagem ainda cabe antes de compilar.",
-    "lang.review": "Tradução para o espanhol em revisão: avise se algo não estiver claro.",
+    "lang.review": "Tradução para o espanhol em revisão: avise no {link} se algo não estiver claro.",
+    "lang.review.link": "GitHub",
     "loading": "Carregando o modelo de recursos…",
     "ft.colophon": "SIMUT — Sistema Integrado de Monitoramento Universal e Telemetria. Licença MIT.",
     "ft.source": "Modelo de recursos", "ft.design": "Como funciona", "ft.edit": "Editar esta página",
@@ -211,7 +215,8 @@ const STR = {
     "skip": "Saltar al contenido", "nav.home": "Inicio", "nav.manual": "Manual",
     "title": "Configurador de compilación",
     "lede": "Elija un producto, active o desactive funciones y compruebe si la imagen sigue cabiendo antes de compilarla.",
-    "lang.review": "Traducción en revisión: avísenos si algo no se lee bien.",
+    "lang.review": "Traducción en revisión: avísenos en {link} si algo no se lee bien.",
+    "lang.review.link": "GitHub",
     "loading": "Cargando el modelo de funciones…",
     "ft.colophon": "SIMUT — Sistema Integrado de Monitoramento Universal e Telemetria. Licencia MIT.",
     "ft.source": "Modelo de funciones", "ft.design": "Cómo funciona", "ft.edit": "Editar esta página",
@@ -538,9 +543,13 @@ function renderFixa() {
 }
 
 /* The Spanish texts are proposals that await a native review (the device's es-ES texts are too), and the page says so, once, in
- * Spanish, above the choice. The other languages have no such line. */
+ * Spanish, above the choice, and says where to tell us: the text holds {link}, which becomes the anchor to a new issue of the
+ * repository (reviewUrl). The other languages have no such line. */
 function renderReview() {
-  return state.lang === "es" ? h("p", { class: "cfg-apoio", id: "cfg-revisao", text: t("lang.review") }) : null;
+  if (state.lang !== "es") return null;
+  const [before, after] = t("lang.review", { link: LINK_MARK }).split(LINK_MARK);
+  return h("p", { class: "cfg-apoio", id: "cfg-revisao" }, before,
+    h("a", { href: reviewUrl(), target: "_blank", rel: "noopener", text: t("lang.review.link") }), after);
 }
 
 function renderNotice() {
@@ -873,6 +882,14 @@ function changeLines() {
     const x = m.toggles.find((y) => y.id === id);
     return `- ${x.label.en}: ${v ? "on" : "off"}`;
   });
+}
+
+/* Where to tell us that a Spanish text does not read well: a new issue of the repository, in English like the build requests
+ * (issueUrl), with the page's address in it so that the text can be found. */
+function reviewUrl() {
+  const page = `https://angelointj.github.io/simut/configurador/${L.formatHash(state.productId, state.set)}`;
+  const body = ["The Spanish text of the build configurator that does not read well:", "", "", `Configurator: ${page}`].join("\n");
+  return `https://github.com/${REPO}/issues/new?title=${encodeURIComponent("Build configurator: Spanish translation")}&body=${encodeURIComponent(body)}`;
 }
 
 /* The issue is in English whatever the page's language: the repository's
