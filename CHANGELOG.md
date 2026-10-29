@@ -4,17 +4,28 @@
 
 All notable changes to SIMUT firmware.
 
-## Unreleased
+## v2.12.0 (2026-10-28)
 
-**The panel's SPI runs at 66.5 MHz on the Pico W. On the build measured before the change (arduino-pico 5.6.1,
-2026-10-15) it ran at 24 MHz, whatever `SIMUT_TFT_SPI_HZ` asked for; the 5.4.x builds before it, v2.1.6 among them,
-carry the same clock code and were not measured. A radio that stops answering is no longer joined blind, which held
-Core 0 past the hardware watchdog: it is restarted by the planned path (#266). The language pack's log records carry
-their own tag and codes: they were persisted as `?`, two warnings as "OK" and the pack loaded at boot as a language
-changed through the UI (#283). An alpha or a Wire set to a language other than English names its events on the
-console and in the syslog again: both left the name out. After a boot in English the panel's Idioma screen lists the language pack in `/lang`, which it listed only when the pack was loaded, so a unit left in English had no way back: choosing the pack saves the language, and the pack loads at the next boot. The theme and the language chosen at the panel ask Core 0 for the System permission, as the clock, the setup access point and the accounts already did. The web page's theme select shows the stock themes in the device's language: `GET /api/themes` sends each theme's code, the page translates by it, and the stock themes are named in English at the source.**
+**The panel's SPI runs at 66.5 MHz on the Pico W; on the build measured before the change (arduino-pico 5.6.1,
+2026-10-15) it ran at 24 MHz, whatever `SIMUT_TFT_SPI_HZ` asked for. A radio that stops answering is no longer joined
+blind, which held Core 0 past the hardware watchdog: the board is restarted by the planned path (#266). A link lost
+while the clock is being set is noticed, and the Air's flush no longer sleeps without sending for want of a signal
+level (#269, #271). A reply to `/api/status` no longer reaches the client with writes missing from its middle (#189),
+and a plain `http://` client on the TLS port can no longer reset a Wire with the panel (#274). The language pack's log
+records carry their own tag and codes (#283), an alpha or a Wire set to a language other than English names its events
+again (#286), English has a way back on the panel (#294), and the theme and the language chosen at the panel ask Core
+0 for the System permission (#295). The web page names the stock themes in the device's language (#298), and the Files
+page no longer says "Upload complete." for a file the device refused (#299). The SIMUT Wire, a plain Pico with its
+network on an ENC28J60 cable module, enters the source together with the network as a driver: CI builds its two
+images, and the release does not publish them.**
 
-### The panel's bus
+`CONFIG_VERSION` stays at 26 and the security version at 1. `keys/` and `src/ota/ota_layout.h` are the files of
+v2.11.1 (`git diff v2.11.1 HEAD -- keys src/ota/ota_layout.h` is empty, 2026-10-28), so v2.11.1 reads the
+configuration and verifies this release's signature, and an update can go over the air both ways; the gate's round
+trip is recorded under *The bench* once it has run. The 35 pull requests merged since v2.11.1 are each named under the
+heading they belong to.
+
+### The panel's bus (#278)
 
 - **`clk_peri` follows `clk_sys` again.** The framework's `main( )` calls `set_sys_clock_khz( 133000, true )`, and the
   SDK answers by moving `clk_peri` to the 48 MHz USB PLL. An SPI block divides `clk_peri` by an even prescale times a
@@ -39,7 +50,7 @@ console and in the syslog again: both left the name out. After a boot in English
 - If a panel shows stray pixels in flat regions at 66.5 MHz, the next rung down is `-DSIMUT_TFT_SPI_HZ=33250000u`.
   The manual's old `31250000u` is no rung of this clock and runs at 22.17 MHz.
 
-### The radio that stops answering (#266)
+### The radio that stops answering (#266, #270, #282)
 
 - **A radio that stopped answering is no longer joined blind.** Two field reboots, on 2026-09-30 and on 2026-10-11 at
   09:28 (the second on v2.11.0), went the same way: the link lost, two reconnect scans abandoned, the blind join, then
@@ -76,7 +87,24 @@ console and in the syslog again: both left the name out. After a boot in English
 - **Host tests:** 706 cases in 11 suites, up from 703. The three new ones, in `native_network`, pin the read before a
   blind join, the read in the signal check, and the ctx of a failed read.
 
-### The log of a planned restart
+### The link, inside the wait for the time (#269, #271)
+
+- **A link lost while the clock is being set is noticed.** After the radio gets an address, the device waits for the
+  first NTP answer (`NET_CONNECTED_WAIT_NTP`), and that wait never looked at the link: an access point that went away
+  inside it left the device off the network until a reboot, while `isLinkUp( )` kept saying "up" (`/metrics` reads it,
+  and so does the Pico 2 W's update trial). Reproduced on the bench on 2026-10-13 with `pico_w_release` and the PC's
+  USB adapter as the access point: the hotspot went away 1.1 s after the address, and the device spent 371 s in the
+  wait with no network record at all. The radio now checks `WiFi.status( )` in the wait and, on a lost link, leaves by
+  the same path as a loss in the ready state: the `SYS_WIFI_DISCONNECT` record (ctx 0) and the reconnect ladder from
+  its first rung. The cable never had the defect, and v2.11.1 has the wait as it was.
+- **The Air's flush no longer sleeps without sending.** `getRssi( )` answered -100 unless the network was ready, so
+  `isLinkHealthy( )` was false for the whole wait, and the Air's FLUSH phase, which begins as soon as the link has its
+  address, slept without sending whenever it began before the NTP answer; NTP answered 0 to 5 s after the address in
+  five boots on 2026-10-13. `getRssi( )` now answers for any link that is up, and the FLUSH waits for NTP 10 s at most
+  (`AIR_FLUSH_NTP_WAIT_MS`), so a network that never answers NTP cannot hold the radio for the phase's whole budget.
+  Host tests in `native_network` and `native_air` pin the rule; the Air's wake was not measured again.
+
+### The log of a planned restart (#281)
 
 - **A planned restart keeps the records it was about to lose.** For 5 s after a touch on the panel
   (`TOUCH_PRIORITY_MS`), while the storage holds its heavy-task lock, and while the Bluetooth console's update runs,
@@ -93,7 +121,64 @@ console and in the syslog again: both left the name out. After a boot in English
   ENABLE cleared, as it has since v1.0.0, which already carried the fix for `reload confirm` hanging the board; the
   comments say so now.
 
-### The language pack's log records (#283)
+### A reply that lost its framing (#189)
+
+- **A write cut short ends the response instead of leaving a hole** (#272). A reply to `/api/status` sometimes reached
+  the client with whole writes missing from its middle, and nothing on the device noticed. The framework's
+  `HTTPServer` writes a response's header as one `write( )` and each chunk as three (the size line, the data and the
+  CRLF), and it dropped the count each one returned: a write that waited past its timeout without handing lwIP a byte
+  took nothing, the server went on with the next, and the bytes it did not take left a hole framed as if nothing had
+  happened. Measured on the bench on 2026-10-14 (v2.11.1 on a Pico W, `GET /api/status` every 0.2 s on one keep-alive
+  connection, every byte kept): 24 broken replies in 2,000 (1.2 %) at night and 1 in 2,000 (0.05 %) in the morning,
+  each 1.2 to 1.8 s slower than the 0.04 s of a good one. The rate moved with the hour, not with the image.
+- **And the reply leaves in one segment** (#273). `/api/status` (a header, 7 chunks and the terminator, 1,039 B) went
+  out as 24 TCP segments, each one holding a whole MSS of lwIP's 16 KB heap (`LWIP_NETIF_TX_SINGLE_PBUF`), and a write
+  that found the heap full waited for the client past its timeout and cut the reply, which #272 now ended honestly but
+  did not prevent. #272 had blamed Nagle; the server has it off, and a build that printed every lwIP pool showed no
+  pool short, with 11 segments in flight at the peak. A buffer of one segment (1,460 B, `TCP_MSS`) in `HTTPServer` now
+  collects a response's small writes. Measured on the bench for #273, on the same Pico W and network: with #272 alone,
+  24.2 segments a reply, `tcp_write sem memoria` counted 4,390 times in 1,000 replies, 3 replies cut and a median of
+  38 ms; with #273, 1.22 segments a reply, no refusal, no cut, 24 ms, and then 5,000 replies at 1.21 segments, with no
+  hole and no cut, 23 ms. The bytes are the same: 34 read-only GET routes returned the same status, headers and chunk
+  count on the three images compared, and the same body wherever the content does not change.
+- **The fix is two framework overrides** (`webserver_short_write.patch`, 2m, and `webserver_fewer_writes.patch`, 2n)
+  that `patch.sh` applies to every image. It was measured on a Pico W; the Pico 2 W, which lost 4 of 119 reads in
+  v2.11.1's gate, has not been measured with them. This closes the #189 item of v2.11.1's *Known* list.
+
+### A plain client on the TLS port (#274, #277)
+
+- **A stale `http://` tab no longer resets a device that has HTTPS on.** A browser tab left open on the device's TLS
+  port after HTTPS is turned on reloads itself, speaks cleartext HTTP to the TLS port and retries over a few parallel
+  connections. The BearSSL server's handshake for a plaintext client, and its teardown, keep Core 0 in the web path,
+  and a flash access of Core 0 that coincides with Core 1 fetching the panel's code over XIP wedges the QSPI arbiter:
+  the watchdog goes unfed and the hardware watchdog resets the board (the RP2040's latent flash-against-render fault,
+  D-C1). On the SIMUT Wire with the panel (`pico_wiretft`), 7 cleartext `GET`s every 3 s with a bench TLS pair
+  installed reset it in 26 to 55 s, every run, and 5 of the 6 autopsies read `C0=[WEB_POLL] C1=[DISPLAY]`; the Wire
+  without the panel (`pico_wire`) never reset. `WiFiServerSecure::accept( )` now tells a TLS client from a plaintext
+  one by its first byte (a ClientHello begins with `0x16`, an HTTP `GET` with `0x47`) before it builds the 16 KB
+  BearSSL context, waiting at most 400 ms for that byte. A plaintext client is handed to `WiFiServer::accept( )`,
+  which frees its backlog slot, and closed.
+- **Measured on the shipping image** on 2026-10-15: `pico_wiretft` with the bench TLS pair, 453 plaintext attempts and
+  873 reads of a legitimate TLS client in 301 s, no watchdog reset, where every run before reset in 26 to 55 s. A
+  first attempt that passed ran on a diagnostic build, whose extra instructions shifted the timing enough to hide the
+  collision; the same code on the clean image still reset at 51 s, so only the clean image proves it. The patch
+  (`wifiserversecure_drop_plaintext.patch`, step 2b-ter of `patch.sh`) is applied to every image that serves HTTPS;
+  only `pico_wiretft` was measured with it.
+
+### An injected touch that never ended (#280)
+
+- **An injected touch now ends on its own clock.** `injectTouch( )` (`POST /api/touch`, the console's `touch sim` and
+  `touch hold`, the web mirror) raises a flag with a hold time, and the flag was cleared in one place,
+  `mapTouchPoint( )`. Two screens never call it for an injection: the touch sensitivity screen, whose Cancelar was
+  looked for only under `p.z >= 50` while the touch library reads 0 with nothing on the glass, and the calibration's
+  measuring phase. The flag stayed up there: the 30 s idle return never came, a real finger could not finish a
+  calibration point because its release was never seen, and the first real touch afterwards was read at the injected
+  tap's coordinates. On the bench on 2026-10-16, an injected Cancelar on the sensitivity screen was ignored, and the
+  board stayed on that screen for 42 s and beyond, until a web reboot. The flag now ends in `loopCore1( )`, once per
+  pass, when its hold has passed (`simTouchExpired( )`, wrap-safe), and the sensitivity screen's Cancelar accepts an
+  injected touch. Host tests in `native` pin the clock rule.
+
+### The language pack's log records (#283, #284)
 
 - **They carry their own tag.** The loader logs under `I18N`, which the tag table did not have, so its four records
   were persisted with the unknown tag and every reader of the log showed `?`: `show system log`, the CSV export and
@@ -122,7 +207,7 @@ console and in the syslog again: both left the name out. After a boot in English
   table and the names the check refuses; two in `native_logpolicy` pin the language change outside the wake's list and
   the failed pack outside the history family.
 
-### The console and syslog of an alpha or a Wire
+### The console and syslog of an alpha or a Wire (#286)
 
 - **Events have their names again outside English.** The log asks the display code for a translation of each event's
   name and detail, and takes a null pointer as "none, use the English". The alpha's display code, which the SIMUT Wire
@@ -136,7 +221,7 @@ console and in the syslog again: both left the name out. After a boot in English
 - Checked in the images, not yet on the rig: the alpha's two lookups returned the address of an empty string and now
   return 0. The seven images that do not build that code are byte-identical.
 
-### English has a way back on the panel
+### English has a way back on the panel (#294)
 
 - **After a boot in English, the Idioma screen lists the language pack in `/lang`.** It listed English alone: the
   screen counted a pack only when it was loaded, and the pack loads only at a boot in another language. A unit that
@@ -152,18 +237,18 @@ console and in the syslog again: both left the name out. After a boot in English
 - **Two smaller fixes in the same screen.** A unit saved in a pack that did not load opened the screen on a row that
   was not there, with nothing highlighted; it opens on English. Core 0 refuses a row the screen does not list.
 - **Cost, built here from scratch on be56633d, 2026-10-24:** the `.bin` grows 616 B on `pico_w_release`, 624 on
-  `pico_w_test` (139 B of OTA headroom left of 763), 624 on `pico_w_test_https`, 608 on `pico_w_asserts`, 656 on
-  `pico2_w_release` and 624 on `pico_wiretft`; RAM is unchanged. `pico_w_alpha` and `pico_wire` are byte for byte
-  main's, compared by sha256. `pico_w_air` is not: its flash is 16 B smaller, because its pack loader is compiled
-  differently. Not verified on hardware. The feature-sprawl watermark rises by three sites (`SIMUT_DISPLAY_TFT` in
-  `AppManager_Boot.cpp`, `AppManager_Events.cpp` and `DisplayManager_LangParser.cpp`), which code that only the panel
-  runs needs and the gate counts.
+  `pico_w_test` (139 B of its 763 B of OTA room that day; #297, under *Under the hood*, gave the room back), 624 on
+  `pico_w_test_https`, 608 on `pico_w_asserts`, 656 on `pico2_w_release` and 624 on `pico_wiretft`; RAM is unchanged.
+  `pico_w_alpha` and `pico_wire` are byte for byte main's, compared by sha256. `pico_w_air` is not: its flash is 16 B
+  smaller, because its pack loader is compiled differently. Not verified on hardware. The feature-sprawl watermark
+  rises by three sites (`SIMUT_DISPLAY_TFT` in `AppManager_Boot.cpp`, `AppManager_Events.cpp` and
+  `DisplayManager_LangParser.cpp`), which code that only the panel runs needs and the gate counts.
 - **Host tests:** 726 cases in 11 suites, up from 711. Fifteen in `native` pin the Idioma screen's decisions (rows,
   opening row, the rows Core 0 accepts, which choices wait for a boot) and the rule for a usable pack, each broken by a
   mutation of the function it pins.
 - **The manual** (chapter 11) describes the screen with the pack listed, and the message.
 
-### The panel's theme and language
+### The panel's theme and language (#295)
 
 - **The theme and the language ask for the System permission on Core 0.** The Themes and Idioma rows already asked for
   `PERM_SYS_CONFIG`, but the event that applies the choice arrives from the panel's core and was not checked on Core 0:
@@ -174,7 +259,7 @@ console and in the syslog again: both left the name out. After a boot in English
   check (the sounds, the two touch calibrations, the display alignment): they are registered in the gate, for a later
   release.
 
-### Theme names on the web page
+### Theme names on the web page (#298)
 
 - **The theme select follows the device's language.** `GET /api/themes` now sends `{"id","code","name"}`; the code is
   the theme's `@CODE` (`nordic`, `cafe`, ...). The page asks the active language pack for `thm_<code>` and shows the
@@ -200,7 +285,7 @@ console and in the syslog again: both left the name out. After a boot in English
   The new names were written into the generator and, by a script, into the files' `@NAME` line; the test checks the
   names and codes and prints the colour fields that differ. Syncing the generator and its rules is open.
 
-### A refused upload on the Files page
+### A refused upload on the Files page (#299)
 
 - **The Files page no longer says "Upload complete." for a file the device refused.** The device answers an upload it
   will not take with a 4xx: `400 {"error":"Invalid upload"}` for a file name, a folder or a size it refuses, `403` to a
@@ -222,6 +307,146 @@ console and in the syslog again: both left the name out. After a boot in English
   sends, a 409, two 413, a 503, two odd 400 bodies, a 500 and a network failure), and again with each pack's
   `@WEBDICT`. Before the fix it failed on 8 of the 12 (the refusals), on both packs and on the missing key, with the 4
   controls passing; `--mutations` breaks the code 19 ways and every one fails it.
+
+### The SIMUT Wire and the network as a driver (#260–#265, #267, #268, #275, #276)
+
+- **The SIMUT Wire is in the source.** A plain Raspberry Pi Pico, an RP2040 without the radio, whose network comes
+  through an ENC28J60 module on the cable, in two images that CI builds and the release does not publish: `pico_wire`
+  (16x2 LCD) and `pico_wiretft` (TFT panel and touch). The wired driver (`src/net/WiredLink.cpp` and
+  `src/NetworkManager_Wired.cpp`, #262) uses the PicoENC28J60 library's lwIP interface, now at v1.3.1 (#275), with the
+  module's SPI in PIO (pins GP12 to GP15, INT on GP11, no reset line). The boot starts the network before the sensors
+  and skips the radio's power cycle and the setup access point. On a Wire, every command, page and screen that belongs
+  to a Wi-Fi radio is cut at compile time: no network scan, no SSID or password, no signal bars; `/api/status` sends
+  `link` where it sent `rssi`, `/metrics` sends `simut_link_up`, and the cable's events have codes of their own, 529
+  to 532 (#263). It ran on the bench from 2026-10-12, on a Pico W running the plain-Pico image with the module, a
+  DHT22 and the panel.
+- **The module's receive buffer sits at `0x141C`** (#276), the library's default since 1.3.0: three full-size frames
+  to receive and room for two to send from, so a frame goes into the chip while the one before is on the wire.
+  Measured on the bench on 2026-10-15, `pico_wiretft`, the old address against the new: a 32 KB upload took 1,598 to
+  1,648 ms against 1,590 to 1,635 ms, `/lang.js` 33.7 to 33.8 ms against 32.2 to 32.4 ms, and the `/api/status` reader
+  beside four clients fetching pages 108 to 121 ms against 105 to 109 ms.
+- **The network is a driver.** The firmware stops testing which chip an image has: `SIMUT_NET_CYW43` (the default) or
+  `SIMUT_NET_ENC28J60` names the image's driver, the Wi-Fi or cable class is derived from it in `src/net/NetCaps.h`,
+  and a gate (`tools/test_net_boundary.py`) keeps the chip inside `src/net/` (#267). The radio's state machine left
+  `NetworkManager.cpp` for a unit of its own, `src/net/NetworkManager_Cyw43.cpp`, as the cable's already was (#268).
+  When each of the two was merged, the radio images came out byte for byte the same as main's, by sha256.
+- **The build configurator** (`docs/configurador/`) builds for the Pico 2 W, held to its own slot, and every switch is
+  measured on it (#260): `build_custom.py` hands out the update flagged for trial and the factory `.uf2` with the
+  partition table, and the cost matrix has four products (69 builds and 12 checks, 28 min, measured on f1bfd13). The
+  network is a choice of driver there, as the display is (#265), and the configurator and `build_custom.py` count the
+  PIO blocks and the pins a combination needs and refuse what does not fit (#261, #264). This closes the first item of
+  v2.11.1's *Known* list.
+
+### Under the hood
+
+- **Host tests:** 734 cases in 11 suites, up from 639 in 9 at v2.11.1 (each suite's "N test cases", summed on
+  2026-10-28). The two suites that are new since then are `native_lan` (14 cases, the CLI parser of a wired build) and
+  `native_wired` (19, the wired network state machine).
+- **The authorization gate** reports 62 routes, 52 gated and 10 public by design (2026-10-28), and holds the panel's
+  half too: every `UiEvent` is classified, and a gated one calls `panelAllowed( )` with its bit before its first write
+  (#295).
+- **The nightly savings floor** failed 21 nights in a row, from 2026-10-02 to 2026-10-22, and no pull request showed
+  it. The linker fills up to 4,095 B in front of BTstack's flash bank (`__bluetooth_tlv`, aligned to a 4 KB sector),
+  and the floor counted that fill on the images with Bluetooth; it is read from the map and taken off both sides now
+  (#285). A failed nightly run opens an issue, or comments on the open one, so the failure reaches the maintainer
+  (#293).
+- **The flash budget gate** (`tools/check_flash_budget.py <env> <log>`) fails when it cannot see the `firmware.bin` or
+  `OTA_APP_SAFE_MAX_SIZE`, where it printed a note and exited 0 (#290).
+- **`patch.sh` step 2b-ter** grepped text its patch adds, so a second run stopped there; every guard is now held to
+  its own patch by `tools/test_patch_sentinels.py` (#279).
+- **The bench web client** (`tools/air_test_suite.py`) logs back in on the 401 a dropped session gets, as it did on
+  the 403: the device keeps one web session per user (#291).
+- **The OTA room of the bench images.** `pico_w_test_https` serves its licence page from LittleFS (#288): its 44 B of
+  flash left became 4,300 B (2026-10-22). `pico_w_test` does the same (#297): 75 B under the OTA ceiling became 3,699
+  B (2026-10-28, on 9f4da77b with the change). At this release the room of `pico_w_test` is 3,427 B and that of
+  `pico_w_asserts` 1,955 B (`tools/check_flash_budget.py`, 2026-10-28). Neither image is published.
+- **Documents.** The bench of 2026-10-22, what `TRL( )` gives on the device and what an OTA does to the language packs
+  (#287); and R-R17 of the feature model, which no longer says the pack gate promises "only that line" (#289).
+
+### Flash
+
+Against the published v2.11.1, signed `.bin` (the image plus its 241-byte signature), built on this tree on
+2026-10-28:
+- release 1,033,357 → 1,036,133 B (+2,776);
+- alpha 990,621 → 990,621 B;
+- Air 1,031,485 → 1,035,581 B (+4,096);
+- Pico 2 W 997,417 → 1,000,241 B (+2,824).
+
+Slack under the 1,040,384 B over-the-air ceiling: release 4,251 (7,027 in v2.11.1), alpha 49,763, Air 4,803 (8,899).
+The Pico 2 W's slot is 1,568,768 B, with 568,527 B left. The alpha and the Air put BTstack's flash bank on a 4 KiB
+boundary, so their `.bin` moves in steps of a page: the alpha stayed on its page and the Air went up one. The release
+has 155 B above the one flash sector that `check_flash_budget.py` warns under. The language packs grow from 39,068 B
+(pt-BR) and 40,700 B (es-ES) in v2.11.1 to 42,517 B and 44,262 B.
+
+### The bench
+
+The release gate (`AGENTS.md` §2) has not run on this release's candidate yet. This section is filled in by the gate's
+documentation change, from the candidate the CI signs on `main`. Until then, each figure above names the build and the
+date it was measured on. Not run on a signed image: the update from v2.11.1, the panel at 66.5 MHz on the Pico W's
+glass, the Air's single record per wake, and the alpha's event names in Portuguese.
+
+### Upgrading
+
+- **From v2.11.1, on a Pico W (release, alpha or Air):** over the air, from the Files page, with this release's `.bin`
+  and with no other page of the device open. Download the `.bkp` the page offers first. The apply reformats the
+  filesystem: the configuration comes back from the snapshot taken before it, and the history, the packs in `/lang`,
+  the themes in `/themes` and the Air's own options come back with the `.bkp`. Restore the `.bkp`, upload the two
+  language packs attached to this release and reboot; a pack is read at boot.
+- **From v2.11.1, on a Pico 2 W:** over the air, with this release's `.bin`: the update goes to the other slot, leaves
+  the filesystem alone and boots on trial, as since v2.11.0.
+- **Back to v2.11.1:** over the air with its signed `.bin` (both carry security version 1 and series 1), or over USB.
+  The round trip is recorded under *The bench* once the gate has run it.
+- **From an older version, or a Pico 2 W's first install:** as for v2.11.0, in its entry below.
+- **Language packs:** a v2.11.1 pack should still load, since a key a pack lacks shows its English text; the theme
+  names on the web page and the refused-upload message then read in English. After a boot in English, the panel's
+  Idioma screen lists the pack put in `/lang` (#294).
+- **Themes:** a `.thm` restored from a `.bkp` keeps the name it was installed with, in Portuguese for the stock themes
+  of an older install; the web page translates their codes (#298).
+- **simut-rx** does not know `releasetwo` yet, so it offers no update to a Pico 2 W (its pull request #14 is still
+  open, 2026-10-28).
+
+### Known, and not fixed here
+
+- **A refused file followed by an accepted one, in the same upload, still ends in "Upload complete."** The device
+  clears its refusal at the start of each file (`handleUploadData( )`), so it reports only the last file's. Send one
+  file at a time when one may be refused (#299).
+- **Four panel events save the configuration without Core 0's permission check**: the sounds, the two touch
+  calibrations and the display offset. `tools/check_authz.py` lists them as warnings, and CI holds the list. Deferred
+  at the maintainer's word of 2026-10-28.
+- **`data/themes/*.thm` differ from `tools/gen_theme_collection.py`** in the limit-alarm colours since 2137ea15
+  (2026-08-23). The generator's contrast rules fail the new colours on 36 pairs, so regenerating the files would turn
+  every stock theme's alarm red again.
+- **The Spanish names of the themes, and the Spanish text of `fil_up_refused`, are a proposal** until a native speaker
+  reviews them.
+- **The emergency console has no `language` command**, and the web has no key for it. After a boot in English, the
+  panel's Idioma screen is the way back (#294).
+- **The web page's theme select gives no feedback when the device refuses the change.** `saveTheme( )` ignores the
+  answer of `/api/save_sys`.
+- **Narrowing the PIN alphabet or lowering the length ceiling still strands an old PIN** that uses a letter no longer
+  on the cards, or is longer than the new ceiling: the cards cannot offer the one, and Core 0 cannot check the other
+  in time. The account needs a new PIN from the panel's Users, the web or the console.
+- **On a build with a panel, a Core 1 hard fault leaves no program counter in the log**, on both chips. The main loop
+  restarts Core 1 after 10 s without its heartbeat, before the soft panic that would record it (measured in #249).
+- **On the Pico W, a configuration save from the panel during an upload restarts Core 1 in the middle of the stage**,
+  by the code. The stage then writes the flash with Core 1 running from it. It has not been seen on the bench. The
+  Pico 2 W's stage does not run that save.
+- **Accented lines on the boot screen print `?`**, by the code: the boot box folds text that is already Latin-1 as if
+  it were UTF-8.
+- **The web page does not retry an install refused with 503** (a touch on the panel in the 5 s before), by the code.
+- **`configure terminal` does not need `enable`**, although the console's command table says it needs privileged mode.
+  It opens nothing, but the table and the behaviour disagree.
+- **With two pressure sensors, the measurement line sends the pressure under the first one's key and with the last
+  one's value**, by the code.
+- **The Telemetry page's token list for the alarm line stops at v22.** Chapter 22 of the manual lists them all.
+- **Adopting a probe, or `sensor_wipe`, does not start the slot's history anew.** Both stamp the slot's provisioning
+  epoch, and nothing reads it: the history serves every record of a slot under the slot's current id. On the bench,
+  after slot 0 adopted another probe, its readings of 4 October came back under the new probe's id.
+- **After a boot, a probe that is not the slot's can have its first reading recorded.** The read path checks the ROM
+  on every fifth read, from the fifth on. On the bench, with another probe on the slot's GPIO, the reading of 20 s
+  after the boot went into the history as the slot's, and the quarantine began within the next minute.
+- **Closed since v2.11.1's list**, each under its heading above: the build configurator for the Pico 2 W (#260), the
+  chunked reply that lost its framing (#189, fixed by #272 and #273 and measured on a Pico W only) and the alpha's
+  empty event names (#286, checked in the images and not yet seen on an alpha's console).
 
 ## v2.11.1 (2026-10-12)
 
