@@ -11,7 +11,7 @@ O aparelho não conversa com o Home Assistant diretamente. Os dois se encontram 
 3. O Home Assistant lê essas mensagens e cria o dispositivo e as entidades.
 4. Daí em diante, cada mensagem de telemetria atualiza os valores, e a mensagem de estado do aparelho diz se ele está disponível.
 
-A descoberta não é um canal novo: ela usa a mesma conexão, o mesmo servidor, a mesma conta e o mesmo TLS da telemetria. O recurso existe nas três imagens: release, alpha e Air. No Air, veja as ressalvas em [No SIMUT Air](#cap-23-air).
+A descoberta não é um canal novo: ela usa a mesma conexão, o mesmo servidor, a mesma conta e o mesmo TLS da telemetria. O recurso existe nas três montagens: release, alpha e Air. No Air, veja as ressalvas em [No SIMUT Air](#cap-23-air).
 
 ::: {.figura #fig-23-fluxo tipo="diagrama" arquivo="23-fluxo.png" captura="Três caixas da esquerda para a direita: 'SIMUT (simut_0a1b2c)', 'Broker MQTT (broker.exemplo.com.br:1883)' e 'Home Assistant'. Setas do SIMUT para o broker, numeradas: 1 'ao conectar: homeassistant/sensor/simut_0a1b2c/<objeto>/config (retida, uma por medição)'; 2 'simut/status {status: online} (retida)'; 3 'simut/data {ts, tSTM0001, ...} a cada envio'. Seta tracejada do broker para o próprio broker: 'se o aparelho some: simut/status {status: offline} (última vontade)'. Setas do broker para o Home Assistant: 'assina homeassistant/# e cria dispositivo e entidades'; 'lê os valores em simut/data'; 'lê a disponibilidade em simut/status'. Nota no rodapé: 'o Home Assistant não manda nada ao aparelho'."}
 Legenda: o caminho das mensagens. O aparelho só publica; o Home Assistant só assina. Tudo passa pelo broker.

@@ -65,9 +65,11 @@ importam.
 
 ### Os três builds
 
-A mesma árvore de fontes produz três imagens. Elas compartilham o modelo de
-sensores, o formato do histórico, a interface web e as permissões; o que muda é
-o que está ligado e quanto tempo o aparelho fica acordado.
+A mesma árvore de fontes produz três imagens para o Pico W e, desde a v2.11.0,
+a release de novo para o Pico 2 W (`pico2_w_release`, publicada como
+`releasetwo`). Elas compartilham o modelo de sensores, o formato do histórico, a
+interface web e as permissões; o que muda é o que está ligado e quanto tempo o
+aparelho fica acordado.
 
 | Build | Display | Acordado | Para quê |
 |---|---|---|---|

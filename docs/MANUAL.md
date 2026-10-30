@@ -61,9 +61,11 @@ sections below are explicit about each of those limits where they matter.
 
 ### The three builds
 
-The same source tree produces three images. They share the sensor model, the
-history format, the web interface and the permissions; what differs is what is
-attached and how much of the time the device is awake.
+The same source tree produces three images for the Pico W and, since v2.11.0,
+the release again for the Pico 2 W (`pico2_w_release`, published as
+`releasetwo`). They share the sensor model, the history format, the web
+interface and the permissions; what differs is what is attached and how much of
+the time the device is awake.
 
 | Build | Display | Awake | For |
 |---|---|---|---|

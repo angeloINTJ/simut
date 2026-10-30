@@ -25,7 +25,7 @@ Os GPIOs 23, 24, 25 e 29 não saem na borda da placa: o Pico W os usa internamen
 
 ## O mapa de pinos {#cap-02-mapa}
 
-Cada imagem usa os pinos de GP16 em diante para a tela, o toque, a cigarra e, no Air, para o controle de energia. Os pinos de GP0 a GP15 ficam para os sensores nas três imagens.
+Cada imagem usa os pinos de GP16 em diante para a tela, o toque, a cigarra e, no Air, para o controle de energia. Os pinos de GP0 a GP15 ficam para os sensores em todas as imagens.
 
 | GPIO | Pino | release | alpha | Air |
 |---|---|---|---|---|
@@ -141,7 +141,7 @@ O Air: o GP16 corta a energia dos sensores durante o sono, e o GP17 percebe o ca
 
 ## Onde ligar os sensores {#cap-02-livres}
 
-Nas três imagens, os sensores vão nos pinos GP0 a GP15, que são os 16 slots. A página **Configurações** e o console recusam qualquer pino de GP16 em diante. Um pino atende um só slot ativo: dois slots ativos no mesmo GPIO são recusados.
+Em todas as imagens, os sensores vão nos pinos GP0 a GP15, que são os 16 slots. A página **Configurações** e o console recusam qualquer pino de GP16 em diante. Um pino atende um só slot ativo: dois slots ativos no mesmo GPIO são recusados.
 
 | Tipo | GPIOs por sensor | Máximo de sensores |
 |---|---|---|
