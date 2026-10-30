@@ -146,7 +146,7 @@ Tudo o que o firmware faz, em detalhe. O [README](../README.pt-BR.md) tem o resu
 
 ## Núcleo e chaves
 
-Toda imagem tem o que a tabela abaixo não lista: os slots de sensor, os alarmes e a linha de alarmes, o histórico gravado, as contas e permissões, a interface web e a API HTTP por HTTP simples, a telemetria por HTTP simples, o console de emergência, o log de eventos, backup e restauração, e a atualização pelo ar assinada. Duas coisas são uma escolha, e não uma chave: o mostrador (painel touch, LCD 16×2 ou nenhum) e o chip (o RP2040 do Pico W, ou o RP2350 do Pico 2 W, que o CI compila e em que nada roda ainda).
+Toda imagem tem o que a tabela abaixo não lista: os slots de sensor, os alarmes e a linha de alarmes, o histórico gravado, as contas e permissões, a interface web e a API HTTP por HTTP simples, a telemetria por HTTP simples, o console de emergência, o log de eventos, backup e restauração, e a atualização pelo ar assinada. Duas coisas são uma escolha, e não uma chave: o mostrador (painel touch, LCD 16×2 ou nenhum) e o chip (o RP2040 do Pico W, ou o RP2350 do Pico 2 W, cuja release desenha a tela touch no visual Ângulo).
 
 Todo o resto é uma chave no [`tools/features.toml`](../tools/features.toml). Esta tabela é gerada desse arquivo pelo `tools/gen_features.py`, e o CI reprova quando ela fica para trás. O [configurador de build](https://angelointj.github.io/simut/configurador/) compila uma imagem com qualquer combinação que as regras permitem, para o Pico W ou para o Pico 2 W, e mostra quanto cada chave custa em flash, medido em cada produto.
 
@@ -162,8 +162,8 @@ Todo o resto é uma chave no [`tools/features.toml`](../tools/features.toml). Es
 |  | MQTT e Home Assistant | Publica num broker MQTT (MQTT, ou MQTTS com a chave de TLS), recebe as confirmações da linha de alarmes no tópico de ack e anuncia os sensores ao Home Assistant pelo MQTT Discovery. Sem ele a telemetria vai só por HTTP. | sim | sim | sim | sim |
 |  | Métricas para o Prometheus (/metrics) | Um endpoint /metrics no formato de texto do Prometheus, com autenticação Basic para o coletor. | sim | sim | sim | sim |
 |  | Syslog remoto (trilha de auditoria) | Encaminha os eventos do log a um coletor syslog (RFC 5424 por UDP), para a trilha de auditoria sobreviver fora do aparelho. | sim | sim | sim | sim |
-| Interface | Visual original | A tela touch como toda release a entregou, com os temas dela. É a única opção no LCD 16x2 e sem mostrador. | sim | sim | sim | não |
-|  | Visual Ângulo (estudo) | Um estudo de um visual novo para a tela touch, desenhado no padrão Ângulo. Ainda não aprovado para produtos: exige a tela touch. | não | não | não | sim |
+| Interface | Visual original | A tela touch como a release do Pico W a entrega, e a do Pico 2 W a entregou até a v2.12.0, com os temas dela. É a única opção no LCD 16x2 e sem mostrador. | sim | sim | sim | não |
+|  | Visual Ângulo | A tela touch desenhada no padrão Ângulo: o visual da release do Pico 2 W. Exige a tela touch. | não | não | não | sim |
 |  | Página de histórico na interface web | A página /history: gráficos, calendário, CSV no navegador e o visor de eventos. O aparelho grava o histórico do mesmo jeito, e os arquivos de histórico continuam na página Arquivos. | sim | sim | sim | sim |
 |  | API de exportação do histórico | Rotas que devolvem o histórico de vários sensores numa chamada (/api/history_multi) e exportam o histórico e o log em .simx. Nenhuma página as usa; ferramentas de bancada e integrações, sim. | sim | sim | sim | sim |
 |  | Linha de comando completa | Todos os comandos por serial e Bluetooth. Sem ela fica só o console de emergência. | não | não | sim | não |

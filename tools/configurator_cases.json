@@ -14,7 +14,7 @@
     "A rede é uma escolha, não um interruptor: `\"set\": {\"net\": \"<id>\"}` troca o driver do",
     "produto (cyw43, o rádio da placa; enc28j60, o módulo de cabo), como `config.net` do model.json.",
     "A UI do painel touch (2026-10-14) é a outra escolha de driver: `\"set\": {\"ui\": \"<id>\"}` troca o driver de UI",
-    "do produto (original, o padrão de toda release; angulo, um estudo), como `config.ui` do model.json.",
+    "do produto (original, o painel da release do Pico W; angulo, o da release do Pico 2 W desde 2026-10-30), como `config.ui` do model.json.",
     "O Ângulo só compila com o gráfico do painel (2026-10-22): `\"set\": {\"tft_graph\": false}` com `ui` = angulo quebra angulo-needs-tft-graph."
   ],
   "cases": [

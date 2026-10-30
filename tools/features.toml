@@ -214,9 +214,9 @@ lib_deps = ["https://github.com/angeloINTJ/pico-enc28j60.git#4984e2f55727c81cfd6
 # ---------------------------------------------------------------------------
 #  A UI do painel touch (2026-10-14): como o painel desenha e responde ao toque. Uma escolha por
 #  perfil, como o mostrador e a rede: `ui = "<id>"` nomeia um [ui.<id>], o driver de UI da imagem.
-#  Um perfil sem a chave tem o `original`, o painel de toda release, e ele nao emite nada: os
-#  nove ambientes de sempre saem do gerador byte a byte os mesmos. O `angulo` e um estudo, ainda
-#  nao aprovado para produtos, e so existe com a tela touch (a regra angulo-needs-tft). Quem manda
+#  Um perfil sem a chave tem o `original`, o painel da release do Pico W, e ele nao emite nada: os
+#  nove ambientes de sempre saiam do gerador byte a byte os mesmos quando a chave nasceu (2026-10-14); o pico2_w_release deixou de ser um deles em 2026-10-30 (S10c C3). O `angulo` e
+#  o painel da release do Pico 2 W desde 2026-10-30 e so existe com a tela touch (a regra angulo-needs-tft). Quem manda
 #  na identidade e o src/ui/UiCaps.h (SIMUT_UI_ANGULO, o padrao 0): a identidade vai por -D nos
 #  `flags` do driver; o que ela deriva (SIMUT_UI_ORIGINAL, SIMUT_UI_CUSTOM_THEMES) NAO vai por -D,
 #  e o cabecalho recusa quem o passa. Cada driver diz:
@@ -230,7 +230,7 @@ lib_deps = ["https://github.com/angeloINTJ/pico-enc28j60.git#4984e2f55727c81cfd6
 # O que as paginas desta UI nao levam (S10c C4, 2026-10-30): os textos de licenca das fontes e dos icones do Angulo (o bloco /* @IF ui_angulo */ do
 # WebUI.h, escrito por tools/gen_notices.py). Entra no web_omit de toda imagem com o painel original, a padrao tambem, depois do da rede; o Angulo nao o tem.
 web_omit = "ui_angulo"
-# O painel que toda release leva, o padrao: nada a emitir. `units`: as unidades so dele que as duas imagens do Angulo (a do Wire e a do
+# O painel da release do Pico W (e o da pico2_w_original), o padrao: nada a emitir. `units`: as unidades so dele que as duas imagens do Angulo (a do Wire e a do
 # Pico 2 W) nao linkam e que a imagem do Angulo, por isso, nao compila: Themes.cpp (o catalogo de temas; o Angulo define o dele em
 # ui/angulo/Temas.cpp), o calendario, as fontes, o grafico, a tela de atualizacao, o desenho (Render), os textos do painel (i18nUi), os
 # widgets (UiWidgets) e o Dashboard (os cartoes e a barra de botoes). Medido em 2026-10-21 (S10b, sonda P4, sobre o C5b): as sete juntas
@@ -772,9 +772,9 @@ sound_buzzer    = true
 publish         = false
 ota_trust_bench = true
 
-# pico_wiretft_angulo — o pico_wiretft com o driver de UI Angulo (2026-10-14). O Angulo e um estudo
-#   do painel touch, ainda nao aprovado para produtos: esta e a imagem de bancada que o leva, e
-#   nenhum produto publicado o escolhe. A unica chave que ela muda e `ui`, que traz as unidades
+# pico_wiretft_angulo — o pico_wiretft com o driver de UI Angulo (2026-10-14). O Angulo e o painel
+#   da release do Pico 2 W desde 2026-10-30 (S10c C3): esta e a imagem de bancada que o leva no Wire,
+#   e nenhuma release a publica. A unica chave que ela muda e `ui`, que traz as unidades
 #   de src/ui/angulo/ ([ui.angulo].include, desde o passo S2a): .bin de 831.560 B contra os 785.736
 #   do pico_wiretft (14/10/2026, core igual ao do CI). Nao publicada; confia na raiz de bancada como
 #   o pai (as duas chaves vem dele, e ficam ditas aqui para que mexer no pai nao publique esta).
@@ -895,9 +895,9 @@ bench    = true
 label.en = "SIMUT Wire TFT Ângulo"
 label.pt = "SIMUT Wire TFT Ângulo"
 label.es = "SIMUT Wire TFT Ángulo"
-desc.en  = "The SIMUT Wire with the touch display in the Ângulo look, a study that is not approved for products. Not published."
-desc.pt  = "O SIMUT Wire com a tela touch no visual Ângulo, um estudo ainda não aprovado para produtos. Não publicada."
-desc.es  = "El SIMUT Wire con el panel táctil en el aspecto Ángulo, un estudio aún no aprobado para productos. No publicada."
+desc.en  = "The SIMUT Wire with the touch display in the Ângulo look. Not published."
+desc.pt  = "O SIMUT Wire com a tela touch no visual Ângulo. Não publicada."
+desc.es  = "El SIMUT Wire con el panel táctil en el aspecto Ángulo. No publicada."
 
 [ui_products.pico2_w_original]
 order    = 11
@@ -959,7 +959,7 @@ unsupported.pt = "O ENC28J60 só existe, por enquanto, para o Pico comum (RP2040
 unsupported.es = "El ENC28J60 solo existe, por ahora, para la Pico común (RP2040): la Pico 2 W (RP2350) no tiene placa para él."
 
 # A escolha da UI do painel touch (2026-10-14). Fica no grupo Interface, com as chaves da tela. O
-# Ângulo é um estudo ainda não aprovado para produtos, e o texto dele diz isso e diz de que depende: só
+# Ângulo é o painel da release do Pico 2 W desde 2026-10-30 (S10c C3), e o texto dele diz de que depende: só
 # existe com a tela touch (a regra angulo-needs-tft trava a opção nas outras, com o motivo à vista).
 # O custo em flash dele NÃO vai no texto (desde 2026-10-29, C1d): a linha da opção mostra o que a matriz de
 # custos mediu para `ui=angulo` (priceUi), com a data da medida na página, e um número escrito aqui seria um
@@ -977,18 +977,18 @@ order    = 1
 label.en = "Original look"
 label.pt = "Visual original"
 label.es = "Aspecto original"
-help.en  = "The touch display as every release has shipped it, with its themes. It is the only choice on the 16x2 LCD and with no display."
-help.pt  = "A tela touch como toda release a entregou, com os temas dela. É a única opção no LCD 16x2 e sem mostrador."
-help.es  = "La pantalla táctil como la entregó cada versión, con sus temas. Es la única opción con el LCD 16x2 y sin pantalla."
+help.en  = "The touch display as the Pico W release ships it, and the Pico 2 W release did up to v2.12.0, with its themes. It is the only choice on the 16x2 LCD and with no display."
+help.pt  = "A tela touch como a release do Pico W a entrega, e a do Pico 2 W a entregou até a v2.12.0, com os temas dela. É a única opção no LCD 16x2 e sem mostrador."
+help.es  = "La pantalla táctil como la entrega la versión de la Pico W, y la de la Pico 2 W la entregó hasta la v2.12.0, con sus temas. Es la única opción con el LCD 16x2 y sin pantalla."
 
 [ui_panels.angulo]
 order    = 2
-label.en = "Ângulo look (study)"
-label.pt = "Visual Ângulo (estudo)"
-label.es = "Aspecto Ángulo (estudio)"
-help.en  = "A study of a new look for the touch display, drawn to the Ângulo standard. Not approved for products yet: it needs the touch display."
-help.pt  = "Um estudo de um visual novo para a tela touch, desenhado no padrão Ângulo. Ainda não aprovado para produtos: exige a tela touch."
-help.es  = "Un estudio de un aspecto nuevo para la pantalla táctil, dibujado según el estándar Ángulo. Aún no aprobado para productos: requiere la pantalla táctil."
+label.en = "Ângulo look"
+label.pt = "Visual Ângulo"
+label.es = "Aspecto Ángulo"
+help.en  = "The touch display drawn to the Ângulo standard: the look of the Pico 2 W release. It needs the touch display."
+help.pt  = "A tela touch desenhada no padrão Ângulo: o visual da release do Pico 2 W. Exige a tela touch."
+help.es  = "La pantalla táctil dibujada según el estándar Ángulo: el aspecto de la versión de la Pico 2 W. Requiere la pantalla táctil."
 
 [ui_groups.network]
 order    = 1

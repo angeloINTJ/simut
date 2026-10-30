@@ -113,7 +113,7 @@ MOVED_TO_NET = {
 # ignoraria em silencio (um `lan = true` esquecido compora uma imagem Wi-Fi).
 PROFILE_KEYS = {"extends", "display", "net", "ui", "chip", "build_type", "publish", "ota_trust_bench",
                 "custom_fs_pages"}
-# O driver de UI de um perfil sem a chave `ui` (2026-10-14): o painel de toda release. Como o chip
+# O driver de UI de um perfil sem a chave `ui` (2026-10-14): o painel da release do Pico W. Como o chip
 # sem chave e o Pico W, o perfil que nao diz nada tem o driver que nao emite nada.
 DEFAULT_UI = "original"
 

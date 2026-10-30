@@ -422,22 +422,22 @@
           "es": "Aspecto original"
         },
         "help": {
-          "en": "The touch display as every release has shipped it, with its themes. It is the only choice on the 16x2 LCD and with no display.",
-          "pt": "A tela touch como toda release a entregou, com os temas dela. É a única opção no LCD 16x2 e sem mostrador.",
-          "es": "La pantalla táctil como la entregó cada versión, con sus temas. Es la única opción con el LCD 16x2 y sin pantalla."
+          "en": "The touch display as the Pico W release ships it, and the Pico 2 W release did up to v2.12.0, with its themes. It is the only choice on the 16x2 LCD and with no display.",
+          "pt": "A tela touch como a release do Pico W a entrega, e a do Pico 2 W a entregou até a v2.12.0, com os temas dela. É a única opção no LCD 16x2 e sem mostrador.",
+          "es": "La pantalla táctil como la entrega la versión de la Pico W, y la de la Pico 2 W la entregó hasta la v2.12.0, con sus temas. Es la única opción con el LCD 16x2 y sin pantalla."
         }
       },
       {
         "id": "angulo",
         "label": {
-          "en": "Ângulo look (study)",
-          "pt": "Visual Ângulo (estudo)",
-          "es": "Aspecto Ángulo (estudio)"
+          "en": "Ângulo look",
+          "pt": "Visual Ângulo",
+          "es": "Aspecto Ángulo"
         },
         "help": {
-          "en": "A study of a new look for the touch display, drawn to the Ângulo standard. Not approved for products yet: it needs the touch display.",
-          "pt": "Um estudo de um visual novo para a tela touch, desenhado no padrão Ângulo. Ainda não aprovado para produtos: exige a tela touch.",
-          "es": "Un estudio de un aspecto nuevo para la pantalla táctil, dibujado según el estándar Ángulo. Aún no aprobado para productos: requiere la pantalla táctil."
+          "en": "The touch display drawn to the Ângulo standard: the look of the Pico 2 W release. It needs the touch display.",
+          "pt": "A tela touch desenhada no padrão Ângulo: o visual da release do Pico 2 W. Exige a tela touch.",
+          "es": "La pantalla táctil dibujada según el estándar Ángulo: el aspecto de la versión de la Pico 2 W. Requiere la pantalla táctil."
         }
       }
     ]
@@ -880,9 +880,9 @@
         "es": "SIMUT Wire TFT Ángulo"
       },
       "desc": {
-        "en": "The SIMUT Wire with the touch display in the Ângulo look, a study that is not approved for products. Not published.",
-        "pt": "O SIMUT Wire com a tela touch no visual Ângulo, um estudo ainda não aprovado para produtos. Não publicada.",
-        "es": "El SIMUT Wire con el panel táctil en el aspecto Ángulo, un estudio aún no aprobado para productos. No publicada."
+        "en": "The SIMUT Wire with the touch display in the Ângulo look. Not published.",
+        "pt": "O SIMUT Wire com a tela touch no visual Ângulo. Não publicada.",
+        "es": "El SIMUT Wire con el panel táctil en el aspecto Ángulo. No publicada."
       },
       "config": {
         "display": "tft",

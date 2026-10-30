@@ -161,7 +161,7 @@ CLI = [
     ('{"v":1,"base":"pico_w_air","set":{"wifi":true}}', 2, "chave desconhecida"),
     # A UI do painel touch (2026-10-14): o Angulo desenha na TFT (a regra angulo-needs-tft), e o
     # original, o padrao, vale em qualquer mostrador. O pico_wiretft_angulo e o pico_wiretft com
-    # `ui = "angulo"`, e o perfil nao precisa de aviso: o texto da opcao diz que e um estudo.
+    # `ui = "angulo"`, e o perfil nao leva aviso: o texto da opcao deixou de dizer que e um estudo em 2026-10-30 (S10c C3, o Angulo e o painel da release do Pico 2 W).
     ('{"v":1,"base":"pico_wiretft","set":{"ui":"angulo"}}', 0, "perfil válido"),
     ('{"v":1,"base":"pico_wiretft_angulo","set":{}}', 0, "perfil válido"),
     ('{"v":1,"base":"pico_wiretft_angulo","set":{"ui":"original"}}', 0, "perfil válido"),
