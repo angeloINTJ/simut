@@ -43,10 +43,12 @@ Read the firmware version back from `/api/perms` (`version`) — or, from this b
 
 ## What survives, what doesn't
 
-A config snapshot carries **Wi-Fi credentials, users and sensor slots** across the update. The image is received into the flash area of the LittleFS filesystem, so the rest of it — **history, language packs, calibration** — is lost once the stage starts writing, also when the upload is cut or the image refused (MANUAL chapter 17, "O que sobrevive e o que se perde"). Take a backup first (web file manager → **Backup**) and restore it afterwards.
+On the Pico W, a config snapshot carries **Wi-Fi credentials, users and sensor slots** across the update. The image is received into the flash area of the LittleFS filesystem, so the rest of it — **history, language packs, calibration** — is lost once the stage starts writing, also when the upload is cut or the image refused (MANUAL chapter 17, "O que sobrevive e o que se perde"). Take a backup first (web file manager → **Backup**) and restore it afterwards. On the Pico 2 W the image goes into the other slot and the filesystem is not touched: the configuration, the history, the language packs and the calibration stay, with no snapshot and nothing to restore, and a backup is only a precaution (MANUAL [Rollback](MANUAL.md#rollback); chapter 26, "Atualização de firmware pela API").
 
-Without a pack in `/lang` the interface falls back to English, which is a real
-outcome of a normal upgrade and not a fault. Since v2.6.0-beta the `.lng` files
+On the Pico W, without a pack in `/lang` the interface falls back to English,
+which is a real outcome of a normal upgrade and not a fault. On the Pico 2 W the
+pack stays, and the labels an older pack lacks read in English until the pack of
+the new release replaces it. Since v2.6.0-beta the `.lng` files
 ship as **release assets** beside the images, so the pair always matches the
 firmware: upload one on the Files page or with `POST /api/upload` (never
 `uploadfs` — it wipes `/lang` and `/history` with it) and reboot. A pack is read
