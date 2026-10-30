@@ -5,7 +5,7 @@ The authoritative OTA documentation lives in [docs/MANUAL.md](MANUAL.md), sectio
 ## Requirements
 
 - Device running **v1.6.2-beta or newer**. Every earlier build shipped a defective applier that reported success without installing anything (see MANUAL §12 "Read this first"); older devices must be flashed over USB once.
-- The `simut_vX.Y.Z.bin` from the GitHub release page — **not** the `.uf2` (that one is for USB/BOOTSEL flashing). It is signed: a device running a build with signed OTA stages nothing else (`"v":8` to `"v":12`, [analysis/OTA_ASSINADA.md](analysis/OTA_ASSINADA.md)). A local build reaches a field device by USB only; the bench rig takes it signed with the bench key (`tools/ota_test.py` does that).
+- Your board's `simut_vX.Y.Z_<image>.bin` from the GitHub release page (`release`, `alpha` or `air` on the Pico W, `releasetwo` on the Pico 2 W; `tools/release_manifest.py` names them) — **not** the `.uf2` (that one is for USB/BOOTSEL flashing). It is signed: a device running a build with signed OTA stages nothing else (`"v":8` to `"v":12`, [analysis/OTA_ASSINADA.md](analysis/OTA_ASSINADA.md)). A local build reaches a field device by USB only; the bench rig takes it signed with the bench key (`tools/ota_test.py` does that).
 - An admin session on the device's web server.
 
 ## Steps
@@ -23,7 +23,7 @@ curl -s -c cookies.txt http://<device-ip>/api/login \
 
 ```bash
 curl -s -b cookies.txt \
-     -F "file=@simut_vX.Y.Z.bin" \
+     -F "file=@simut_vX.Y.Z_release.bin" \
      "http://<device-ip>/api/restore?op=stage&commit=1"
 ```
 
@@ -39,7 +39,7 @@ Answers **202**, about 2 s later — the signature is checked again on what the 
 
 ### 4. Verify
 
-Read the firmware version back from `/api/perms` (`version`) — or, from this branch on, from `/api/status` (`sys.ver`, with `sys.env` naming the variant) — or from the display. **Never infer success from timing or HTTP codes alone** — the only proof of an installed update is the new version reporting itself.
+Read the firmware version back from `/api/perms` (`version`) — or, from this branch on, from `/api/status` (`sys.ver`, with `sys.env` naming the variant) — or from the display. **Never infer success from timing or HTTP codes alone** — the only proof of an installed update is the new version reporting itself. On the Pico 2 W the new image boots on trial: it is kept once `/api/status` reports `sys.trial` back to `0`, about a minute after the boot, and a restart before that brings the previous image back (MANUAL chapter 26, "Atualização de firmware pela API").
 
 ## What survives, what doesn't
 
