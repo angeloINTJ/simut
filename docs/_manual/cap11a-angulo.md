@@ -133,7 +133,7 @@ Tocar no cartão que pisca abre a [tela de alarme](#cap-11a-alarme) do sensor, e
 
 ### O aviso de web ocupada {#cap-11a-web-ocupada}
 
-Algumas operações da interface web leem a memória por vários segundos: os gráficos do histórico, a exportação do histórico em CSV, a leitura e a exportação do log de eventos. Enquanto uma delas corre, um cartão de 52 px cobre o pé do cartão de baixo, com o nome da conta e a frase **está lendo os registros pela web.**, e embaixo **Aguarde para tocar na tela.** (*Wait before touching the screen.*). O nome do sensor e o selo de situação, acima dele, e a barra de botões continuam à vista. Nada é gravado: o cartão só aparece enquanto a web lê. O texto segue o idioma do painel. Os controles continuam desenhados, mas não respondem: o painel recusa os toques na tela inicial até a web terminar. O nome da conta é cortado com `…` quando a frase não cabe.
+Algumas operações da interface web leem a memória por vários segundos: os gráficos do histórico, a exportação do histórico em CSV, a leitura e a exportação do log de eventos. Enquanto uma delas corre, um cartão de 52 px cobre o pé do cartão de baixo, com o nome da conta e a frase **lê registros pela web.** (*reads records on the web.*), e embaixo **Aguarde para tocar na tela.** (*Wait before touching the screen.*). O nome do sensor e o selo de situação, acima dele, e a barra de botões continuam à vista. Nada é gravado: o cartão só aparece enquanto a web lê. O texto segue o idioma do painel. Os controles continuam desenhados, mas não respondem: o painel recusa os toques na tela inicial até a web terminar. O nome da conta é cortado com `…` quando a frase não cabe.
 
 ### Claro e escuro {#cap-11a-modo}
 
