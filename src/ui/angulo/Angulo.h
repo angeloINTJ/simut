@@ -14,9 +14,9 @@
 // primitive is normalized the way the renderer's Surface normalizes it before
 // Adafruit_GFX draws it (Pintor).
 //
-// Built only by the Ângulo UI driver (transitional, bench image
-// pico_wiretft_angulo) and the host harness; no product image compiles
-// src/ui/angulo/.
+// Built only by the Ângulo UI driver (`ui = "angulo"` in the manifest: pico2_w_release
+// since 2026-10-30, S10c C3, and the bench image pico_wiretft_angulo) and the host
+// harness.
 
 #include <stddef.h>
 #include <stdint.h>

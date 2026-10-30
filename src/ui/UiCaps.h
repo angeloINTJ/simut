@@ -8,11 +8,11 @@
  * names a [ui.<id>], and an image has that driver and no other.
  *
  *   IDENTITY  one macro per driver, and exactly one is 1.
- *     SIMUT_UI_ANGULO     the Angulo panel, a study that is not approved for
- *                         products. The manifest passes -DSIMUT_UI_ANGULO=1
- *                         (`ui = "angulo"`); the original passes nothing.
- *     SIMUT_UI_ORIGINAL   the panel every release ships. The default: an image that
- *                         names no UI driver has it. Derived below as "not Angulo".
+ *     SIMUT_UI_ANGULO     the Angulo panel: the driver of pico2_w_release since
+ *                         2026-10-30 (S10c C3) and of pico_wiretft_angulo. The manifest
+ *                         passes -DSIMUT_UI_ANGULO=1 (`ui = "angulo"`); the original passes nothing.
+ *     SIMUT_UI_ORIGINAL   the panel of the Pico W release, and of pico2_w_original.
+ *                         The default: an image that names no UI driver has it. Derived below as "not Angulo".
  *
  *   CAPABILITY  what the driver can do, derived from the identity. Every file that
  *               needs to know asks the capability, not the driver, so that a third
@@ -65,9 +65,9 @@
 #endif
 
 #ifndef SIMUT_UI_ANGULO
-#define SIMUT_UI_ANGULO 0        // 1 = the Angulo panel, a study (the manifest's `ui = "angulo"`)
+#define SIMUT_UI_ANGULO 0        // 1 = the Angulo panel, the driver of pico2_w_release since 2026-10-30 (S10c C3) and of pico_wiretft_angulo (the manifest's `ui = "angulo"`)
 #endif
-#define SIMUT_UI_ORIGINAL (!SIMUT_UI_ANGULO)   // the default: the panel every release ships, unless another driver is named
+#define SIMUT_UI_ORIGINAL (!SIMUT_UI_ANGULO)   // the default: the panel of the Pico W release, and of pico2_w_original, unless another driver is named
 
 // ORIGINAL is the negation of ANGULO, so the two add up to 1 for any 0 or 1 and to
 // something else for -DSIMUT_UI_ANGULO=2, a value that would test true yet is not a

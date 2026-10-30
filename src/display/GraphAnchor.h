@@ -3,7 +3,7 @@
  * @brief Where the chart's window ends, which has no hardware in it: the place a run of the arrows' taps leaves it, the window a calendar day sets,
  *        and whether opening the chart from a screen keeps the window the last visit left. No Arduino: the host tests run it (test/test_validators)
  *        and Core 0 calls it (AppManager_Events.cpp, in the Ângulo's image only, under SIMUT_UI_ANGULO), so what the tests pin is the code the panel
- *        runs. The products keep their old lines: docs/analysis/UI_DRIVERS.md, "Product defects fixed for the Ângulo's bench image".
+ *        runs. The images with the original panel keep their old lines: docs/analysis/UI_DRIVERS.md, "Product defects fixed for the Ângulo's bench image".
  */
 #pragma once
 

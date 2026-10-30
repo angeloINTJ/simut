@@ -1,6 +1,6 @@
 /**
  * @file UiOriginal.h
- * @brief The original UI driver's hooks, the panel every release ships: their definitions, as inline members
+ * @brief The original UI driver's hooks, the panel of the Pico W release and of pico2_w_original: their definitions, as inline members
  *        of DisplayManager. With UI_HOOK (src/ui/UiDriver.h) they are always_inline, so the code of a hook is
  *        the code it replaced. Included by ui/UiDriverHooks.h, last, from each translation unit that calls
  *        a hook or a core tick.
