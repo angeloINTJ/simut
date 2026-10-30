@@ -56,8 +56,9 @@ exists but is off by default, and the device is fully usable having never been
 given one.
 
 **What it is not.** It is not certified for regulated storage, it has no
-redundant sensing, and it holds no second firmware slot to fall back on. The
-sections below are explicit about each of those limits where they matter.
+redundant sensing, and the Pico W holds no second firmware slot to fall back on
+(the Pico 2 W has two: see [Rollback](#rollback)). The sections below are
+explicit about each of those limits where they matter.
 
 ### The three builds
 
@@ -965,12 +966,18 @@ protection holds for updates made *from* v2.8.0 on. Updating from v2.7.4 or
 older, use a web port your network does not cut on long transfers, and keep the
 backup.
 
-### There is no rollback
+### Rollback
 
-The application slot is single. The image is validated before it is committed
-and verified again on the next boot, but if a bad image boots badly there is no
-second slot to fall back to — recovery is the BOOTSEL button and a USB cable.
-See [RECOVERY.md](RECOVERY.md).
+On the Pico W the application slot is single. The image is validated before it
+is committed and verified again on the next boot, but if a bad image boots badly
+there is no second slot to fall back to — recovery is the BOOTSEL button and a
+USB cable. See [RECOVERY.md](RECOVERY.md).
+
+The Pico 2 W (`releasetwo`, since v2.11.0) has two program slots. An update goes
+into the slot the board did not boot from and boots on trial. The new image
+keeps itself once it has run healthy for a minute; a reset, a power cut or the
+watchdog before that, or five minutes without that minute, bring back the image
+it replaced, which logs code 613 and reports it in `sys.reverted`.
 
 ### The procedure
 
