@@ -9,7 +9,7 @@ O aparelho manda uma cópia de cada evento do log de eventos ([capítulo 16](#ca
 - **Não é telemetria.** O syslog leva eventos, como uma entrada, uma falha de rede ou uma mudança de configuração. As medições saem pela telemetria ([capítulo 21](#cap-21)).
 - **Não passa pelo filtro de rotina.** O log de eventos só grava um evento de rotina quando o estado muda ([capítulo 16](#cap-16-transicao)). O syslog manda todas as ocorrências: com o nível **Info**, cada envio de telemetria vira uma linha.
 - **Leva o texto do evento.** O registro na flash guarda só o código e o contexto. A linha do syslog traz também a descrição e o detalhe, como o nome da conta numa falha de entrada.
-- **Existe nas três imagens.** No Air, só com o aparelho acordado ([No SIMUT Air](#cap-25-air)).
+- **Existe em todas as imagens.** No Air, só com o aparelho acordado ([No SIMUT Air](#cap-25-air)).
 
 ::: {.figura #fig-25-caminho tipo="diagrama" arquivo="25-caminho.png" captura="Da esquerda para a direita: 'evento (qualquer núcleo)' → 'nível ≥ Nível Mínimo?' → 'fila de 8 linhas na RAM (a mais antiga sai quando enche)' → 'laço principal, núcleo 0: até 8 linhas por passada, só com Wi-Fi conectado e fora do AP' → 'UDP para 192.0.2.10:514' → 'coletor (rsyslog, syslog-ng)'. Marcas vermelhas de perda: 'antes do encaminhamento subir, no boot', 'fila cheia', 'envio falhou', 'datagrama perdido na rede', 'travamento ou falta de energia'. Uma seta lateral: 'reinício pedido (quase todos): esvazia a fila antes de reiniciar'. Embaixo, em paralelo, 'log de eventos na flash (filtro de rotina, só código e contexto)'."}
 Legenda: o caminho de uma linha de syslog e os pontos onde ela pode se perder. O log de eventos local segue por outro caminho e não depende do syslog.

@@ -59,15 +59,17 @@ existe, mas vem desligada, e o dispositivo é plenamente utilizável sem que
 nunca lhe tenham dado um.
 
 **O que ele não é.** Não é certificado para armazenamento regulado, não tem
-sensoriamento redundante e não guarda um segundo slot de firmware para o qual
-recuar. As seções abaixo são explícitas sobre cada um desses limites onde eles
-importam.
+sensoriamento redundante, e o Pico W não guarda um segundo slot de firmware
+para o qual recuar (o Pico 2 W tem dois: veja [Rollback](#rollback)). As
+seções abaixo são explícitas sobre cada um desses limites onde eles importam.
 
 ### Os três builds
 
-A mesma árvore de fontes produz três imagens. Elas compartilham o modelo de
-sensores, o formato do histórico, a interface web e as permissões; o que muda é
-o que está ligado e quanto tempo o aparelho fica acordado.
+A mesma árvore de fontes produz três imagens para o Pico W e, desde a v2.11.0,
+a release de novo para o Pico 2 W (`pico2_w_release`, publicada como
+`releasetwo`). Elas compartilham o modelo de sensores, o formato do histórico, a
+interface web e as permissões; o que muda é o que está ligado e quanto tempo o
+aparelho fica acordado.
 
 | Build | Display | Acordado | Para quê |
 |---|---|---|---|
@@ -1002,12 +1004,19 @@ atualizações feitas *a partir* da v2.8.0. Ao atualizar da v2.7.4 ou anterior,
 use uma porta web que a sua rede não corte em transferências longas, e guarde o
 backup.
 
-### Não existe rollback
+### Rollback
 
-O slot de aplicação é único. A imagem é validada antes de ser gravada e
-verificada de novo no boot seguinte, mas se uma imagem ruim bootar mal não há
+No Pico W o slot de aplicação é único. A imagem é validada antes de ser gravada
+e verificada de novo no boot seguinte, mas se uma imagem ruim bootar mal não há
 um segundo slot para o qual recuar — a recuperação é o botão BOOTSEL e um cabo
 USB. Veja [RECOVERY.md](RECOVERY.md).
+
+O Pico 2 W (`releasetwo`, desde a v2.11.0) tem dois slots de programa. A
+atualização vai para o slot de onde ele não deu boot e entra em teste. A imagem
+nova se mantém depois de rodar saudável por um minuto; um reset, uma queda de
+energia ou o watchdog antes disso, ou cinco minutos sem esse minuto, trazem de
+volta a imagem que ela substituiu, que registra o código 613 e o informa em
+`sys.reverted`.
 
 ### O procedimento
 
