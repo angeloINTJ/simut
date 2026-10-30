@@ -131,12 +131,17 @@ void desenharStatus( Pintor &p, const VmStatus &s ) {
   int16_t x = 320 - PAD - 16;
   IconeNome rede = IconeNome::NENHUM;
   uint16_t corRede = T.tinta2;
+  // The network, as the glue says it (uaVmStatus( )): a cable, in the danger colour without link; or a Wi-Fi signal in the old bar's four levels with Lucide's own icons (wifi, wifi-high, wifi-low and
+  // wifi-zero for four to one bars), the one-bar icon in the alert colour (the weak link on which the device holds telemetry), and wifi-off for no signal in the bar's own neutral ink: a link that is
+  // down is not an error, and colour is for what calls attention (ANGULO.md, rule 1). tools/tft_ui/test_rede.py draws each state and holds the icon and its ink.
   switch ( s.rede ) {
     case Rede::CABO: rede = IconeNome::ETHERNET_PORT; break;
     case Rede::CABO_SEM_LINK: rede = IconeNome::ETHERNET_PORT; corRede = T.perigo; break;
-    case Rede::WIFI: rede = IconeNome::WIFI; break;
-    case Rede::WIFI_FRACO: rede = IconeNome::WIFI; corRede = T.alerta; break;
-    case Rede::WIFI_SEM: rede = IconeNome::WIFI_OFF; corRede = T.perigo; break;
+    case Rede::WIFI_4: rede = IconeNome::WIFI; break;
+    case Rede::WIFI_3: rede = IconeNome::WIFI_HIGH; break;
+    case Rede::WIFI_2: rede = IconeNome::WIFI_LOW; break;
+    case Rede::WIFI_1: rede = IconeNome::WIFI_ZERO; corRede = T.alerta; break;
+    case Rede::WIFI_SEM: rede = IconeNome::WIFI_OFF; break;
     case Rede::NENHUMA: break;
   }
   const int16_t xRede = x;

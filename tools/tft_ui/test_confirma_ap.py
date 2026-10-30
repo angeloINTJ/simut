@@ -5,7 +5,7 @@ Before D7 the mode had no frame in the Angulo: uaMontarBase( ) answered false, u
 the third user of the confirmation dialog (VmDialogo), after the mute and the account-delete confirmations, in two members of DisplayManager (uaMontarConfirmaAp( ) and
 uaToqueConfirmaAp( )) defined in ONE `#if SIMUT_NET_WIFI` block of DisplayManager_UiA.cpp, with stubs in its #else for the Wire (the wired Angulo image cannot reach the mode). This holds it:
 
-  1. The sources: the MODE_CONFIRM_AP case in both dispatchers, one `#if SIMUT_NET_WIFI` (with its #else) in the glue file and nothing else conditional on the network class, both members
+  1. The sources: the MODE_CONFIRM_AP case in both dispatchers, one `#if SIMUT_NET_WIFI` (with its #else) in the glue file and no other `#if` on the network class (uaVmStatus( ) reads the class as an `if constexpr`, which check_feature_sprawl.py counts), both members
      defined only inside it, both declared in Members.h.
   2. The glue RUN (host/test_confirma_ap_main.cpp): the pieces above cut out of the glue verbatim, without comments, and compiled with the real kit against a stand-in, once as a Wi-Fi image
      (-DSIMUT_NET_WIFI=1) and once as the wired one (=0): the frame (texts, destructive weight, two targets, the body in at most four lines and none cut) and the touch (Cancel: the
@@ -195,7 +195,7 @@ def pecas_do_glue():
     se_rede = re.compile(r'^\s*#\s*(?:if|elif)\b[^\n]*SIMUT_NET_')
     condicionais = [ln for ln in limpo.split('\n') if se_rede.match(ln)]
     confere(len(condicionais) == 1 and re.match(r'^\s*#\s*if\s+SIMUT_NET_WIFI\s*$', condicionais[0]),
-            f'DisplayManager_UiA.cpp must hold exactly one conditional on the network class, `#if SIMUT_NET_WIFI` (the sprawl watermark 364 -> 365): it holds {len(condicionais)}')
+            f'DisplayManager_UiA.cpp must hold exactly one `#if` on the network class, `#if SIMUT_NET_WIFI` (the sprawl watermark 364 -> 365): it holds {len(condicionais)}')
     blocos = blocos_se(limpo, r'^\s*#\s*if\s+SIMUT_NET_WIFI\s*$')
     if confere(len(blocos) == 1 and re.search(r'^\s*#\s*else\b', blocos[0][1], re.M), 'the `#if SIMUT_NET_WIFI` block with an #else (the wired stubs) was not found exactly once'):
         pecas['membros.inc'] = blocos[0][1]

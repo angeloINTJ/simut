@@ -264,6 +264,11 @@ web_omit = "ui_angulo"
 # iguais, 0 mudaram, dados so-leitura e textos da flash iguais) e nem os dois simbolos nem os tres textos novos estao nele (nm e strings: 0); o pico2_w_angulo cresce 400 B (flash usado
 # 1035592 -> 1035992 B, .bin 1035616 -> 1036016 B; .text +240 B e .rodata +160 B, .data e .bss iguais), com os dois membros e os tres textos so nele; o V-ELF dele traz as duas funcoes
 # novas, a uaMontarBase (241 -> 242 instrucoes) e a uaToqueBase (97 -> 98) mudadas e onze funcoes de biblioteca cuja primeira diferenca e uma palavra de texto no fim da funcao.
+# O DisplayManager_UiA.cpp ganhou em 2026-10-30 (S10c, o glifo de rede da barra de status) o seu segundo desvio da rede: a uaVmStatus( ) escolhe o estado do icone de rede (o cabo, ou os quatro niveis do Wi-Fi e o sem
+# sinal, como a barra do painel original) por `if constexpr ( SIMUT_NET_WIFI )`, no corpo da funcao e nao por um #if, para que uma macro nao definida seja erro de compilacao e nao um 0 calado. O portao nao enxergava
+# essa linha (so contava `#if`): a tools/check_feature_sprawl.py passou a contar `if constexpr ( SIMUT_X )` como sitio, com o primeiro teste do portao (tools/test_feature_sprawl.py: vermelho antes, cinco mutantes
+# dele) e o emaranhamento subiu 1 (368 -> 369: SIMUT_NET_WIFI no DisplayManager_UiA.cpp, de 1 para 2), um desvio registrado como o do D7, pedido pela sessao principal em 2026-10-30 (a revisao do fix do Wi-Fi) e a
+# confirmar pelo mantenedor no merge: a [net_class.wifi] segue sem lista `units` por onde o codigo saisse da imagem cabeada, e as duas imagens do Angulo tem a uaVmStatus( ).
 # O .bin do Angulo cabeado difere do do C8 em 579 bytes de 826736, e o veneer_proof.py (exit 0) os prova so da ordem dos veneers do ligador e dos operandos dos desvios que os chamam.
 # A DisplayManager_Calibration.cpp entrou em 2026-10-24 (S10c, D3): as duas entradas de modo das telas de calibracao, showTouchCalibration( ) e
 # showSettingsDisplayOffset( ), que o core0Yield( ), o handleResetTouchCal e a CLI chamam, so guardavam do original dois restos: as sete memorias de

@@ -197,20 +197,28 @@ void DisplayManager::uaVmStatus( ua::VmStatus &s ) {
     s.aviso = ua::Aviso::WEB;
     ua::copiar( s.avisoNome, _webNotifyUser, sizeof s.avisoNome );
   }
-  /* The network glyph, from the level Core 0 publishes (NetworkManager::getRssi( ) through setSystemStatus( )): the radio's dBm while the link is up, -100 when it is not (the shared
-   * state starts there too), and on a cable a stand-in above -100 while the link is up (NetworkManager_Wired.cpp). The old top bar reads the same number (DisplayManager::drawTopBar( ),
-   * DisplayManager_Dashboard.cpp), and this says the same things with the kit's icons:
+  /* The network glyph, from the level Core 0 publishes (NetworkManager::getRssi( ) through setSystemStatus( )): the radio's dBm while the link is up, -100 when it is not (the shared state starts
+   * there too, and so does the setup access point, which is not a station link), and on a cable a stand-in above -100 while the link is up (NetworkManager_Wired.cpp). The old top bar reads the same
+   * number (DisplayManager::drawTopBar( ), DisplayManager_Dashboard.cpp), and this says the same things with Lucide's own icons:
    *  - a cable image: above -100 the cable is up, at -100 or less it has no link (the old bar's green cable and its grey one);
-   *  - a Wi-Fi image: at -100 or less no signal (the old bar draws no bar), above it a link; the old bar's lowest level, one bar of four, at -75 or less (the `else` after its
-   *    `> -75`), is the weak one, and its two to four bars (above -75: the -65 and -55 steps) are one state here, for the icon has no levels.
-   * The old bar has no glyph for the setup access point (apMode is read only by the alphanumeric display) and none for "no network", so Rede::NENHUMA is never answered. The image's
-   * network is read as a value, SIMUT_NET_WIFI in a constant expression, and not by an `#if`: a macro that is not defined does not compile here and is not a silent 0, and the file's
-   * one `#if` on the network class (the setup-network confirmation, below) stays its only one. tools/tft_ui/test_rede.py reads the ladder out of the old bar and holds this to it. */
+   *  - a Wi-Fi image: the old bar's four levels at the old bar's own thresholds, one bar at -75 or less, two at -65 or less, three at -55 or less, four above (its ladder under `> -100`), and no signal
+   *    at -100 or less (it draws no bar). tools/tft_ui/test_rede.py reads that ladder out of the old bar and holds these to it. The icons are wifi-zero, wifi-low, wifi-high and wifi, and wifi-off
+   *    for no signal (telas/Telas.cpp). The one-bar icon keeps the alert colour: RSSI_MIN_THRESHOLD (-78, SystemDefs_Network.h) falls inside that level, and from there down the device holds telemetry
+   *    and the heavy sends. No signal is drawn in the bar's neutral ink and not in the danger colour: a link that is down is not an error (ANGULO.md, rule 1: colour is for what calls attention).
+   * The old bar has no glyph for the setup access point (apMode is read only by the alphanumeric display) and none for "no network", so Rede::NENHUMA is never answered. The image's network is read
+   * as a value, SIMUT_NET_WIFI in a constant expression, and not by an `#if`: a macro that is not defined does not compile here and is not a silent 0. It is still a site for check_feature_sprawl.py,
+   * which counts an `if constexpr` of a feature macro as it counts an `#if` (feature_sprawl.json: this file holds two of SIMUT_NET_WIFI, this one and the setup-network confirmation's, below). */
   constexpr int SEM_SINAL = -100;
-  constexpr int UMA_BARRA = -75;
+  constexpr int ATE_1_BARRA = -75;
+  constexpr int ATE_2_BARRAS = -65;
+  constexpr int ATE_3_BARRAS = -55;
   const int nivel = _lastRenderedState.wifiRssi;
   if constexpr ( SIMUT_NET_WIFI )
-    s.rede = nivel > SEM_SINAL ? ( nivel > UMA_BARRA ? ua::Rede::WIFI : ua::Rede::WIFI_FRACO ) : ua::Rede::WIFI_SEM;
+    s.rede = nivel <= SEM_SINAL ? ua::Rede::WIFI_SEM
+           : nivel <= ATE_1_BARRA ? ua::Rede::WIFI_1
+           : nivel <= ATE_2_BARRAS ? ua::Rede::WIFI_2
+           : nivel <= ATE_3_BARRAS ? ua::Rede::WIFI_3
+           : ua::Rede::WIFI_4;
   else
     s.rede = nivel > SEM_SINAL ? ua::Rede::CABO : ua::Rede::CABO_SEM_LINK;
   s.pendentes = _lastRenderedState.pendingPkts;

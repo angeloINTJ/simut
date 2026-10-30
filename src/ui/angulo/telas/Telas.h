@@ -116,7 +116,8 @@ void copiar( char *dst, const char *src, int cap );
 int quebrar( const char *texto, Fonte f, int16_t largura, char *linhas, int cap, int max );
 
 // The status bar every panel screen shares (dashboard, alarm action).
-enum class Rede : uint8_t { NENHUMA, CABO, CABO_SEM_LINK, WIFI, WIFI_FRACO, WIFI_SEM };
+// A cable image has two states; a Wi-Fi image has the original panel's four levels (the bars of DisplayManager::drawTopBar( )) and no signal.
+enum class Rede : uint8_t { NENHUMA, CABO, CABO_SEM_LINK, WIFI_SEM, WIFI_1, WIFI_2, WIFI_3, WIFI_4 };
 // The badge that takes the clock's place for a few seconds. The view model says what it is about and the bar
 // writes the words (desenharStatus( )): the text has to be cut to the room the brand and the icons leave, and
 // only the bar knows how much that is.

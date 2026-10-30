@@ -1,24 +1,27 @@
 #!/usr/bin/env python3
 """test_rede.py -- the network glyph of the Angulo's status bar (DisplayManager::uaVmStatus( )), on the host (S10c, the Wi-Fi status bar).
 
-Until this fix uaVmStatus( ) answered ua::Rede::CABO or CABO_SEM_LINK on every image, so the Pico 2 W's release (Wi-Fi, the Angulo since S10c C3) drew a cable. The original panel decides the glyph of
-its top bar (DisplayManager::drawTopBar( ), src/DisplayManager_Dashboard.cpp) from the same number, the level NetworkManager::getRssi( ) gives: on a cable image the cable, green above -100 and grey at or
-below; on a Wi-Fi image four bars, none at -100 or less, one up to -75, two up to -65, three up to -55, four above. The Angulo's icon has three Wi-Fi states and no levels: no signal (WIFI_SEM), weak
-(WIFI_FRACO: the old bar's lowest level, one bar) and good (WIFI: two to four bars). This holds it:
+The original panel decides the glyph of its top bar (DisplayManager::drawTopBar( ), src/DisplayManager_Dashboard.cpp) from the level NetworkManager::getRssi( ) gives: on a cable image the cable, green above -100 and
+grey at or below; on a Wi-Fi image four bars, none at -100 or less, one up to -75, two up to -65, three up to -55, four above. The Angulo says the same with Lucide's own icons (the maintainer's decision "levels like the
+original", 2026-10-30): on a Wi-Fi image wifi-zero, wifi-low, wifi-high and wifi for one to four bars (the one-bar icon in the alert colour: from -78 down the device holds telemetry, RSSI_MIN_THRESHOLD) and wifi-off in
+the bar's neutral grey for no signal (not an error, so not the danger colour); on a cable image ethernet-port, in the danger colour without link, as it was. Until the fix of 2026-10-30 uaVmStatus( ) answered
+ua::Rede::CABO or CABO_SEM_LINK on every image, so the Pico 2 W's release (Wi-Fi, the Angulo since S10c C3) drew a cable. This holds it:
 
   1. The original's thresholds, READ from its source and not copied: the cable's `> -100` and the ladder -100 / -55 / -65 / -75 of the Wi-Fi image's `barras`. If the ladder moves or changes shape
      this fails and says so, and the glue's constants and the named points of host/test_rede_main.cpp are to be read again.
   2. The glue RUN (host/test_rede_main.cpp): uaVmStatus( ) cut out of the glue verbatim, without comments, and compiled with the real kit against a stand-in, once as a Wi-Fi image (-DSIMUT_NET_WIFI=1) and
-     once as the cable's (=0): every level from -200 to +20 dBm and the extremes of int against the old ladder, the named points (strong, each threshold and the step beside it, weak, disconnected),
-     the fields the function does not own, and the frames: the status bar drawn by the real kit from the view model the glue made (no icon missing, the alert ink only in the weak frame, the danger ink only in
-     the disconnected one, a different picture for each state).
-  3. The mutants: the cut piece edited one statement at a time, each of which the model must fail (the old line back on a Wi-Fi image among them). A mutant that does not compile, or an anchor not found
-     exactly once, fails this script: a mutant must be killed by a check and not by the compiler.
+     once as the cable's (=0): every level from -200 to +20 dBm and the extremes of int against the old ladder, the named points (strong, each threshold and the step beside it, weak, disconnected), the fields
+     the function does not own, and the frames: the status bar drawn by the real kit from the view model the glue made. What the network icon adds to the bar must be the expected Lucide icon, pixel for pixel
+     (drawn alone by the kit), all in the expected ink; no icon missing; a different picture for each state.
+  3. The mutants of the cut piece: the glue edited one statement at a time (the three-state ladder of the first version, every threshold one dB either side, inclusive for exclusive, a level drawn as another, no
+     signal answering NENHUMA, the level not read, the old line back on a Wi-Fi image), each of which the model must fail. And the mutants of the kit: a copy of Telas.cpp with one change (no signal in the danger
+     colour or with the one-bar icon, one bar without the alert colour, a level with another level's icon, the cable without link not in the danger colour), each of which the frames must fail. A mutant that does not
+     compile, or an anchor not found exactly once, fails this script: a mutant must be killed by a check and not by the compiler.
   4. One place decides the glyph: every assignment to a `.rede` under src/ui/angulo is in uaVmStatus( ).
 
 Usage: python3 tools/tft_ui/test_rede.py [--out DIR] [--glue FILE]   exit 0 when all hold, 1 when not, 2 when it cannot build (no Adafruit GFX 1.12.6 in .pio/libdeps: run pio once).
   --out DIR   keeps the frames there: a PNG per frame and a contact sheet (_barras.png).
-  --glue FILE reads uaVmStatus( ) from FILE instead of src/ui/angulo/DisplayManager_UiA.cpp (the controls: the glue of the commit before, or the old line put back); the source guard is then skipped.
+  --glue FILE reads uaVmStatus( ) from FILE instead of src/ui/angulo/DisplayManager_UiA.cpp (the controls: the glue of the commit before, the first version's three states put back); the source guard is then skipped.
 """
 import argparse
 import concurrent.futures
@@ -35,6 +38,7 @@ from host_ui import find_gfx  # noqa: E402  (the GFX lookup the host tools share
 
 UA = ROOT / 'src' / 'ui' / 'angulo'
 GLUE = UA / 'DisplayManager_UiA.cpp'
+TELAS = UA / 'telas' / 'Telas.cpp'
 ORIGINAL = ROOT / 'src' / 'DisplayManager_Dashboard.cpp'
 MAIN = HERE / 'host' / 'test_rede_main.cpp'
 SHIM = HERE / 'host' / 'shim'
@@ -44,24 +48,45 @@ PECA = 'uaVmStatus.inc'
 MUTANTES = [
     ('the cable states back on a Wi-Fi image (the old line)', PECA, 'if constexpr ( SIMUT_NET_WIFI )', 'if constexpr ( 0 )', 1),
     ('the radio\'s states on a cable image', PECA, 'if constexpr ( SIMUT_NET_WIFI )', 'if constexpr ( 1 )', 0),
-    ('weak up to -65 (two bars called weak)', PECA, 'UMA_BARRA = -75;', 'UMA_BARRA = -65;', 1),
-    ('weak only from -85', PECA, 'UMA_BARRA = -75;', 'UMA_BARRA = -85;', 1),
-    ('the weak threshold inclusive', PECA, 'nivel > UMA_BARRA', 'nivel >= UMA_BARRA', 1),
+    ('one bar only from -74', PECA, 'ATE_1_BARRA = -75;', 'ATE_1_BARRA = -74;', 1),
+    ('one bar only to -76', PECA, 'ATE_1_BARRA = -75;', 'ATE_1_BARRA = -76;', 1),
+    ('two bars only to -64', PECA, 'ATE_2_BARRAS = -65;', 'ATE_2_BARRAS = -64;', 1),
+    ('two bars only to -66', PECA, 'ATE_2_BARRAS = -65;', 'ATE_2_BARRAS = -66;', 1),
+    ('three bars only to -54', PECA, 'ATE_3_BARRAS = -55;', 'ATE_3_BARRAS = -54;', 1),
+    ('three bars only to -56', PECA, 'ATE_3_BARRAS = -55;', 'ATE_3_BARRAS = -56;', 1),
     ('no link from -99 (Wi-Fi image)', PECA, 'SEM_SINAL = -100;', 'SEM_SINAL = -99;', 1),
     ('no link only below -101 (cable image)', PECA, 'SEM_SINAL = -100;', 'SEM_SINAL = -101;', 0),
-    ('the no-link threshold inclusive (Wi-Fi image)', PECA, 'nivel > SEM_SINAL ? ( nivel', 'nivel >= SEM_SINAL ? ( nivel', 1),
+    ('the no-link threshold exclusive (Wi-Fi image)', PECA, 'nivel <= SEM_SINAL ? ua::Rede::WIFI_SEM', 'nivel < SEM_SINAL ? ua::Rede::WIFI_SEM', 1),
+    ('the one-bar threshold exclusive', PECA, 'nivel <= ATE_1_BARRA ?', 'nivel < ATE_1_BARRA ?', 1),
+    ('the two-bar threshold exclusive', PECA, 'nivel <= ATE_2_BARRAS ?', 'nivel < ATE_2_BARRAS ?', 1),
+    ('the three-bar threshold exclusive', PECA, 'nivel <= ATE_3_BARRAS ?', 'nivel < ATE_3_BARRAS ?', 1),
     ('the no-link threshold inclusive (cable image)', PECA, 'nivel > SEM_SINAL ? ua::Rede::CABO :', 'nivel >= SEM_SINAL ? ua::Rede::CABO :', 0),
-    ('weak and none swapped', PECA, 'ua::Rede::WIFI_FRACO ) : ua::Rede::WIFI_SEM;', 'ua::Rede::WIFI_SEM ) : ua::Rede::WIFI_FRACO;', 1),
-    ('the ladder inverted (good called weak)', PECA, 'ua::Rede::WIFI : ua::Rede::WIFI_FRACO )', 'ua::Rede::WIFI_FRACO : ua::Rede::WIFI )', 1),
-    ('no link answers NENHUMA (Wi-Fi image)', PECA, ': ua::Rede::WIFI_SEM;', ': ua::Rede::NENHUMA;', 1),
+    ('two bars drawn as three', PECA, 'ua::Rede::WIFI_2', 'ua::Rede::WIFI_3', 1),
+    ('three bars drawn as four', PECA, 'ua::Rede::WIFI_3', 'ua::Rede::WIFI_4', 1),
+    ('two bars drawn as four', PECA, 'ua::Rede::WIFI_2', 'ua::Rede::WIFI_4', 1),
+    ('one bar drawn as two', PECA, 'ua::Rede::WIFI_1', 'ua::Rede::WIFI_2', 1),
+    ('no signal drawn as one bar', PECA, 'nivel <= SEM_SINAL ? ua::Rede::WIFI_SEM', 'nivel <= SEM_SINAL ? ua::Rede::WIFI_1', 1),
+    ('no signal answers NENHUMA (Wi-Fi image)', PECA, 'ua::Rede::WIFI_SEM', 'ua::Rede::NENHUMA', 1),
     ('no link answers NENHUMA (cable image)', PECA, 'ua::Rede::CABO : ua::Rede::CABO_SEM_LINK;', 'ua::Rede::CABO : ua::Rede::NENHUMA;', 0),
     ('the cable states swapped', PECA, 'ua::Rede::CABO : ua::Rede::CABO_SEM_LINK;', 'ua::Rede::CABO_SEM_LINK : ua::Rede::CABO;', 0),
     ('the level not read', PECA, 'const int nivel = _lastRenderedState.wifiRssi;', 'const int nivel = -50;', 1),
     ('pendentes dropped', PECA, 's.pendentes = _lastRenderedState.pendingPkts;', 's.pendentes = 0;', 1),
 ]
 
+# (name, the statement of Telas.cpp, what replaces it, the build): the renderer's side of the same decision; the frames must fail each.
+KIT_MUTANTES = [
+    ('no signal in the danger colour', 'case Rede::WIFI_SEM: rede = IconeNome::WIFI_OFF; break;', 'case Rede::WIFI_SEM: rede = IconeNome::WIFI_OFF; corRede = T.perigo; break;', 1),
+    ('no signal with the one-bar icon', 'rede = IconeNome::WIFI_OFF;', 'rede = IconeNome::WIFI_ZERO;', 1),
+    ('one bar without the alert colour', 'rede = IconeNome::WIFI_ZERO; corRede = T.alerta; break;', 'rede = IconeNome::WIFI_ZERO; break;', 1),
+    ('three bars with the two-bar icon', 'rede = IconeNome::WIFI_HIGH;', 'rede = IconeNome::WIFI_LOW;', 1),
+    ('four bars with the three-bar icon', 'case Rede::WIFI_4: rede = IconeNome::WIFI;', 'case Rede::WIFI_4: rede = IconeNome::WIFI_HIGH;', 1),
+    ('two bars with the full icon', 'rede = IconeNome::WIFI_LOW;', 'rede = IconeNome::WIFI;', 1),
+    ('the cable without link not in the danger colour', 'rede = IconeNome::ETHERNET_PORT; corRede = T.perigo; break;', 'rede = IconeNome::ETHERNET_PORT; break;', 0),
+]
+
 CONTA = [0]
 FALHAS = []
+MODELO = [0, 0]   # the checks and the failures the C++ model counted, summed over its runs
 
 
 def confere(cond, msg):
@@ -221,11 +246,27 @@ def roda(tmp, nome, pecas, wifi, objs, inc, pasta=None):
     return r.returncode, r.stdout + r.stderr
 
 
+def mata(nome, f, rotulo):
+    """Judge one mutant's run: it must be killed by a check (exit 1), never by the compiler."""
+    rc, out = f.result()
+    if rc is None:
+        confere(False, f'{rotulo} "{nome}" does not compile (a mutant is killed by a check, not by the compiler): {out.strip().splitlines()[0][:160] if out.strip() else ""}')
+        return
+    confere(rc == 1, f'{rotulo} "{nome}" must fail the model (exit 1), and it exited {rc}')
+    if rc == 1:
+        print(f'  killed: {nome} (' + (out.strip().splitlines() or ['no output'])[0][:110] + ')')
+
+
 def modelo_e_mutantes(tmp, pecas, objs, inc, quadros):
     base_ok = True
     for wifi in (1, 0):
-        rc, out = roda(tmp, f'base{wifi}', pecas, wifi, objs, inc, quadros)
+        sub = quadros / ('wifi' if wifi else 'cabo')
+        sub.mkdir()
+        rc, out = roda(tmp, f'base{wifi}', pecas, wifi, objs, inc, sub)
         print(out.rstrip())
+        for m in re.finditer(r'(\d+) checks, (\d+) failed', out):
+            MODELO[0] += int(m.group(1))
+            MODELO[1] += int(m.group(2))
         if confere(rc == 0, f'the glue model, {"Wi-Fi" if wifi else "cable"} image, passes (exit {rc})'):
             continue
         base_ok = False
@@ -238,43 +279,54 @@ def modelo_e_mutantes(tmp, pecas, objs, inc, quadros):
             continue
         mut = dict(pecas)
         mut[peca] = pecas[peca].replace(antigo, novo)
-        trabalho.append((k, nome, mut, wifi))
+        trabalho.append((k, nome, mut, wifi, objs))
+    telas = TELAS.read_text(encoding='utf-8')
+    for k, (nome, antigo, novo, wifi) in enumerate(KIT_MUTANTES):
+        if not confere(telas.count(antigo) == 1, f'kit mutant "{nome}": its anchor `{antigo}` is not in Telas.cpp exactly once'):
+            continue
+        d = tmp / f'kitmut{k}'
+        d.mkdir()
+        (d / 'Telas.cpp').write_text(telas.replace(antigo, novo), encoding='utf-8')
+        rc, err = compila(d / 'Telas.cpp', d / 'Telas.o', inc, True)
+        if not confere(rc == 0, f'kit mutant "{nome}" does not compile: {err.strip().splitlines()[0][:160] if err.strip() else ""}'):
+            continue
+        trabalho.append((1000 + k, nome, pecas, wifi, [str(d / 'Telas.o') if o.endswith('telas_Telas.o') else o for o in objs]))
     with concurrent.futures.ThreadPoolExecutor(max_workers=4) as ex:
-        fs = [(nome, ex.submit(roda, tmp, f'mut{k}', mut, wifi, objs, inc)) for k, nome, mut, wifi in trabalho]
-        for nome, f in fs:
-            rc, out = f.result()
-            if rc is None:
-                confere(False, f'mutant "{nome}" does not compile (a mutant is killed by a check, not by the compiler): {out.strip().splitlines()[0][:160] if out.strip() else ""}')
-                continue
-            confere(rc == 1, f'mutant "{nome}" must fail the model (exit 1), and it exited {rc}')
-            if rc == 1:
-                print(f'  killed: {nome} (' + (out.strip().splitlines() or ['no output'])[0][:110] + ')')
+        fs = [(k, nome, ex.submit(roda, tmp, f'mut{k}', mut, wifi, mobjs, inc)) for k, nome, mut, wifi, mobjs in trabalho]
+        for k, nome, f in fs:
+            mata(nome, f, 'kit mutant' if k >= 1000 else 'mutant')
 
 
 # ---- the frames ----
 def png_dos_quadros(pasta, saida):
     from PIL import Image, ImageDraw
     saida.mkdir(parents=True, exist_ok=True)
-    ordem = ['forte', 'limite_bom', 'limite_fraco', 'fraco', 'sem', 'cabo', 'cabo_sem']
-    imgs = {}
-    for f in sorted(pasta.glob('*.565')):
-        v = memoryview(f.read_bytes()).cast('H')
-        px = bytearray()
-        for w in v:
-            r5, g6, b5 = (w >> 11) & 31, (w >> 5) & 63, w & 31
-            px += bytes(((r5 << 3) | (r5 >> 2), (g6 << 2) | (g6 >> 4), (b5 << 3) | (b5 >> 2)))
-        img = Image.frombytes('RGB', (320, 40), bytes(px))
-        img.save(saida / (f.stem + '.png'))
-        imgs[f.stem] = img
-    linhas = [n for n in ordem if f'{n}_escuro' in imgs]
+    imgs, linhas = {}, []
+    for sub in ('wifi', 'cabo'):
+        ordem = pasta / sub / '_ordem.txt'
+        if not ordem.exists():
+            continue
+        for ln in ordem.read_text(encoding='utf-8').splitlines():
+            nome, rssi, estado = ln.split()
+            linhas.append((nome, rssi, estado))
+            for tema in ('escuro', 'claro'):
+                v = memoryview((pasta / sub / f'{nome}_{tema}.565').read_bytes()).cast('H')
+                px = bytearray()
+                for w in v:
+                    r5, g6, b5 = (w >> 11) & 31, (w >> 5) & 63, w & 31
+                    px += bytes(((r5 << 3) | (r5 >> 2), (g6 << 2) | (g6 >> 4), (b5 << 3) | (b5 >> 2)))
+                img = Image.frombytes('RGB', (320, 40), bytes(px))
+                img.save(saida / f'{nome}_{tema}.png')
+                imgs[(nome, tema)] = img
     esc = 2
-    folha = Image.new('RGB', (110 + 2 * (320 * esc + 10), 10 + len(linhas) * (40 * esc + 10)), (128, 128, 128))
+    folha = Image.new('RGB', (150 + 2 * (320 * esc + 10), 10 + len(linhas) * (40 * esc + 10)), (128, 128, 128))
     d = ImageDraw.Draw(folha)
-    for i, n in enumerate(linhas):
+    for i, (nome, rssi, estado) in enumerate(linhas):
         y = 10 + i * (40 * esc + 10)
-        d.text((4, y + 12), n, fill=(255, 255, 255))
+        d.text((4, y + 24), f'{nome} {rssi} dBm', fill=(255, 255, 255))
+        d.text((4, y + 40), estado, fill=(255, 255, 255))
         for j, tema in enumerate(('escuro', 'claro')):
-            folha.paste(imgs[f'{n}_{tema}'].resize((320 * esc, 40 * esc), Image.NEAREST), (110 + j * (320 * esc + 10), y))
+            folha.paste(imgs[(nome, tema)].resize((320 * esc, 40 * esc), Image.NEAREST), (150 + j * (320 * esc + 10), y))
     folha.save(saida / '_barras.png')
     print(f'frames: {len(imgs)} PNGs and the contact sheet in {saida}')
 
@@ -309,9 +361,9 @@ def main():
         quadros = tmp / 'quadros'
         quadros.mkdir()
         modelo_e_mutantes(tmp, pecas, objs, inc, quadros)
-        if args.out and any(quadros.glob('*.565')):
+        if args.out and any(quadros.glob('*/*.565')):
             png_dos_quadros(quadros, pathlib.Path(args.out))
-    print(f'RESULT: {CONTA[0]} checks, {len(FALHAS)} failed')
+    print(f'RESULT: {CONTA[0]} script checks, {MODELO[0]} model checks, {len(FALHAS)} script failures, {MODELO[1]} model failures')
     return 1 if FALHAS else 0
 
 

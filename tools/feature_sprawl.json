@@ -138,7 +138,7 @@
   "WebManager_Commit.cpp": 1,
   "WebManager_Core.cpp": 3,
   "WebManager_Metrics.cpp": 2,
-  "ui/angulo/DisplayManager_UiA.cpp": 1,
+  "ui/angulo/DisplayManager_UiA.cpp": 2,
   "ui/original/UiOriginal.h": 1,
   "ui/original/UiTouchChain.h": 1
  },
