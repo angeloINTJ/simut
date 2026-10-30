@@ -59,21 +59,24 @@ A row marked `ui = "angulo"` (Bricolage Grotesque, the FreeSans and FreeMono fac
 panel ([ui.original].web_omit in tools/features.toml, read by tools/gen_features.py), so the pages of the originals stay
 byte for byte. The Angulo's License screen names it in the device's language (UA_TXT( ) in
 src/ui/angulo/telas/MenusLicenca.cpp). That text is written by hand, so `--check` holds it to the rows: the name of every
-marked row, and its holder and licence as "<holder>, <licence>.", must appear in it. A row's `page_images`, when it has one,
-is the set the family lists label it with instead of `images`: the original panel's FreeSans Bold faces are in six images,
-and the label the originals' pages have always carried ("the five images with the touch panel") is kept, one registered
-deviation, so that those pages do not change.
+marked row, and its holder and licence as "<holder>, <licence>.", must appear in it. A row with `symbols` is held to the ELF of an image (`--elf`, below): the image carries the component if and only if nm finds a name
+that matches, and `images` must say so. A row's page label is its `images`, read back against the page by tools/test_gen_notices.py (a
+`page_images` list that counted pico2_w_release, which links none of the original panel's FreeSans Bold faces, said the opposite on the
+Angulo pages until 2026-10-30; a key the generator does not know is refused now).
 
 USAGE
 -----
     python3 tools/gen_notices.py            # rewrite the outputs
     python3 tools/gen_notices.py --check    # exit 1 if any output is stale
+    python3 tools/gen_notices.py --check --elf .pio/build/<env>/firmware.elf [--env <env>] [--nm PATH]
+                                            # also: exit 1 if a row with `symbols` disagrees with the nm of that image
 
 Project: SIMUT
 License: MIT
 """
 import html
 import re
+import subprocess
 import sys
 import textwrap
 import tomllib
@@ -99,6 +102,7 @@ WIRED = ["wire", "wiretft"]
 WORDS = {2: "two", 3: "three", 4: "four", 5: "five", 6: "six", 7: "seven", 8: "eight", 9: "nine"}
 
 WEB_IF_RADIO, WEB_IF_WIRED, WEB_ENDIF = "/* @IF wifi */", "/* @IF !wifi */", "/* @ENDIF */"
+ROW_KEYS = {"name", "holder", "license", "images", "url", "what", "note", "text", "also", "ui", "symbols"}   # a row says which images carry it in `images`, and only there
 WEB_IF_ANGULO = "/* @IF ui_angulo */"   # cut from every image with the original panel ([ui.original].web_omit)
 CABEC_ANGULO = "Angulo touch panel: fonts and icons"
 
@@ -130,8 +134,14 @@ def load():
             sys.exit(f"gen_notices: {c['name']}: unknown image(s) {unknown}")
         if c.get("ui", "angulo") != "angulo":
             sys.exit(f"gen_notices: {c['name']}: ui = {c['ui']!r}, the only panel with rows of its own is \"angulo\"")
-        if not set(c.get("page_images", [])) <= set(every):
-            sys.exit(f"gen_notices: {c['name']}: page_images names an image outside all_images")
+        unknown_keys = sorted(set(c) - ROW_KEYS)
+        if unknown_keys:
+            sys.exit(f"gen_notices: {c['name']}: key(s) {unknown_keys} are not known to the generator (a row says which images carry it in `images`, and only there)")
+        if "symbols" in c:
+            try:
+                re.compile(c["symbols"])
+            except re.error as e:
+                sys.exit(f"gen_notices: {c['name']}: symbols is not a regular expression: {e}")
         for t in [c["text"]] + c.get("also", []):
             if not (LICDIR / t).is_file():
                 sys.exit(f"gen_notices: {c['name']}: LICENSES/{t} does not exist")
@@ -292,7 +302,7 @@ def web_parts(data, family):
     lines += textwrap.wrap(intro, WEB_W) + [""]
     for n, c in enumerate(of_family(data, family), 1):
         lines += [WEB_BAR, f"{n}. {c['name']}", WEB_BAR]
-        lines += web_fields(c, images_label(c.get("page_images", c["images"]), every))
+        lines += web_fields(c, images_label(c["images"], every))
     return web_escape("\n".join(lines) + "\n"), web_escape(WEB_BAR + "\n\n" + WEB_END)
 
 
@@ -394,6 +404,56 @@ def new_fwh(fwh, webui, data):
     return replace_between(fwh, FW_LIST_BEGIN, FW_LIST_END, body, "the list")
 
 
+KEY = {v: k for k, v in ENV.items()}
+
+
+def opt(name):
+    a = sys.argv[1:]
+    return a[a.index(name) + 1] if name in a and a.index(name) + 1 < len(a) else None
+
+
+def symbol_names(elf, nm):
+    """The names `nm -C --defined-only` prints for an ELF (what follows the address and the type on each line)."""
+    if nm is None:
+        sys.path.insert(0, str(Path(__file__).resolve().parent))
+        from elf_funcoes import TOOL   # one place says where the PlatformIO toolchain is
+        nm = str(TOOL / "arm-none-eabi-nm")
+    try:
+        p = subprocess.run([nm, "-C", "--defined-only", str(elf)], capture_output=True, text=True)
+    except OSError as e:
+        sys.exit(f"gen_notices: cannot run {nm}: {e}")
+    if p.returncode != 0:
+        sys.exit(f"gen_notices: {nm} failed on {elf}: {p.stderr.strip()[:200]}")
+    return [f[2] for f in (ln.split(None, 2) for ln in p.stdout.splitlines()) if len(f) == 3]
+
+
+def elf_problems(data, key, names):
+    """The rows with `symbols` whose claim about image `key` disagrees with the symbol names of its ELF: a row that
+    names an image that lacks the component, or leaves out one that has it."""
+    out = []
+    for c in data["component"]:
+        rx = c.get("symbols")
+        if not rx:
+            continue
+        has = any(re.search(rx, n) for n in names)
+        named = key in c["images"]
+        if has != named:
+            out.append(f"{c['name']}: `images` {'names' if named else 'does not name'} {ENV[key]}, but nm "
+                       f"{'finds no symbol' if named else 'finds symbols'} matching /{rx}/")
+    return out
+
+
+def elf_check(data, elf, env, nm):
+    env = env or Path(elf).resolve().parent.name
+    if env not in KEY:
+        sys.exit(f"gen_notices: {env!r} is not an image of the table (--env NAME, one of {', '.join(sorted(KEY))})")
+    names = symbol_names(elf, nm)
+    if not names:
+        sys.exit(f"gen_notices: nm found no symbol in {elf}")
+    probed = sum(1 for c in data["component"] if c.get("symbols"))
+    return elf_problems(data, KEY[env], names), f"; the ELF of {env} agrees with the {probed} probed rows ({len(names)} symbols)"
+
+
 def main():
     check = "--check" in sys.argv[1:]
     data = load()
@@ -401,6 +461,7 @@ def main():
     fwh = FWH.read_text(encoding="utf-8")
     want = {NOTICES: notices_md(data), WEBUI: new_webui(webui, data), FWH: new_fwh(fwh, webui, data)}
     problems = angulo_panel_problems(data, ANGULO_PANEL.read_text(encoding="utf-8"))
+    elf_probs, elf_note = (elf_check(data, opt("--elf"), opt("--env"), opt("--nm")) if opt("--elf") else ([], ""))
     stale = []
     for path, text in want.items():
         cur = path.read_text(encoding="utf-8") if path.exists() else None
@@ -410,20 +471,22 @@ def main():
                 path.write_text(text, encoding="utf-8")
     for p in problems:
         print("[notices] FAIL: the Angulo's License screen disagrees with tools/third_party.toml: " + p, file=sys.stderr)
+    for p in elf_probs:
+        print("[notices] FAIL: " + p, file=sys.stderr)
     if check:
         if stale:
             print("[notices] FAIL: out of date with tools/third_party.toml or the /license page: "
                   + ", ".join(map(str, stale)) + " — run python3 tools/gen_notices.py",
                   file=sys.stderr)
-        if stale or problems:
+        if stale or problems or elf_probs:
             return 1
         on_lists = len({c["name"] for fam in families(data) for c in of_family(data, fam)})
         print(f"[notices] OK: {on_lists} components, the same in the three lists; "
               f"{len(angulo_rows(data))} more for the Angulo images (the Angulo block of /license, the Angulo's "
-              "License screen, THIRD_PARTY_NOTICES.md)")
+              "License screen, THIRD_PARTY_NOTICES.md)" + elf_note)
         return 0
     print("[notices] wrote " + (", ".join(map(str, stale)) if stale else "nothing (all current)"))
-    return 1 if problems else 0
+    return 1 if (problems or elf_probs) else 0
 
 
 if __name__ == "__main__":

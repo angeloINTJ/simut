@@ -7459,7 +7459,7 @@ repository, published with every release: https://github.com/angeloINTJ/simut
                   bitmaps and cut down to the glyphs SIMUT draws.
    Holder:        GNU FreeFont contributors
    License:       GPL-3.0-or-later with the font exception
-   Images:        the five images with the touch panel
+   Images:        pico_w_release, pico_w_test, pico_w_test_https, pico_w_asserts
    URL:           https://www.gnu.org/software/freefont/
 
 ================================================================================

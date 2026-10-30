@@ -106,6 +106,76 @@ for c in marcadas:
     lic = c["license"]
     check(gn.angulo_panel_problems(data, painel.replace(lic, "y" * len(lic))), f"6 o check nao pegou a licenca '{lic}' tirada do painel")
 
+# 7. the page says what the rows say: the "Images:" label of every row, read back from the generated text of each family, expands to exactly the images of the row in that
+#    family (S10c C4 review: a `page_images` list made the FreeSans Bold row say, on the Angulo pages, that pico2_w_release carries the original panel's faces).
+import html
+KEY = {v: k for k, v in gn.ENV.items()}
+
+
+def denota(label, fam):
+    if label == "all images":
+        return set(fam)
+    if re.fullmatch(r"the \w+ images with the touch panel", label):
+        return set(gn.PANEL) & set(fam)
+    m = re.fullmatch(r"all images but (\S+)(?: and (\S+))?", label)
+    if m:
+        return set(fam) - {KEY[x] for x in m.groups() if x}
+    return {KEY[x.strip()] for x in label.split(",")}
+
+
+for nome_fam, fam in (("radio", radio), ("wired", wired)):
+    texto = html.unescape(gn.web_block(data, fam))
+    for n, c in enumerate(gn.of_family(data, fam), 1):
+        m = re.search(rf"^{n}\. {re.escape(c['name'])}\n=+\n(.*?)\n\n", texto, re.M | re.S)
+        lab = re.search(r"   Images:\s+(.*?)\n   URL:", m.group(1), re.S) if m else None
+        check(lab is not None, f"7 {nome_fam}: {c['name']} sem linha Images: na pagina")
+        if lab:
+            label = " ".join(lab.group(1).split())
+            check(denota(label, fam) == set(c["images"]) & set(fam),
+                  f"7 {nome_fam}: {c['name']}: a pagina diz '{label}' = {sorted(denota(label, fam))}, a linha tem {sorted(set(c['images']) & set(fam))}")
+orig = [c for c in data["component"] if c["name"] == "GNU FreeFont (FreeSans Bold)"][0]
+check(set(orig["images"]) == {"release", "test", "test_https", "asserts", "wiretft", "pico2_original"}, f"7 a linha das faces do painel original tem {sorted(orig['images'])}")
+check(all(k in gn.ROW_KEYS for c in data["component"] for k in c) if hasattr(gn, "ROW_KEYS") else False, "7 uma linha tem uma chave que o gerador nao conhece (gn.ROW_KEYS)")
+with tempfile.TemporaryDirectory() as tmp:
+    p = os.path.join(tmp, "m.toml")
+    with open(p, "w", encoding="utf-8") as fh:
+        fh.write(toml.replace('name = "GNU FreeFont (FreeSans Bold)"', 'name = "GNU FreeFont (FreeSans Bold)"\npage_images = ["release"]', 1))
+    rc, saida = roda_check(p)
+    check(rc != 0 and "page_images" in saida, f"7 uma chave desconhecida (page_images) numa linha nao foi recusada: rc {rc}: {saida[:120]}")
+
+# 8. the rows against the symbols of an ELF (nm), with a fake nm: what pico2_w_release links (the nm of 2026-10-30 on its ELF, one symbol per probe), and what it does not.
+VISTO = ["cyw43_init", "dhcp_server_init", "LEAmDNS::MDNSResponder::begin()", "Adafruit_GFX::drawPixel(short, short, unsigned short)", "Adafruit_ILI9341::begin(unsigned long)",
+         "XPT2046_Touchscreen::begin()", "OneWirePIO::isSensorPresent()", "BuzzerPIO::stopMelody()", "PubSubClient::readPacket(unsigned char*)", "DHT22PIO::begin()",
+         "br_ssl_client_init_full", "tcp_write", "lfs_mount", "tud_task_ext", "entrega::DISP9Glyphs", "entrega::MONO9Glyphs", "entrega::SANS9Glyphs", "entrega::ICONE_EYE_20_bits"]
+with tempfile.TemporaryDirectory() as tmp:
+    nm = os.path.join(tmp, "nm")
+    with open(nm, "w", encoding="utf-8") as fh:
+        fh.write("#!/bin/sh\ncat <<'EOF'\n" + "\n".join(f"10000000 T {s}" for s in VISTO) + "\nEOF\n")
+    os.chmod(nm, 0o755)
+    elf = os.path.join(tmp, "pico2_w_release", "firmware.elf")
+    os.makedirs(os.path.dirname(elf))
+    open(elf, "wb").close()
+
+    def roda_elf(toml_path):
+        p = subprocess.run([sys.executable, os.path.join(ROOT, "tools", "gen_notices.py"), "--check", "--toml", toml_path, "--elf", elf, "--nm", nm],
+                           capture_output=True, text=True)
+        return p.returncode, p.stdout + p.stderr
+    rc, saida = roda_elf(os.path.join(ROOT, "tools", "third_party.toml"))
+    check(rc == 0, f"8 o --elf falha na imagem Angulo com os simbolos dela: rc {rc}: {saida[-300:]}")
+    casos_elf = {
+        "a linha das faces do painel original nomeando pico2_release (a imagem nao tem o componente)": (toml.replace('images = ["release", "test", "test_https", "asserts", "wiretft", "pico2_original"]',
+                                                                                                   'images = ["release", "test", "test_https", "asserts", "pico2_release", "wiretft", "pico2_original"]', 1), "FreeSansBold"),
+        "a linha do Bricolage sem pico2_release (a imagem tem o componente)": (toml.replace('images = ["wiretft_angulo", "pico2_release"]', 'images = ["wiretft_angulo"]', 1), "entrega::DISP"),
+        "a linha do BTstack nomeando pico2_release (a imagem nao tem o componente)": (toml.replace('images = ["alpha", "air"]', 'images = ["alpha", "air", "pico2_release"]', 1), "btstack"),
+    }
+    for rotulo, (t2, simbolo) in casos_elf.items():
+        check(t2 != toml, f"8 a mutacao '{rotulo}' nao mudou o TOML")
+        p = os.path.join(tmp, "m2.toml")
+        with open(p, "w", encoding="utf-8") as fh:
+            fh.write(t2)
+        rc, saida = roda_elf(p)
+        check(rc != 0 and simbolo in saida, f"8 --elf nao pegou: {rotulo}: rc {rc}: {saida[-200:]}")
+
 print(f"[gen notices] {casos} casos, {len(falhas)} falhas")
 for f in falhas:
     print("  FALHA:", f)

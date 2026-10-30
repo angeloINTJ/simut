@@ -20,6 +20,11 @@
 # belongs to the Angulo block of the /license page and to the Angulo's panel,
 # not to the family lists.
 #
+# A row with `symbols` (a regular expression over the names `nm -C --defined-only` prints for an image) is held to the ELF of every image: the image carries the
+# component if and only if nm finds a name that matches, and `images` must say so (python3 tools/gen_notices.py --check --elf <firmware.elf> [--env <env>], run by the
+# CI's firmware job after each build; S10c C4 review, 2026-10-30). A row without it (the toolchain's C and runtime libraries, the Pico SDK and the Arduino core, the fonts
+# and code of the web pages, the libraries whose symbols nm does not tell from SIMUT's own) is not probed.
+#
 # Every `text` is a file in LICENSES/, copied verbatim: from the package the
 # build uses (~/.platformio/packages, .pio/libdeps), from the source file's own
 # header when the library has no licence file, or from the project's upstream
@@ -68,6 +73,7 @@ name = "TinyUSB"
 holder = "Ha Thach (tinyusb.org)"
 license = "MIT"
 images = "all"
+symbols = "^tud_"
 url = "https://github.com/hathach/tinyusb"
 what = "The USB stack behind the USB serial console."
 text = "tinyusb-MIT.txt"
@@ -77,6 +83,7 @@ name = "cyw43-driver"
 holder = "George Robotics Pty Ltd"
 license = "Raspberry Pi licence (LICENSE.RP)"
 images = ["release", "test", "test_https", "asserts", "alpha", "air", "pico2_release", "pico2_original"]
+symbols = "^cyw43_"
 url = "https://github.com/georgerobotics/cyw43-driver"
 what = "Driver for the Infineon CYW43439 Wi-Fi and Bluetooth chip of the Pico W and the Pico 2 W."
 note = "Licensed by Raspberry Pi Ltd for use with its own chips only. The driver's other licence (its LICENSE file) is for non-commercial use; LICENSE.RP is the one that covers SIMUT, which runs on the Pico W and the Pico 2 W."
@@ -97,6 +104,7 @@ name = "lwIP"
 holder = "Swedish Institute of Computer Science"
 license = "BSD-3-Clause"
 images = "all"
+symbols = "^(tcp_write|pbuf_alloc)$"
 url = "https://savannah.nongnu.org/projects/lwip/"
 what = "The TCP/IP stack (Adam Dunkels and the lwIP contributors), bundled in the Arduino-Pico core."
 text = "lwip-BSD-3-Clause.txt"
@@ -106,6 +114,7 @@ name = "BearSSL"
 holder = "Thomas Pornin"
 license = "MIT"
 images = "all"
+symbols = "^br_"
 url = "https://bearssl.org"
 what = "TLS for HTTPS and MQTTS, SHA-256, and the P-256 check of signed updates."
 text = "bearssl-MIT.txt"
@@ -115,6 +124,7 @@ name = "LittleFS"
 holder = "Arm Limited and the littlefs authors"
 license = "BSD-3-Clause"
 images = "all"
+symbols = "^lfs_"
 url = "https://github.com/littlefs-project/littlefs"
 what = "The flash filesystem: configuration, history, language packs."
 text = "littlefs-BSD-3-Clause.txt"
@@ -124,6 +134,7 @@ name = "MicroPython DHCP server"
 holder = "Damien P. George"
 license = "MIT"
 images = ["release", "test", "test_https", "asserts", "alpha", "air", "pico2_release", "pico2_original"]
+symbols = "^dhcp_server_"
 url = "https://micropython.org"
 what = "Hands out addresses on the setup access point; part of the Arduino-Pico WiFi library."
 text = "micropython-dhcpserver-MIT.txt"
@@ -133,6 +144,7 @@ name = "LEAmDNS"
 holder = "LaborEtArs"
 license = "MIT"
 images = ["release", "asserts", "pico2_release", "wiretft", "wiretft_angulo", "pico2_original"]
+symbols = "LEAmDNS|MDNSResponder"
 url = "https://github.com/LaborEtArs/ESP8266mDNS"
 what = "The mDNS responder that answers for the device name on the local network; part of the Arduino-Pico core."
 text = "leamdns-MIT.txt"
@@ -161,6 +173,7 @@ name = "Adafruit GFX Library"
 holder = "Adafruit Industries"
 license = "BSD-2-Clause"
 images = ["release", "test", "test_https", "asserts", "pico2_release", "wiretft", "wiretft_angulo", "pico2_original"]
+symbols = "^Adafruit_GFX::"
 url = "https://github.com/adafruit/Adafruit-GFX-Library"
 what = "Drawing primitives for the touch panel, and the classic 5x7 font of its text screens."
 text = "adafruit-gfx-BSD-2-Clause.txt"
@@ -170,6 +183,7 @@ name = "Adafruit ILI9341"
 holder = "Adafruit Industries (Limor Fried)"
 license = "BSD"
 images = ["release", "test", "test_https", "asserts", "pico2_release", "wiretft", "wiretft_angulo", "pico2_original"]
+symbols = "^Adafruit_ILI9341::"
 url = "https://github.com/adafruit/Adafruit_ILI9341"
 what = "Driver for the ILI9341 controller of the touch panel."
 note = "Its source files say \"BSD license, all text here must be included in any redistribution\", so the whole header is reproduced. Its README says MIT; the source is what this list follows."
@@ -180,6 +194,7 @@ name = "XPT2046_Touchscreen"
 holder = "Paul Stoffregen"
 license = "MIT"
 images = ["release", "test", "test_https", "asserts", "pico2_release", "wiretft", "wiretft_angulo", "pico2_original"]
+symbols = "^XPT2046_Touchscreen::"
 url = "https://github.com/PaulStoffregen/XPT2046_Touchscreen"
 what = "Driver for the XPT2046 touch controller."
 text = "xpt2046-touchscreen-MIT.txt"
@@ -189,6 +204,7 @@ name = "PubSubClient"
 holder = "Nicholas O'Leary"
 license = "MIT"
 images = "all"
+symbols = "^PubSubClient::"
 url = "https://github.com/knolleary/pubsubclient"
 what = "The MQTT client behind MQTT and MQTTS telemetry."
 text = "pubsubclient-MIT.txt"
@@ -198,6 +214,7 @@ name = "OneWirePIO_RP2040"
 holder = "Ângelo Moisés Alves"
 license = "MIT"
 images = ["release", "test", "test_https", "asserts", "alpha", "air", "pico2_release", "pico2_original"]
+symbols = "^OneWirePIO::"
 url = "https://github.com/angeloINTJ/OneWirePIO_RP2040"
 what = "1-Wire on the PIO, for the DS18B20 probes."
 text = "OneWirePIO_RP2040-MIT.txt"
@@ -207,6 +224,7 @@ name = "DHT22PIO_RP2040"
 holder = "Ângelo Moisés Alves"
 license = "MIT"
 images = "all"
+symbols = "^DHT22PIO::"
 url = "https://github.com/angeloINTJ/DHT22PIO_RP2040"
 what = "The DHT22 protocol on the PIO."
 text = "DHT22PIO_RP2040-MIT.txt"
@@ -216,6 +234,7 @@ name = "BuzzerPIO_RP2040"
 holder = "Ângelo Moisés Alves"
 license = "MIT"
 images = ["release", "test", "test_https", "asserts", "alpha", "pico2_release", "wire", "wiretft", "wiretft_angulo", "pico2_original"]
+symbols = "^BuzzerPIO::"
 url = "https://github.com/angeloINTJ/BuzzerPIO_RP2040"
 what = "Tones and melodies for the buzzer on the PIO."
 text = "BuzzerPIO_RP2040-MIT.txt"
@@ -243,6 +262,7 @@ name = "PicoENC28J60"
 holder = "Lukasz Janyst and Ângelo Moisés Alves"
 license = "MIT"
 images = ["wire", "wiretft", "wiretft_angulo"]
+symbols = "(?i)enc28j60"
 url = "https://github.com/angeloINTJ/pico-enc28j60"
 what = "Driver for the ENC28J60 Ethernet controller of the SIMUT Wire, plugged into the lwIP stack of the Arduino-Pico core; its SPI is a PIO program."
 note = "A fork of Lukasz Janyst's pico-enc28j60 (https://github.com/ljanyst/pico-enc28j60), whose PIO SPI program and C driver it keeps; the build fixes it at the commit of v1.3.1 (4984e2f)."
@@ -253,6 +273,7 @@ name = "BTstack"
 holder = "BlueKitchen GmbH"
 license = "Raspberry Pi licence (LICENSE.RP)"
 images = ["alpha", "air"]
+symbols = "^(btstack_|hci_)"
 url = "https://github.com/bluekitchen/btstack"
 what = "The Bluetooth stack behind the Bluetooth console of the alpha and Air images."
 note = "Raspberry Pi Ltd licenses BTstack to the buyers of the Pico W and the Pico 2 W for use in the products they build on them. BTstack's own licence (non-commercial) does not apply to that use."
@@ -260,15 +281,14 @@ text = "btstack-LICENSE.RP.txt"
 
 # Measured by nm on the eleven firmware.elf (2026-10-30): the original panel's faces (FreeSansBold9pt8b, FreeSansBold12pt8b, FreeSansBold24pt7b)
 # are in the six images of `images` and in none of the Angulo's, whose faces are the row "GNU FreeFont (FreeSans, FreeMono Bold)" below.
-# `page_images` is the set the family lists (the /license page and the panel) label this row with: the five images with the touch panel, as the
-# originals' pages have always said, kept so that those pages stay byte for byte (S10c C4). A registered deviation: the Angulo block of the page
-# and the note of its FreeFont row say which faces the Angulo images do not carry.
+# The family lists name exactly these images (the radio page: pico_w_release, pico_w_test, pico_w_test_https, pico_w_asserts; the Wire page: all images but pico_wire), and not the
+# "five images with the touch panel" of before C4, a label that counted pico2_w_release, which links none of these faces (S10c C4 review, 2026-10-30).
 [[component]]
 name = "GNU FreeFont (FreeSans Bold)"
 holder = "GNU FreeFont contributors"
 license = "GPL-3.0-or-later with the font exception"
 images = ["release", "test", "test_https", "asserts", "wiretft", "pico2_original"]
-page_images = ["release", "test", "test_https", "asserts", "pico2_release", "wiretft"]
+symbols = "FreeSansBold(9pt8b|12pt8b|24pt7b)"
 url = "https://www.gnu.org/software/freefont/"
 what = "The 9, 12 and 24 pt faces of the touch panel, converted to bitmaps and cut down to the glyphs SIMUT draws."
 text = "freefont-GPL-3.0-font-exception.txt"
@@ -285,6 +305,7 @@ name = "Bricolage Grotesque"
 holder = "The Bricolage Grotesque Project Authors"
 license = "SIL Open Font License 1.1"
 images = ["wiretft_angulo", "pico2_release"]
+symbols = "^entrega::DISP"
 ui = "angulo"
 url = "https://github.com/ateliertriay/bricolage"
 what = "The display face (weight 600) of the Angulo touch panel, converted to bitmaps at 9, 12, 18, 24 and 32 pt and cut down to the glyphs SIMUT draws."
@@ -295,6 +316,7 @@ name = "GNU FreeFont (FreeSans, FreeMono Bold)"
 holder = "GNU FreeFont contributors"
 license = "GPL-3.0-or-later with the font exception"
 images = ["wiretft_angulo", "pico2_release"]
+symbols = "^entrega::(MONO|SANS)"
 ui = "angulo"
 url = "https://www.gnu.org/software/freefont/"
 what = "The FreeSans and FreeSans Bold faces at 9 pt and the FreeMono Bold face at 9 and 12 pt of the Angulo touch panel, converted to bitmaps and cut down to the glyphs SIMUT draws."
@@ -307,6 +329,7 @@ name = "Lucide"
 holder = "Lucide Contributors (portions: Cole Bemis, as part of Feather)"
 license = "ISC"
 images = ["wiretft_angulo", "pico2_release"]
+symbols = "^entrega::ICONE_"
 ui = "angulo"
 url = "https://lucide.dev"
 what = "The icons of the Angulo touch panel (status bar, buttons, result and update screens), rasterized to 1-bit bitmaps at 16, 20 and 24 px from Lucide 0.468.0."

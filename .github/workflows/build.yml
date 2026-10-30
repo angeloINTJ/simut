@@ -728,6 +728,11 @@ jobs:
       - name: Check flash budget
         run: python3 tools/check_flash_budget.py ${{ matrix.env }} build.log
 
+      # The third-party notices against what this job just linked: every row of tools/third_party.toml that has a `symbols` probe says the image carries the component if and
+      # only if nm finds its symbols in the ELF (S10c C4 review: the /license page said the Angulo image carried the original panel's FreeSans Bold faces, and nothing read an image).
+      - name: Third-party notices agree with the ELF
+        run: python3 tools/gen_notices.py --check --elf .pio/build/${{ matrix.env }}/firmware.elf --env ${{ matrix.env }}
+
       # Which touch look this image builds, from its profile in tools/features.toml (tools/env_ui.py), and not from the ending of its name: the Pico 2 W's release
       # is an Ângulo image since 2026-10-30 (S10c C3) and its name says nothing of it. An assignment of its own, so that a failing question fails the step instead
       # of writing an empty answer that would skip the gate below. tools/test_env_ui.py holds this step and the gate's condition, with mutants.
