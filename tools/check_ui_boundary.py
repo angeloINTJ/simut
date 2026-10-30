@@ -26,11 +26,11 @@ six rules over src/**/*.{c,cc,cpp,cxx,h,hh,hpp,hxx,inl,ipp,tpp}:
                 outside src/ui/angulo/ that includes a header under it (an include is resolved the way
                 the compiler does: relative to the including file, then from src/). The original's
                 headers are derived, not listed, from the record of what the original is:
-                  1. everything under src/ui/original/ (where S11 moves it);
+                  1. everything under src/ui/original/ (where S11 moved it, 2026-10-30: its 14 units, its inline hook headers and the three font tables);
                   2. the header next to each unit that docs/analysis/UI_DRIVERS_funcoes.tsv, the S0
                      classification, gives at least one `original` or `mixed` row, and next to each
                      unit [ui.original] of the manifest lists in `units` or `include` (S10b fills
-                     them; a unit under src/ui/original/ counts for the header of its name in src/, until that header moves, S11): Themes.h, UiWidgets.h, DisplayManager_Fonts.h, and a DisplayManager_AlarmUi.h
+                     them; a unit under src/ui/original/ counts for the header of its name in src/, where those headers stay since S11: core units include Themes.h, UiWidgets.h and DisplayManager_Fonts.h): Themes.h, UiWidgets.h, DisplayManager_Fonts.h, and a DisplayManager_AlarmUi.h
                      or any other the day a unit is split, with no edit here. A unit with one original
                      row makes its header the original's until a split takes that row out (S10a split eight
                      units; UI_DRIVERS.md section 2.14 names the ones that stay whole). A unit that is itself a header derives
@@ -47,7 +47,7 @@ six rules over src/**/*.{c,cc,cpp,cxx,h,hh,hpp,hxx,inl,ipp,tpp}:
                 If the table or the document cannot be read, or the item names a header that is
                 not in src/, the gate exits 2: the written contract and the code cannot disagree in
                 silence. It stays in step because the table and the document are what every stage
-                updates anyway; S10b's `units` and S11's src/ui/original/ take over from them.
+                updates anyway; S10b's `units` and, since S11, the contents of src/ui/original/ took over from them.
   driver-hook   a name the Ângulo driver introduces, used outside src/ui/angulo/. The names are taken from
                 the driver, not from a pattern on the other files: every identifier in src/ui/angulo/
                 that carries the driver's mark, `ua` and a capital for a function or a member (uaSujo,
@@ -148,7 +148,7 @@ MANIFEST = "tools/features.toml"
 # would link the original's drawing into the driver that is meant to replace it.
 CLASSIFICATION = "docs/analysis/UI_DRIVERS_funcoes.tsv"     # the S0 classification of every function, by unit
 OWNERSHIP = "docs/analysis/UI_DRIVERS.md"                   # section 2.5: who owns what
-ORIGINAL_DIR = "src/ui/original/"                           # where the original's files go in S11
+ORIGINAL_DIR = "src/ui/original/"                           # where the original's files are since S11 (2026-10-30)
 SHARED_HEADERS = frozenset({"src/DisplayManager.h"})        # the class: the driver's hooks are its members
 # Where an image's driver is picked (S4, and S10b's fifth): these five, and only these, include the Angulo's headers by design.
 SELECTION_HEADERS = frozenset({"src/ui/UiDriver.h", "src/ui/UiDriverMembers.h", "src/ui/UiDriverHooks.h", "src/ui/UiDriverWeb.h", "src/ui/UiDriverTouch.h"})

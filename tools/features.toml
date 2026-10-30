@@ -993,9 +993,9 @@ order    = 2
 label.en = "Ângulo look"
 label.pt = "Visual Ângulo"
 label.es = "Aspecto Ángulo"
-help.en  = "The touch display drawn to the Ângulo standard: the look of the Pico 2 W release. It needs the touch display."
-help.pt  = "A tela touch desenhada no padrão Ângulo: o visual da release do Pico 2 W. Exige a tela touch."
-help.es  = "La pantalla táctil dibujada según el estándar Ángulo: el aspecto de la versión de la Pico 2 W. Requiere la pantalla táctil."
+help.en  = "The touch display drawn to the Ângulo standard: the look of the Pico 2 W release from the next version on (v2.12.0 still ships the original panel). It needs the touch display."
+help.pt  = "A tela touch desenhada no padrão Ângulo: o visual da release do Pico 2 W a partir da próxima versão (a v2.12.0 ainda traz o painel original). Exige a tela touch."
+help.es  = "La pantalla táctil dibujada según el estándar Ángulo: el aspecto de la versión de la Pico 2 W a partir de la próxima versión (la v2.12.0 aún trae el panel original). Requiere la pantalla táctil."
 
 [ui_groups.network]
 order    = 1

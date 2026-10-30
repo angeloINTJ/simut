@@ -20,7 +20,7 @@ source or header extension: `c`, `cc`, `cpp`, `cxx`, `h`, `hh`, `hpp`, `hxx`, `i
 and a finding there fails the check,
 but the gate counts them on a line of their own, outside the totals the READMEs
 quote: only an image built with `ui = "angulo"` serves one (the Pico 2 W release
-since 2026-10-30, S10c C3). They are in the tables below, marked **driver**.
+since 2026-10-30, S10c C3; from the next version on: v2.12.0 still ships the original panel on the Pico 2 W). They are in the tables below, marked **driver**.
 
 ## How a refusal is answered
 

@@ -132,7 +132,7 @@ Los tres comparten el mismo núcleo:
 | Componente | Especificación |
 |-----------|---------------|
 | MCU | Raspberry Pi Pico W (RP2040, doble núcleo) |
-| Pantalla | `release`: TFT ILI9341 320×240 (SPI, con DMA), en el aspecto Ángulo en la Pico 2 W y en el aspecto original en la Pico W · `alpha`: LCD de caracteres HD44780 16×2 (4 bits) · `air`: ninguna |
+| Pantalla | `release`: TFT ILI9341 320×240 (SPI, con DMA), en el aspecto Ángulo en la Pico 2 W a partir de la próxima versión (la v2.12.0 aún trae el panel original) y en el aspecto original en la Pico W · `alpha`: LCD de caracteres HD44780 16×2 (4 bits) · `air`: ninguna |
 | Táctil | Pantalla táctil resistiva XPT2046 (`release`) |
 | Sensores | **16 slots universales en GP0–GP15** — cualquier mezcla de DS18B20 (1-Wire), DHT22 y BMP280/BME280. El BMx280 es I²C y ocupa dos pines; dos de ellos pueden compartir un par (0x76/0x77) |
 | Zumbador | Piezo pasivo (por PIO) — no existe en el Air |
@@ -145,7 +145,7 @@ Consulta la **[guía de cableado](docs/WIRING.md)** para el pinout completo y lo
 ## Características
 
 - **Sensores y alarmas** — 16 slots universales de sensor (DS18B20, DHT22, BMP280/BME280) asignados en tiempo de ejecución, curvas de calibración, límites por canal, alarma de fallo y ventanas de mantenimiento.
-- **Panel táctil** (`release`) — panel principal, gráficos del histórico y calendario, e identidad en el panel: la cuenta y luego su PIN. La release de la Pico 2 W lo dibuja en el aspecto Ángulo; la de la Pico W conserva el panel original.
+- **Panel táctil** (`release`) — panel principal, gráficos del histórico y calendario, e identidad en el panel: la cuenta y luego su PIN. La release de la Pico 2 W lo dibuja en el aspecto Ángulo; la de la Pico W conserva el panel original. A partir de la próxima versión: la v2.12.0 aún trae el panel original en la Pico 2 W.
 - **LCD de caracteres** (`alpha`) — cada slot por turno, el punto de acceso de configuración y una consola Bluetooth.
 - **Interfaz web** — 11 páginas, el espejo del panel en vivo, gráficos del histórico y exportación CSV en el navegador.
 - **API HTTP** — 62 rutas. Cada una está protegida por un permiso o es pública por diseño, y el CI lo comprueba. Las imágenes con el panel Ángulo añaden `GET /api/ui`, protegida.
@@ -248,7 +248,7 @@ simut/
 | `pico_w_test` | Imagen de banco: la consola completa para las suites de prueba; sin HTTPS, sin mDNS | — |
 | `pico_w_test_https` | `pico_w_test` más el servidor HTTPS, para validar TLS; tres de sus páginas se sirven desde LittleFS para que quepa | — |
 | `pico_w_asserts` | Release + aserciones de concurrencia | — |
-| `pico2_w_release` | La release del Pico 2 W (RP2350): arranca desde el slot A o B de una tabla de particiones y se actualiza por el aire en el otro, a prueba ([OTA_AB_RP2350.md](docs/analysis/OTA_AB_RP2350.md)). Su `.uf2` es una imagen de fábrica, con la tabla de particiones. Dibuja el panel táctil en el aspecto Ángulo | `…_releasetwo` |
+| `pico2_w_release` | La release del Pico 2 W (RP2350): arranca desde el slot A o B de una tabla de particiones y se actualiza por el aire en el otro, a prueba ([OTA_AB_RP2350.md](docs/analysis/OTA_AB_RP2350.md)). Su `.uf2` es una imagen de fábrica, con la tabla de particiones. Dibuja el panel táctil en el aspecto Ángulo a partir de la próxima versión; la v2.12.0 aún trae el panel original | `…_releasetwo` |
 | ocho entornos `native*` | Tests unitarios en el host — ver [Pruebas](#pruebas) | — |
 
 > **Nota de seguridad para `pico_w_alpha` y `pico_w_air`:** las dos compilan la

@@ -132,7 +132,7 @@ They share one core:
 | Component | Specification |
 |-----------|---------------|
 | MCU | Raspberry Pi Pico W (RP2040, dual-core) |
-| Display | `release`: ILI9341 320×240 TFT (SPI, DMA-driven), in the Ângulo look on the Pico 2 W and the original look on the Pico W · `alpha`: HD44780 16×2 character LCD (4-bit) · `air`: none |
+| Display | `release`: ILI9341 320×240 TFT (SPI, DMA-driven), in the Ângulo look on the Pico 2 W from the next version on (v2.12.0 still ships the original panel there) and the original look on the Pico W · `alpha`: HD44780 16×2 character LCD (4-bit) · `air`: none |
 | Touch | XPT2046 resistive touchscreen (`release`) |
 | Sensors | **16 universal slots on GP0–GP15** — any mix of DS18B20 (1-Wire), DHT22 and BMP280/BME280. A BMx280 is I²C and takes two pins; two of them can share a pair (0x76/0x77) |
 | Buzzer | Passive piezo (PIO-driven) — not on the Air |
@@ -145,7 +145,7 @@ See the **[wiring guide](docs/WIRING.md)** for the complete pinout and connectio
 ## Features
 
 - **Sensing and alarms** — 16 universal sensor slots (DS18B20, DHT22, BMP280/BME280) assigned at runtime, calibration curves, per-channel limits, a fault alarm and maintenance windows.
-- **Touch panel** (`release`) — dashboard, history graphs and calendar, and identity at the glass: an account, then its PIN. The Pico 2 W release draws it in the Ângulo look; the Pico W release keeps the original panel.
+- **Touch panel** (`release`) — dashboard, history graphs and calendar, and identity at the glass: an account, then its PIN. The Pico 2 W release draws it in the Ângulo look; the Pico W release keeps the original panel. From the next version on: v2.12.0 still ships the original panel on the Pico 2 W.
 - **Character LCD** (`alpha`) — every slot in turn, the setup access point and a Bluetooth console.
 - **Web interface** — 11 pages, a live panel mirror, history graphs and CSV export in the browser.
 - **HTTP API** — 62 routes. Each one is either gated by a permission or public by design, and CI checks it. The images with the Ângulo panel add `GET /api/ui`, gated.
@@ -248,7 +248,7 @@ simut/
 | `pico_w_test` | Bench image: the full console for the test suites; no HTTPS, no mDNS | — |
 | `pico_w_test_https` | `pico_w_test` plus the HTTPS server, for TLS validation; three of its pages are served from LittleFS to fit | — |
 | `pico_w_asserts` | Release + concurrency assertions | — |
-| `pico2_w_release` | The release for the Pico 2 W (RP2350): it boots from slot A or B of a partition table and updates over the air into the other, on trial ([OTA_AB_RP2350.md](docs/analysis/OTA_AB_RP2350.md)). Its `.uf2` is a factory image, with the partition table. It draws the touch panel in the Ângulo look | `…_releasetwo` |
+| `pico2_w_release` | The release for the Pico 2 W (RP2350): it boots from slot A or B of a partition table and updates over the air into the other, on trial ([OTA_AB_RP2350.md](docs/analysis/OTA_AB_RP2350.md)). Its `.uf2` is a factory image, with the partition table. It draws the touch panel in the Ângulo look from the next version on; v2.12.0 still ships the original panel | `…_releasetwo` |
 | eight `native*` envs | Host-side unit tests — see [Testing](#testing) | — |
 
 > **Security note for `pico_w_alpha` and `pico_w_air`:** both compile the
