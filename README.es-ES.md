@@ -47,15 +47,15 @@ Los tres comparten el mismo núcleo:
 
 | | |
 |---|---|
-| **Release actual** | **v2.12.0** (29/10/2026); el [changelog](CHANGELOG.md) dice qué cambió cada versión. SIMUT salió de beta con la v2.7.0, sobre mediciones: un soak de 8,18 h sin ningún reinicio y 6 de 6 actualizaciones por el aire sin perder nada. |
+| **Release actual** | **v2.13.0** (30/10/2026); el [changelog](CHANGELOG.md) dice qué cambió cada versión. SIMUT salió de beta con la v2.7.0, sobre mediciones: un soak de 8,18 h sin ningún reinicio y 6 de 6 actualizaciones por el aire sin perder nada. |
 | **Imágenes publicadas** | Cuatro imágenes, cada una en `.uf2` y `.bin`. Para la Pico W: `release` (panel táctil TFT), `alpha` (LCD 16×2 con consola Bluetooth) y `air` (registrador a batería sin pantalla). Para la Pico 2 W (RP2350): `releasetwo`, la release, cuyo `.uf2` lleva su tabla de particiones y cuyo `.bin` arranca a prueba. Junto a ellas van los packs de idioma pt-BR y es-ES y un manifiesto de OTA. Una imagen con otro conjunto de funciones sale del [configurador de build](https://angelointj.github.io/simut/configurador/), y el CI la compila desde `main`, también para la Pico 2 W. |
 | **Madurez** | <ul><li>`release`: **estable**.</li><li>`alpha`: publicado y probado en el banco, con su LCD 16×2 incluido desde el 26/09/2026.</li><li>`air`: **experimental**. Su único soak largo falló: un sueño en el ciclo 119 nunca despertó (F28). Hoy lo mitiga un watchdog a lo largo del despertar; la causa raíz no está confirmada.</li><li>`releasetwo`: **nueva** en la v2.11.0, probada en el banco en una Pico 2 W (RP2350 A2). Se actualiza por el aire en el otro slot, a prueba, y vuelve sola cuando la actualización no se confirma.</li></ul> |
 | **Pruebas** | Cada pull request ejecuta 772 casos de test en el host en 11 suites, 60 s de fuzzing y análisis estático, y compila las once imágenes de firmware con la caché fría. El comportamiento en hardware real se verifica en un banco — ver [Verificación en hardware](docs/VERIFICATION.es-ES.md). |
 
 **Limitaciones conocidas.** Cada una está documentada donde aplica.
-- **Actualización.** La actualización por el aire reformatea el sistema de archivos:
+- **Actualización.** En la Pico W, la actualización por el aire reformatea el sistema de archivos:
   - Wi-Fi, cuentas y slots de sensor se conservan. El histórico, los archivos de calibración y los packs de idioma no, así que la página web descarga un backup antes de empezar, y restaurarlo los recupera.
-  - Hay un único slot de firmware y ningún rollback. Un flasheo fallido se recupera con BOOTSEL y un cable USB.
+  - En la Pico W hay un único slot de firmware y ningún rollback. Un flasheo fallido se recupera con BOOTSEL y un cable USB. La Pico 2 W tiene dos slots: la actualización va al otro slot, no toca el sistema de archivos y arranca a prueba, y la imagen que reemplazó vuelve sola si la nueva no se confirma ([What an update destroys](docs/MANUAL.md#what-an-update-destroys) y [Rollback](docs/MANUAL.md#rollback), en inglés).
   - Desde la v2.9.0, solo una imagen que el proyecto firmó se instala por el aire: el `.bin` de una release, o una compilación del configurador. Una compilación propia va por USB.
 - **Reinicios sin explicación.** Un reinicio de watchdog (`ctx=209` o `ctx=455`) apareció tres veces en la imagen de prueba el 20–21 de septiembre, y no desde entonces; el que se capturó con su contexto tenía el Core 0 en la consola (`ctx=209`). Los dos núcleos están ahora instrumentados para explicar el siguiente. Un `ctx=455` (traza vacía) en el primer arranque después de `picotool load -x` no es esto: ese reinicio pasa por el watchdog, y el registro apareció tras 11 de 11 grabaciones así y tras ninguno de 7 reinicios por el pin (30/09/2026).
 - **Conexiones inactivas.** Durante el soak de la v2.7.0, el 7,1 % de las respuestas en una conexión keep-alive inactiva llegaron cortadas. El dispositivo corta un flujo que no puede enviar durante 4 s.
@@ -132,7 +132,7 @@ Los tres comparten el mismo núcleo:
 | Componente | Especificación |
 |-----------|---------------|
 | MCU | Raspberry Pi Pico W (RP2040, doble núcleo) |
-| Pantalla | `release`: TFT ILI9341 320×240 (SPI, con DMA), en el aspecto Ángulo en la Pico 2 W a partir de la próxima versión (la v2.12.0 aún trae el panel original) y en el aspecto original en la Pico W · `alpha`: LCD de caracteres HD44780 16×2 (4 bits) · `air`: ninguna |
+| Pantalla | `release`: TFT ILI9341 320×240 (SPI, con DMA), en el aspecto Ángulo en la Pico 2 W (la v2.12.0 y las anteriores dibujaban el panel original) y en el aspecto original en la Pico W · `alpha`: LCD de caracteres HD44780 16×2 (4 bits) · `air`: ninguna |
 | Táctil | Pantalla táctil resistiva XPT2046 (`release`) |
 | Sensores | **16 slots universales en GP0–GP15** — cualquier mezcla de DS18B20 (1-Wire), DHT22 y BMP280/BME280. El BMx280 es I²C y ocupa dos pines; dos de ellos pueden compartir un par (0x76/0x77) |
 | Zumbador | Piezo pasivo (por PIO) — no existe en el Air |
@@ -145,7 +145,7 @@ Consulta la **[guía de cableado](docs/WIRING.md)** para el pinout completo y lo
 ## Características
 
 - **Sensores y alarmas** — 16 slots universales de sensor (DS18B20, DHT22, BMP280/BME280) asignados en tiempo de ejecución, curvas de calibración, límites por canal, alarma de fallo y ventanas de mantenimiento.
-- **Panel táctil** (`release`) — panel principal, gráficos del histórico y calendario, e identidad en el panel: la cuenta y luego su PIN. La release de la Pico 2 W lo dibuja en el aspecto Ángulo; la de la Pico W conserva el panel original. A partir de la próxima versión: la v2.12.0 aún trae el panel original en la Pico 2 W.
+- **Panel táctil** (`release`) — panel principal, gráficos del histórico y calendario, e identidad en el panel: la cuenta y luego su PIN. La release de la Pico 2 W lo dibuja en el aspecto Ángulo; la de la Pico W conserva el panel original. La v2.12.0 y las anteriores dibujaban el panel original en la Pico 2 W.
 - **LCD de caracteres** (`alpha`) — cada slot por turno, el punto de acceso de configuración y una consola Bluetooth.
 - **Interfaz web** — 11 páginas, el espejo del panel en vivo, gráficos del histórico y exportación CSV en el navegador.
 - **API HTTP** — 62 rutas. Cada una está protegida por un permiso o es pública por diseño, y el CI lo comprueba. Las imágenes con el panel Ángulo añaden `GET /api/ui`, protegida.
@@ -248,7 +248,7 @@ simut/
 | `pico_w_test` | Imagen de banco: la consola completa para las suites de prueba; sin HTTPS, sin mDNS | — |
 | `pico_w_test_https` | `pico_w_test` más el servidor HTTPS, para validar TLS; tres de sus páginas se sirven desde LittleFS para que quepa | — |
 | `pico_w_asserts` | Release + aserciones de concurrencia | — |
-| `pico2_w_release` | La release del Pico 2 W (RP2350): arranca desde el slot A o B de una tabla de particiones y se actualiza por el aire en el otro, a prueba ([OTA_AB_RP2350.md](docs/analysis/OTA_AB_RP2350.md)). Su `.uf2` es una imagen de fábrica, con la tabla de particiones. Dibuja el panel táctil en el aspecto Ángulo a partir de la próxima versión; la v2.12.0 aún trae el panel original | `…_releasetwo` |
+| `pico2_w_release` | La release del Pico 2 W (RP2350): arranca desde el slot A o B de una tabla de particiones y se actualiza por el aire en el otro, a prueba ([OTA_AB_RP2350.md](docs/analysis/OTA_AB_RP2350.md)). Su `.uf2` es una imagen de fábrica, con la tabla de particiones. Dibuja el panel táctil en el aspecto Ángulo (la v2.12.0 y las anteriores dibujaban el panel original) | `…_releasetwo` |
 | ocho entornos `native*` | Tests unitarios en el host — ver [Pruebas](#pruebas) | — |
 
 > **Nota de seguridad para `pico_w_alpha` y `pico_w_air`:** las dos compilan la
@@ -346,7 +346,7 @@ El comportamiento se comprueba en un banco: una Pico 2 W con el panel TFT y el t
 |----------|-------------|
 | [Manual de usuario (EN)](docs/MANUAL.md) | Montaje, pantalla/web/consola, OTA, referencia de la API, resolución de problemas — mantenido al día |
 | [Manual do usuário (pt-BR)](docs/MANUAL.pt-BR.md) | El mismo manual, en portugués |
-| [Manual completo (pt-BR)](docs/MANUAL.pt-BR.html) | El manual del producto en portugués, actualizado para la v2.12.0: instalación, configuración, uso diario e integración con servidores. Las pantallas se están recapturando; cada una que falta está marcada en su lugar |
+| [Manual completo (pt-BR)](docs/MANUAL.pt-BR.html) | El manual del producto en portugués, actualizado para la v2.13.0: instalación, configuración, uso diario e integración con servidores. Las pantallas se están recapturando; cada una que falta está marcada en su lugar |
 | [Guía de cableado](docs/WIRING.md) | Pinout completo y diagramas de conexión |
 | [Actualización por el aire](docs/OTA_USAGE.md) | Actualizar desde la página web, y lo que sobrevive |
 | [Guía de recuperación](docs/RECOVERY.md) | Recuperación de brick — BOOTSEL, picotool, reset 1200 bps |

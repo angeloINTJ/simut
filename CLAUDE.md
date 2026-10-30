@@ -50,7 +50,7 @@ The eleventh, since 2026-10-21 on
 the same branch, was `pico2_w_angulo`: the Ângulo on the Pico 2 W. Since 2026-10-30 (S10c C3, the
 maintainer's decision C-D1) the Pico 2 W's release **is** that image: `pico2_w_release` has
 `ui = "angulo"` in the manifest, and keeps its name, its required check and its published
-assets (`releasetwo`). **That holds on this branch from the next version on:** the published v2.12.0 still ships the original panel on the Pico 2 W. The eleventh is now `pico2_w_original`, the original panel it carried
+assets (`releasetwo`). **It is the published image since v2.13.0;** v2.12.0 and earlier drew the original panel on the Pico 2 W. The eleventh is now `pico2_w_original`, the original panel it carried
 until then: not published and not a required check; CI builds it and holds it to its own flash
 budget. The Ângulo images (`pico_wiretft_angulo` and `pico2_w_release`) are held to the link-set
 and static-RAM gates, picked by the profile's `ui` (`tools/env_ui.py`) and not by the name. Both

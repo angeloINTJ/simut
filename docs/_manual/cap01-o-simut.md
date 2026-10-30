@@ -38,7 +38,7 @@ Um mesmo profissional pode acumular mais de uma dessas funções. O [roteiro de 
 
 O mesmo código gera quatro imagens de firmware publicadas, para três montagens de hardware:
 
-- **release:** o monitor com painel de toque colorido de 320×240, no Pico W (imagem `release`, com o painel original, [capítulo 11](#cap-11)) ou no Pico 2 W (imagem `releasetwo`, com o painel Ângulo [main]{.img}, [capítulo 11A](#cap-11a));
+- **release:** o monitor com painel de toque colorido de 320×240, no Pico W (imagem `release`, com o painel original, [capítulo 11](#cap-11)) ou no Pico 2 W (imagem `releasetwo`, com o painel Ângulo, [capítulo 11A](#cap-11a));
 - **alpha:** o monitor com LCD de 16×2 caracteres e console pelo Bluetooth;
 - **Air (SIMUT Air):** o registrador a bateria, sem tela, que hiberna entre as leituras. É experimental.
 
@@ -99,9 +99,17 @@ O aparelho em blocos: os sensores entram pelo Core 0, a tela fica com o Core 1, 
 
 ## Versões {#cap-01-versoes}
 
-Este manual descreve a **v2.12.0**, de 29/10/2026, a versão publicada mais recente. A linha 2.7 saiu do beta com a v2.7.0.
+Este manual descreve a **v2.13.0**, de 30/10/2026, a versão publicada mais recente. A linha 2.7 saiu do beta com a v2.7.0.
 
-O que a v2.12.0 mudou para quem usa o aparelho:
+O que a v2.13.0 mudou para quem usa o aparelho:
+
+- no Pico 2 W, a release passa a desenhar o painel **Ângulo**, com telas próprias ([capítulo 11A](#cap-11a)); o Pico W continua com o painel original ([capítulo 11](#cap-11));
+- o tema do Ângulo é um modo (claro, escuro ou automático) mais uma de seis cores de destaque, 18 escolhas ao todo; um arquivo `.thm` enviado a um Pico 2 W é guardado, mas não é aplicado;
+- o Ângulo fala os três idiomas do aparelho pelos pacotes de idioma, que crescem para cerca de 53 KB e 55 KB: o maior arquivo de idioma que o aparelho carrega sobe de 48 KiB para 64 KiB, então o firmware entra antes dos pacotes novos;
+- a barra de status do Ângulo mostra o sinal do Wi-Fi em quatro níveis, e a página **Avisos de Terceiros** e a tela **Licença** do painel listam as fontes e os ícones dele;
+- o manual ganha o capítulo 11A, conta quatro imagens publicadas e descreve o *rollback* dos dois slots do Pico 2 W.
+
+A v2.12.0, de 29/10/2026, tinha trazido:
 
 - no Pico W, o barramento do painel passa a ser ajustado a 66,5 MHz, onde rodava a 24 MHz (lido na bancada em 15/10/2026);
 - um rádio que para de responder não é mais associado às cegas: o aparelho reinicia pelo caminho planejado em vez de pelo watchdog, e o log registra `SYS_WIFI_CONNECT` com contexto 4 ([capítulo 9](#cap-09-mudo));
@@ -112,16 +120,7 @@ O que a v2.12.0 mudou para quem usa o aparelho:
 - a página web mostra os nomes dos temas de fábrica no idioma do aparelho;
 - a página **Arquivos** mostra, em vermelho, o motivo de um arquivo que o aparelho recusou, em vez de "Upload concluído." ([capítulo 17](#cap-17-enviar)).
 
-A v2.11.1, de 12/10/2026, tinha trazido:
-
-- a troca obrigatória de PIN não pode mais ser pulada: **SAIR** volta à tela inicial, e o menu só abre depois da troca ([capítulo 8](#cap-08-pin-fabrica));
-- no painel, uma conta com a permissão **Usuários** só concede as permissões de painel que ela mesma tem ([capítulo 8](#cap-08-usuarios-painel));
-- uma política de PIN mais exigente não tranca mais do painel quem tem um PIN mais curto: a conta se identifica com o PIN antigo e vai para a troca, e a mensagem de PIN curto diz o mínimo da política ([capítulo 8](#cap-08-politica));
-- **Adotar a sonda ligada aqui** lê o GPIO do próprio slot, e a leitura segue com a sonda nova na hora ([capítulo 6](#cap-06-adotar));
-- o AP aberto pelo gesto no boot segue o prazo de 15 min num aparelho com rede configurada ([capítulo 9](#cap-09-ap-aberto));
-- a página **Arquivos** explica a recusa `v=6`, a de uma imagem de outro chip ([capítulo 17](#cap-17-ota-conferencias)).
-
-Um aparelho com a v2.11.1 não tem os itens da v2.12.0, e o que as versões anteriores trouxeram está no apêndice [Histórico de versões](#ap-c). Onde este manual diz "na v2.7.1" ou "pelo código da v2.7.1", o texto vale também para as versões seguintes, salvo nas mudanças que o apêndice registra da v2.7.2 em diante. Como conferir a versão do seu aparelho está no [capítulo 17](#cap-17-ota-conferir).
+Um aparelho com a v2.12.0 não tem os itens da v2.13.0, e o que as versões anteriores trouxeram está no apêndice [Histórico de versões](#ap-c). Onde este manual diz "na v2.7.1" ou "pelo código da v2.7.1", o texto vale também para as versões seguintes, salvo nas mudanças que o apêndice registra da v2.7.2 em diante. Como conferir a versão do seu aparelho está no [capítulo 17](#cap-17-ota-conferir).
 
 ## Como ler este manual {#cap-01-como-ler}
 
@@ -134,7 +133,6 @@ Uma seção que vale só para algumas imagens começa com selos:
 | [release]{.img} | Vale para as imagens com painel de toque: a do Pico W e a do Pico 2 W (`releasetwo`) |
 | [alpha]{.img} | Vale para a imagem com LCD |
 | [air]{.img} | Vale para o SIMUT Air |
-| [main]{.img} | Está no código-fonte, mas ainda não numa versão publicada |
 
 Uma seção sem selo vale para todas as imagens.
 

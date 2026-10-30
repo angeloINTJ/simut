@@ -77,7 +77,7 @@ O console USB é o caminho de maior confiança: quem tem o cabo tem a placa na m
 
 ## O que o aparelho não faz {#cap-29-limites}
 
-- **Não tem rollback.** Existe um único slot de firmware. Uma gravação interrompida na janela de aplicação, de cerca de 25 s, exige BOOTSEL e cabo USB ([capítulo 18](#cap-18)).
+- **No Pico W, não tem rollback.** Existe um único slot de firmware. Uma gravação interrompida na janela de aplicação, de cerca de 25 s, exige BOOTSEL e cabo USB ([capítulo 18](#cap-18)). O Pico 2 W tem dois slots: a atualização vai para o slot de onde ele não subiu e sobe em teste (`trial`), e a imagem anterior volta sozinha quando a nova não se confirma ([capítulo 26](#cap-26-ota)).
 - **Não cifra o sistema de arquivos.** A senha do Wi-Fi, a senha do MQTT e a chave de API da telemetria são gravadas embaralhadas com uma chave derivada do próprio chip. Isso impede a leitura casual de um arquivo copiado, mas não é cifra: quem tem a placa na mão consegue recuperá-las. Proteja o acesso físico.
 - **Não é um instrumento metrológico certificado.** Valide as leituras contra a sua própria referência antes de usá-lo como controle de um armazenamento regulado.
 

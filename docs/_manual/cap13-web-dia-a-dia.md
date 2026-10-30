@@ -67,7 +67,7 @@ A página de entrada. Note o seletor de idioma no rodapé e o link Trocar senha 
 A página mostra, de cima para baixo:
 
 - o logotipo SIMUT e a legenda "Sistema de Monitoramento Universal e Telemetria", sempre em português;
-- a versão do firmware, como `v2.12.0`, abaixo da legenda (desde a v2.7.3);
+- a versão do firmware, como `v2.13.0`, abaixo da legenda (desde a v2.7.3);
 - **Usuário** (*Username*): o nome da conta;
 - **Senha** (*Password*);
 - **Mostrar senha** (*Show password*): mostra a senha digitada;
@@ -493,7 +493,7 @@ A página **Licença** (rota `/license`) exige a permissão **Painel** e fica no
 - **Licença de Software** (*Software License*), com a frase **Software livre. Abaixo, o que isso significa na prática.**;
 - **Em resumo** (*In short*): um resumo da licença em linguagem simples, com o aviso de que ele não substitui o texto da licença;
 - **Licença MIT** (*MIT License*): o texto da licença, em inglês, porque é a versão original e a que tem valor legal;
-- **Avisos de Terceiros** (*Third-Party Notices*): os 25 componentes de terceiros que entram nas imagens com Wi-Fi (a página de uma imagem com cabo, montada no configurador, lista 21), com o titular do copyright, a licença, as imagens que levam cada um e o endereço. Os textos completos das licenças ficam no `THIRD_PARTY_NOTICES.md` e na pasta `LICENSES` do repositório, publicados com cada versão. [main]{.img} Nas imagens com o painel Ângulo ([capítulo 11A](#cap-11a-licenca)), o bloco traz também, no fim, as fontes e os ícones desse painel, cada um com a sua licença: Bricolage Grotesque (SIL Open Font License 1.1), GNU FreeFont (GPL-3.0-or-later, com a exceção de fontes) e Lucide (ISC).
+- **Avisos de Terceiros** (*Third-Party Notices*): os 25 componentes de terceiros que entram nas imagens com Wi-Fi (a página de uma imagem com cabo, montada no configurador, lista 21), com o titular do copyright, a licença, as imagens que levam cada um e o endereço. Os textos completos das licenças ficam no `THIRD_PARTY_NOTICES.md` e na pasta `LICENSES` do repositório, publicados com cada versão. Nas imagens com o painel Ângulo ([capítulo 11A](#cap-11a-licenca)), o bloco traz também, no fim, as fontes e os ícones desse painel, cada um com a sua licença: Bricolage Grotesque (SIL Open Font License 1.1), GNU FreeFont (GPL-3.0-or-later, com a exceção de fontes) e Lucide (ISC).
 
 Dois componentes têm licença própria em vez de uma licença livre comum: o driver do rádio (cyw43-driver), em todas as imagens, e o BTstack, a pilha Bluetooth das imagens alpha e Air. A Raspberry Pi concede os dois a quem monta produtos sobre o Pico W e o Pico 2 W, inclusive para uso comercial; fora desses chips eles não valem. Confira a lista antes de distribuir o aparelho.
 

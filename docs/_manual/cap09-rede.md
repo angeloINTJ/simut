@@ -332,7 +332,7 @@ O aparelho também se anuncia como um serviço `_simut._tcp`, para que um progra
 | Campo | Conteúdo |
 |---|---|
 | `uid` | Identidade do chip, 16 algarismos hexadecimais |
-| `ver` | Versão do firmware, como `2.12.0` |
+| `ver` | Versão do firmware, como `2.13.0` |
 | `env` | Imagem: `release` |
 | `tls` | `1` com HTTPS, `0` com HTTP |
 
@@ -493,7 +493,7 @@ Depois de voltar para HTTP, o primeiro acesso pelo mesmo navegador pode voltar d
 
 ### O par e a atualização de firmware {#cap-09-https-ota}
 
-A atualização de firmware reformata o sistema de arquivos e só preserva a configuração principal (`/config/system.bin`). O par de certificados não é preservado pela atualização: depois dela, o aparelho volta a atender em HTTP.
+No Pico W, a atualização de firmware reformata o sistema de arquivos e só preserva a configuração principal (`/config/system.bin`). O par de certificados não é preservado pela atualização: depois dela, o aparelho volta a atender em HTTP. No Pico 2 W o sistema de arquivos fica intocado, e o par de certificados fica com ele ([capítulo 26](#cap-26-ota)).
 
 O backup `.bkp`, que a página **Arquivos** baixa antes de atualizar, contém todos os arquivos, inclusive o par. Para voltar ao HTTPS depois de atualizar, restaure esse backup ou instale o par de novo ([capítulo 17](#cap-17)).
 

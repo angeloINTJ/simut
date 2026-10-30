@@ -1,6 +1,6 @@
 # O painel original (Pico W) {#cap-11}
 
-[release]{.img} Este capítulo percorre o painel de toque original da imagem `release`, a do Pico W, tela por tela: a tela inicial, os gestos, o gráfico, o menu de configurações, as telas de boot e as mensagens. Ele vale também para um Pico 2 W montado com **Visual original** (*Original look*) no [configurador](#cap-03-sob-medida). A imagem `releasetwo`, a do Pico 2 W, desenha o painel Ângulo [main]{.img}, que está no [capítulo 11A](#cap-11a). É para quem opera o aparelho na bancada ou no laboratório.
+[release]{.img} Este capítulo percorre o painel de toque original da imagem `release`, a do Pico W, tela por tela: a tela inicial, os gestos, o gráfico, o menu de configurações, as telas de boot e as mensagens. Ele vale também para um Pico 2 W montado com **Visual original** (*Original look*) no [configurador](#cap-03-sob-medida). A imagem `releasetwo`, a do Pico 2 W, desenha o painel Ângulo, que está no [capítulo 11A](#cap-11a). É para quem opera o aparelho na bancada ou no laboratório.
 
 ## O painel em resumo {#cap-11-visao}
 
@@ -590,7 +590,7 @@ Os motivos de uma recusa são os da página **Arquivos** ([capítulo 17](#cap-17
 
 A conferência roda de novo quando a página pede a instalação; se a imagem guardada não confere mais, a tela mostra a recusa com o motivo, e a instalação não começa. **Interrompida** aparece quando o envio para no meio, quando a gravação na memória falha ou quando a instalação não chega a começar. Nos dois casos o aparelho segue na versão que tinha.
 
-Depois da instalação, quando a imagem gravada confere com a recebida, a caixa do boot mostra **Update installed:** e a versão nova, em inglês: o envio da imagem apaga o pacote de idioma junto com os outros arquivos ([O que sobrevive e o que se perde](#cap-17-sobrevive)).
+Depois da instalação, quando a imagem gravada confere com a recebida, a caixa do boot mostra **Update installed:** e a versão nova, em inglês: no Pico W, o envio da imagem apaga o pacote de idioma junto com os outros arquivos ([O que sobrevive e o que se perde](#cap-17-sobrevive)). No Pico 2 W o pacote de idioma fica, porque o sistema de arquivos fica intocado ([capítulo 26](#cap-26-ota)).
 
 ::: {.figura #fig-11-ota-recebendo tipo="tft" arquivo="11-ota-recebendo.png" captura="screen otarx: a etapa Recebendo com a barra em 42 %; pacote pt-BR"}
 O envio da imagem: a barra, a porcentagem e o aviso para não desligar.

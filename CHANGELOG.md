@@ -4,6 +4,285 @@
 
 All notable changes to SIMUT firmware.
 
+## v2.13.0 (2026-10-30)
+
+**The Pico 2 W release draws a new panel, the Ângulo: its own screens, a theme that is a mode plus an accent colour,
+and the device's three languages through the language packs (#304). The Pico W keeps the original panel. The Ângulo's
+status bar shows the Wi-Fi signal in four levels, `/license` and the panel's Licença screen list the fonts and icons
+it carries, the configurator offers the choice of look with its refusals, and the manual gains chapter 11A. The
+language packs grow to about 53 KB and 55 KB and the largest language file the device loads rises from 48 KiB to 64
+KiB, so this firmware goes on before the new packs. The nightly savings floor stops counting the linker's alignment
+fill (#302), and the manual counts four published images and the Pico 2 W's two firmware slots (#303).**
+
+`CONFIG_VERSION` stays at 26 and the security version at 1. `keys/` and `src/ota/ota_layout.h` are the files of
+v2.12.0 (`git diff v2.12.0 HEAD -- keys src/ota/ota_layout.h` is empty, 2026-10-30), so v2.12.0 verifies this
+release's signature and an update can go over the air both ways, as far as the code says: the gate has not run that
+round trip on this release's candidate yet (*The bench*). The three pull requests merged since v2.12.0 are each named
+under the heading they belong to. #304 is the Ângulo series: 410 commits (390 without merges) on top of main
+`43b275d8`, measured at `4629e8c6` on 2026-10-30.
+
+### The Ângulo panel on the Pico 2 W (#304)
+
+- **A new panel for the Pico 2 W.** The release image (`pico2_w_release`, published as `releasetwo`) draws the Ângulo,
+  a second look for the same functions; v2.12.0 drew the original panel on the Pico 2 W. Its screens: the dashboard
+  (status bar, sensor cards, minimum and maximum, the button bar, the alarm shown on cards and buttons, the card that
+  says the web is using the device), the chart with its detail and the calendar, the settings menu and its screens
+  (alarm limits and the sensor menu, maintenance, sounds, system status, date and time, display alignment, touch
+  sensitivity, theme, language, licences, update), the accounts with the PIN keypad and the text keyboard, and the
+  confirmation to start the setup network. Chapter 11A of the manual describes each one.
+- **The theme is a mode and an accent.** Light, dark or automatic, and one accent colour from a palette of six, 18
+  choices in all; everything else follows the mode, and each accent is chosen to keep its contrast in both modes. A
+  `.thm` file uploaded to a Pico 2 W is stored and listed in Files, but neither listed as a theme nor applied: it
+  takes effect when the board runs the original panel. The web page names the 18 themes in the device's language.
+- **The panel speaks the device's language.** English, Portuguese (pt-BR) and Spanish (es-ES) come from an `@ANGULO`
+  section of the language packs, 380 texts per pack; a key the pack lacks shows the English text. The es-ES wordings
+  wait for a native review (*Known*).
+- **The status bar shows the Wi-Fi signal.** No signal at -100 dBm or less and while the link is down; then one bar up
+  to -75 dBm, two up to -65, three up to -55 and four above, the original top bar's thresholds. The one-bar level uses
+  the alert colour, and no network state is drawn in the danger colour. Seen on the host (frames and tests), not on a
+  board.
+- **Licences.** `/license` lists the fonts and icons that only the Ângulo carries (Bricolage Grotesque, SIL OFL 1.1;
+  GNU FreeFont FreeSans and FreeMono Bold, GPL-3.0-or-later with the font exception; Lucide, ISC), and so does the
+  panel's Licença screen, with four more sources after the list (the screen seen on the host only).
+- **Two texts say what happens.** The card that tells the person at the panel that the web is using the device reads
+  `<name> reads records on the web.` (it said the account was saving; only history and log reads and exports raise
+  it). A full accounts list says `Delete an account to create another.` (it named a number; the device holds 32
+  accounts). Seen on the host only.
+- **The original panel stays buildable.** `pico2_w_original` is the Pico 2 W with the original panel, and
+  `pico_wiretft_angulo` the Ângulo on the Wire with the panel (the bench image since 2026-10-14); CI builds both and
+  holds each to its own flash budget, and the release publishes neither.
+
+### The Pico W images (#304)
+
+- **The code behind the panel moved.** The original panel is now one driver among two, under `src/ui/original/`;
+  `DisplayManager` keeps the core (state, the Core 1 loop, touch acquisition, calibration math, the PIN and accounts
+  logic, the events to Core 0, the mode machine, the language machinery) and reaches what draws and hit-tests the
+  panel through hooks. Its look is not meant to change, and each step of the move carries its own proof (host models,
+  decoded diffs, bench A/B; `docs/analysis/UI_DRIVERS.md`). The bytes do change: the release is 200 B larger, the
+  alpha and the Air keep their size and have new bytes, and no record decodes the whole difference of an image against
+  v2.12.0's, so this entry does not claim "behaviour unchanged" for any image (*Flash*).
+- **The largest language file the device loads is 64 KiB** (it was 48 KiB), on `pico_w_release`, `pico_w_air` and
+  `pico2_w_release`. A pack over the ceiling is refused at boot and the panel stays in English.
+- **The `/license` page** names, on one line, the images an entry applies to.
+
+### The configurator and the manual (#303, #304)
+
+- **The configurator offers the look.** On the Pico 2 W it offers the original or the Ângulo, shows the Ângulo's price
+  once the cost matrix has it, and says why it refuses: the Ângulo does not fit the Pico W (Wi-Fi on the RP2040), and
+  it needs the panel chart. The page is also in Spanish (es-ES), and a switch's lock reason, its "no effect" line and
+  its price are read by a screen reader. The page is not part of a firmware image.
+- **Manual chapter 11A, "O painel Ângulo (Pico 2 W)".** The Ângulo's screens, with figures drawn by the panel's own
+  code on the host, not captured on the device. Chapter 11 is retitled "O painel original (Pico W)", and eighteen
+  chapters (1, 3 to 11, 13 to 15, 17, 18, 28, 30 and 31) point the Pico 2 W reader to 11A. Chapter 26 lists
+  `GET /api/ui`.
+- **The manual counts four published images and the Pico 2 W's two slots** (#303). Since v2.11.0 every release
+  publishes four firmware images (release, alpha, air and releasetwo, the release built for the Pico 2 W): four `.bin`
+  and four `.uf2`, twelve files with the two language packs, `manifest.json` and `SHA256SUMS`, read from the v2.12.0
+  release on 2026-10-30; the manual still said three in places. Its section "There is no rollback", which said the
+  device holds no second firmware slot, is "Rollback" now: the Pico W's single slot as before, and the Pico 2 W's two
+  slots, where an update boots on trial and the image it replaced comes back by itself when the new one does not keep
+  itself (record 613, `sys.reverted`).
+
+### Under the hood
+
+- **The savings floor measures without the linker's alignment fill** (#302). The nightly savings watermark went red on
+  2026-10-28 and on 2026-10-29 (nine of 16 floors, issue #296) with no code leaving a switch. Over six commits of main
+  the nine savings moved 8 to 16 B per commit while the bytes a switch removes did not move by one byte in 45
+  (feature, step) cells: only the linker's fill did, the pad in front of 8-aligned sections, which follows the size of
+  everything before it. The floor now compares `used` minus every fill of the linker map (boot2, text, rodata and
+  data) and refuses a map whose sections do not add up to `used`; a drop of up to `FLASH_TOL` = 8 B passes. Sixteen
+  floors were recorded again (13 fall by 1 to 102 B, 3 rise by 1 to 5 B, because the unit is the bytes of content
+  now), and `tools/test_measure_savings.py` went from 21 to 45 cases with #302 (76 on this tree). One character of the
+  version string moved six of the nine savings by 8 B before; "2.13.0" moves none (measured with #302, 2026-10-30; the
+  nightly job did not run on that branch).
+- **The panel is a driver chosen when the image is built** (#304). The contract and the audit are
+  `docs/analysis/UI_DRIVERS.md` (Living). The original driver's code is `src/ui/original/` (14 units and three font
+  tables) and the Ângulo's `src/ui/angulo/`; the Pico 2 W's release builds the Ângulo (`ui = "angulo"` in the
+  manifest).
+- **CI.** `build.yml` gains two images, `firmware (pico_wiretft_angulo)` and `firmware (pico2_w_original)`, neither a
+  required check; the nine required checks are the same (`gh api repos/angeloINTJ/simut/branches/main/protection`,
+  2026-10-30). The workflow gains 27 steps (the Ângulo's host tests, the link-set and RAM gates, the texts gate, the
+  figures of the manual, the notices per image), which ran on GitHub for the first time with #304: the first run
+  failed `gates` at `test_idiomas.py`, 52 of 121 checks, because the runner has no Pillow; the second, with the
+  install moved before the Ângulo's tests, passed all 15 checks.
+- **Host tests:** 772 cases in 11 suites, up from 734 at v2.12.0 (each suite's "N test cases", summed on 2026-10-30).
+- **The authorization gate** reports 62 routes, 52 gated and 10 public by design, and the UI driver's own route,
+  `/api/ui`, gated, which only an image built with the Ângulo serves; the panel's half classifies 32 events (14 gated,
+  14 ungated, 4 registered deviations; 2026-10-30).
+- **The flash budgets move with the images** (`tools/flash_budget.json`): the release by +200 B, `pico_w_test` +160,
+  `pico_w_test_https` +176, `pico_w_asserts` +200, `pico_wiretft` +160 and `pico2_w_release` +38,104; `pico_wire`
+  falls 40 B; the alpha and the Air keep theirs; `pico_wiretft_angulo` (816,836 B) and `pico2_w_original` (1,000,032
+  B) are new. The `tft_graph` savings floor falls 68 B, from 20,433 B (the floor #302 set; v2.12.0's was 20,432) to
+  20,365 B: the sum of four `DisplayManager` functions (`loopCore1` -48, `handleTouch` -28, `drawUserEdit` +4,
+  `pinAppendChar` +4) and a fifth, `showSettingsAlarms`, renamed by a const with no change in size; the same 21
+  symbols leave whole on main and on the branch. The feature-entanglement watermark (`tools/check_feature_sprawl.py`)
+  rises from 354 to 368 sites (+14: `SIMUT_UI_PACK_TEXTS` +4, `SIMUT_UI_ANGULO` +4, `SIMUT_NET_WIFI` +3,
+  `SIMUT_NET_LAN` +2, `SIMUT_UI_CUSTOM_THEMES` +2, `SIMUT_DISPLAY_TFT` -1). The counter itself changed in #304 (it
+  counts `if constexpr ( SIMUT_` lines, and `SKIP_FILES` has 6 more headers); the new counter over main's tree gives
+  354, so the +14 compares like with like.
+- **Documents.** `docs/analysis/UI_DRIVERS.md` (the driver contract and the audit), the paragraph of `AGENTS.md` on
+  the savings floor and `docs/analysis/ECONOMIA_DE_RECURSOS.md` (a section on the alignment fill), all three Living.
+
+### Flash
+
+Against the published v2.12.0, signed `.bin` (the image plus its 241-byte signature; this release's are the images
+built on this tree on 2026-10-30 plus those 241 B, as no candidate is signed yet):
+- release 1,036,133 → 1,036,333 B (+200);
+- alpha 990,621 → 990,621 B;
+- Air 1,035,581 → 1,035,581 B;
+- Pico 2 W 1,000,241 → 1,038,345 B (+38,104).
+
+Slack under the 1,040,384 B over-the-air ceiling: release 4,051 (4,251 in v2.12.0), alpha 49,763, Air 4,803
+(`tools/check_flash_budget.py`, 2026-10-30). The Pico 2 W's slot is 1,568,768 B, with 530,423 B left. The release is
+45 B under the one flash sector that `check_flash_budget.py` warns under (it was 155 B above): the gate warns for it,
+as for `pico_w_test` (3,267 B of room) and `pico_w_asserts` (1,755 B), and fails nothing; the next addition to that
+image decides. The alpha and the Air put BTstack's flash bank on a 4 KiB boundary, so their `.bin` moves in steps of a
+page: both stayed on theirs. The language packs grow from 42,517 B (pt-BR) and 44,262 B (es-ES) in v2.12.0 to 53,035 B
+and 55,064 B.
+
+### The bench
+
+The release gate (`AGENTS.md` §2) has not run on this release's candidate yet. This section is filled in by the gate's
+documentation change, from the candidate the CI signs on `main`. Until then, each figure above names the build and the
+date it was measured on. What ran on a board before, on development images of the Ângulo (the Pico 2 W of the bench;
+each record is outside the repository):
+- 2026-10-22: the theme catalogue and a paint comparison. `/api/themes` lists 18 choices where the build before the
+  accent palette listed 3, the paint medians are within 1 ms (plain HTTP, 8 screens), and an uploaded `.thm` is
+  stored, downloaded byte for byte and deleted.
+- 2026-10-24: the Ângulo walked in pt-BR, es-ES and English on the image of `871a455e`; each walk passed its own
+  steps, and the English run's one failure is the expected one (the language is not restored).
+- 2026-10-28: the original panel's A/B (67 equal, 0 differ, 0 missing, 1 not comparable by design); the Ângulo's
+  setup-network dialog, pressing Cancel (73 checks ok, 1 failure of the tool's own, and 0 of 76,800 pixels differ from
+  the host's frames in pt-BR and in es-ES); and the Idioma screen after an English boot, its refusals and the boot
+  times (103 ok, 0 failures).
+- 2026-10-30, 13:11: the panel's SPI clock on the Ângulo image of that day, read only: `sys.tft_hz` 37,500,000 and
+  `clk_peri` 150,000,000.
+
+Not run on a board: the retention check between v2.12.0's original panel and the Ângulo, and the way down (they run at
+the gate, on the CI-signed candidate); the images of the move (no record shows this series' tip flashed); the
+confirmation to start the setup network pressed to Confirm (only Cancel ran); the three-language walk on an image
+after 2026-10-24. Open and needing a board (`docs/analysis/UI_DRIVERS.md`): Core 1's stack under load with
+`optimize("no-reorder-blocks")` (the only measurement so far is the compiler's), the paint cost under TLS load
+(unmeasured) and the Pico 2 W's `heap_lb` (not measured). Seen on the host only: the Wi-Fi signal levels of the status
+bar, the licence screen's four added sources, the two reworded texts and every figure of chapter 11A.
+
+### Upgrading
+
+- **Install this firmware before the new language packs.** pt-BR goes from 42,517 to 53,035 B and es-ES from 44,262 to
+  55,064 B; v2.12.0 and earlier refuse a language file over 49,152 B at boot, and the panel stays in English. This
+  firmware loads files up to 64 KiB.
+- **From v2.12.0, on a Pico W (release, alpha or Air):** over the air, from the Files page, with this release's `.bin`
+  and with no other page of the device open. Download the `.bkp` the page offers first. The apply reformats the
+  filesystem and keeps only `/config/system.bin`: `/lang` is gone, so the device shows English until the pack is back
+  and it has rebooted, and the history, the themes in `/themes` and the Air's own options come back only with the
+  `.bkp`. Restore the `.bkp` (it brings the old pack back), upload **the pack of the device's language** attached to
+  this release, over the old one, and reboot; a pack is read at boot. The Pico W keeps the original panel.
+- **From v2.12.0, on a Pico 2 W:** over the air, with this release's `.bin`: the update goes to the other slot, leaves
+  the filesystem alone and boots on trial, as since v2.11.0. **The board draws the Ângulo after it**, where v2.12.0
+  drew the original panel. The pack in `/lang` stays, and it has no `@ANGULO` section, so the Ângulo's texts read in
+  English until the new pack of the device's language replaces it. **The saved theme number is read the other way:**
+  the original panel takes it as a built-in or custom theme (0 is `simut_def`, 1 to 8 a custom theme when that `.thm`
+  is loaded), the Ângulo as a mode and an accent (`mode + 3 x accent`, 0 to 17; any other number reads as light with
+  the stock accent; `docs/analysis/UI_DRIVERS.md` section 2.16, F4's rule), so a saved theme can look different after
+  the move. Both Pico 2 W images are `releasetwo`, so a Pico 2 W can move between the original panel and the Ângulo
+  over the air, in both directions. The retention check between the two has not run on a board.
+- **Back to v2.12.0:** over the air with its signed `.bin` (both carry security version 1 and series 1), or over USB.
+  It has not run on a board for this release. A pack of this release in `/lang` is over v2.12.0's ceiling, so v2.12.0
+  refuses it at boot and the panel stays in English until v2.12.0's pack is back; a Pico 2 W then draws the original
+  panel again and reads the theme number the first way.
+- **From an older version, or a Pico 2 W's first install:** as for v2.11.0, in its entry below.
+- **Language packs: upload only the one of the device's language.** With more than one `language_*.lng` in `/lang` the
+  device loads the first in alphabetical order (every image does, by the code; all but the alpha also log 622,
+  `I18N_PACK_MULTIPLE`), and `language_es-ES.lng` comes before `language_pt-BR.lng`: a Portuguese device with both
+  turns Spanish (measured on the Pico W's release image, 2026-10-29). The Upgrading text of v2.11.1 and of the
+  releases before it says to upload the two; do not. A device that has both gets its language back by deleting the
+  other pack from `/lang` on the Files page and rebooting. A v2.12.0 pack still loads on this firmware, since a key a
+  pack lacks shows its English text. After a boot in English, the panel's Idioma screen lists the pack put in `/lang`
+  (#294).
+- **Themes:** on the original panel, a `.thm` restored from a `.bkp` keeps the name it was installed with, in
+  Portuguese for the stock themes of an older install; the web page translates their codes (#298). The device loads
+  eight `.thm` files (see *Known*). On the Ângulo a `.thm` is stored and not used.
+- **simut-rx** does not know `releasetwo` yet, so it offers no update to a Pico 2 W (its pull request #14 is still
+  open, 2026-10-30); once it does, it offers this release, with the Ângulo, to every Pico 2 W, because the original
+  panel and the Ângulo are the same `releasetwo` for the update.
+
+### Known, and not fixed here
+
+- **A refused file followed by an accepted one, in the same upload, still ends in "Upload complete."** The device
+  clears its refusal at the start of each file (`handleUploadData( )`), so it reports only the last file's. Send one
+  file at a time when one may be refused (#299).
+- **Four panel events save the configuration without Core 0's permission check**: the sounds, the two touch
+  calibrations and the display offset. `tools/check_authz.py` lists them as warnings, and CI holds the list. Deferred
+  at the maintainer's word of 2026-10-28.
+- **`data/themes/*.thm` differ from `tools/gen_theme_collection.py`** in the limit-alarm colours since 2137ea15
+  (2026-08-23). The generator's contrast rules fail the new colours on 36 pairs, so regenerating the files would turn
+  every stock theme's alarm red again.
+- **The Spanish texts are a proposal** until a native speaker reviews them: the names of the themes (#298), the text
+  of `fil_up_refused` (#299) and the 380 texts of the Ângulo's `@ANGULO` section (#304). The review does not block a
+  release (the maintainer's word of 2026-10-30).
+- **The emergency console has no `language` command**, and the web has no key for it. After a boot in English, the
+  panel's Idioma screen is the way back (#294), on the Ângulo too (seen on the Pico 2 W's bench on 2026-10-28, on a
+  development image).
+- **The web page's theme select gives no feedback when the device refuses the change.** `saveTheme( )` ignores the
+  answer of `/api/save_sys`.
+- **Narrowing the PIN alphabet or lowering the length ceiling still strands an old PIN** that uses a letter no longer
+  on the cards, or is longer than the new ceiling: the cards cannot offer the one, and Core 0 cannot check the other
+  in time. The account needs a new PIN from the panel's Users, the web or the console.
+- **On a build with a panel, a Core 1 hard fault leaves no program counter in the log**, on both chips. The main loop
+  restarts Core 1 after 10 s without its heartbeat, before the soft panic that would record it (measured in #249).
+- **On the Pico W, a configuration save from the panel during an upload restarts Core 1 in the middle of the stage**,
+  by the code. The stage then writes the flash with Core 1 running from it. It has not been seen on the bench. The
+  Pico 2 W's stage does not run that save.
+- **Accented lines on the original panel's boot screen print `?`**, by the code: the boot box folds text that is
+  already Latin-1 as if it were UTF-8. The Ângulo's boot screen was not checked for it.
+- **The web page does not retry an install refused with 503** (a touch on the panel in the 5 s before), by the code.
+- **`configure terminal` does not need `enable`**, although the console's command table says it needs privileged mode.
+  It opens nothing, but the table and the behaviour disagree.
+- **With two pressure sensors, the measurement line sends the pressure under the first one's key and with the last
+  one's value**, by the code.
+- **The Telemetry page's token list for the alarm line stops at v22.** Chapter 22 of the manual lists them all.
+- **Adopting a probe, or `sensor_wipe`, does not start the slot's history anew.** Both stamp the slot's provisioning
+  epoch, and nothing reads it: the history serves every record of a slot under the slot's current id. On the bench,
+  after slot 0 adopted another probe, its readings of 4 October came back under the new probe's id.
+- **After a boot, a probe that is not the slot's can have its first reading recorded.** The read path checks the ROM
+  on every fifth read, from the fifth on. On the bench, with another probe on the slot's GPIO, the reading of 20 s
+  after the boot went into the history as the slot's, and the quarantine began within the next minute.
+- **An Air with telemetry over TLS and no `/cert.pem` writes two records at every wake:** 545 (`TEL_CERT_MISSING`, "No
+  cert.pem, insecure mode") and 544 (`TEL_CERT_READ_ERR`, context 1: TLS on without certificate validation).
+  `TelemetryManager::begin( )` writes them at every start, and the boot preamble list in `LogPolicy.cpp`, which
+  silences the other start-up records of a wake, does not hold them. Not new: on the same Air, v2.11.1 wrote them at
+  each of three wakes and the candidate at each of eleven (2026-10-29).
+- **The alpha and the Air log an error after each update:** `Config changed: image CRC mismatch over 990720 B, want
+  4f5041ca` on the alpha, `over 1035776 B, want 299abf18` on the Air (`AppManager_Boot.cpp`; 2026-10-29, and the same
+  on both in v2.11.1's gate, 2026-10-05). The slot equals the signed image except the 4 KiB sector of BTstack's flash
+  bank, which lies inside the range the check sums: the likely cause. The update installs and boots, and the version
+  and the configuration are the new ones; the release image logs `image verified` instead.
+- **Only eight of the eleven stock themes load, on the original panel.** `MAX_CUSTOM_THEMES` is 8
+  (`src/ui/original/Themes.cpp`, since v1.0.0) and the directory is read in order, so with all eleven `.thm` files
+  uploaded `ubuntu`, `unimed_claro` and `unimed_escuro`, the last in that order, are left out: `GET /api/themes` lists
+  nine rows, `simut_def` and eight, on both boards (2026-10-29, when the Pico 2 W still ran the original panel). The
+  packs carry the eleven names (#298); R-R14 of `docs/analysis/MODELO_DE_RECURSOS.md` has the limit. The Ângulo does
+  not load `.thm` files: on a Pico 2 W with it, `GET /api/themes` lists its 18 choices.
+- **Saving the alarm limits from the panel reads the working copy of the configuration with no copy and no lock**
+  (F3). `AppManager::panelSaveAlarmLimits( )` reads it by reference after Salvar, and the writers of the copy run on
+  Core 1. Found by reading the code while the Ângulo's screens were moved; not seen on a board. The fix touches all
+  nine products, so it goes in a pull request of its own to `main`.
+- **On the Ângulo, `GET /api/keypad` describes the original's keypad** (F4): the grid and the popup geometry of the
+  original panel, not the keys on the Ângulo's glass. A client that taps the PIN keypad by the coordinates the route
+  gives is told the original's grid; the Ângulo's own touch does not use them.
+- **Some injected touches are not taken** (the bench's `POST /api/touch`). On the original panel, "Nova conta" on the
+  users list and the graph's detail (seen on `main` 2f4bc3d3 and on the Ângulo's branch alike, 2026-10-21). On the
+  Ângulo, the first 3.5 s hold right after a slot tap does not toggle the pinned card, and a retry 2 s later does
+  (2026-10-21 and 2026-10-22). Not seen with a finger, and not judged a defect.
+- **The Ângulo's confirmation to start the setup network was never confirmed on a board.** The bench pressed Cancel;
+  Confirm sends `EVT_START_AP` and starts the setup network. Its frames were compared with the host's in pt-BR and in
+  es-ES (0 of 76,800 pixels differ).
+- **A display-alignment preview that was not saved survives the idle return, on both panels.** The alignment screen
+  applies the previewed offset to the glass at once, and only Voltar (`actOffsetBack( )`) puts the saved offset back;
+  the return to the dashboard after the idle time does not go through it, so the image stays shifted, and the next
+  visit to the screen takes the shifted offset for the saved one (`showSettingsDisplayOffset( )` reads it from the
+  glass). By the code, not seen on a board.
+
 ## v2.12.0 (2026-10-29)
 
 **The panel's SPI is set to 66.5 MHz on the Pico W; on the build measured before the change (arduino-pico 5.6.1,

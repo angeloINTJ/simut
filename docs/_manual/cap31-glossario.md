@@ -126,7 +126,7 @@ Pacote de idioma
 :   Arquivo `.lng` que traduz o painel, a interface web e o log. Só é carregado no boot ([capítulo 13](#cap-13-idioma)).
 
 Painel
-:   A tela de toque da imagem release: o painel original ([capítulo 11](#cap-11)) ou o painel Ângulo [main]{.img} ([capítulo 11A](#cap-11a)).
+:   A tela de toque da imagem release: o painel original ([capítulo 11](#cap-11)) ou o painel Ângulo ([capítulo 11A](#cap-11a)).
 
 Pendentes
 :   Registros do histórico que ainda não foram entregues ao coletor ([capítulo 21](#cap-21-quando)).

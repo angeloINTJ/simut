@@ -1,6 +1,6 @@
 # SIMUT — Manual do Usuário
 
-**Firmware:** v2.12.0 · **Hardware:** Raspberry Pi Pico W (RP2040 + CYW43439) · **Licença:** MIT
+**Firmware:** v2.13.0 · **Hardware:** Raspberry Pi Pico W (RP2040 + CYW43439) · **Licença:** MIT
 **Repositório:** https://github.com/angeloINTJ/simut
 
 [English](MANUAL.md) | **Português**
@@ -260,9 +260,9 @@ corrigido.
 
 A calibração exige a permissão `CALIB` e precisa do NTP sincronizado.
 
-> **O `/calib.csv` não sobrevive a uma atualização de firmware.** Veja a
+> **No Pico W, o `/calib.csv` não sobrevive a uma atualização de firmware.** Veja a
 > [§12](#12-atualizações-de-firmware) para o que uma atualização preserva e o
-> que ela não preserva.
+> que ela não preserva. No Pico 2 W a atualização não mexe no sistema de arquivos.
 
 ### Pipeline de leitura
 
@@ -983,13 +983,17 @@ diante.
 
 ### O que uma atualização destrói
 
-O staging divide a partição de flash com o sistema de arquivos, então uma
+No Pico W, o staging divide a partição de flash com o sistema de arquivos, então uma
 atualização **o reformata**. Um snapshot leva o `/config/system.bin` para o
 outro lado — credenciais de Wi-Fi, usuários e slots de sensores sobrevivem
 automaticamente, e o dispositivo volta para a rede sem assistência.
 
 Nada mais sobrevive. **Pacotes de idioma, o `/calib.csv` e todo o histórico
 armazenado se perdem.** Baixe um backup antes.
+
+No Pico 2 W a atualização vai para o outro slot e não mexe no sistema de arquivos: não há
+snapshot nem nada a restaurar, e os pacotes de idioma, o `/calib.csv` e o histórico ficam
+(veja [Rollback](#rollback)).
 
 Desde a v2.8.0 o snapshot é gravado quando o envio **começa** e vale uma vez: o
 boot seguinte o restaura se não encontrar o `/config/system.bin`, e o apaga. Um

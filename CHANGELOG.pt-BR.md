@@ -4,6 +4,292 @@
 
 Todas as mudanças notáveis do firmware SIMUT.
 
+## v2.13.0 (2026-10-30)
+
+**O release do Pico 2 W passa a desenhar um painel novo, o Ângulo: telas próprias, um tema que é um modo mais uma cor
+de destaque, e os três idiomas do aparelho pelos pacotes de idioma (#304). O Pico W continua com o painel original. A
+barra de status do Ângulo mostra o sinal do Wi-Fi em quatro níveis, o `/license` e a tela Licença do painel listam as
+fontes e os ícones que ele traz, o configurador oferece a escolha do visual com as suas recusas, e o manual ganha o
+capítulo 11A. Os pacotes de idioma crescem para cerca de 53 KB e 55 KB e o maior arquivo de idioma que o aparelho
+carrega sobe de 48 KiB para 64 KiB, então este firmware entra antes dos pacotes novos. O piso noturno de economia
+deixa de contar o enchimento de alinhamento do linker (#302), e o manual conta quatro imagens publicadas e os dois
+slots de firmware do Pico 2 W (#303).**
+
+O `CONFIG_VERSION` continua 26, e o nível de segurança continua 1. O `keys/` e o `src/ota/ota_layout.h` são os da
+v2.12.0 (`git diff v2.12.0 HEAD -- keys src/ota/ota_layout.h` vazio, 30/10/2026), então a v2.12.0 confere a assinatura
+desta release e a atualização pode ir pelo ar nos dois sentidos, no que o código diz: o portão ainda não rodou essa
+ida e volta na candidata desta release (*A bancada*). Os três pull requests mergeados desde a v2.12.0 estão, cada um,
+sob o título a que pertencem. O #304 é a série do Ângulo: 410 commits (390 sem merges) sobre a main `43b275d8`,
+medidos em `4629e8c6` em 30/10/2026.
+
+### O painel Ângulo no Pico 2 W (#304)
+
+- **Um painel novo para o Pico 2 W.** A imagem release (`pico2_w_release`, publicada como `releasetwo`) desenha o
+  Ângulo, um segundo visual para as mesmas funções; a v2.12.0 desenhava o painel original no Pico 2 W. As telas dele:
+  o painel principal (barra de status, cartões dos sensores, mínimo e máximo, a barra de botões, o alarme mostrado nos
+  cartões e nos botões, o cartão que avisa que a web está usando o aparelho), o gráfico com o detalhe e o calendário,
+  o menu de ajustes e as telas dele (limites de alarme e o menu do sensor, manutenção, sons, estado do sistema, data e
+  hora, alinhamento da tela, sensibilidade do toque, tema, idioma, licenças, atualização), as contas com o teclado de
+  PIN e o teclado de texto, e a confirmação para iniciar a rede de configuração. O capítulo 11A do manual descreve
+  cada uma.
+- **O tema é um modo e um destaque.** Claro, escuro ou automático, e uma cor de destaque de uma paleta de seis, 18
+  escolhas ao todo; o resto segue o modo, e cada destaque é escolhido para manter o contraste nos dois modos. Um
+  arquivo `.thm` enviado a um Pico 2 W é guardado e listado em Arquivos, mas não aparece como tema nem é aplicado: ele
+  vale quando a placa roda o painel original. A página web nomeia os 18 temas no idioma do aparelho.
+- **O painel fala o idioma do aparelho.** Inglês, português (pt-BR) e espanhol (es-ES) vêm de uma seção `@ANGULO` dos
+  pacotes de idioma, 380 textos por pacote; uma chave que o pacote não tem aparece no texto em inglês. As redações em
+  es-ES esperam uma revisão de falante nativo (*Conhecido*).
+- **A barra de status mostra o sinal do Wi-Fi.** Sem sinal em -100 dBm ou menos e enquanto o link está caído; depois
+  uma barra até -75 dBm, duas até -65, três até -55 e quatro acima, os limiares da barra superior original. O nível de
+  uma barra usa a cor de alerta, e nenhum estado de rede é desenhado na cor de perigo. Visto no host (quadros e
+  testes), não numa placa.
+- **Licenças.** O `/license` lista as fontes e os ícones que só o Ângulo traz (Bricolage Grotesque, SIL OFL 1.1; GNU
+  FreeFont FreeSans e FreeMono Bold, GPL-3.0-or-later com a exceção de fontes; Lucide, ISC), e a tela Licença do
+  painel também, com mais quatro fontes depois da lista (a tela vista só no host).
+- **Dois textos dizem o que acontece.** O cartão que avisa a quem está no painel que a web está usando o aparelho diz,
+  em inglês, `<name> reads records on the web.` (dizia que a conta estava gravando; só a leitura e a exportação de
+  histórico e de log o acendem). Uma lista de contas cheia diz, em inglês, `Delete an account to create another.`
+  (citava um número; o aparelho guarda 32 contas). Vistos só no host.
+- **O painel original continua compilável.** O `pico2_w_original` é o Pico 2 W com o painel original, e o
+  `pico_wiretft_angulo` o Ângulo no Wire com painel (a imagem de bancada desde 14/10/2026); o CI compila os dois e
+  segura cada um no orçamento de flash próprio, e a release não publica nenhum.
+
+### As imagens do Pico W (#304)
+
+- **O código por trás do painel mudou de lugar.** O painel original agora é um driver entre dois, em
+  `src/ui/original/`; o `DisplayManager` guarda o núcleo (estado, o laço do Core 1, a aquisição do toque, a matemática
+  da calibração, a lógica de PIN e de contas, os eventos para o Core 0, a máquina de modos, a maquinaria de idioma) e
+  chega ao que desenha e testa o toque no painel por ganchos. O visual dele não deve mudar, e cada passo da mudança
+  carrega a prova própria (modelos no host, diferenças decodificadas, A/B na bancada; `docs/analysis/UI_DRIVERS.md`).
+  Os bytes mudam: o release fica 200 B maior, a alpha e o Air mantêm o tamanho e têm bytes novos, e nenhum registro
+  decodifica a diferença inteira de uma imagem contra a da v2.12.0, então esta entrada não afirma "comportamento
+  igual" para imagem nenhuma (*Flash*).
+- **O maior arquivo de idioma que o aparelho carrega é 64 KiB** (era 48 KiB), no `pico_w_release`, no `pico_w_air` e
+  no `pico2_w_release`. Um pacote acima do teto é recusado no boot e o painel fica em inglês.
+- **A página `/license`** nomeia, numa linha, as imagens a que uma entrada se aplica.
+
+### O configurador e o manual (#303, #304)
+
+- **O configurador oferece o visual.** No Pico 2 W ele oferece o original ou o Ângulo, mostra o preço do Ângulo quando
+  a matriz de custos o tem, e diz por que recusa: o Ângulo não cabe no Pico W (Wi-Fi no RP2040), e ele precisa do
+  gráfico do painel. A página também está em espanhol (es-ES), e o motivo de trava de uma chave, a linha "sem efeito"
+  e o preço dela são lidos por leitor de tela. A página não faz parte de uma imagem de firmware.
+- **Capítulo 11A do manual, "O painel Ângulo (Pico 2 W)".** As telas do Ângulo, com figuras desenhadas pelo código do
+  próprio painel no host, não capturadas no aparelho. O capítulo 11 passa a se chamar "O painel original (Pico W)", e
+  dezoito capítulos (1, 3 a 11, 13 a 15, 17, 18, 28, 30 e 31) levam o leitor do Pico 2 W ao 11A. O capítulo 26 lista o
+  `GET /api/ui`.
+- **O manual conta quatro imagens publicadas e os dois slots do Pico 2 W** (#303). Desde a v2.11.0 toda release
+  publica quatro imagens de firmware (release, alpha, air e releasetwo, a release feita para o Pico 2 W): quatro
+  `.bin` e quatro `.uf2`, doze arquivos com os dois pacotes de idioma, o `manifest.json` e o `SHA256SUMS`, lidos da
+  release v2.12.0 em 30/10/2026; o manual ainda dizia três em alguns pontos. A seção dele "Não existe rollback", que
+  dizia que o aparelho não tem um segundo slot de firmware, agora é "Rollback": o slot único do Pico W como antes, e
+  os dois slots do Pico 2 W, onde uma atualização sobe em teste e a imagem que ela trocou volta sozinha quando a nova
+  não se mantém (registro 613, `sys.reverted`).
+
+### Por dentro
+
+- **O piso de economia mede sem o enchimento de alinhamento do linker** (#302). A marca d'água noturna de economia
+  ficou vermelha em 28/10/2026 e em 29/10/2026 (nove dos 16 pisos, issue #296) sem nenhum código sair de uma chave. Em
+  seis commits da main as nove economias se mexeram de 8 a 16 B por commit enquanto os bytes que uma chave tira não se
+  mexeram um byte em 45 células (recurso, passo): só o enchimento do linker se mexeu, o espaço antes das seções
+  alinhadas em 8, que acompanha o tamanho de tudo o que vem antes. O piso agora compara o `used` menos todo enchimento
+  do mapa do linker (boot2, text, rodata e data) e recusa um mapa cujas seções não somam o `used`; uma queda de até
+  `FLASH_TOL` = 8 B passa. Dezesseis pisos foram gravados de novo (13 caem de 1 a 102 B, 3 sobem de 1 a 5 B, porque a
+  unidade agora são os bytes de conteúdo), e o `tools/test_measure_savings.py` foi de 21 para 45 casos com o #302 (76
+  nesta árvore). Um caractere da string de versão mexia seis das nove economias em 8 B; "2.13.0" não mexe nenhuma
+  (medido com o #302, 30/10/2026; o job noturno não rodou naquele ramo).
+- **O painel é um driver escolhido quando a imagem é compilada** (#304). O contrato e a auditoria são o
+  `docs/analysis/UI_DRIVERS.md` (Living). O código do driver original é `src/ui/original/` (14 unidades e três tabelas
+  de fontes) e o do Ângulo `src/ui/angulo/`; o release do Pico 2 W compila o Ângulo (`ui = "angulo"` no manifesto).
+- **CI.** O `build.yml` ganha duas imagens, `firmware (pico_wiretft_angulo)` e `firmware (pico2_w_original)`, nenhuma
+  exigida; as nove verificações exigidas são as mesmas (`gh api repos/angeloINTJ/simut/branches/main/protection`,
+  30/10/2026). O workflow ganha 27 passos (os testes do Ângulo no host, os portões de conjunto de linkagem e de RAM, o
+  portão dos textos, as figuras do manual, os avisos por imagem), que rodaram no GitHub pela primeira vez com o #304:
+  a primeira execução reprovou o `gates` no `test_idiomas.py`, 52 de 121 verificações, porque o runner não tem Pillow;
+  a segunda, com a instalação movida para antes dos testes do Ângulo, passou as 15 verificações.
+- **Testes no host:** 772 casos em 11 suítes, contra 734 na v2.12.0 ("N test cases" de cada suíte, somados em
+  30/10/2026).
+- **O portão de autorização** relata 62 rotas, 52 com portão e 10 públicas de propósito, e a rota própria do driver de
+  UI, `/api/ui`, com portão, que só uma imagem compilada com o Ângulo serve; a metade do painel classifica 32 eventos
+  (14 com portão, 14 sem, 4 desvios registrados; 30/10/2026).
+- **Os orçamentos de flash acompanham as imagens** (`tools/flash_budget.json`): o release em +200 B, o `pico_w_test`
+  +160, o `pico_w_test_https` +176, o `pico_w_asserts` +200, o `pico_wiretft` +160 e o `pico2_w_release` +38.104; o
+  `pico_wire` cai 40 B; a alpha e o Air mantêm os seus; o `pico_wiretft_angulo` (816.836 B) e o `pico2_w_original`
+  (1.000.032 B) são novos. O piso de economia do `tft_graph` cai 68 B, de 20.433 B (o piso que o #302 gravou; o da
+  v2.12.0 era 20.432) para 20.365 B: a soma de quatro funções do `DisplayManager` (`loopCore1` -48, `handleTouch` -28,
+  `drawUserEdit` +4, `pinAppendChar` +4) e de uma quinta, `showSettingsAlarms`, renomeada por um const e sem mudança
+  de tamanho; os mesmos 21 símbolos saem inteiros na main e no ramo. A marca d'água de entrelaçamento de recursos
+  (`tools/check_feature_sprawl.py`) sobe de 354 para 368 pontos (+14: `SIMUT_UI_PACK_TEXTS` +4, `SIMUT_UI_ANGULO` +4,
+  `SIMUT_NET_WIFI` +3, `SIMUT_NET_LAN` +2, `SIMUT_UI_CUSTOM_THEMES` +2, `SIMUT_DISPLAY_TFT` -1). O contador em si
+  mudou no #304 (ele conta linhas `if constexpr ( SIMUT_` e o `SKIP_FILES` ganhou 6 cabeçalhos); o contador novo sobre
+  a árvore da main dá 354, então o +14 compara coisas iguais.
+- **Documentos.** O `docs/analysis/UI_DRIVERS.md` (o contrato dos drivers e a auditoria), o parágrafo do `AGENTS.md`
+  sobre o piso de economia e o `docs/analysis/ECONOMIA_DE_RECURSOS.md` (uma seção sobre o enchimento de alinhamento),
+  os três Living.
+
+### Flash
+
+Contra a v2.12.0 publicada, `.bin` assinado (a imagem mais a assinatura de 241 bytes; os desta release são as imagens
+compiladas nesta árvore em 30/10/2026 mais esses 241 B, já que nenhuma candidata está assinada):
+- release 1.036.133 → 1.036.333 B (+200);
+- alpha 990.621 → 990.621 B;
+- Air 1.035.581 → 1.035.581 B;
+- Pico 2 W 1.000.241 → 1.038.345 B (+38.104).
+
+Folga sob o teto de 1.040.384 B da atualização pelo ar: release 4.051 (4.251 na v2.12.0), alpha 49.763, Air 4.803
+(`tools/check_flash_budget.py`, 30/10/2026). O slot do Pico 2 W tem 1.568.768 B, com 530.423 B sobrando. O release
+está 45 B abaixo do único setor de flash sob o qual o `check_flash_budget.py` avisa (estava 155 B acima): o portão
+avisa por ele, como pelo `pico_w_test` (3.267 B de folga) e pelo `pico_w_asserts` (1.755 B), e não reprova nada; a
+próxima adição a essa imagem decide. A alpha e o Air põem o banco de flash do BTstack numa fronteira de 4 KiB, então o
+`.bin` deles anda em passos de uma página: os dois ficaram na deles. Os pacotes de idioma crescem de 42.517 B (pt-BR)
+e 44.262 B (es-ES) na v2.12.0 para 53.035 B e 55.064 B.
+
+### A bancada
+
+O portão de release (`AGENTS.md` §2) ainda não rodou na candidata desta release. Esta seção é preenchida pela mudança
+de documentação do portão, a partir da candidata que o CI assina na `main`. Até lá, cada número acima diz a build e a
+data em que foi medido. O que rodou numa placa antes, em imagens de desenvolvimento do Ângulo (o Pico 2 W da bancada;
+cada registro fica fora do repositório):
+- 22/10/2026: o catálogo de temas e uma comparação de pintura. O `/api/themes` lista 18 escolhas onde a build anterior
+  à paleta de destaques listava 3, as medianas de pintura ficam a 1 ms uma da outra (HTTP simples, 8 telas), e um
+  `.thm` enviado é guardado, baixado byte a byte e apagado.
+- 24/10/2026: o Ângulo percorrido em pt-BR, es-ES e inglês na imagem de `871a455e`; cada percurso passou nos próprios
+  passos, e a única falha do percurso em inglês é a esperada (o idioma não é restaurado).
+- 28/10/2026: o A/B do painel original (67 iguais, 0 diferentes, 0 faltando, 1 não comparável por construção); o
+  diálogo de rede de configuração do Ângulo, apertando Cancelar (73 verificações ok, 1 falha da própria ferramenta, e
+  0 de 76.800 pixels diferem dos quadros do host em pt-BR e em es-ES); e a tela Idioma depois de um boot em inglês, as
+  recusas e os tempos de boot (103 ok, 0 falhas).
+- 30/10/2026, 13:11: o clock do SPI do painel na imagem do Ângulo daquele dia, só leitura: `sys.tft_hz` 37.500.000 e
+  `clk_peri` 150.000.000.
+
+Não rodou numa placa: a conferência de retenção entre o painel original da v2.12.0 e o Ângulo, e o caminho de volta
+(rodam no portão, na candidata assinada pelo CI); as imagens da mudança (nenhum registro mostra a ponta desta série
+gravada); a confirmação para iniciar a rede de configuração apertada em Confirmar (só o Cancelar rodou); o percurso
+nos três idiomas numa imagem posterior a 24/10/2026. Em aberto e precisando de uma placa
+(`docs/analysis/UI_DRIVERS.md`): a pilha do Core 1 sob carga com `optimize("no-reorder-blocks")` (a única medida até
+agora é a do compilador), o custo de pintura sob carga TLS (não medido) e o `heap_lb` do Pico 2 W (não medido). Visto
+só no host: os níveis de sinal do Wi-Fi da barra de status, as quatro fontes acrescentadas à tela Licença, os dois
+textos reescritos e toda figura do capítulo 11A.
+
+### Atualizando
+
+- **Instale este firmware antes dos pacotes de idioma novos.** O pt-BR vai de 42.517 para 53.035 B e o es-ES de 44.262
+  para 55.064 B; a v2.12.0 e as anteriores recusam um arquivo de idioma acima de 49.152 B no boot, e o painel fica em
+  inglês. Este firmware carrega arquivos de até 64 KiB.
+- **A partir da v2.12.0, num Pico W (release, alpha ou Air):** pelo ar, na página Arquivos, com o `.bin` desta release
+  e sem outra página do aparelho aberta. Baixe antes o `.bkp` que a página oferece. A aplicação reformata o sistema de
+  arquivos e guarda só o `/config/system.bin`: o `/lang` some, então o aparelho mostra inglês até o pacote voltar e
+  ele reiniciar, e o histórico, os temas de `/themes` e as opções próprias do Air voltam só com o `.bkp`. Restaure o
+  `.bkp` (ele traz o pacote antigo de volta), envie **o pacote do idioma do aparelho** anexado a esta release, por
+  cima do antigo, e reinicie; um pacote é lido no boot. O Pico W continua com o painel original.
+- **A partir da v2.12.0, num Pico 2 W:** pelo ar, com o `.bin` desta release: a atualização vai para o outro slot, não
+  mexe no sistema de arquivos e sobe em teste, como desde a v2.11.0. **A placa desenha o Ângulo depois dela**, onde a
+  v2.12.0 desenhava o painel original. O pacote de `/lang` fica, e ele não tem a seção `@ANGULO`, então os textos do
+  Ângulo saem em inglês até o pacote novo do idioma do aparelho o substituir. **O número do tema salvo é lido do outro
+  jeito:** o painel original o toma como um tema embutido ou personalizado (0 é o `simut_def`, 1 a 8 um tema
+  personalizado quando aquele `.thm` está carregado), o Ângulo como um modo e um destaque (`modo + 3 x destaque`, 0 a
+  17; qualquer outro número vira claro com o destaque de fábrica; `docs/analysis/UI_DRIVERS.md` seção 2.16, a regra do
+  F4), então um tema salvo pode ficar diferente depois da mudança. As duas imagens do Pico 2 W são `releasetwo`, então
+  um Pico 2 W pode ir do painel original ao Ângulo, e voltar, pelo ar. A conferência de retenção entre as duas não
+  rodou numa placa.
+- **De volta à v2.12.0:** pelo ar com o `.bin` assinado dela (as duas têm o nível de segurança 1 e a série 1), ou pelo
+  USB. Não rodou numa placa para esta release. Um pacote desta release em `/lang` está acima do teto da v2.12.0, então
+  a v2.12.0 o recusa no boot e o painel fica em inglês até o pacote da v2.12.0 voltar; um Pico 2 W então desenha o
+  painel original de novo e lê o número do tema do primeiro jeito.
+- **A partir de uma versão mais antiga, ou a primeira instalação de um Pico 2 W:** como na v2.11.0, na entrada dela,
+  abaixo.
+- **Pacotes de idioma: envie só o do idioma do aparelho.** Com mais de um `language_*.lng` em `/lang`, o aparelho
+  carrega o primeiro em ordem alfabética (toda imagem faz isso, pelo código; todas menos a alpha também gravam o 622,
+  `I18N_PACK_MULTIPLE`), e o `language_es-ES.lng` vem antes do `language_pt-BR.lng`: um aparelho em português com os
+  dois vira espanhol (medido na imagem release do Pico W, 29/10/2026). O texto de Atualizando da v2.11.1 e das
+  releases antes dela manda enviar os dois; não envie. Um aparelho que já tem os dois volta ao idioma dele apagando o
+  outro pacote de `/lang` pela página Arquivos e reiniciando. Um pacote da v2.12.0 continua carregando neste firmware,
+  já que uma chave que o pacote não tem aparece no texto em inglês. Depois de um boot em inglês, a tela Idioma do
+  painel lista o pacote colocado em `/lang` (#294).
+- **Temas:** no painel original, um `.thm` restaurado de um `.bkp` mantém o nome com que foi instalado, em português
+  para os temas de fábrica de uma instalação mais antiga; a página web traduz os códigos deles (#298). O aparelho
+  carrega oito `.thm` (veja *Conhecido*). No Ângulo um `.thm` é guardado e não é usado.
+- **O simut-rx** ainda não conhece o `releasetwo`, então não oferece atualização a um Pico 2 W (o pull request #14
+  dele segue aberto em 30/10/2026); quando conhecer, ele oferece esta release, com o Ângulo, a todo Pico 2 W, porque o
+  painel original e o Ângulo são o mesmo `releasetwo` para a atualização.
+
+### Conhecido, e não consertado aqui
+
+- **Um arquivo recusado seguido de um aceito, no mesmo envio, ainda termina em "Upload concluído."** O aparelho zera a
+  recusa no começo de cada arquivo (`handleUploadData( )`), então só relata a do último. Envie um arquivo por vez
+  quando um puder ser recusado (#299).
+- **Quatro eventos do painel gravam a configuração sem a conferência de permissão no Core 0**: os sons, as duas
+  calibrações do toque e o deslocamento do display. O `tools/check_authz.py` os lista como avisos, e o CI segura a
+  lista. Adiado, pela palavra do mantenedor de 28/10/2026.
+- **Os `data/themes/*.thm` diferem do `tools/gen_theme_collection.py`** nas cores dos alarmes de limite desde a
+  2137ea15 (23/08/2026). As regras de contraste do gerador reprovam as cores novas em 36 pares, então regenerar os
+  arquivos deixaria o alarme de todo tema de fábrica vermelho de novo.
+- **Os textos em espanhol são uma proposta** até um falante nativo revisar: os nomes dos temas (#298), o texto do
+  `fil_up_refused` (#299) e os 380 textos da seção `@ANGULO` do Ângulo (#304). A revisão não bloqueia uma release
+  (palavra do mantenedor, 30/10/2026).
+- **O console de emergência não tem o comando `language`**, e a web não tem chave para isso. Depois de um boot em
+  inglês, a tela Idioma do painel é a volta (#294), no Ângulo também (visto na bancada do Pico 2 W em 28/10/2026, numa
+  imagem de desenvolvimento).
+- **O seletor de temas da página web não dá retorno quando o aparelho recusa a mudança.** O `saveTheme( )` ignora a
+  resposta do `/api/save_sys`.
+- **Reduzir o alfabeto do PIN ou baixar o teto de tamanho ainda prende um PIN antigo** que use uma letra que saiu dos
+  cartões, ou que passe do teto novo: os cartões não oferecem a letra, e o Core 0 não confere a tempo o PIN longo. A
+  conta precisa de um PIN novo pelo item Usuários do painel, pela web ou pelo console.
+- **Num build com painel, uma falha de hardware do Core 1 não deixa o contador de programa no log**, nos dois chips. O
+  laço principal relança o Core 1 com 10 s sem batimento, antes do pânico que o registraria (medido no #249).
+- **No Pico W, uma gravação da configuração pelo painel durante um envio relança o Core 1 no meio do envio**, pelo
+  código. O envio segue gravando a flash com o Core 1 rodando a partir dela. Não foi visto na bancada. O envio do Pico
+  2 W não roda essa gravação.
+- **Linhas acentuadas na tela de boot do painel original imprimem `?`**, pelo código: a caixa do boot converte como
+  UTF-8 um texto que já é Latin-1. A tela de boot do Ângulo não foi conferida para isso.
+- **A página web não tenta de novo uma instalação recusada com 503** (um toque no painel nos 5 s antes), pelo código.
+- **`configure terminal` não exige `enable`**, embora a tabela de comandos do console diga que exige o modo
+  privilegiado. Não abre nada, mas a tabela e o comportamento discordam.
+- **Com dois sensores de pressão, a linha de medições manda a pressão na chave do primeiro e com o valor do último**,
+  pelo código.
+- **A lista de marcadores da linha de alarmes na página Telemetria para na v22.** O capítulo 22 do manual lista todos.
+- **Adotar uma sonda, ou o `sensor_wipe`, não recomeça o histórico do slot.** Os dois carimbam a época de
+  provisionamento do slot, e nada a lê: o histórico entrega todo registro de um slot sob o id atual dele. Na bancada,
+  depois que o slot 0 adotou outra sonda, as leituras dele de 4 de outubro voltaram sob o id da sonda nova.
+- **Depois de um boot, uma sonda que não é a do slot pode ter a primeira leitura gravada.** O caminho de leitura
+  confere a ROM a cada cinco leituras, a partir da quinta. Na bancada, com outra sonda no GPIO do slot, a leitura de
+  20 s depois do boot entrou no histórico como a do slot, e a quarentena começou no minuto seguinte.
+- **Um Air com telemetria por TLS e sem `/cert.pem` grava dois registros em todo despertar:** o 545
+  (`TEL_CERT_MISSING`, "Sem cert.pem, modo inseguro") e o 544 (`TEL_CERT_READ_ERR`, contexto 1: TLS ligado sem validar o
+  certificado). O `TelemetryManager::begin( )` os grava em toda partida, e a lista de preâmbulo do boot do
+  `LogPolicy.cpp`, que silencia os outros registros de partida de um despertar, não os tem. Não é novo: no mesmo Air, a
+  v2.11.1 os gravou em cada um de três despertares e a candidata em cada um de onze (29/10/2026).
+- **A alpha e o Air gravam um erro depois de cada atualização:** `Config changed: image CRC mismatch over 990720 B, want
+  4f5041ca` na alpha, `over 1035776 B, want 299abf18` no Air (`AppManager_Boot.cpp`; 29/10/2026, e o mesmo nos dois no
+  portão da v2.11.1, 05/10/2026). O slot é igual à imagem assinada exceto o setor de 4 KiB do banco de flash do BTstack,
+  que fica dentro da faixa que a conferência soma: a causa provável. A atualização instala e sobe, e a versão e a
+  configuração são as novas; a imagem release grava `image verified` no lugar.
+- **Só oito dos onze temas de fábrica carregam, no painel original.** O `MAX_CUSTOM_THEMES` é 8
+  (`src/ui/original/Themes.cpp`, desde a v1.0.0) e o diretório é lido em ordem, então com os onze `.thm` enviados o
+  `ubuntu`, o `unimed_claro` e o `unimed_escuro`, os últimos nessa ordem, ficam de fora: o `GET /api/themes` lista
+  nove linhas, o `simut_def` e oito, nas duas placas (29/10/2026, quando o Pico 2 W ainda rodava o painel original).
+  Os pacotes trazem os onze nomes (#298); o R-R14 do `docs/analysis/MODELO_DE_RECURSOS.md` tem o limite. O Ângulo não
+  carrega arquivos `.thm`: num Pico 2 W com ele, o `GET /api/themes` lista as 18 escolhas dele.
+- **Salvar os limites de alarme pelo painel lê a cópia de trabalho da configuração sem cópia e sem trava** (F3). O
+  `AppManager::panelSaveAlarmLimits( )` a lê por referência depois do Salvar, e quem escreve na cópia roda no Core 1.
+  Achado lendo o código enquanto as telas do Ângulo eram movidas; não foi visto numa placa. O conserto toca os nove
+  produtos, então vai num pull request próprio para a `main`.
+- **No Ângulo, o `GET /api/keypad` descreve o teclado do original** (F4): a grade e a geometria do popup do painel
+  original, não as teclas na tela do Ângulo. Um cliente que toque o teclado de PIN pelas coordenadas que a rota dá
+  recebe a grade do original; o toque do próprio Ângulo não as usa.
+- **Alguns toques injetados não são tomados** (o `POST /api/touch` da bancada). No painel original, "Nova conta" na
+  lista de usuários e o detalhe do gráfico (visto na `main` 2f4bc3d3 e no ramo do Ângulo, 21/10/2026). No Ângulo, o
+  primeiro toque longo de 3,5 s logo depois de um toque num slot não alterna o cartão fixado, e uma nova tentativa 2 s
+  depois alterna (21/10/2026 e 22/10/2026). Não foi visto com o dedo, e não é julgado defeito.
+- **A confirmação do Ângulo para iniciar a rede de configuração nunca foi confirmada numa placa.** A bancada apertou
+  Cancelar; Confirmar envia o `EVT_START_AP` e inicia a rede de configuração. Os quadros dela foram comparados com os
+  do host em pt-BR e em es-ES (0 de 76.800 pixels diferem).
+- **Uma prévia do alinhamento da tela que não foi salva sobrevive à volta por inatividade, nos dois painéis.** A tela
+  de alinhamento aplica o deslocamento previsto à tela na hora, e só o Voltar (`actOffsetBack( )`) devolve o
+  deslocamento salvo; a volta ao painel principal depois do tempo ocioso não passa por ele, então a imagem fica
+  deslocada, e a próxima visita à tela toma o deslocamento deslocado pelo salvo (o `showSettingsDisplayOffset( )` o lê
+  da tela). Pelo código, não visto numa placa.
+
 ## v2.12.0 (2026-10-29)
 
 **O SPI do painel é ajustado a 66,5 MHz no Pico W; na imagem medida antes da mudança (arduino-pico 5.6.1, 15/10/2026)
