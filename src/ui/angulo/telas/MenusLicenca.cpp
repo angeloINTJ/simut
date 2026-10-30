@@ -126,10 +126,16 @@ void paginaDaLicenca( const IndiceLicenca &ix, int pagina, VmLicenca &vm ) {
 // must read here as the table has them. The words around the proper names are the device's language; the names, holders and licences are not
 // translated. The English comes back for a text the pack lacks.
 int anexarFontesDoAngulo( FonteLicenca *fontes, int n, int max ) {
-  if ( n < max ) fontes[n++] = FonteLicenca{ UA_TXT( "--- Fonts and icons of this panel ---" ), 1 };
-  if ( n < max ) fontes[n++] = FonteLicenca{ UA_TXT( "Bricolage Grotesque, in the titles: The Bricolage Grotesque Project Authors, SIL Open Font License 1.1." ), 0 };
-  if ( n < max ) fontes[n++] = FonteLicenca{ UA_TXT( "GNU FreeFont (FreeSans, FreeMono Bold), in the text and the figures: GNU FreeFont contributors, GPL-3.0-or-later with the font exception." ), 0 };
-  if ( n < max ) fontes[n++] = FonteLicenca{ UA_TXT( "Lucide, in the icons: Lucide Contributors, ISC." ), 0 };
+  const FonteLicenca extra[] = {
+    { UA_TXT( "--- Fonts and icons of this panel ---" ), 1 },
+    { UA_TXT( "Bricolage Grotesque, in the titles: The Bricolage Grotesque Project Authors, SIL Open Font License 1.1." ), 0 },
+    { UA_TXT( "GNU FreeFont (FreeSans, FreeMono Bold), in the text and the figures: GNU FreeFont contributors, GPL-3.0-or-later with the font exception." ), 0 },
+    { UA_TXT( "Lucide, in the icons: Lucide Contributors, ISC." ), 0 },
+  };
+  constexpr int N = sizeof extra / sizeof extra[0];
+  static_assert( N == LICENCA_FONTES_ANGULO );   // the sources above and the count MenusLicenca.h states (and checks against the maximum) agree
+  if ( n + N > max ) return n;   // all or none, never a list cut in the middle; not reached while the static_assert of the header holds for the caller's array
+  for ( int i = 0; i < N; i++ ) fontes[n++] = extra[i];
   return n;
 }
 

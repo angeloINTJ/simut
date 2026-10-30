@@ -293,8 +293,9 @@ bool DisplayManager::uaMontarMenus( UaQuadro &q ) {
           fontes[nf++] = ua::tela::FonteLicenca{ abertura, 0 };   /* composed: its own blank lines are in it */
         } else {
           /* What kLicOpeningSep[ ] (DisplayManager.cpp) puts after each string: "\n\n" is one blank line, "\n" none. */
-          static const uint8_t kBrancas[5] = { 1, 0, 1, 1, 1 };
-          for ( int k = 0; k < 5; k++ ) fontes[nf++] = ua::tela::FonteLicenca{ LICENSE_OPENING_EN[k], kBrancas[k] };
+          static const uint8_t kBrancas[ua::tela::LICENCA_FONTES_ABERTURA] = { 1, 0, 1, 1, 1 };
+          static_assert( sizeof LICENSE_OPENING_EN / sizeof LICENSE_OPENING_EN[0] == ua::tela::LICENCA_FONTES_ABERTURA );   /* HelpLicenseEN.h and MenusLicenca.h agree on the opening's count */
+          for ( int k = 0; k < ua::tela::LICENCA_FONTES_ABERTURA; k++ ) fontes[nf++] = ua::tela::FonteLicenca{ LICENSE_OPENING_EN[k], kBrancas[k] };
         }
         fontes[nf++] = ua::tela::FonteLicenca{ LICENSE_TEXT_EN, 1 };
         /* S10c C4: this panel's own fonts and icons, in the device's language, after the third-party list (the original's screen has none). */
