@@ -2,7 +2,7 @@
 //
 // The icon registry: (name, size) -> drawBitmap rows. The delivered 42 are
 // icones.h's (::entrega, included by Angulo.cpp just before this file); the
-// 50 extra ones are rasterized here by the delivery's iconMask( ).
+// 51 extra ones are rasterized here by the delivery's iconMask( ).
 // Included by Angulo.cpp only.
 #pragma once
 
@@ -1655,6 +1655,34 @@ static const uint8_t EXTRA_SIGNAL_16_bits[] = {
   0x00, 0x00, 0x00, 0x00,
 };
 
+// unplug @ 16 px (Lucide 0.468.0, the delivery's iconMask( ))
+//   ................
+//   ..........##.##.
+//   ........######..
+//   .......###..##..
+//   .......##....##.
+//   ........###..##.
+//   .........#####..
+//   ...####...####..
+//   ..#####....##...
+//   ..#######.......
+//   .##..####.......
+//   .##...###.......
+//   ..##..##........
+//   ..######........
+//   .##.##..........
+//   ................
+static const uint8_t EXTRA_UNPLUG_16_bits[] = {
+  0x00, 0x00, 0x00, 0x36,
+  0x00, 0xfc, 0x01, 0xcc,
+  0x01, 0x86, 0x00, 0xe6,
+  0x00, 0x7c, 0x1e, 0x3c,
+  0x3e, 0x18, 0x3f, 0x80,
+  0x67, 0x80, 0x63, 0x80,
+  0x33, 0x00, 0x3f, 0x00,
+  0x6c, 0x00, 0x00, 0x00,
+};
+
 struct Reg { IconeNome nome; uint8_t tam; const uint8_t *bits; };
 static const Reg kIcones[] = {
   { IconeNome::ARROW_BIG_UP_DASH, 20, ::entrega::ICONE_ARROW_BIG_UP_DASH_20_bits },
@@ -1749,6 +1777,7 @@ static const Reg kIcones[] = {
   { IconeNome::SIGNAL_MEDIUM, 16, EXTRA_SIGNAL_MEDIUM_16_bits },
   { IconeNome::SIGNAL_HIGH, 16, EXTRA_SIGNAL_HIGH_16_bits },
   { IconeNome::SIGNAL, 16, EXTRA_SIGNAL_16_bits },
+  { IconeNome::UNPLUG, 16, EXTRA_UNPLUG_16_bits },
 };
 
 }  // namespace icones

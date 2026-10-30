@@ -53,6 +53,8 @@ const EXTRAS = [
   ['chevron-down', 24], ['rotate-ccw', 20],
   // The status bar's Wi-Fi levels (2026-10-30, "B, barras de sinal"): the original panel's four bars as Lucide's signal bars; no signal is wifi-off, above.
   ['signal-low', 16], ['signal-medium', 16], ['signal-high', 16], ['signal', 16],
+  // The cable without link (2026-10-30, "icone proprio, em cinza"): an icon of its own, so that the shape carries the state, as on Wi-Fi.
+  ['unplug', 16],
 ];
 
 /* ---------------- EXTRA table and metrics ---------------- */
