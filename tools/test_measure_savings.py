@@ -24,8 +24,9 @@ its switch removes grew 8 B. So:
   * The BTstack bank of #285 is one fill among the others: the 548 B before it on the Alpha are taken off, and the
     4,096 B step the Air's tel_tls saving made does not move the number.
 
-Each case carries an id ([a1], [d2] ...) that the mutations of the change (remove the fill subtraction, remove the
-tolerance, drop the self-check ...) are matched to.
+Each case of the floor's side carries an id ([a1], [d2] ...) that the mutations of #302 (remove the fill subtraction,
+remove the tolerance, drop the self-check ...) are matched to. The 21 cases of the configurator's matrix side (the
+`ui=` and `net=` flips, the Angulo's static-RAM budget in the temporary env, the checks of `--checks`) carry none.
 """
 import contextlib
 import hashlib
