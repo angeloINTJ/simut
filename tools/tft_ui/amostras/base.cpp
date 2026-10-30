@@ -5,7 +5,8 @@
 // come from the language pack that the harness loads in main( ) before the first sample draws, and a constant built earlier would hold the English for good.
 // Each English below is the glue's own, because the glue cannot be built on the host; tools/tft_ui/host_telas.py holds every UA_TXT( ) English of a sample file to an
 // English of src/ui/angulo. A text with no UA_TXT( ) is one the glue does not say: the long message is the calibration's (Ajustes, converted in B4) and "PIN salvo."
-// is no message of the glue any more; both stay in Portuguese, as their frames were drawn.
+// is no message of the glue any more; both stay in Portuguese, as their frames were drawn. "Reboot required" is the one text the glue does say without UA_TXT( ): Core 0 sends the key and the glue
+// takes tr( ) of it, in English because the unit that shows it has loaded no pack (msgReiniciar( ) below).
 #include <stdio.h>
 #include <string.h>
 
@@ -33,6 +34,16 @@ VmMensagem msgErro( ) {
   return mensagem( false, UA_TXT( "No permission." ), UA_TXT( "Ask whoever administers the device to allow this function on your account." ) );
 }
 VmMensagem msgLonga( ) { return mensagem( true, "Calibração concluída. O toque já usa os novos valores.", "" ); }
+
+// Core 0's "Reboot required" (AppManager_Events.cpp, EVT_APPLY_LANG), said when the Idioma screen's choice is a pack the unit has only found in /lang and has not loaded, which is an English boot
+// (display/LangChoice.h, langAppliesAtBoot( )). Nothing is translated yet, so the glue (uaMontarBase( ), MODE_PANEL_MESSAGE) takes the text from tr( TR_REBOOT_REQ ), the English of
+// DisplayManager_i18n.cpp:25, and the button, UA_TXT( "Got it" ), answers in English too, because no @ANGULO is in RAM. Both are literals here, English in every language of the harness:
+// a frame of this message in Portuguese is one the device cannot draw, since a pack that is loaded applies at once and says nothing. It is the manual's figure of the message (S10c, C6).
+VmMensagem msgReiniciar( ) {
+  VmMensagem vm = mensagem( true, "Reboot required", "" );
+  copiar( vm.botao, "Got it", sizeof vm.botao );
+  return vm;
+}
 
 VmDialogo dialogo( const char *titulo, const char *texto, const char *nao, const char *sim, bool destrutivo ) {
   VmDialogo vm;
@@ -74,6 +85,7 @@ const Amostra kAmostras[] = {
   { "mensagem_ok", []( Pintor &p ) { desenharMensagem( p, msgOk( ) ); }, []( Alvo *o ) { return alvosMensagem( msgOk( ), o ); } },
   { "mensagem_erro", []( Pintor &p ) { desenharMensagem( p, msgErro( ) ); }, []( Alvo *o ) { return alvosMensagem( msgErro( ), o ); } },
   { "mensagem_longa", []( Pintor &p ) { desenharMensagem( p, msgLonga( ) ); }, []( Alvo *o ) { return alvosMensagem( msgLonga( ), o ); } },
+  { "mensagem_reiniciar", []( Pintor &p ) { desenharMensagem( p, msgReiniciar( ) ); }, []( Alvo *o ) { return alvosMensagem( msgReiniciar( ), o ); } },
   { "dialogo_mudo", []( Pintor &p ) { desenharDialogo( p, mudo( ) ); }, []( Alvo *o ) { return alvosDialogo( mudo( ), o ); } },
   { "dialogo_excluir", []( Pintor &p ) { desenharDialogo( p, excluir( ) ); }, []( Alvo *o ) { return alvosDialogo( excluir( ), o ); } },
   { "dialogo_ap", []( Pintor &p ) { desenharDialogo( p, redeAp( ) ); }, []( Alvo *o ) { return alvosDialogo( redeAp( ), o ); } },
