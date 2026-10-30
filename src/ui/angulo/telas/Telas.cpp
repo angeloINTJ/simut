@@ -131,16 +131,17 @@ void desenharStatus( Pintor &p, const VmStatus &s ) {
   int16_t x = 320 - PAD - 16;
   IconeNome rede = IconeNome::NENHUM;
   uint16_t corRede = T.tinta2;
-  // The network, as the glue says it (uaVmStatus( )): a cable, in the danger colour without link; or a Wi-Fi signal in the old bar's four levels with Lucide's own icons (wifi, wifi-high, wifi-low and
-  // wifi-zero for four to one bars), the one-bar icon in the alert colour (the weak link on which the device holds telemetry), and wifi-off for no signal in the bar's own neutral ink: a link that is
-  // down is not an error, and colour is for what calls attention (ANGULO.md, rule 1). tools/tft_ui/test_rede.py draws each state and holds the icon and its ink.
+  // The network, as the glue says it (uaVmStatus( )): a Wi-Fi signal in the old bar's four levels, in Lucide's signal bars (signal-low, signal-medium, signal-high and signal for one to four bars, the bars the
+  // original panel drew: "B, barras de sinal", 2026-10-30), the one-bar icon in the alert colour (the weak link on which the device holds telemetry); no signal is wifi-off, and the cable, with or without link,
+  // is ethernet-port, all in the bar's own neutral ink: a link that is down is not an error ("cinza nos dois"), and colour is for what calls attention (ANGULO.md, rule 1). No network state draws in the
+  // danger colour, and the cable's two states are one picture. tools/tft_ui/test_rede.py draws each state and holds the icon and its ink.
   switch ( s.rede ) {
     case Rede::CABO: rede = IconeNome::ETHERNET_PORT; break;
-    case Rede::CABO_SEM_LINK: rede = IconeNome::ETHERNET_PORT; corRede = T.perigo; break;
-    case Rede::WIFI_4: rede = IconeNome::WIFI; break;
-    case Rede::WIFI_3: rede = IconeNome::WIFI_HIGH; break;
-    case Rede::WIFI_2: rede = IconeNome::WIFI_LOW; break;
-    case Rede::WIFI_1: rede = IconeNome::WIFI_ZERO; corRede = T.alerta; break;
+    case Rede::CABO_SEM_LINK: rede = IconeNome::ETHERNET_PORT; break;
+    case Rede::WIFI_4: rede = IconeNome::SIGNAL; break;
+    case Rede::WIFI_3: rede = IconeNome::SIGNAL_HIGH; break;
+    case Rede::WIFI_2: rede = IconeNome::SIGNAL_MEDIUM; break;
+    case Rede::WIFI_1: rede = IconeNome::SIGNAL_LOW; corRede = T.alerta; break;
     case Rede::WIFI_SEM: rede = IconeNome::WIFI_OFF; break;
     case Rede::NENHUMA: break;
   }

@@ -51,8 +51,8 @@ const EXTRAS = [
   ['chevrons-left', 20], ['chevrons-right', 20], ['thermometer', 16], ['droplets', 16], ['gauge', 16],
   ['user', 16], ['lock', 16], ['wrench', 16], ['bell', 16], ['power', 16], ['chevron-up', 24],
   ['chevron-down', 24], ['rotate-ccw', 20],
-  // The status bar's Wi-Fi levels (2026-10-30): the original panel's four bars as Lucide's own icons (wifi is delivered).
-  ['wifi-zero', 16], ['wifi-low', 16], ['wifi-high', 16],
+  // The status bar's Wi-Fi levels (2026-10-30, "B, barras de sinal"): the original panel's four bars as Lucide's signal bars; no signal is wifi-off, above.
+  ['signal-low', 16], ['signal-medium', 16], ['signal-high', 16], ['signal', 16],
 ];
 
 /* ---------------- EXTRA table and metrics ---------------- */

@@ -10,8 +10,8 @@
 //   2. the named points of the brief (strong, each threshold and the step beside it, weak, disconnected), written out in this file and not derived from the model;
 //   3. the fields the function does not own (pendentes, envio);
 //   4. the frames: the status bar drawn by the real kit (ua::desenharStatus( )) from the view model the glue made, in both themes. What the network icon adds to the bar (the bar against the same bar with
-//      Rede::NENHUMA) must be the pixels of the expected Lucide icon drawn alone by the kit, all in the expected ink: wifi, wifi-high, wifi-low and wifi-zero for four to one bars (the one-bar icon in the alert
-//      colour), wifi-off for no signal in the bar's neutral ink, and for the cable ethernet-port, in the danger colour without link. No icon missing, equal states draw equal bars and different states different
+//      Rede::NENHUMA) must be the pixels of the expected Lucide icon drawn alone by the kit, all in the expected ink: signal, signal-high, signal-medium and signal-low for four to one bars (the one-bar icon in the alert
+//      colour), wifi-off for no signal in the bar's neutral ink, and for the cable ethernet-port in the same neutral ink with or without link (no state draws in the danger colour: semVermelho( ) holds it for every state). No icon missing, equal states draw equal bars and different states different (the cable's two are one picture)
 //      ones. The frames are written to the folder in argv[1] (RGB565, 320 x 40, and _ordem.txt: name, level, state) for test_rede.py to picture.
 
 #include <Adafruit_GFX.h>
@@ -236,16 +236,16 @@ static Pontos tintaDoIcone( ua::IconeNome n, const ua::Tema &T ) {
   return pts;
 }
 
-// The icon and the ink a state is meant to draw. The neutral grey is the bar's own ink (tinta2): no signal is not an error, so it does not get the danger colour; one bar keeps the alert colour.
+// The icon and the ink a state is meant to draw. The neutral grey is the bar's own ink (tinta2): no signal is not an error, so it does not get the danger colour, on the radio or on the cable ("cinza nos dois", 2026-10-30); one bar keeps the alert colour.
 static bool desenhoDoEstado( R r, const ua::Tema &T, ua::IconeNome &ic, uint16_t &cor ) {
   switch ( r ) {
-    case R::WIFI_4: ic = ua::IconeNome::WIFI; cor = T.tinta2; return true;
-    case R::WIFI_3: ic = ua::IconeNome::WIFI_HIGH; cor = T.tinta2; return true;
-    case R::WIFI_2: ic = ua::IconeNome::WIFI_LOW; cor = T.tinta2; return true;
-    case R::WIFI_1: ic = ua::IconeNome::WIFI_ZERO; cor = T.alerta; return true;
+    case R::WIFI_4: ic = ua::IconeNome::SIGNAL; cor = T.tinta2; return true;
+    case R::WIFI_3: ic = ua::IconeNome::SIGNAL_HIGH; cor = T.tinta2; return true;
+    case R::WIFI_2: ic = ua::IconeNome::SIGNAL_MEDIUM; cor = T.tinta2; return true;
+    case R::WIFI_1: ic = ua::IconeNome::SIGNAL_LOW; cor = T.alerta; return true;
     case R::WIFI_SEM: ic = ua::IconeNome::WIFI_OFF; cor = T.tinta2; return true;
     case R::CABO: ic = ua::IconeNome::ETHERNET_PORT; cor = T.tinta2; return true;
-    case R::CABO_SEM_LINK: ic = ua::IconeNome::ETHERNET_PORT; cor = T.perigo; return true;
+    case R::CABO_SEM_LINK: ic = ua::IconeNome::ETHERNET_PORT; cor = T.tinta2; return true;
     case R::NENHUMA: return false;
   }
   return false;
@@ -284,6 +284,25 @@ static void desenharBarra( GFXcanvas16 &canvas, const ua::Tema &tema, const ua::
   p.bruto( canvas.getBuffer( ), LARG, 0, 240 );
   ua::desenharStatus( p, vm );
   ua::margemPreta( p );
+}
+
+// No network state draws in the danger colour ("cinza nos dois", 2026-10-30): a link that is down is not an error, on a cable or on the radio. Every state of the renderer, whichever image this is, in both themes.
+static void semVermelho( ) {
+  const R todos[] = { R::CABO, R::CABO_SEM_LINK, R::WIFI_SEM, R::WIFI_1, R::WIFI_2, R::WIFI_3, R::WIFI_4 };
+  for ( int t = 0; t < 2; t++ ) {
+    const ua::Tema &tema = ua::tema( t == 0, 0 );
+    for ( R r : todos ) {
+      GFXcanvas16 canvas( LARG, 240 );
+      ua::VmStatus vm = vmDoNivel( -60 );
+      vm.rede = r;
+      desenharBarra( canvas, tema, vm );
+      int n = 0;
+      for ( int y = 0; y < ua::H_STATUS; y++ )
+        for ( int x = X0_REDE; x < LARG; x++ )
+          if ( canvas.getPixel( x, y ) == tema.perigo ) n++;
+      CONFERE( n == 0, "%s, %s theme: %d danger-colour pixels in the network icon's corner (no network state draws in the danger colour)", nome( r ), t ? "light" : "dark", n );
+    }
+  }
 }
 
 static void quadros( const char *pasta ) {
@@ -327,8 +346,8 @@ static void quadros( const char *pasta ) {
     }
     for ( int a = 0; a < N_QUADROS; a++ )
       for ( int b = a + 1; b < N_QUADROS; b++ ) {
-        // Two levels of one state (-40 and -54, say) draw the same bar on purpose; every other pair is a different state and must be a different picture.
-        const bool igual = kQuadros[a].quer == kQuadros[b].quer;
+        // Two levels of one state (-40 and -54, say) draw the same bar on purpose, and so do the cable's two states (one icon in one ink: "cinza nos dois", 2026-10-30); every other pair is a different state and must be a different picture.
+        const bool igual = kQuadros[a].quer == kQuadros[b].quer || ( ehCabo( kQuadros[a].quer ) && ehCabo( kQuadros[b].quer ) );
         CONFERE( igual ? hashes[t][a] == hashes[t][b] : hashes[t][a] != hashes[t][b], "frames %s and %s (%s): %s", kQuadros[a].nome, kQuadros[b].nome, nomeTema,
                  igual ? "the same state must draw the same bar" : "two states drew the same bar" );
       }
@@ -337,7 +356,7 @@ static void quadros( const char *pasta ) {
 #if SIMUT_NET_WIFI
   // The five Wi-Fi icons are five different shapes (the kit's own registry, not the glue's).
   const ua::Tema &T0 = ua::tema( true, 0 );
-  const ua::IconeNome nomes[] = { ua::IconeNome::WIFI, ua::IconeNome::WIFI_HIGH, ua::IconeNome::WIFI_LOW, ua::IconeNome::WIFI_ZERO, ua::IconeNome::WIFI_OFF };
+  const ua::IconeNome nomes[] = { ua::IconeNome::SIGNAL, ua::IconeNome::SIGNAL_HIGH, ua::IconeNome::SIGNAL_MEDIUM, ua::IconeNome::SIGNAL_LOW, ua::IconeNome::WIFI_OFF };
   for ( int a = 0; a < 5; a++ )
     for ( int b = a + 1; b < 5; b++ )
       CONFERE( normalizado( tintaDoIcone( nomes[a], T0 ) ) != normalizado( tintaDoIcone( nomes[b], T0 ) ), "the Wi-Fi icons %d and %d are the same shape", a, b );
@@ -347,6 +366,7 @@ static void quadros( const char *pasta ) {
 int main( int argc, char **argv ) {
   niveis( );
   campos( );
+  semVermelho( );
   quadros( argc > 1 ? argv[1] : nullptr );
   printf( "%s image: %d checks, %d failed\n", SIMUT_NET_WIFI ? "Wi-Fi" : "cable", g_confere, g_falhas );
   return g_falhas ? 1 : 0;

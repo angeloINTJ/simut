@@ -3,8 +3,8 @@
 
 The original panel decides the glyph of its top bar (DisplayManager::drawTopBar( ), src/DisplayManager_Dashboard.cpp) from the level NetworkManager::getRssi( ) gives: on a cable image the cable, green above -100 and
 grey at or below; on a Wi-Fi image four bars, none at -100 or less, one up to -75, two up to -65, three up to -55, four above. The Angulo says the same with Lucide's own icons (the maintainer's decision "levels like the
-original", 2026-10-30): on a Wi-Fi image wifi-zero, wifi-low, wifi-high and wifi for one to four bars (the one-bar icon in the alert colour: from -78 down the device holds telemetry, RSSI_MIN_THRESHOLD) and wifi-off in
-the bar's neutral grey for no signal (not an error, so not the danger colour); on a cable image ethernet-port, in the danger colour without link, as it was. Until the fix of 2026-10-30 uaVmStatus( ) answered
+original", 2026-10-30): on a Wi-Fi image signal-low, signal-medium, signal-high and signal for one to four bars ("B, barras de sinal"; the one-bar icon in the alert colour: from -78 down the device holds telemetry, RSSI_MIN_THRESHOLD) and wifi-off in
+the bar's neutral grey for no signal (not an error, so not the danger colour); on a cable image ethernet-port in the same neutral grey with or without link ("cinza nos dois": no network state draws in the danger colour). Until the fix of 2026-10-30 uaVmStatus( ) answered
 ua::Rede::CABO or CABO_SEM_LINK on every image, so the Pico 2 W's release (Wi-Fi, the Angulo since S10c C3) drew a cable. This holds it:
 
   1. The original's thresholds, READ from its source and not copied: the cable's `> -100` and the ladder -100 / -55 / -65 / -75 of the Wi-Fi image's `barras`. If the ladder moves or changes shape
@@ -15,7 +15,7 @@ ua::Rede::CABO or CABO_SEM_LINK on every image, so the Pico 2 W's release (Wi-Fi
      (drawn alone by the kit), all in the expected ink; no icon missing; a different picture for each state.
   3. The mutants of the cut piece: the glue edited one statement at a time (the three-state ladder of the first version, every threshold one dB either side, inclusive for exclusive, a level drawn as another, no
      signal answering NENHUMA, the level not read, the old line back on a Wi-Fi image), each of which the model must fail. And the mutants of the kit: a copy of Telas.cpp with one change (no signal in the danger
-     colour or with the one-bar icon, one bar without the alert colour, a level with another level's icon, the cable without link not in the danger colour), each of which the frames must fail. A mutant that does not
+     colour or with the one-bar icon, one bar without the alert colour, a level with another level's icon, the cable without link back in the danger colour), each of which the frames must fail. A mutant that does not
      compile, or an anchor not found exactly once, fails this script: a mutant must be killed by a check and not by the compiler.
   4. One place decides the glyph: every assignment to a `.rede` under src/ui/angulo is in uaVmStatus( ).
 
@@ -76,12 +76,14 @@ MUTANTES = [
 # (name, the statement of Telas.cpp, what replaces it, the build): the renderer's side of the same decision; the frames must fail each.
 KIT_MUTANTES = [
     ('no signal in the danger colour', 'case Rede::WIFI_SEM: rede = IconeNome::WIFI_OFF; break;', 'case Rede::WIFI_SEM: rede = IconeNome::WIFI_OFF; corRede = T.perigo; break;', 1),
-    ('no signal with the one-bar icon', 'rede = IconeNome::WIFI_OFF;', 'rede = IconeNome::WIFI_ZERO;', 1),
-    ('one bar without the alert colour', 'rede = IconeNome::WIFI_ZERO; corRede = T.alerta; break;', 'rede = IconeNome::WIFI_ZERO; break;', 1),
-    ('three bars with the two-bar icon', 'rede = IconeNome::WIFI_HIGH;', 'rede = IconeNome::WIFI_LOW;', 1),
-    ('four bars with the three-bar icon', 'case Rede::WIFI_4: rede = IconeNome::WIFI;', 'case Rede::WIFI_4: rede = IconeNome::WIFI_HIGH;', 1),
-    ('two bars with the full icon', 'rede = IconeNome::WIFI_LOW;', 'rede = IconeNome::WIFI;', 1),
-    ('the cable without link not in the danger colour', 'rede = IconeNome::ETHERNET_PORT; corRede = T.perigo; break;', 'rede = IconeNome::ETHERNET_PORT; break;', 0),
+    ('no signal with the one-bar icon', 'rede = IconeNome::WIFI_OFF;', 'rede = IconeNome::SIGNAL_LOW;', 1),
+    ('one bar without the alert colour', 'rede = IconeNome::SIGNAL_LOW; corRede = T.alerta; break;', 'rede = IconeNome::SIGNAL_LOW; break;', 1),
+    ('one bar in the danger colour', 'rede = IconeNome::SIGNAL_LOW; corRede = T.alerta; break;', 'rede = IconeNome::SIGNAL_LOW; corRede = T.perigo; break;', 1),
+    ('three bars with the two-bar icon', 'rede = IconeNome::SIGNAL_HIGH;', 'rede = IconeNome::SIGNAL_MEDIUM;', 1),
+    ('four bars with the three-bar icon', 'case Rede::WIFI_4: rede = IconeNome::SIGNAL;', 'case Rede::WIFI_4: rede = IconeNome::SIGNAL_HIGH;', 1),
+    ('two bars with the full icon', 'rede = IconeNome::SIGNAL_MEDIUM;', 'rede = IconeNome::SIGNAL;', 1),
+    ('the cable without link back in the danger colour', 'case Rede::CABO_SEM_LINK: rede = IconeNome::ETHERNET_PORT; break;', 'case Rede::CABO_SEM_LINK: rede = IconeNome::ETHERNET_PORT; corRede = T.perigo; break;', 0),
+    ('the cable drawn with the no-signal Wi-Fi icon', 'case Rede::CABO: rede = IconeNome::ETHERNET_PORT; break;', 'case Rede::CABO: rede = IconeNome::WIFI_OFF; break;', 0),
 ]
 
 CONTA = [0]
