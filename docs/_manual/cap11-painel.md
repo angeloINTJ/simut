@@ -1,6 +1,6 @@
-# O painel {#cap-11}
+# O painel original (Pico W) {#cap-11}
 
-[release]{.img} Este capítulo percorre o painel de toque da imagem `release`, tela por tela: a tela inicial, os gestos, o gráfico, o menu de configurações, as telas de boot e as mensagens. É para quem opera o aparelho na bancada ou no laboratório.
+[release]{.img} Este capítulo percorre o painel de toque original da imagem `release`, a do Pico W, tela por tela: a tela inicial, os gestos, o gráfico, o menu de configurações, as telas de boot e as mensagens. Ele vale também para um Pico 2 W montado com **Visual original** (*Original look*) no [configurador](#cap-03-sob-medida). A imagem `releasetwo`, a do Pico 2 W, desenha o painel Ângulo [main]{.img}, que está no [capítulo 11A](#cap-11a). É para quem opera o aparelho na bancada ou no laboratório.
 
 ## O painel em resumo {#cap-11-visao}
 
@@ -302,7 +302,7 @@ Quando a conta vê os 13 itens, eles aparecem numerados, de `1.` a `13.`. Com o 
 | 12 | **Alinhamento da Tela** (*Display Alignment*) | **Sistema** | [Alinhamento](#cap-11-alinhamento) |
 | 13 | **Licença** (*License*) | Nenhuma | [Licença](#cap-11-licenca) |
 
-As três permissões de painel do item 1 são **Limites (painel)** [PERM_ALARM_LIMITS]{.perm}, **Bloqueio (painel)** [PERM_ALARM_BLOCK]{.perm} e **Manut. (painel)** [PERM_MAINT]{.perm}. O aparelho confere a permissão de novo quando recebe o pedido do painel: esconder o item é só conforto.
+As três permissões de painel do item 1 são **Limites (painel)** [PERM_ALARM_LIMITS]{.perm}, **Bloqueio (painel)** [PERM_ALARM_BLOCK]{.perm} e **Manut. (painel)** [PERM_MAINT]{.perm}. O aparelho confere a permissão de novo quando recebe o pedido do painel: esconder o item é só conforto. Há quatro exceções, que gravam a configuração sem essa conferência: salvar os sons (**Sons de Alarme**), salvar a sensibilidade do toque e salvar a calibração do toque (**Calibrar Touch**) e aplicar o alinhamento (**Alinhamento da Tela**). Para elas, a única guarda é a permissão **Sistema** do item do menu, que o painel só mostra a quem a tem, e quem perde a permissão com a tela aberta ainda consegue salvar. Estão registradas como desvios (decisão do mantenedor de 28/10/2026). Os pedidos são os mesmos nos dois painéis, então o desvio vale também para o [painel Ângulo](#cap-11a-menu).
 
 ::: {.figura #fig-11-menu tipo="tft" arquivo="11-menu.png" captura="screen set; a ferramenta entra como administrador; primeira página, item 1 selecionado"}
 O menu completo, primeira página: Limites de Alarme, Sons de Alarme, Status do Sistema e Data e hora, numerados de 1 a 4.

@@ -331,7 +331,7 @@ O botão **Resetar Calibração** (*Reset Touch Calibration*) apaga a calibraç�
 
 1. Toque em **Resetar Calibração**.
 2. Confirme em **Resetar calibração do touch para padrão de fábrica?**
-3. Vá até o painel e siga os passos do assistente ([capítulo 11](#cap-11)).
+3. Vá até o painel e siga os passos do assistente ([capítulo 11](#cap-11); no Pico 2 W, [capítulo 11A](#cap-11a-calibrar)).
 
 O aviso **Calibração resetada. Recalibre pelo display.** confirma. Se alguém tocou no painel há menos de 5 s, aparece **Display em uso. Tente novamente em alguns segundos.** O log de eventos registra `Touch calibration reset via web` com o código 303.
 

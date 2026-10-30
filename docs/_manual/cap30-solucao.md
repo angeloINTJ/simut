@@ -217,7 +217,7 @@ Detalhes no [capítulo 7](#cap-07).
 
 ## Painel {#cap-30-painel}
 
-Detalhes no [capítulo 11](#cap-11).
+Detalhes no [capítulo 11](#cap-11); no Pico 2 W, no [capítulo 11A](#cap-11a).
 
 | Sintoma | Causa provável | O que fazer |
 |---|---|---|

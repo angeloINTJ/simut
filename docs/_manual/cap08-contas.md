@@ -34,7 +34,7 @@ O PIN do painel também é guardado só como resumo, com um sal próprio do apar
 
 ## As 13 permissões {#cap-08-permissoes}
 
-Cada permissão libera um grupo de ações. O aparelho confere a permissão em cada página, em cada consulta da interface de programação e em cada ação do painel: esconder um item da tela é só conforto.
+Cada permissão libera um grupo de ações. O aparelho confere a permissão em cada página, em cada consulta da interface de programação e em cada ação do painel, menos quatro, registradas como desvios ([capítulo 11](#cap-11-menu)): fora delas, esconder um item da tela é só conforto.
 
 | Permissão | Nome na página | Na interface web | No painel | Na interface de programação |
 |---|---|---|---|---|
@@ -234,13 +234,17 @@ O bloqueio guarda até 8 endereços ao mesmo tempo. A contagem de erros de um en
 
 ## Identidade no painel {#cap-08-identidade}
 
+::: nota
+**As telas desta seção são as do painel original (Pico W).** No Pico 2 W, veja o [capítulo 11A](#cap-11a-conta-pin).
+:::
+
 [release]{.img} O painel não usa senha. Para abrir as configurações, a pessoa escolhe a própria conta numa lista e digita o PIN dela. A partir daí, o que o painel deixa fazer depende das permissões dessa conta. Cada vez que alguém toca no botão de configurações da tela inicial, o painel pede a identificação de novo; e depois de 30 s sem toque, ele volta sozinho à tela inicial.
 
 Só contas com PIN conseguem se identificar. Uma conta sem PIN não aparece na lista.
 
 ### Entrar {#cap-08-entrar}
 
-1. Na tela inicial, toque em **CFG**, na barra de botões de baixo, logo depois do último sensor ([capítulo 11](#cap-11-rodape)).
+1. Na tela inicial, toque em **CFG**, na barra de botões de baixo, logo depois do último sensor ([capítulo 11](#cap-11-rodape)). No painel Ângulo, toque na engrenagem, que vem logo depois do último sensor ([capítulo 11A](#cap-11a-botoes)).
 2. Na tela **Quem está usando o painel?**, toque na sua conta para selecioná-la e toque de novo, ou toque em **ENTRAR**.
 3. Digite o PIN no teclado ([O teclado](#cap-08-teclado)).
 4. Toque em **ENTRAR**.

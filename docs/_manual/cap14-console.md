@@ -455,7 +455,7 @@ Na configuração (`SIMUT(config)#`), salvo indicação:
 | `dns auto`, `dns manual <ip1> [ip2]` | DNS pelo DHCP ou manual | |
 | `web port <porta>` | Porta do servidor web, depois de `reload` | 1 a 65535 |
 | `system cors <origem>`, `system cors off` | Como no console de emergência | |
-| `system touch reset confirm` | [release]{.img} Descarta a calibração do toque e abre o assistente no painel ([capítulo 11](#cap-11-calibrar)); vale também no privilegiado | |
+| `system touch reset confirm` | [release]{.img} Descarta a calibração do toque e abre o assistente no painel ([capítulo 11](#cap-11-calibrar); no painel Ângulo, [capítulo 11A](#cap-11a-calibrar)); vale também no privilegiado | |
 
 E, no EXEC ou no privilegiado:
 
@@ -601,7 +601,7 @@ Todos os comandos `user` precisam de `write memory` para ficar.
 
 | Comando | Efeito |
 |---|---|
-| `screen <tag>` | Abre uma tela do painel direto, como administrador: `dash`, `set`, `thm`, `lng`, `pwd`, `lic`, `sts`, `alm`, `gra`, `touchcal`, `touchsens`, `offset`, `usr`, `clk`, `pin` ([referência das telas](#cap-11-referencia)) |
+| `screen <tag>` | Abre uma tela do painel direto, como administrador: `dash`, `set`, `thm`, `lng`, `pwd`, `lic`, `sts`, `alm`, `gra`, `touchcal`, `touchsens`, `offset`, `usr`, `clk`, `pin` ([referência das telas](#cap-11-referencia); as do painel Ângulo, [capítulo 11A](#cap-11a-referencia)) |
 | `touch sim <X> <Y>` | Simula um toque no ponto (X de 0 a 319, Y de 0 a 239) |
 | `touch hold <X> <Y> [ms]` | Simula um toque **mantido** por `ms` milissegundos (padrão 3500, de 100 a 15000) e depois solta: alcança os gestos de toque longo, como o de 3 s que fixa o cartão de cima, que o `touch sim` não alcança |
 | `show display keypad` | Mostra o que cada tecla do teclado de PIN embaralhado tem na tela agora |

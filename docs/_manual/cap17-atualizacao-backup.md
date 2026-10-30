@@ -42,7 +42,7 @@ A mesma página para uma conta só com Leitura: resta o botão Baixar.
 |---|---|---|
 | `/history/` | O histórico, um arquivo por dia | [Capítulo 15](#cap-15) |
 | `/lang/` | Os pacotes de idioma, `.lng` | [Capítulo 13](#cap-13-idioma) |
-| `/themes/` | Temas do painel, `.thm` | [Capítulo 11](#cap-11) |
+| `/themes/` | Temas do painel, `.thm` | [Capítulo 11](#cap-11); no painel Ângulo, [capítulo 11A](#cap-11a-temas) |
 | `/web/` | Páginas servidas do disco. Em geral, vazia | — |
 | `/calib.csv` | A calibração dos sensores | [Capítulo 6](#cap-06-calib-csv) |
 | `/cert.pem` | O certificado da telemetria, quando instalado | [Capítulo 21](#cap-21-tls) |
@@ -258,7 +258,7 @@ Tudo o que se perde está no backup que a página baixa antes de começar. Resta
 10. Entre e confira a versão ([Conferir a versão](#cap-17-ota-conferir)).
 11. Restaure o backup ([Depois da atualização](#cap-17-ota-depois)).
 
-Não desligue o aparelho entre os passos 6 e 9. O painel acompanha: do passo 6 ao 8 ele mostra a etapa, com **Não desligue o aparelho**, e, numa recusa, o motivo ([capítulo 11](#cap-11-atualizacao)).
+Não desligue o aparelho entre os passos 6 e 9. O painel acompanha: do passo 6 ao 8 ele mostra a etapa, com **Não desligue o aparelho**, e, numa recusa, o motivo ([capítulo 11](#cap-11-atualizacao), [capítulo 11A](#cap-11a-ota)).
 
 O aviso do passo 2, na íntegra:
 

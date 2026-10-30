@@ -356,7 +356,7 @@ Junta duas ou mais versões do arquivo do mesmo dia num arquivo só, no computad
 
 [release]{.img}
 
-O painel também desenha o histórico de cada sensor, com os mínimos e máximos. Como chegar e o que ele mostra está no [capítulo 11](#cap-11-grafico). O LCD do alpha não tem gráfico: no alpha e no Air, o histórico se vê pela interface web.
+O painel também desenha o histórico de cada sensor, com os mínimos e máximos. Como chegar e o que ele mostra está no [capítulo 11](#cap-11-grafico); no painel Ângulo, no [capítulo 11A](#cap-11a-grafico). O LCD do alpha não tem gráfico: no alpha e no Air, o histórico se vê pela interface web.
 
 ## As horas do histórico {#cap-15-horas}
 

@@ -277,9 +277,9 @@ O AP só abre quando alguém pede:
 
 | Quem pede | Quando abre |
 |---|---|
-| [release]{.img} Item 12 do menu do painel, **Modo de Configuração**, com a permissão **Rede** no painel ([capítulo 11](#cap-11-ap)) | Na hora |
+| [release]{.img} Item 8 do menu do painel, **Modo de Configuração** (no painel Ângulo, a linha **Modo de configuração**), com a permissão **Rede** no painel ([capítulo 11](#cap-11-ap), [capítulo 11A](#cap-11a-ap)) | Na hora |
 | Comando `ap` no console, pelo USB ou pelo Bluetooth ([capítulo 14](#cap-14-ap)) | Na hora |
-| [release]{.img} Gesto de toque no boot ([capítulo 11](#cap-11-boot-ap)) | No boot |
+| [release]{.img} Gesto de toque no boot ([capítulo 11](#cap-11-boot-ap), [capítulo 11A](#cap-11a-boot)) | No boot |
 
 O aparelho nunca troca a rede dele pelo AP sozinho. Sem rede configurada, ele liga, mede e grava como sempre, e a release pergunta a data e a hora no fim do boot ([capítulo 10](#cap-10-painel)). Com a rede fora do ar, ele segue a escada de reconexão até ela voltar ([Quando a rede cai](#cap-09-reconexao)).
 
@@ -553,4 +553,4 @@ Os limites de sinal que o aparelho usa:
 | 0 dBm ou mais, ou abaixo de −120 dBm | Leitura impossível. Duas seguidas, com um minuto entre elas, forçam uma reconexão |
 | Sem conexão | O sinal é informado como −100 dBm |
 
-As barras de sinal do painel usam limites próprios ([capítulo 11](#cap-11)), e o ícone do LCD, os seus ([capítulo 12](#cap-12)).
+As barras de sinal do painel usam limites próprios ([capítulo 11](#cap-11), [capítulo 11A](#cap-11a-barra)), e o ícone do LCD, os seus ([capítulo 12](#cap-12)).
