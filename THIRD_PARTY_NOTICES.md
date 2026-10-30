@@ -11,51 +11,52 @@ Wire images (`pico_wire`, `pico_wiretft`). This file is written by
 `tools/gen_notices.py` from `tools/third_party.toml`: edit those, run the script,
 and CI checks that the lists still agree.
 
-`pico_wiretft_angulo` is outside the nine: the bench image of the Angulo touch panel
-(`ui = "angulo"` in tools/features.toml), not published. It carries everything
-`pico_wiretft` carries and the components below that name it. This file lists it; the
-License screen and the `/license` page do not yet, because those two lists are
-compiled into the nine images and a line added to them would change their firmware.
-They list it when the panel ships in a product.
+The images with the Angulo touch panel (`pico_wiretft_angulo`, `pico2_w_release`) list
+their own fonts and icons as well: on `/license` in a block that the build cuts from
+every image with the original panel, and on the Angulo's License screen in the
+device's language.
 
-`pico2_w_angulo` is outside the nine: the Angulo touch panel on the Pico 2 W (`ui =
-"angulo"` in tools/features.toml), the image it ships on first, not published yet. It
-carries everything `pico2_w_release` carries and the components below that name it.
-This file lists it; the License screen and the `/license` page do not yet, because
-those two lists are compiled into the nine images and a line added to them would
-change their firmware. They list it when the panel ships in a product.
+`pico_wiretft_angulo` is outside the nine: the Angulo touch panel on the SIMUT Wire
+(`ui = "angulo"` in tools/features.toml). This file lists it against the rows that
+name it. Its /license page is the Wire page with the Angulo block, and its License
+screen is the Angulo's.
+
+`pico2_w_original` is outside the nine: the original touch panel on the Pico 2 W (`ui
+= "original"` in tools/features.toml), built by CI and not published. This file lists
+it against the rows that name it. Its /license page and its License screen are those
+of the original panel on the radio images.
 
 | Component | Copyright holder | Licence | Images |
 |---|---|---|---|
-| [Arduino-Pico core](#arduino-pico-core) | Earle F. Philhower, III | LGPL-2.1 | all images, and pico_wiretft_angulo, pico2_w_angulo |
-| [Raspberry Pi Pico SDK](#raspberry-pi-pico-sdk) | Raspberry Pi (Trading) Ltd. | BSD-3-Clause | all images, and pico_wiretft_angulo, pico2_w_angulo |
-| [TinyUSB](#tinyusb) | Ha Thach (tinyusb.org) | MIT | all images, and pico_wiretft_angulo, pico2_w_angulo |
-| [cyw43-driver](#cyw43-driver) | George Robotics Pty Ltd | Raspberry Pi licence (LICENSE.RP) | all images but pico_wire and pico_wiretft, and pico2_w_angulo |
-| [CYW43439 radio firmware](#cyw43439-radio-firmware) | Infineon Technologies (Cypress) | binary, shipped in cyw43-driver | all images but pico_wire and pico_wiretft, and pico2_w_angulo |
-| [lwIP](#lwip) | Swedish Institute of Computer Science | BSD-3-Clause | all images, and pico_wiretft_angulo, pico2_w_angulo |
-| [BearSSL](#bearssl) | Thomas Pornin | MIT | all images, and pico_wiretft_angulo, pico2_w_angulo |
-| [LittleFS](#littlefs) | Arm Limited and the littlefs authors | BSD-3-Clause | all images, and pico_wiretft_angulo, pico2_w_angulo |
-| [MicroPython DHCP server](#micropython-dhcp-server) | Damien P. George | MIT | all images but pico_wire and pico_wiretft, and pico2_w_angulo |
-| [LEAmDNS](#leamdns) | LaborEtArs | MIT | pico_w_release, pico_w_asserts, pico2_w_release, pico_wiretft, and pico_wiretft_angulo, pico2_w_angulo |
-| [newlib](#newlib) | Red Hat, Inc. and others | BSD-style (COPYING.NEWLIB) | all images, and pico_wiretft_angulo, pico2_w_angulo |
-| [GCC runtime libraries](#gcc-runtime-libraries) | Free Software Foundation, Inc. | GPL-3.0 with the GCC Runtime Library Exception | all images, and pico_wiretft_angulo, pico2_w_angulo |
-| [Adafruit GFX Library](#adafruit-gfx-library) | Adafruit Industries | BSD-2-Clause | the six images with the touch panel, and pico_wiretft_angulo, pico2_w_angulo |
-| [Adafruit ILI9341](#adafruit-ili9341) | Adafruit Industries (Limor Fried) | BSD | the six images with the touch panel, and pico_wiretft_angulo, pico2_w_angulo |
-| [XPT2046_Touchscreen](#xpt2046_touchscreen) | Paul Stoffregen | MIT | the six images with the touch panel, and pico_wiretft_angulo, pico2_w_angulo |
-| [PubSubClient](#pubsubclient) | Nicholas O'Leary | MIT | all images, and pico_wiretft_angulo, pico2_w_angulo |
-| [OneWirePIO_RP2040](#onewirepio_rp2040) | Ângelo Moisés Alves | MIT | all images but pico_wire and pico_wiretft, and pico2_w_angulo |
-| [DHT22PIO_RP2040](#dht22pio_rp2040) | Ângelo Moisés Alves | MIT | all images, and pico_wiretft_angulo, pico2_w_angulo |
-| [BuzzerPIO_RP2040](#buzzerpio_rp2040) | Ângelo Moisés Alves | MIT | all images but pico_w_air, and pico_wiretft_angulo, pico2_w_angulo |
-| [TwoWirePIO_RP2040](#twowirepio_rp2040) | Ângelo Moisés Alves | MIT | all images, and pico_wiretft_angulo, pico2_w_angulo |
-| [BMx280PIO_RP2040](#bmx280pio_rp2040) | Ângelo Moisés Alves | MIT | all images, and pico_wiretft_angulo, pico2_w_angulo |
+| [Arduino-Pico core](#arduino-pico-core) | Earle F. Philhower, III | LGPL-2.1 | all images, and pico_wiretft_angulo, pico2_w_original |
+| [Raspberry Pi Pico SDK](#raspberry-pi-pico-sdk) | Raspberry Pi (Trading) Ltd. | BSD-3-Clause | all images, and pico_wiretft_angulo, pico2_w_original |
+| [TinyUSB](#tinyusb) | Ha Thach (tinyusb.org) | MIT | all images, and pico_wiretft_angulo, pico2_w_original |
+| [cyw43-driver](#cyw43-driver) | George Robotics Pty Ltd | Raspberry Pi licence (LICENSE.RP) | all images but pico_wire and pico_wiretft, and pico2_w_original |
+| [CYW43439 radio firmware](#cyw43439-radio-firmware) | Infineon Technologies (Cypress) | binary, shipped in cyw43-driver | all images but pico_wire and pico_wiretft, and pico2_w_original |
+| [lwIP](#lwip) | Swedish Institute of Computer Science | BSD-3-Clause | all images, and pico_wiretft_angulo, pico2_w_original |
+| [BearSSL](#bearssl) | Thomas Pornin | MIT | all images, and pico_wiretft_angulo, pico2_w_original |
+| [LittleFS](#littlefs) | Arm Limited and the littlefs authors | BSD-3-Clause | all images, and pico_wiretft_angulo, pico2_w_original |
+| [MicroPython DHCP server](#micropython-dhcp-server) | Damien P. George | MIT | all images but pico_wire and pico_wiretft, and pico2_w_original |
+| [LEAmDNS](#leamdns) | LaborEtArs | MIT | pico_w_release, pico_w_asserts, pico2_w_release, pico_wiretft, and pico_wiretft_angulo, pico2_w_original |
+| [newlib](#newlib) | Red Hat, Inc. and others | BSD-style (COPYING.NEWLIB) | all images, and pico_wiretft_angulo, pico2_w_original |
+| [GCC runtime libraries](#gcc-runtime-libraries) | Free Software Foundation, Inc. | GPL-3.0 with the GCC Runtime Library Exception | all images, and pico_wiretft_angulo, pico2_w_original |
+| [Adafruit GFX Library](#adafruit-gfx-library) | Adafruit Industries | BSD-2-Clause | the six images with the touch panel, and pico_wiretft_angulo, pico2_w_original |
+| [Adafruit ILI9341](#adafruit-ili9341) | Adafruit Industries (Limor Fried) | BSD | the six images with the touch panel, and pico_wiretft_angulo, pico2_w_original |
+| [XPT2046_Touchscreen](#xpt2046_touchscreen) | Paul Stoffregen | MIT | the six images with the touch panel, and pico_wiretft_angulo, pico2_w_original |
+| [PubSubClient](#pubsubclient) | Nicholas O'Leary | MIT | all images, and pico_wiretft_angulo, pico2_w_original |
+| [OneWirePIO_RP2040](#onewirepio_rp2040) | Ângelo Moisés Alves | MIT | all images but pico_wire and pico_wiretft, and pico2_w_original |
+| [DHT22PIO_RP2040](#dht22pio_rp2040) | Ângelo Moisés Alves | MIT | all images, and pico_wiretft_angulo, pico2_w_original |
+| [BuzzerPIO_RP2040](#buzzerpio_rp2040) | Ângelo Moisés Alves | MIT | all images but pico_w_air, and pico_wiretft_angulo, pico2_w_original |
+| [TwoWirePIO_RP2040](#twowirepio_rp2040) | Ângelo Moisés Alves | MIT | all images, and pico_wiretft_angulo, pico2_w_original |
+| [BMx280PIO_RP2040](#bmx280pio_rp2040) | Ângelo Moisés Alves | MIT | all images, and pico_wiretft_angulo, pico2_w_original |
 | [PicoENC28J60](#picoenc28j60) | Lukasz Janyst and Ângelo Moisés Alves | MIT | pico_wire, pico_wiretft, and pico_wiretft_angulo |
 | [BTstack](#btstack) | BlueKitchen GmbH | Raspberry Pi licence (LICENSE.RP) | pico_w_alpha, pico_w_air |
-| [GNU FreeFont (FreeSans Bold)](#gnu-freefont-freesans-bold) | GNU FreeFont contributors | GPL-3.0-or-later with the font exception | the six images with the touch panel, and pico_wiretft_angulo, pico2_w_angulo |
-| [Bricolage Grotesque](#bricolage-grotesque) | The Bricolage Grotesque Project Authors | SIL Open Font License 1.1 | pico_wiretft_angulo, pico2_w_angulo |
-| [GNU FreeFont (FreeSans, FreeMono Bold)](#gnu-freefont-freesans-freemono-bold) | GNU FreeFont contributors | GPL-3.0-or-later with the font exception | pico_wiretft_angulo, pico2_w_angulo |
-| [Lucide](#lucide) | Lucide Contributors (portions: Cole Bemis, as part of Feather) | ISC | pico_wiretft_angulo, pico2_w_angulo |
-| [Liberation Sans Bold](#liberation-sans-bold) | Red Hat, Inc. (digitized data: Google, Arimo) | SIL Open Font License 1.1 | all images, and pico_wiretft_angulo, pico2_w_angulo |
-| [SHA-256 for JavaScript](#sha-256-for-javascript) | Geraint Luff | public domain | all images, and pico_wiretft_angulo, pico2_w_angulo |
+| [GNU FreeFont (FreeSans Bold)](#gnu-freefont-freesans-bold) | GNU FreeFont contributors | GPL-3.0-or-later with the font exception | pico_w_release, pico_w_test, pico_w_test_https, pico_w_asserts, pico_wiretft, and pico2_w_original |
+| [Bricolage Grotesque](#bricolage-grotesque) | The Bricolage Grotesque Project Authors | SIL Open Font License 1.1 | pico2_w_release, and pico_wiretft_angulo |
+| [GNU FreeFont (FreeSans, FreeMono Bold)](#gnu-freefont-freesans-freemono-bold) | GNU FreeFont contributors | GPL-3.0-or-later with the font exception | pico2_w_release, and pico_wiretft_angulo |
+| [Lucide](#lucide) | Lucide Contributors (portions: Cole Bemis, as part of Feather) | ISC | pico2_w_release, and pico_wiretft_angulo |
+| [Liberation Sans Bold](#liberation-sans-bold) | Red Hat, Inc. (digitized data: Google, Arimo) | SIL Open Font License 1.1 | all images, and pico_wiretft_angulo, pico2_w_original |
+| [SHA-256 for JavaScript](#sha-256-for-javascript) | Geraint Luff | public domain | all images, and pico_wiretft_angulo, pico2_w_original |
 
 ## Arduino-Pico core
 
@@ -63,7 +64,7 @@ The Arduino core for the RP2040 and RP2350, with its WiFi, WebServer, HTTPClient
 
 - Copyright holder: Earle F. Philhower, III
 - Licence: LGPL-2.1, text in [LICENSES/arduino-pico-LGPL-2.1.txt](LICENSES/arduino-pico-LGPL-2.1.txt)
-- Images: all images, and pico_wiretft_angulo, pico2_w_angulo
+- Images: all images, and pico_wiretft_angulo, pico2_w_original
 - Source: <https://github.com/earlephilhower/arduino-pico>
 
 SIMUT publishes its complete source, so an image can be rebuilt against a modified core, as the LGPL requires.
@@ -74,7 +75,7 @@ Hardware access, multicore, flash and boot code for the RP2040 and RP2350.
 
 - Copyright holder: Raspberry Pi (Trading) Ltd.
 - Licence: BSD-3-Clause, text in [LICENSES/pico-sdk-BSD-3-Clause.txt](LICENSES/pico-sdk-BSD-3-Clause.txt)
-- Images: all images, and pico_wiretft_angulo, pico2_w_angulo
+- Images: all images, and pico_wiretft_angulo, pico2_w_original
 - Source: <https://github.com/raspberrypi/pico-sdk>
 
 ## TinyUSB
@@ -83,7 +84,7 @@ The USB stack behind the USB serial console.
 
 - Copyright holder: Ha Thach (tinyusb.org)
 - Licence: MIT, text in [LICENSES/tinyusb-MIT.txt](LICENSES/tinyusb-MIT.txt)
-- Images: all images, and pico_wiretft_angulo, pico2_w_angulo
+- Images: all images, and pico_wiretft_angulo, pico2_w_original
 - Source: <https://github.com/hathach/tinyusb>
 
 ## cyw43-driver
@@ -92,7 +93,7 @@ Driver for the Infineon CYW43439 Wi-Fi and Bluetooth chip of the Pico W and the 
 
 - Copyright holder: George Robotics Pty Ltd
 - Licence: Raspberry Pi licence (LICENSE.RP), text in [LICENSES/cyw43-driver-LICENSE.RP.txt](LICENSES/cyw43-driver-LICENSE.RP.txt)
-- Images: all images but pico_wire and pico_wiretft, and pico2_w_angulo
+- Images: all images but pico_wire and pico_wiretft, and pico2_w_original
 - Source: <https://github.com/georgerobotics/cyw43-driver>
 
 Licensed by Raspberry Pi Ltd for use with its own chips only. The driver's other licence (its LICENSE file) is for non-commercial use; LICENSE.RP is the one that covers SIMUT, which runs on the Pico W and the Pico 2 W.
@@ -103,7 +104,7 @@ The firmware the radio chip loads at boot: Wi-Fi in every image, Bluetooth too i
 
 - Copyright holder: Infineon Technologies (Cypress)
 - Licence: binary, shipped in cyw43-driver, text in [LICENSES/cyw43-driver-LICENSE.RP.txt](LICENSES/cyw43-driver-LICENSE.RP.txt)
-- Images: all images but pico_wire and pico_wiretft, and pico2_w_angulo
+- Images: all images but pico_wire and pico_wiretft, and pico2_w_original
 - Source: <https://github.com/georgerobotics/cyw43-driver/tree/main/firmware>
 
 Shipped inside cyw43-driver; the Pico SDK carries no separate licence for it, so it travels under the driver's terms above.
@@ -114,7 +115,7 @@ The TCP/IP stack (Adam Dunkels and the lwIP contributors), bundled in the Arduin
 
 - Copyright holder: Swedish Institute of Computer Science
 - Licence: BSD-3-Clause, text in [LICENSES/lwip-BSD-3-Clause.txt](LICENSES/lwip-BSD-3-Clause.txt)
-- Images: all images, and pico_wiretft_angulo, pico2_w_angulo
+- Images: all images, and pico_wiretft_angulo, pico2_w_original
 - Source: <https://savannah.nongnu.org/projects/lwip/>
 
 ## BearSSL
@@ -123,7 +124,7 @@ TLS for HTTPS and MQTTS, SHA-256, and the P-256 check of signed updates.
 
 - Copyright holder: Thomas Pornin
 - Licence: MIT, text in [LICENSES/bearssl-MIT.txt](LICENSES/bearssl-MIT.txt)
-- Images: all images, and pico_wiretft_angulo, pico2_w_angulo
+- Images: all images, and pico_wiretft_angulo, pico2_w_original
 - Source: <https://bearssl.org>
 
 ## LittleFS
@@ -132,7 +133,7 @@ The flash filesystem: configuration, history, language packs.
 
 - Copyright holder: Arm Limited and the littlefs authors
 - Licence: BSD-3-Clause, text in [LICENSES/littlefs-BSD-3-Clause.txt](LICENSES/littlefs-BSD-3-Clause.txt)
-- Images: all images, and pico_wiretft_angulo, pico2_w_angulo
+- Images: all images, and pico_wiretft_angulo, pico2_w_original
 - Source: <https://github.com/littlefs-project/littlefs>
 
 ## MicroPython DHCP server
@@ -141,7 +142,7 @@ Hands out addresses on the setup access point; part of the Arduino-Pico WiFi lib
 
 - Copyright holder: Damien P. George
 - Licence: MIT, text in [LICENSES/micropython-dhcpserver-MIT.txt](LICENSES/micropython-dhcpserver-MIT.txt)
-- Images: all images but pico_wire and pico_wiretft, and pico2_w_angulo
+- Images: all images but pico_wire and pico_wiretft, and pico2_w_original
 - Source: <https://micropython.org>
 
 ## LEAmDNS
@@ -150,7 +151,7 @@ The mDNS responder that answers for the device name on the local network; part o
 
 - Copyright holder: LaborEtArs
 - Licence: MIT, text in [LICENSES/leamdns-MIT.txt](LICENSES/leamdns-MIT.txt)
-- Images: pico_w_release, pico_w_asserts, pico2_w_release, pico_wiretft, and pico_wiretft_angulo, pico2_w_angulo
+- Images: pico_w_release, pico_w_asserts, pico2_w_release, pico_wiretft, and pico_wiretft_angulo, pico2_w_original
 - Source: <https://github.com/LaborEtArs/ESP8266mDNS>
 
 ## newlib
@@ -159,7 +160,7 @@ The C library of the toolchain: memory allocation, strings, formatted output.
 
 - Copyright holder: Red Hat, Inc. and others
 - Licence: BSD-style (COPYING.NEWLIB), text in [LICENSES/newlib-COPYING.NEWLIB.txt](LICENSES/newlib-COPYING.NEWLIB.txt)
-- Images: all images, and pico_wiretft_angulo, pico2_w_angulo
+- Images: all images, and pico_wiretft_angulo, pico2_w_original
 - Source: <https://sourceware.org/newlib/>
 
 ## GCC runtime libraries
@@ -168,7 +169,7 @@ libgcc and libstdc++, linked by the compiler. The exception lets them be combine
 
 - Copyright holder: Free Software Foundation, Inc.
 - Licence: GPL-3.0 with the GCC Runtime Library Exception, text in [LICENSES/gcc-runtime-exception-3.1.txt](LICENSES/gcc-runtime-exception-3.1.txt), [LICENSES/GPL-3.0.txt](LICENSES/GPL-3.0.txt)
-- Images: all images, and pico_wiretft_angulo, pico2_w_angulo
+- Images: all images, and pico_wiretft_angulo, pico2_w_original
 - Source: <https://gcc.gnu.org>
 
 ## Adafruit GFX Library
@@ -177,7 +178,7 @@ Drawing primitives for the touch panel, and the classic 5x7 font of its text scr
 
 - Copyright holder: Adafruit Industries
 - Licence: BSD-2-Clause, text in [LICENSES/adafruit-gfx-BSD-2-Clause.txt](LICENSES/adafruit-gfx-BSD-2-Clause.txt)
-- Images: the six images with the touch panel, and pico_wiretft_angulo, pico2_w_angulo
+- Images: the six images with the touch panel, and pico_wiretft_angulo, pico2_w_original
 - Source: <https://github.com/adafruit/Adafruit-GFX-Library>
 
 ## Adafruit ILI9341
@@ -186,7 +187,7 @@ Driver for the ILI9341 controller of the touch panel.
 
 - Copyright holder: Adafruit Industries (Limor Fried)
 - Licence: BSD, text in [LICENSES/adafruit-ili9341-BSD.txt](LICENSES/adafruit-ili9341-BSD.txt)
-- Images: the six images with the touch panel, and pico_wiretft_angulo, pico2_w_angulo
+- Images: the six images with the touch panel, and pico_wiretft_angulo, pico2_w_original
 - Source: <https://github.com/adafruit/Adafruit_ILI9341>
 
 Its source files say "BSD license, all text here must be included in any redistribution", so the whole header is reproduced. Its README says MIT; the source is what this list follows.
@@ -197,7 +198,7 @@ Driver for the XPT2046 touch controller.
 
 - Copyright holder: Paul Stoffregen
 - Licence: MIT, text in [LICENSES/xpt2046-touchscreen-MIT.txt](LICENSES/xpt2046-touchscreen-MIT.txt)
-- Images: the six images with the touch panel, and pico_wiretft_angulo, pico2_w_angulo
+- Images: the six images with the touch panel, and pico_wiretft_angulo, pico2_w_original
 - Source: <https://github.com/PaulStoffregen/XPT2046_Touchscreen>
 
 ## PubSubClient
@@ -206,7 +207,7 @@ The MQTT client behind MQTT and MQTTS telemetry.
 
 - Copyright holder: Nicholas O'Leary
 - Licence: MIT, text in [LICENSES/pubsubclient-MIT.txt](LICENSES/pubsubclient-MIT.txt)
-- Images: all images, and pico_wiretft_angulo, pico2_w_angulo
+- Images: all images, and pico_wiretft_angulo, pico2_w_original
 - Source: <https://github.com/knolleary/pubsubclient>
 
 ## OneWirePIO_RP2040
@@ -215,7 +216,7 @@ The MQTT client behind MQTT and MQTTS telemetry.
 
 - Copyright holder: Ângelo Moisés Alves
 - Licence: MIT, text in [LICENSES/OneWirePIO_RP2040-MIT.txt](LICENSES/OneWirePIO_RP2040-MIT.txt)
-- Images: all images but pico_wire and pico_wiretft, and pico2_w_angulo
+- Images: all images but pico_wire and pico_wiretft, and pico2_w_original
 - Source: <https://github.com/angeloINTJ/OneWirePIO_RP2040>
 
 ## DHT22PIO_RP2040
@@ -224,7 +225,7 @@ The DHT22 protocol on the PIO.
 
 - Copyright holder: Ângelo Moisés Alves
 - Licence: MIT, text in [LICENSES/DHT22PIO_RP2040-MIT.txt](LICENSES/DHT22PIO_RP2040-MIT.txt)
-- Images: all images, and pico_wiretft_angulo, pico2_w_angulo
+- Images: all images, and pico_wiretft_angulo, pico2_w_original
 - Source: <https://github.com/angeloINTJ/DHT22PIO_RP2040>
 
 ## BuzzerPIO_RP2040
@@ -233,7 +234,7 @@ Tones and melodies for the buzzer on the PIO.
 
 - Copyright holder: Ângelo Moisés Alves
 - Licence: MIT, text in [LICENSES/BuzzerPIO_RP2040-MIT.txt](LICENSES/BuzzerPIO_RP2040-MIT.txt)
-- Images: all images but pico_w_air, and pico_wiretft_angulo, pico2_w_angulo
+- Images: all images but pico_w_air, and pico_wiretft_angulo, pico2_w_original
 - Source: <https://github.com/angeloINTJ/BuzzerPIO_RP2040>
 
 ## TwoWirePIO_RP2040
@@ -242,7 +243,7 @@ I2C on the PIO (the WirePIO library).
 
 - Copyright holder: Ângelo Moisés Alves
 - Licence: MIT, text in [LICENSES/TwoWirePIO_RP2040-MIT.txt](LICENSES/TwoWirePIO_RP2040-MIT.txt)
-- Images: all images, and pico_wiretft_angulo, pico2_w_angulo
+- Images: all images, and pico_wiretft_angulo, pico2_w_original
 - Source: <https://github.com/angeloINTJ/TwoWirePIO_RP2040>
 
 ## BMx280PIO_RP2040
@@ -251,7 +252,7 @@ BME280 and BMP280 driver.
 
 - Copyright holder: Ângelo Moisés Alves
 - Licence: MIT, text in [LICENSES/BMx280PIO_RP2040-MIT.txt](LICENSES/BMx280PIO_RP2040-MIT.txt)
-- Images: all images, and pico_wiretft_angulo, pico2_w_angulo
+- Images: all images, and pico_wiretft_angulo, pico2_w_original
 - Source: <https://github.com/angeloINTJ/BMx280PIO_RP2040>
 
 ## PicoENC28J60
@@ -282,7 +283,7 @@ The 9, 12 and 24 pt faces of the touch panel, converted to bitmaps and cut down 
 
 - Copyright holder: GNU FreeFont contributors
 - Licence: GPL-3.0-or-later with the font exception, text in [LICENSES/freefont-GPL-3.0-font-exception.txt](LICENSES/freefont-GPL-3.0-font-exception.txt), [LICENSES/GPL-3.0.txt](LICENSES/GPL-3.0.txt)
-- Images: the six images with the touch panel, and pico_wiretft_angulo, pico2_w_angulo
+- Images: pico_w_release, pico_w_test, pico_w_test_https, pico_w_asserts, pico_wiretft, and pico2_w_original
 - Source: <https://www.gnu.org/software/freefont/>
 
 ## Bricolage Grotesque
@@ -291,17 +292,19 @@ The display face (weight 600) of the Angulo touch panel, converted to bitmaps at
 
 - Copyright holder: The Bricolage Grotesque Project Authors
 - Licence: SIL Open Font License 1.1, text in [LICENSES/bricolage-grotesque-OFL-1.1.txt](LICENSES/bricolage-grotesque-OFL-1.1.txt)
-- Images: pico_wiretft_angulo, pico2_w_angulo
+- Images: pico2_w_release, and pico_wiretft_angulo
 - Source: <https://github.com/ateliertriay/bricolage>
 
 ## GNU FreeFont (FreeSans, FreeMono Bold)
 
-The FreeSans and FreeSans Bold faces at 7 and 9 pt and the FreeMono Bold face at 9 and 12 pt of the Angulo touch panel, converted to bitmaps and cut down to the glyphs SIMUT draws.
+The FreeSans and FreeSans Bold faces at 9 pt and the FreeMono Bold face at 9 and 12 pt of the Angulo touch panel, converted to bitmaps and cut down to the glyphs SIMUT draws.
 
 - Copyright holder: GNU FreeFont contributors
 - Licence: GPL-3.0-or-later with the font exception, text in [LICENSES/freefont-GPL-3.0-font-exception.txt](LICENSES/freefont-GPL-3.0-font-exception.txt), [LICENSES/GPL-3.0.txt](LICENSES/GPL-3.0.txt)
-- Images: pico_wiretft_angulo, pico2_w_angulo
+- Images: pico2_w_release, and pico_wiretft_angulo
 - Source: <https://www.gnu.org/software/freefont/>
+
+The Angulo images cut this typeface at the sizes above and keep none of the 9, 12 and 24 pt faces of "GNU FreeFont (FreeSans Bold)", which belong to the original panel (nm of the eleven images, 2026-10-30).
 
 ## Lucide
 
@@ -309,7 +312,7 @@ The icons of the Angulo touch panel (status bar, buttons, result and update scre
 
 - Copyright holder: Lucide Contributors (portions: Cole Bemis, as part of Feather)
 - Licence: ISC, text in [LICENSES/lucide-ISC.txt](LICENSES/lucide-ISC.txt)
-- Images: pico_wiretft_angulo, pico2_w_angulo
+- Images: pico2_w_release, and pico_wiretft_angulo
 - Source: <https://lucide.dev>
 
 Its LICENSE says portions are held by Cole Bemis 2013-2022 as part of Feather (MIT). The file is reproduced as the lucide-static 0.468.0 package ships it.
@@ -320,7 +323,7 @@ Five glyph outlines traced into the SIMUT wordmark of the web pages. No font fil
 
 - Copyright holder: Red Hat, Inc. (digitized data: Google, Arimo)
 - Licence: SIL Open Font License 1.1, text in [LICENSES/liberation-fonts-OFL-1.1.txt](LICENSES/liberation-fonts-OFL-1.1.txt)
-- Images: all images, and pico_wiretft_angulo, pico2_w_angulo
+- Images: all images, and pico_wiretft_angulo, pico2_w_original
 - Source: <https://github.com/liberationfonts/liberation-fonts>
 
 ## SHA-256 for JavaScript
@@ -329,7 +332,7 @@ Hashes the password in the login page before it leaves the browser.
 
 - Copyright holder: Geraint Luff
 - Licence: public domain, text in [LICENSES/sha256-js-public-domain.txt](LICENSES/sha256-js-public-domain.txt)
-- Images: all images, and pico_wiretft_angulo, pico2_w_angulo
+- Images: all images, and pico_wiretft_angulo, pico2_w_original
 - Source: <https://github.com/geraintluff/sha256>
 
 ## Compiled, but not in any image

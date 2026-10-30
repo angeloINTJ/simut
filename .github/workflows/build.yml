@@ -199,6 +199,17 @@ jobs:
       - name: Web pages per network
         run: python3 tools/test_web_omit_network.py
 
+      # The Angulo's fonts and icons are on the /license page of the images that
+      # carry them and of no other: [ui.original] has web_omit = "ui_angulo".
+      - name: Web pages per UI
+        run: python3 tools/test_web_omit_ui.py
+
+      # The third-party notices follow the images: every image is named, the
+      # Angulo rows name the Angulo images and nothing else, and the Angulo's
+      # License screen reads as the rows do.
+      - name: Notices per image
+        run: python3 tools/test_gen_notices.py
+
       # Whether a combination fits in the PIO blocks, and which GPIO two owners
       # claim, before anything compiles: the firmware finds out only at boot,
       # when it logs "pio0 full" and drops a sensor.

@@ -3,6 +3,8 @@
 
 #include <string.h>
 
+#include "../Textos.h"   // UA_TXT( ): after every project header, because its pragmas hold to the end of the unit
+
 namespace ua {
 namespace tela {
 
@@ -117,6 +119,18 @@ void paginaDaLicenca( const IndiceLicenca &ix, int pagina, VmLicenca &vm ) {
     copiarLinha( vm.linhas[i], ix.fontes[l.fonte] + l.inicio, l.tam );
   }
   vm.n = (uint8_t)n;
+}
+
+// This panel's own fonts and icons, after the third-party list (S10c C4, 2026-10-30). tools/third_party.toml has them as the rows marked
+// `ui = "angulo"`, and `tools/gen_notices.py --check` holds this text to them: the name, and the holder and licence as "<holder>, <licence>.",
+// must read here as the table has them. The words around the proper names are the device's language; the names, holders and licences are not
+// translated. The English comes back for a text the pack lacks.
+int anexarFontesDoAngulo( FonteLicenca *fontes, int n, int max ) {
+  if ( n < max ) fontes[n++] = FonteLicenca{ UA_TXT( "--- Fonts and icons of this panel ---" ), 1 };
+  if ( n < max ) fontes[n++] = FonteLicenca{ UA_TXT( "Bricolage Grotesque, in the titles: The Bricolage Grotesque Project Authors, SIL Open Font License 1.1." ), 0 };
+  if ( n < max ) fontes[n++] = FonteLicenca{ UA_TXT( "GNU FreeFont (FreeSans, FreeMono Bold), in the text and the figures: GNU FreeFont contributors, GPL-3.0-or-later with the font exception." ), 0 };
+  if ( n < max ) fontes[n++] = FonteLicenca{ UA_TXT( "Lucide, in the icons: Lucide Contributors, ISC." ), 0 };
+  return n;
 }
 
 }  // namespace tela

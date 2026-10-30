@@ -286,6 +286,8 @@ def compose(prof: dict, M: dict) -> dict:
     for other_id, other in M["ui"].items():
         if other_id != ui_id:
             excludes += other.get("units", [])
+    if ui.get("web_omit"):
+        web_omit.append(ui["web_omit"])   # what only this panel's pages lack (S10c C4): the Angulo's licence block, cut from the original's
 
     # Not a switch: which roots the image trusts for its next update. Only an
     # unpublished profile asks for the bench root, and check_manifest( ) refuses
@@ -624,10 +626,14 @@ def check_manifest(M: dict) -> None:
     if DEFAULT_UI not in uis:
         sys.exit(f"gen_features: falta [ui.{DEFAULT_UI}]: e o driver de UI de um perfil sem a chave `ui`")
     for n, v in uis.items():
-        extra = sorted(set(v) - {"flags", "include", "units"})
+        extra = sorted(set(v) - {"flags", "include", "units", "web_omit"})
         if extra:
             sys.exit(f"gen_features: [ui.{n}] tem chave que ninguem le: {', '.join(extra)} "
-                     f"(so flags, include e units)")
+                     f"(so flags, include, units e web_omit)")
+        w = v.get("web_omit")
+        if w is not None and not (isinstance(w, str) and re.fullmatch(r"[a-z][a-z0-9_]*", w)):
+            sys.exit(f"gen_features: [ui.{n}].web_omit tem de ser um nome de @IF do "
+                     f"build_webui_gz.py (minusculas, digitos e _), nao {w!r}")
         flags = v.get("flags")
         if flags is not None and (not isinstance(flags, list)
                                   or any(not isinstance(f, str) or not f.startswith("-D") for f in flags)):

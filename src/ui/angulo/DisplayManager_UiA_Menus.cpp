@@ -296,7 +296,9 @@ bool DisplayManager::uaMontarMenus( UaQuadro &q ) {
           static const uint8_t kBrancas[5] = { 1, 0, 1, 1, 1 };
           for ( int k = 0; k < 5; k++ ) fontes[nf++] = ua::tela::FonteLicenca{ LICENSE_OPENING_EN[k], kBrancas[k] };
         }
-        fontes[nf++] = ua::tela::FonteLicenca{ LICENSE_TEXT_EN, 0 };
+        fontes[nf++] = ua::tela::FonteLicenca{ LICENSE_TEXT_EN, 1 };
+        /* S10c C4: this panel's own fonts and icons, in the device's language, after the third-party list (the original's screen has none). */
+        nf = ua::tela::anexarFontesDoAngulo( fontes, nf, ua::tela::LICENCA_FONTES_MAX );
         indexarLicenca( s_indiceLic, fontes, nf );
         s_idiomaLic = _currentLangIdx;
       }

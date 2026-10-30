@@ -227,6 +227,9 @@ lib_deps = ["https://github.com/angeloINTJ/pico-enc28j60.git#4984e2f55727c81cfd6
 #             sai do build (-<unidade> no build_src_filter), como a de um driver de rede.
 # ---------------------------------------------------------------------------
 [ui.original]
+# O que as paginas desta UI nao levam (S10c C4, 2026-10-30): os textos de licenca das fontes e dos icones do Angulo (o bloco /* @IF ui_angulo */ do
+# WebUI.h, escrito por tools/gen_notices.py). Entra no web_omit de toda imagem com o painel original, a padrao tambem, depois do da rede; o Angulo nao o tem.
+web_omit = "ui_angulo"
 # O painel que toda release leva, o padrao: nada a emitir. `units`: as unidades so dele que as duas imagens do Angulo (a do Wire e a do
 # Pico 2 W) nao linkam e que a imagem do Angulo, por isso, nao compila: Themes.cpp (o catalogo de temas; o Angulo define o dele em
 # ui/angulo/Temas.cpp), o calendario, as fontes, o grafico, a tela de atualizacao, o desenho (Render), os textos do painel (i18nUi), os

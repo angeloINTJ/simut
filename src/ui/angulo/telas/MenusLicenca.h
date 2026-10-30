@@ -17,7 +17,8 @@ namespace tela {
 // wired build and 145 in the radio one (indexed on the host with the 9 pt text, 2026-10-15; 115 and
 // 125 at 7 pt, the day before): 192 leaves a third more.
 constexpr int LICENCA_INDICE_MAX = 192;
-constexpr int LICENCA_FONTES_MAX = 8;
+// Up to five of the opening (the English fallback), the licence and the third-party list, then this panel's four (anexarFontesDoAngulo( ), S10c C4): 12 leaves two.
+constexpr int LICENCA_FONTES_MAX = 12;
 
 // One source of the text and how many blank lines follow it.
 struct FonteLicenca {
@@ -45,6 +46,11 @@ int indexarLicenca( IndiceLicenca &ix, const FonteLicenca *fontes, int n );
 // The page `pagina` (held to the pages that exist) into vm: the lines, their
 // count, and the page count and number for the pager.
 void paginaDaLicenca( const IndiceLicenca &ix, int pagina, VmLicenca &vm );
+
+// This panel's own fonts and icons (Bricolage Grotesque, GNU FreeFont, Lucide), appended to `fontes` after the licence text and the third-party list: a heading and
+// one paragraph each, in the device's language (UA_TXT( ), a line each in the @ANGULO section of both packs). Returns the new count, never above `max`. Call it where the
+// text is indexed, not from an initialiser: the pack is loaded by then. tools/gen_notices.py --check holds its text to the rows of tools/third_party.toml.
+int anexarFontesDoAngulo( FonteLicenca *fontes, int n, int max );
 
 }  // namespace tela
 }  // namespace ua

@@ -14,7 +14,11 @@
 # images that carry it, by the suffix of their PlatformIO environment. A
 # page or a panel lists the components of its own family, radio or Wire
 # (tools/gen_notices.py). An image outside the nine is named in
-# [bench_images] below.
+# [bench_images] below, and by name in each row that carries it (since
+# 2026-10-30; before, it inherited the rows of the image it extends, which
+# was wrong for the original panel's faces). A row marked `ui = "angulo"`
+# belongs to the Angulo block of the /license page and to the Angulo's panel,
+# not to the family lists.
 #
 # Every `text` is a file in LICENSES/, copied verbatim: from the package the
 # build uses (~/.platformio/packages, .pio/libdeps), from the source file's own
@@ -25,21 +29,20 @@
 all_images = ["release", "test", "test_https", "asserts", "alpha", "air", "pico2_release",
               "wire", "wiretft"]
 
-# Images outside the nine (2026-10-14): a bench image the manifest builds and nobody installs. It
-# carries everything the image it extends carries, plus the components that name it in `images`.
-# THIRD_PARTY_NOTICES.md lists it; the License page and the panel's License screen do not, on
-# purpose: both lists are compiled into the nine, so a line added to them changes the nine firmware
-# images. They list it when the Angulo panel ships in a product, and the image then moves to
-# `all_images` (and to WIRED and PANEL in tools/gen_notices.py).
+# Images outside the nine (2026-10-14, rewritten 2026-10-30 after the C3 switch): a bench image the manifest builds and nobody
+# installs. THIRD_PARTY_NOTICES.md lists it, against the rows that name it; `page` says what its /license page and its License
+# screen are. `extends` is the image whose switches it shares: it inherits no row.
 [bench_images.wiretft_angulo]
 extends = "wiretft"
-what = "the bench image of the Angulo touch panel (`ui = \"angulo\"` in tools/features.toml), not published"
+what = "the Angulo touch panel on the SIMUT Wire (`ui = \"angulo\"` in tools/features.toml)"
+page = "Its /license page is the Wire page with the Angulo block, and its License screen is the Angulo's."
 
-# The second one (2026-10-21): the Angulo on the Pico 2 W, the board it ships on first. The group's name is the
-# only bench about it: the image trusts the production root alone, like pico2_w_release, and nobody installs it yet.
-[bench_images.pico2_angulo]
+# The original panel on the Pico 2 W (2026-10-30): what pico2_w_release was until the C3 switch, which builds the Angulo there now.
+# Byte for byte the old pico2_w_release (sha256 equal, C3), so every row that named pico2_release then names it.
+[bench_images.pico2_original]
 extends = "pico2_release"
-what = "the Angulo touch panel on the Pico 2 W (`ui = \"angulo\"` in tools/features.toml), the image it ships on first, not published yet"
+what = "the original touch panel on the Pico 2 W (`ui = \"original\"` in tools/features.toml), built by CI and not published"
+page = "Its /license page and its License screen are those of the original panel on the radio images."
 
 [[component]]
 name = "Arduino-Pico core"
@@ -73,7 +76,7 @@ text = "tinyusb-MIT.txt"
 name = "cyw43-driver"
 holder = "George Robotics Pty Ltd"
 license = "Raspberry Pi licence (LICENSE.RP)"
-images = ["release", "test", "test_https", "asserts", "alpha", "air", "pico2_release"]
+images = ["release", "test", "test_https", "asserts", "alpha", "air", "pico2_release", "pico2_original"]
 url = "https://github.com/georgerobotics/cyw43-driver"
 what = "Driver for the Infineon CYW43439 Wi-Fi and Bluetooth chip of the Pico W and the Pico 2 W."
 note = "Licensed by Raspberry Pi Ltd for use with its own chips only. The driver's other licence (its LICENSE file) is for non-commercial use; LICENSE.RP is the one that covers SIMUT, which runs on the Pico W and the Pico 2 W."
@@ -83,7 +86,7 @@ text = "cyw43-driver-LICENSE.RP.txt"
 name = "CYW43439 radio firmware"
 holder = "Infineon Technologies (Cypress)"
 license = "binary, shipped in cyw43-driver"
-images = ["release", "test", "test_https", "asserts", "alpha", "air", "pico2_release"]
+images = ["release", "test", "test_https", "asserts", "alpha", "air", "pico2_release", "pico2_original"]
 url = "https://github.com/georgerobotics/cyw43-driver/tree/main/firmware"
 what = "The firmware the radio chip loads at boot: Wi-Fi in every image, Bluetooth too in the alpha and Air images."
 note = "Shipped inside cyw43-driver; the Pico SDK carries no separate licence for it, so it travels under the driver's terms above."
@@ -120,7 +123,7 @@ text = "littlefs-BSD-3-Clause.txt"
 name = "MicroPython DHCP server"
 holder = "Damien P. George"
 license = "MIT"
-images = ["release", "test", "test_https", "asserts", "alpha", "air", "pico2_release"]
+images = ["release", "test", "test_https", "asserts", "alpha", "air", "pico2_release", "pico2_original"]
 url = "https://micropython.org"
 what = "Hands out addresses on the setup access point; part of the Arduino-Pico WiFi library."
 text = "micropython-dhcpserver-MIT.txt"
@@ -129,7 +132,7 @@ text = "micropython-dhcpserver-MIT.txt"
 name = "LEAmDNS"
 holder = "LaborEtArs"
 license = "MIT"
-images = ["release", "asserts", "pico2_release", "wiretft"]
+images = ["release", "asserts", "pico2_release", "wiretft", "wiretft_angulo", "pico2_original"]
 url = "https://github.com/LaborEtArs/ESP8266mDNS"
 what = "The mDNS responder that answers for the device name on the local network; part of the Arduino-Pico core."
 text = "leamdns-MIT.txt"
@@ -157,7 +160,7 @@ also = ["GPL-3.0.txt"]
 name = "Adafruit GFX Library"
 holder = "Adafruit Industries"
 license = "BSD-2-Clause"
-images = ["release", "test", "test_https", "asserts", "pico2_release", "wiretft"]
+images = ["release", "test", "test_https", "asserts", "pico2_release", "wiretft", "wiretft_angulo", "pico2_original"]
 url = "https://github.com/adafruit/Adafruit-GFX-Library"
 what = "Drawing primitives for the touch panel, and the classic 5x7 font of its text screens."
 text = "adafruit-gfx-BSD-2-Clause.txt"
@@ -166,7 +169,7 @@ text = "adafruit-gfx-BSD-2-Clause.txt"
 name = "Adafruit ILI9341"
 holder = "Adafruit Industries (Limor Fried)"
 license = "BSD"
-images = ["release", "test", "test_https", "asserts", "pico2_release", "wiretft"]
+images = ["release", "test", "test_https", "asserts", "pico2_release", "wiretft", "wiretft_angulo", "pico2_original"]
 url = "https://github.com/adafruit/Adafruit_ILI9341"
 what = "Driver for the ILI9341 controller of the touch panel."
 note = "Its source files say \"BSD license, all text here must be included in any redistribution\", so the whole header is reproduced. Its README says MIT; the source is what this list follows."
@@ -176,7 +179,7 @@ text = "adafruit-ili9341-BSD.txt"
 name = "XPT2046_Touchscreen"
 holder = "Paul Stoffregen"
 license = "MIT"
-images = ["release", "test", "test_https", "asserts", "pico2_release", "wiretft"]
+images = ["release", "test", "test_https", "asserts", "pico2_release", "wiretft", "wiretft_angulo", "pico2_original"]
 url = "https://github.com/PaulStoffregen/XPT2046_Touchscreen"
 what = "Driver for the XPT2046 touch controller."
 text = "xpt2046-touchscreen-MIT.txt"
@@ -194,7 +197,7 @@ text = "pubsubclient-MIT.txt"
 name = "OneWirePIO_RP2040"
 holder = "Ângelo Moisés Alves"
 license = "MIT"
-images = ["release", "test", "test_https", "asserts", "alpha", "air", "pico2_release"]
+images = ["release", "test", "test_https", "asserts", "alpha", "air", "pico2_release", "pico2_original"]
 url = "https://github.com/angeloINTJ/OneWirePIO_RP2040"
 what = "1-Wire on the PIO, for the DS18B20 probes."
 text = "OneWirePIO_RP2040-MIT.txt"
@@ -212,7 +215,7 @@ text = "DHT22PIO_RP2040-MIT.txt"
 name = "BuzzerPIO_RP2040"
 holder = "Ângelo Moisés Alves"
 license = "MIT"
-images = ["release", "test", "test_https", "asserts", "alpha", "pico2_release", "wire", "wiretft"]
+images = ["release", "test", "test_https", "asserts", "alpha", "pico2_release", "wire", "wiretft", "wiretft_angulo", "pico2_original"]
 url = "https://github.com/angeloINTJ/BuzzerPIO_RP2040"
 what = "Tones and melodies for the buzzer on the PIO."
 text = "BuzzerPIO_RP2040-MIT.txt"
@@ -239,7 +242,7 @@ text = "BMx280PIO_RP2040-MIT.txt"
 name = "PicoENC28J60"
 holder = "Lukasz Janyst and Ângelo Moisés Alves"
 license = "MIT"
-images = ["wire", "wiretft"]
+images = ["wire", "wiretft", "wiretft_angulo"]
 url = "https://github.com/angeloINTJ/pico-enc28j60"
 what = "Driver for the ENC28J60 Ethernet controller of the SIMUT Wire, plugged into the lwIP stack of the Arduino-Pico core; its SPI is a PIO program."
 note = "A fork of Lukasz Janyst's pico-enc28j60 (https://github.com/ljanyst/pico-enc28j60), whose PIO SPI program and C driver it keeps; the build fixes it at the commit of v1.3.1 (4984e2f)."
@@ -255,11 +258,17 @@ what = "The Bluetooth stack behind the Bluetooth console of the alpha and Air im
 note = "Raspberry Pi Ltd licenses BTstack to the buyers of the Pico W and the Pico 2 W for use in the products they build on them. BTstack's own licence (non-commercial) does not apply to that use."
 text = "btstack-LICENSE.RP.txt"
 
+# Measured by nm on the eleven firmware.elf (2026-10-30): the original panel's faces (FreeSansBold9pt8b, FreeSansBold12pt8b, FreeSansBold24pt7b)
+# are in the six images of `images` and in none of the Angulo's, whose faces are the row "GNU FreeFont (FreeSans, FreeMono Bold)" below.
+# `page_images` is the set the family lists (the /license page and the panel) label this row with: the five images with the touch panel, as the
+# originals' pages have always said, kept so that those pages stay byte for byte (S10c C4). A registered deviation: the Angulo block of the page
+# and the note of its FreeFont row say which faces the Angulo images do not carry.
 [[component]]
 name = "GNU FreeFont (FreeSans Bold)"
 holder = "GNU FreeFont contributors"
 license = "GPL-3.0-or-later with the font exception"
-images = ["release", "test", "test_https", "asserts", "pico2_release", "wiretft"]
+images = ["release", "test", "test_https", "asserts", "wiretft", "pico2_original"]
+page_images = ["release", "test", "test_https", "asserts", "pico2_release", "wiretft"]
 url = "https://www.gnu.org/software/freefont/"
 what = "The 9, 12 and 24 pt faces of the touch panel, converted to bitmaps and cut down to the glyphs SIMUT draws."
 text = "freefont-GPL-3.0-font-exception.txt"
@@ -267,12 +276,16 @@ also = ["GPL-3.0.txt"]
 
 # The Angulo panel's kit (src/ui/angulo/kit/, 2026-10-14): fonts rasterized by the plan's renderer from
 # the typefaces named here (the headers of kit/fontes/*.h say which, and tools/tft_ui/ESPEC_UI_A.md),
-# and icons rasterized from Lucide 0.468.0. Only the two images pico_wiretft_angulo and pico2_w_angulo carry them.
+# and icons rasterized from Lucide 0.468.0. Only the two images pico_wiretft_angulo and pico2_w_release carry them (nm of the eleven
+# firmware.elf, 2026-10-30: the kit's DISP*, MONO* and SANS* faces and its 42 icons are in those two and in no other). `ui = "angulo"` takes a row
+# out of the family lists and into the Angulo block of the /license page (tools/gen_notices.py); the Angulo's own License screen names them in
+# src/ui/angulo/telas/MenusLicenca.cpp, a text that `gen_notices.py --check` holds to these rows (name, holder, licence).
 [[component]]
 name = "Bricolage Grotesque"
 holder = "The Bricolage Grotesque Project Authors"
 license = "SIL Open Font License 1.1"
-images = ["wiretft_angulo", "pico2_angulo"]
+images = ["wiretft_angulo", "pico2_release"]
+ui = "angulo"
 url = "https://github.com/ateliertriay/bricolage"
 what = "The display face (weight 600) of the Angulo touch panel, converted to bitmaps at 9, 12, 18, 24 and 32 pt and cut down to the glyphs SIMUT draws."
 text = "bricolage-grotesque-OFL-1.1.txt"
@@ -281,9 +294,11 @@ text = "bricolage-grotesque-OFL-1.1.txt"
 name = "GNU FreeFont (FreeSans, FreeMono Bold)"
 holder = "GNU FreeFont contributors"
 license = "GPL-3.0-or-later with the font exception"
-images = ["wiretft_angulo", "pico2_angulo"]
+images = ["wiretft_angulo", "pico2_release"]
+ui = "angulo"
 url = "https://www.gnu.org/software/freefont/"
-what = "The FreeSans and FreeSans Bold faces at 7 and 9 pt and the FreeMono Bold face at 9 and 12 pt of the Angulo touch panel, converted to bitmaps and cut down to the glyphs SIMUT draws."
+what = "The FreeSans and FreeSans Bold faces at 9 pt and the FreeMono Bold face at 9 and 12 pt of the Angulo touch panel, converted to bitmaps and cut down to the glyphs SIMUT draws."
+note = "The Angulo images cut this typeface at the sizes above and keep none of the 9, 12 and 24 pt faces of \"GNU FreeFont (FreeSans Bold)\", which belong to the original panel (nm of the eleven images, 2026-10-30)."
 text = "freefont-GPL-3.0-font-exception.txt"
 also = ["GPL-3.0.txt"]
 
@@ -291,7 +306,8 @@ also = ["GPL-3.0.txt"]
 name = "Lucide"
 holder = "Lucide Contributors (portions: Cole Bemis, as part of Feather)"
 license = "ISC"
-images = ["wiretft_angulo", "pico2_angulo"]
+images = ["wiretft_angulo", "pico2_release"]
+ui = "angulo"
 url = "https://lucide.dev"
 what = "The icons of the Angulo touch panel (status bar, buttons, result and update screens), rasterized to 1-bit bitmaps at 16, 20 and 24 px from Lucide 0.468.0."
 note = "Its LICENSE says portions are held by Cole Bemis 2013-2022 as part of Feather (MIT). The file is reproduced as the lucide-static 0.468.0 package ships it."

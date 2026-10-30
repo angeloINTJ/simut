@@ -249,6 +249,7 @@ WEB_FEATURES = {
     "slot": "a atualizacao em teste e a volta do Pico 2 W, no painel e na pagina Arquivos",
     "wifi": "o radio: SSID, senha e busca de redes na pagina de rede, o sinal no painel; a build com a rede por cabo (a classe lan, web_omit de [net_class.lan]) nao os tem",
     "slots16": "os dezesseis slots de sensor (GP0-GP15) nos textos da pagina de sensores, nas legendas de tags e no preview da telemetria; um driver de rede que toma o GP11-GP15 (web_omit de [net.enc28j60]) corta esses textos e a pagina fica com os onze que sobram",
+    "ui_angulo": "os textos de licenca das fontes e dos icones do Angulo na pagina /license; a UI original (web_omit de [ui.original]) corta o bloco e a pagina dela fica como era",
 }
 
 # Onde cada feature registra as rotas que só ela tem. A página que chama uma

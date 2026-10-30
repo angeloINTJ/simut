@@ -651,6 +651,7 @@ time <AAAA-MM-DD> <HH:MM:SS>
 3fdd08f8 Comprobando la firma
 406a5eb3 Bloqueada
 40f594b1 J
+41767c9a GNU FreeFont (FreeSans, FreeMono Bold), en el texto y las cifras: GNU FreeFont contributors, GPL-3.0-or-later with the font exception.
 42454824 a
 42a52251 Use el archivo hecho para este equipo.
 42a7ed2b Mar
@@ -748,6 +749,7 @@ time <AAAA-MM-DD> <HH:MM:SS>
 76a85421 Eliminar cuenta
 78166b20 Mantenim.
 78a091ac La imagen no está firmada.
+78c984e8 Bricolage Grotesque, en los títulos: The Bricolage Grotesque Project Authors, SIL Open Font License 1.1.
 796f05b0 Su cuenta no puede finalizarlo.
 7a78b5c5 Fecha y hora
 7b6d57f2 violeta
@@ -777,6 +779,7 @@ time <AAAA-MM-DD> <HH:MM:SS>
 8bd66f86 Ningún sensor activo
 8befa93c Servidor NTP
 8c6879ca sobre el límite
+8c7cf070 Lucide, en los iconos: Lucide Contributors, ISC.
 8df88d3f Gorjeo
 8e21c8b9 Creciente
 8ed6acce Reinicie el equipo para desbloquearlo.
@@ -902,6 +905,7 @@ ebc03d48 Bloquear alarmas
 ec6ee012 modo
 ec7b89db ,
 eeed6bfb Sensibilidad del toque
+ef7e05f7 --- Fuentes e iconos de este panel ---
 efd604d5 Temperatura
 f113cab4 Vuelva al panel y use la web para esta función.
 f318c3e6 Volumen del sistema

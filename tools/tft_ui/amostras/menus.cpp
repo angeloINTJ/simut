@@ -367,7 +367,7 @@ const char kTerceiros[] =
 // The glue's own list of sources: the English opening (a blank line after each
 // string but the second: DisplayManager.cpp's kLicOpeningSep), then the two texts.
 const FonteLicenca kFontes[] = { { kAbertura0, 1 }, { kAbertura1, 0 }, { kAbertura2, 1 }, { kAbertura3, 1 },
-                                 { kAbertura4, 1 }, { kMit, 0 },       { kTerceiros, 0 } };
+                                 { kAbertura4, 1 }, { kMit, 0 },       { kTerceiros, 1 } };
 
 // A text that would take twenty-odd pages: the licence and the list, over and
 // over, in one source (the index holds 192 lines; the rest is left out).
@@ -465,16 +465,10 @@ VmLicenca licenca( const IndiceLicenca &ix, int pagina ) {
 }
 
 // Static initialization runs these once, in order, before any sample draws.
-const int kLinhasTudo = indexar( "licenca", gIndiceTudo, kFontes, sizeof kFontes / sizeof kFontes[0] );
 const int kLinhasRepetido = indexar( "licenca repetida", gIndiceRepetido, kRepetido, 1 );
 const int kLinhasLongo = indexar( "paragrafo longo", gIndiceLongo, kLongo, 1 );
 const int kLinhasCurto = indexar( "licenca curta", gIndiceCurto, kCurto, 1 );
 
-const int kPaginasTudo = ( kLinhasTudo + LICENCA_LINHAS - 1 ) / LICENCA_LINHAS;
-const VmLicenca kLicencaP1 = licenca( gIndiceTudo, 0 );
-const VmLicenca kLicencaMeio = licenca( gIndiceTudo, kPaginasTudo / 2 );
-// The last page holds what is left of the text.
-const VmLicenca kLicencaUltima = licenca( gIndiceTudo, kPaginasTudo - 1 );
 // A text that fits one page: no pager, no scroll bar.
 const VmLicenca kLicencaUma = licenca( gIndiceCurto, 0 );
 // Two digits in the pager ("32 de 32"), the thumb at the end of a long track, the
@@ -486,7 +480,25 @@ int paginaDaFonte( const IndiceLicenca &ix, int fonte ) {
     if ( ix.linhas[i].fonte == fonte && ix.linhas[i].tam ) return i / LICENCA_LINHAS;
   return 0;
 }
-const VmLicenca kLicencaTraco = licenca( gIndiceTudo, paginaDaFonte( gIndiceTudo, 4 ) );
+// The whole text is indexed at the first draw and not at static initialization (S10c C4): its last four sources are the Angulo's own
+// (anexarFontesDoAngulo( ), UA_TXT( )), which read the pack that host_telas.py --idioma loads after the static initializers ran.
+int linhasTudo( ) {
+  static int linhas = -1;
+  if ( linhas < 0 ) {
+    FonteLicenca fontes[LICENCA_FONTES_MAX];
+    int nf = 0;
+    for ( const FonteLicenca &f : kFontes ) fontes[nf++] = f;
+    nf = anexarFontesDoAngulo( fontes, nf, LICENCA_FONTES_MAX );
+    linhas = indexar( "licenca", gIndiceTudo, fontes, nf );
+  }
+  return linhas;
+}
+int paginasTudo( ) { return ( linhasTudo( ) + LICENCA_LINHAS - 1 ) / LICENCA_LINHAS; }
+VmLicenca licencaP1( ) { linhasTudo( ); return licenca( gIndiceTudo, 0 ); }
+VmLicenca licencaMeio( ) { linhasTudo( ); return licenca( gIndiceTudo, paginasTudo( ) / 2 ); }
+// The last page holds what is left of the text: now the Angulo's heading and its three paragraphs.
+VmLicenca licencaUltima( ) { linhasTudo( ); return licenca( gIndiceTudo, paginasTudo( ) - 1 ); }
+VmLicenca licencaTraco( ) { linhasTudo( ); return licenca( gIndiceTudo, paginaDaFonte( gIndiceTudo, 4 ) ); }
 const VmLicenca kLicencaLongo = licenca( gIndiceLongo, 0 );
 
 }  // namespace
@@ -542,11 +554,11 @@ const Amostra kAmostras[] = {
   { "status_telemetria_mqtt", []( Pintor &p ) { desenharStatusSistema( p, kStatusMqtt ); }, []( Alvo *o ) { return alvosStatusSistema( kStatusMqtt, o ); } },
   { "status_sistema_limites", []( Pintor &p ) { desenharStatusSistema( p, kStatusLimites ); }, []( Alvo *o ) { return alvosStatusSistema( kStatusLimites, o ); } },
 
-  { "licenca_p1", []( Pintor &p ) { desenharLicenca( p, kLicencaP1 ); }, []( Alvo *o ) { return alvosLicenca( kLicencaP1, o ); } },
-  { "licenca_meio", []( Pintor &p ) { desenharLicenca( p, kLicencaMeio ); }, []( Alvo *o ) { return alvosLicenca( kLicencaMeio, o ); } },
-  { "licenca_ultima", []( Pintor &p ) { desenharLicenca( p, kLicencaUltima ); }, []( Alvo *o ) { return alvosLicenca( kLicencaUltima, o ); } },
+  { "licenca_p1", []( Pintor &p ) { desenharLicenca( p, licencaP1( ) ); }, []( Alvo *o ) { return alvosLicenca( licencaP1( ), o ); } },
+  { "licenca_meio", []( Pintor &p ) { desenharLicenca( p, licencaMeio( ) ); }, []( Alvo *o ) { return alvosLicenca( licencaMeio( ), o ); } },
+  { "licenca_ultima", []( Pintor &p ) { desenharLicenca( p, licencaUltima( ) ); }, []( Alvo *o ) { return alvosLicenca( licencaUltima( ), o ); } },
   { "licenca_uma_pagina", []( Pintor &p ) { desenharLicenca( p, kLicencaUma ); }, []( Alvo *o ) { return alvosLicenca( kLicencaUma, o ); } },
-  { "licenca_traco", []( Pintor &p ) { desenharLicenca( p, kLicencaTraco ); }, []( Alvo *o ) { return alvosLicenca( kLicencaTraco, o ); } },
+  { "licenca_traco", []( Pintor &p ) { desenharLicenca( p, licencaTraco( ) ); }, []( Alvo *o ) { return alvosLicenca( licencaTraco( ), o ); } },
   { "licenca_repetida", []( Pintor &p ) { desenharLicenca( p, kLicencaRepetida ); }, []( Alvo *o ) { return alvosLicenca( kLicencaRepetida, o ); } },
   { "licenca_paragrafo_longo", []( Pintor &p ) { desenharLicenca( p, kLicencaLongo ); }, []( Alvo *o ) { return alvosLicenca( kLicencaLongo, o ); } },
 };
