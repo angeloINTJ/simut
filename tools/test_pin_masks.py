@@ -113,7 +113,7 @@ EXPECT_NAME = {
     "pico_wiretft_angulo": "wiretft",
     # O Angulo no Pico 2 W (2026-10-21) e a UI do mesmo hardware do pico2_w_release, entao o nome de OTA e o dele: a OTA
     # compara a variante para recusar uma imagem de outra placa, e esta e a mesma placa.
-    "pico2_w_angulo": "releasetwo",
+    "pico2_w_original": "releasetwo",
 }
 
 ERR_LINE = re.compile(r"error: #error")

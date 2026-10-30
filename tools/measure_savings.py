@@ -537,9 +537,10 @@ CHECKS = [
     # Bluetooth com a linha de comando completa, que no slot dele cabem.
     ("pico2_w_release", {"mdns": False, "sound_buzzer": False, "sensor_bme280": False}),
     ("pico2_w_release", {"bluetooth": True, "cli_full": True}),
-    # O Angulo numa combinacao (2026-10-29): sem ela nenhuma conferencia leva `ui=`, e a margem de
-    # "No limite" da pagina nao cobria a linha nova (a revisao do C1c/C1d).
-    ("pico2_w_release", {"ui": "angulo", "mdns": False, "sound_buzzer": False}),
+    # O visual numa combinacao: sem ela nenhuma conferencia leva `ui=`, e a margem de "No limite" da pagina nao cobria a linha (a revisao do C1c/C1d, 2026-10-29, com o Angulo
+    # como a mudanca). Desde S10c C3 (2026-10-30) a base do Pico 2 W e o Angulo e a mudanca e `ui=original`: o `set` de uma conferencia so tem mudancas, e `ui=angulo` ja
+    # nao e uma inversao do produto (a conferencia que o punha derrubou o fim da matriz de 2026-10-30 em print_checks( ) com KeyError, e a soma da pagina leria o mesmo arquivo).
+    ("pico2_w_release", {"ui": "original", "mdns": False, "sound_buzzer": False}),
 ]
 
 

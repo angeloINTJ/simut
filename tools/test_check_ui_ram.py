@@ -134,6 +134,13 @@ confere("4 B less fails until the mark comes down (a budget that only rises stop
 confere("... and says to lower it to 116", "116" in linhas[1] and "goes down" in linhas[1], True)
 confere("an image with no budget recorded", guarda.verificar_ram(120, 5, EXIGENCIAS, "pico_wiretft_outro")[0], "erro")
 confere("no objects of the Angulo found", guarda.verificar_ram(0, 0, EXIGENCIAS, "pico_wiretft_angulo")[0], "erro")
+# S10c C3 (2026-10-30), the control for the gate keyed by content and by $PIOENV: the name decides nothing but the entry looked up. An image that carries the Angulo under an environment
+# with no entry (a renamed one, whatever its ending) is refused and the message names the environment and the file; the original image has no Angulo objects and `verificar` skips it
+# (the command-line cases below: "no --chip on an image without the Angulo: nothing to hold").
+estado, linhas = guarda.verificar_ram(120, 5, EXIGENCIAS, "pico2_w_zz")
+confere("an Angulo image under a renamed environment with no entry is refused (still gated)", estado, "erro")
+confere("... and the message names the environment and the file that wants the entry", "pico2_w_zz" in linhas[0] and "ui_ram_budget.json" in linhas[0], True)
+confere("... the same image under the environment that has the entry passes", guarda.verificar_ram(120, 5, {"pico2_w_zz": {"budget": 120}}, "pico2_w_zz")[0], "ok")
 confere("a budget that is not a number", guarda.verificar_ram(120, 5, {"pico_wiretft_angulo": {"budget": "120"}}, "pico_wiretft_angulo")[0], "erro")
 
 # ---- the budget of a configurator build (2026-10-22). `_custom` has no entry of its own: tools/build_custom.py names the real environment whose entry it is held to
@@ -173,12 +180,12 @@ class Ambiente:
         return {"$PIOENV": self.pioenv}.get(texto, texto)
 
 
-confere("the chip is the board's mcu: the Pico 2 W", guarda.chip_da_placa(Ambiente("rp2350", "pico2_w_angulo")), "rp2350")
+confere("the chip is the board's mcu: the Pico 2 W", guarda.chip_da_placa(Ambiente("rp2350", "pico2_w_release")), "rp2350")
 confere("the chip is the board's mcu: the Pico W", guarda.chip_da_placa(Ambiente("rp2040", "pico_w_release")), "rp2040")
 confere("a board with no mcu has no chip", guarda.chip_da_placa(Ambiente(None, "x")), "")
-confere("a real environment is held to its own entry, exactly", guarda.orcamento_do_env(Ambiente("rp2350", "pico2_w_angulo")), ("pico2_w_angulo", False))
+confere("a real environment is held to its own entry, exactly", guarda.orcamento_do_env(Ambiente("rp2350", "pico2_w_release")), ("pico2_w_release", False))
 confere("a configurator build is held to the named environment's entry, as a ceiling",
-        guarda.orcamento_do_env(Ambiente("rp2350", "_custom", {guarda.OPCAO_ORCAMENTO: "pico2_w_angulo"})), ("pico2_w_angulo", True))
+        guarda.orcamento_do_env(Ambiente("rp2350", "_custom", {guarda.OPCAO_ORCAMENTO: "pico2_w_release"})), ("pico2_w_release", True))
 confere("a configurator build without the option has no entry of its own (the gate refuses, as before)",
         guarda.orcamento_do_env(Ambiente("rp2350", "_custom")), ("_custom", False))
 confere("an empty option is no option", guarda.orcamento_do_env(Ambiente("rp2350", "_custom", {guarda.OPCAO_ORCAMENTO: ""})), ("_custom", False))
@@ -225,7 +232,7 @@ with tempfile.TemporaryDirectory() as tmp_cli:
     nm_alto = executavel(base / "nm_alto", nm(fill=0x20050000))     # inside the RP2350's SRAM, outside the RP2040's
     nm_sem = executavel(base / "nm_sem", "10000100 T main\n")       # an image without the Angulo
     orcamento = base / "orcamento.json"
-    orcamento.write_text(json.dumps({"envs": {"pico2_w_angulo": {"budget": 124}, "pico2_w_exato": {"budget": 120}, "pico2_w_estreito": {"budget": 116}}}))
+    orcamento.write_text(json.dumps({"envs": {"pico2_w_release": {"budget": 124}, "pico2_w_exato": {"budget": 120}, "pico2_w_estreito": {"budget": 116}}}))
 
     def elf(env):
         pasta_obj = base / env / guarda.PASTA_ANGULO
@@ -234,21 +241,21 @@ with tempfile.TemporaryDirectory() as tmp_cli:
         (base / env / "firmware.elf").write_bytes(b"x")
         return str(base / env / "firmware.elf")
 
-    custom, real, exato = elf("_custom"), elf("pico2_w_angulo"), elf("pico2_w_exato")
+    custom, real, exato = elf("_custom"), elf("pico2_w_release"), elf("pico2_w_exato")
 
     def argv_de(imagem, nm_bin, *resto):
         return [imagem, "--nm", nm_bin, "--objdump", objdump, "--budget", str(orcamento), *resto]
 
     # --chip: the end of SRAM is the chip's, and no default stands in for it
-    linha_de_comando("no --chip: an image with the Angulo is refused, and the message names the option", argv_de(custom, nm_ok, "--budget-env", "pico2_w_angulo"), 1, diz=("--chip",))
-    linha_de_comando("... the control: the same run with --chip rp2350 passes", argv_de(custom, nm_ok, "--chip", "rp2350", "--budget-env", "pico2_w_angulo"), 0, nao_diz=("--chip",))
-    linha_de_comando("no --chip on an image without the Angulo: nothing to hold, nothing refused", argv_de(custom, nm_sem, "--budget-env", "pico2_w_angulo"), 0, diz=("nothing to hold",))
-    linha_de_comando("an unknown --chip is refused and named", argv_de(custom, nm_ok, "--chip", "rp2999", "--budget-env", "pico2_w_angulo"), 1, diz=("rp2999",))
-    linha_de_comando("--chip rp2040 hands the RP2040's end to the check (a fill above it fails)", argv_de(custom, nm_alto, "--chip", "rp2040", "--budget-env", "pico2_w_angulo"), 1, diz=("outside SRAM",))
-    linha_de_comando("... and --chip rp2350 hands it the RP2350's (the same image passes)", argv_de(custom, nm_alto, "--chip", "rp2350", "--budget-env", "pico2_w_angulo"), 0)
+    linha_de_comando("no --chip: an image with the Angulo is refused, and the message names the option", argv_de(custom, nm_ok, "--budget-env", "pico2_w_release"), 1, diz=("--chip",))
+    linha_de_comando("... the control: the same run with --chip rp2350 passes", argv_de(custom, nm_ok, "--chip", "rp2350", "--budget-env", "pico2_w_release"), 0, nao_diz=("--chip",))
+    linha_de_comando("no --chip on an image without the Angulo: nothing to hold, nothing refused", argv_de(custom, nm_sem, "--budget-env", "pico2_w_release"), 0, diz=("nothing to hold",))
+    linha_de_comando("an unknown --chip is refused and named", argv_de(custom, nm_ok, "--chip", "rp2999", "--budget-env", "pico2_w_release"), 1, diz=("rp2999",))
+    linha_de_comando("--chip rp2040 hands the RP2040's end to the check (a fill above it fails)", argv_de(custom, nm_alto, "--chip", "rp2040", "--budget-env", "pico2_w_release"), 1, diz=("outside SRAM",))
+    linha_de_comando("... and --chip rp2350 hands it the RP2350's (the same image passes)", argv_de(custom, nm_alto, "--chip", "rp2350", "--budget-env", "pico2_w_release"), 0)
     # --budget-env: a configurator build (its folder is _custom, which has no entry) is held to the entry it names, as a ceiling
-    linha_de_comando("--budget-env: 4 B under the named entry passes, as a ceiling", argv_de(custom, nm_ok, "--chip", "rp2350", "--budget-env", "pico2_w_angulo"), 0,
-                     diz=("4 B under the ceiling of 124 B of pico2_w_angulo",))
+    linha_de_comando("--budget-env: 4 B under the named entry passes, as a ceiling", argv_de(custom, nm_ok, "--chip", "rp2350", "--budget-env", "pico2_w_release"), 0,
+                     diz=("4 B under the ceiling of 124 B of pico2_w_release",))
     linha_de_comando("--budget-env: on the named entry passes", argv_de(custom, nm_ok, "--chip", "rp2350", "--budget-env", "pico2_w_exato"), 0, diz=("on the budget of pico2_w_exato",))
     linha_de_comando("--budget-env: 4 B over the named entry fails, and says it is a ceiling", argv_de(custom, nm_ok, "--chip", "rp2350", "--budget-env", "pico2_w_estreito"), 1,
                      diz=("4 B over the budget of 116 B of pico2_w_estreito", "ceiling"))
@@ -257,7 +264,7 @@ with tempfile.TemporaryDirectory() as tmp_cli:
                      diz=("no static-RAM budget for _custom",))
     linha_de_comando("a real environment's folder is held to its own entry, exactly (4 B under fails)", argv_de(real, nm_ok, "--chip", "rp2350"), 1,
                      diz=("4 B under the budget of 124 B", "only goes down"))
-    linha_de_comando("... and with --budget-env the same folder is held as a ceiling (passes)", argv_de(real, nm_ok, "--chip", "rp2350", "--budget-env", "pico2_w_angulo"), 0, diz=("ceiling",))
+    linha_de_comando("... and with --budget-env the same folder is held as a ceiling (passes)", argv_de(real, nm_ok, "--chip", "rp2350", "--budget-env", "pico2_w_release"), 0, diz=("ceiling",))
     linha_de_comando("a real environment on its mark passes, exactly", argv_de(exato, nm_ok, "--chip", "rp2350"), 0, diz=("on its budget",))
     linha_de_comando("no argument: the usage, which names --chip and --budget-env", [], 2, diz=("--chip", "--budget-env"))
 

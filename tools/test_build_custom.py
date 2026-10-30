@@ -171,8 +171,8 @@ CLI = [
     ('{"v":1,"base":"pico_w_release","set":{"ui":"angulo"}}', 2, "Choose the Pico 2 W"),
     ('{"v":1,"base":"pico2_w_release","set":{"ui":"angulo"}}', 0, "perfil válido"),
     ('{"v":1,"base":"pico2_w_release","set":{"ui":"original"}}', 0, "perfil válido"),
-    ('{"v":1,"base":"pico2_w_angulo","set":{}}', 0, "perfil válido"),
-    ('{"v":1,"base":"pico2_w_angulo","set":{"ui":"original"}}', 0, "perfil válido"),
+    ('{"v":1,"base":"pico2_w_release","set":{}}', 0, "perfil válido"),
+    ('{"v":1,"base":"pico2_w_release","set":{"ui":"original"}}', 0, "perfil válido"),
     ('{"v":1,"base":"pico_w_release","set":{"ui":"original"}}', 0, "perfil válido"),
     ('{"v":1,"base":"pico_w_release","set":{"ui":"angulo","net":"enc28j60","sensor_ds18b20":false}}', 0, "perfil válido"),
     ('{"v":1,"base":"pico_wiretft","set":{"ui":"angulo","net":"cyw43"}}', 2, "regra angulo-cyw43-needs-rp2350"),
@@ -184,7 +184,7 @@ CLI = [
     ('{"v":1,"base":"pico2_w_release","set":{"ui":"angulo","tft_graph":false}}', 2, "regra angulo-needs-tft-graph"),
     ('{"v":1,"base":"pico2_w_release","set":{"ui":"angulo","tft_graph":false}}', 2, "Graph and calendar on the touch display"),
     ('{"v":1,"base":"pico_wiretft","set":{"ui":"angulo","tft_graph":false}}', 2, "regra angulo-needs-tft-graph"),
-    ('{"v":1,"base":"pico2_w_angulo","set":{"tft_graph":false}}', 2, "regra angulo-needs-tft-graph"),
+    ('{"v":1,"base":"pico2_w_release","set":{"tft_graph":false}}', 2, "regra angulo-needs-tft-graph"),
     ('{"v":1,"base":"pico_wiretft_angulo","set":{"tft_graph":false}}', 2, "regra angulo-needs-tft-graph"),
     ('{"v":1,"base":"pico_w_release","set":{"ui":"angulo","tft_graph":false}}', 2, "regra angulo-needs-tft-graph"),
     ('{"v":1,"base":"pico_w_alpha","set":{"ui":"angulo"}}', 2, "regra angulo-needs-tft-graph"),
@@ -324,12 +324,12 @@ check(not any(re.match(r"-DSIMUT_UI_(ORIGINAL|CUSTOM_THEMES)\b", f) for f in bui
 # compõe o mesmo ambiente que não escolher.
 check(gf.compose(bc.resolve("pico_wiretft_angulo", {}, M), M) == gf.compose(bc.resolve("pico_wiretft", {"ui": "angulo"}, M), M),
       "o pico_wiretft_angulo não é o pico_wiretft com ui = angulo")
-# O pico2_w_angulo (2026-10-21) é o pico2_w_release com a UI trocada, e mais nada: o configurador compõe os dois iguais, e o ambiente que o
-# gerador escreve, o de verdade, também, sem a raiz de bancada (ela é de imagem de bancada, e esta chega ao produto como o pai).
-_b = gf.compose(bc.resolve("pico2_w_release", {"ui": "angulo"}, M), M)
-check(gf.compose(bc.resolve("pico2_w_angulo", {}, M), M) == _b, "o pico2_w_angulo não é o pico2_w_release com ui = angulo")
-check(gf.compose(gf.resolve_profile("pico2_w_angulo", M["profiles"]), M) == _b,
-      "o ambiente pico2_w_angulo não é o pico2_w_release com ui = angulo, e mais nada (nem a raiz de bancada)")
+# O pico2_w_original (2026-10-30, S10c C3) é o pico2_w_release com a UI trocada de volta, e mais nada: o configurador compõe os dois iguais, e o ambiente que o
+# gerador escreve, o de verdade, também, sem a raiz de bancada (ela é de imagem de bancada, e esta é o painel original do produto, sem ela como o pai).
+_b = gf.compose(bc.resolve("pico2_w_release", {"ui": "original"}, M), M)
+check(gf.compose(bc.resolve("pico2_w_original", {}, M), M) == _b, "o pico2_w_original não é o pico2_w_release com ui = original")
+check(gf.compose(gf.resolve_profile("pico2_w_original", M["profiles"]), M) == _b,
+      "o ambiente pico2_w_original não é o pico2_w_release com ui = original, e mais nada (nem a raiz de bancada)")
 for prof in M["profiles"]:
     own = gf.resolve_profile(prof, M["profiles"]).get("ui", gf.DEFAULT_UI)
     check(gf.compose(bc.resolve(prof, {"ui": own}, M), M) == gf.compose(bc.resolve(prof, {}, M), M),
@@ -374,7 +374,7 @@ CLI_ABSENT = [
     # E a do grafico (2026-10-22) nao fala de quem tem o grafico, nem de quem fica no visual original sem ele.
     ('{"v":1,"base":"pico2_w_release","set":{"ui":"angulo"}}', "angulo-needs-tft-graph"),
     ('{"v":1,"base":"pico_wiretft","set":{"ui":"angulo"}}', "angulo-needs-tft-graph"),
-    ('{"v":1,"base":"pico2_w_angulo","set":{}}', "angulo-needs-tft-graph"),
+    ('{"v":1,"base":"pico2_w_release","set":{}}', "angulo-needs-tft-graph"),
     ('{"v":1,"base":"pico_wiretft_angulo","set":{}}', "angulo-needs-tft-graph"),
     ('{"v":1,"base":"pico2_w_release","set":{"ui":"original","tft_graph":false}}', "angulo-needs-tft-graph"),
     ('{"v":1,"base":"pico_wiretft","set":{"tft_graph":false}}', "angulo-needs-tft-graph"),
@@ -395,7 +395,7 @@ for base_, set_ in (("pico_w_release", {"ui": "angulo"}), ("pico_wiretft", {"ui"
     sem = [b["id"] for b in gf.blockers(bc.resolve(base_, set_, M_sem), M_sem)]
     check(NEW_RULE in com, f"{base_} {set_}: com a regra, deveria ser recusado por {NEW_RULE}: {com}")
     check(NEW_RULE not in sem, f"{base_} {set_}: sem a regra, ainda é recusado por ela: {sem}")
-for base_, set_ in (("pico2_w_release", {"ui": "angulo"}), ("pico_wiretft", {"ui": "angulo"}), ("pico2_w_angulo", {}), ("pico_wiretft_angulo", {})):
+for base_, set_ in (("pico2_w_release", {"ui": "angulo"}), ("pico_wiretft", {"ui": "angulo"}), ("pico2_w_release", {}), ("pico_wiretft_angulo", {})):
     check(gf.blockers(bc.resolve(base_, set_, M), M) == [], f"{base_} {set_}: deveria passar pelas regras: {gf.blockers(bc.resolve(base_, set_, M), M)}")
 with open(gf.MANIFEST, encoding="utf-8") as fh:
     toml_text = fh.read()
@@ -424,7 +424,7 @@ if bloco:
 # acima, em memoria e pela linha de comando com o manifesto sem o bloco: sem a regra o perfil passa, e o caso que espera a recusa reprova.
 GRAPH_RULE = "angulo-needs-tft-graph"
 GRAPH_OFF = (("pico2_w_release", {"ui": "angulo", "tft_graph": False}), ("pico_wiretft", {"ui": "angulo", "tft_graph": False}),
-             ("pico2_w_angulo", {"tft_graph": False}), ("pico_wiretft_angulo", {"tft_graph": False}))
+             ("pico2_w_release", {"tft_graph": False}), ("pico_wiretft_angulo", {"tft_graph": False}))
 M_sem_grafico = copy.deepcopy(M)
 M_sem_grafico["rules"] = [r for r in M_sem_grafico["rules"] if r["id"] != GRAPH_RULE]
 check(len(M_sem_grafico["rules"]) == len(M["rules"]) - 1, f"a regra {GRAPH_RULE} não está no manifesto: o controle não provou nada")
@@ -434,7 +434,7 @@ for base_, set_ in GRAPH_OFF:
     check(com == [GRAPH_RULE], f"{base_} {set_}: com a regra, deveria ser recusado só por {GRAPH_RULE}: {com}")
     check(sem == [], f"{base_} {set_}: sem a regra, nada mais recusa o perfil (foi o compilador que o recusou): {sem}")
 for base_, set_ in (("pico2_w_release", {"ui": "original", "tft_graph": False}), ("pico_wiretft", {"tft_graph": False}),
-                    ("pico2_w_release", {"ui": "angulo"}), ("pico_wiretft", {"ui": "angulo"}), ("pico2_w_angulo", {}), ("pico_wiretft_angulo", {})):
+                    ("pico2_w_release", {"ui": "angulo"}), ("pico_wiretft", {"ui": "angulo"}), ("pico2_w_release", {}), ("pico_wiretft_angulo", {})):
     got = [b["id"] for b in gf.blockers(bc.resolve(base_, set_, M), M)]
     check(got == [], f"{base_} {set_}: deveria passar pelas regras (tem o gráfico, ou fica no visual original): {got}")
 bloco_g = re.search(r'\[\[rules\]\]\nid\s*=\s*"' + re.escape(GRAPH_RULE) + r'"\n(?:(?!\n\n).)*\n\n', toml_text, re.S)
@@ -464,20 +464,20 @@ import check_ui_ram as cur  # noqa: E402
 budgets, erro_orc = cur.ler_orcamentos(bc.UI_RAM_BUDGET)
 check(budgets is not None, f"o orçamento de RAM não leu: {erro_orc}")
 if budgets is not None:
-    for base_, set_, want in (("pico2_w_release", {"ui": "angulo"}, "pico2_w_angulo"),
-                              ("pico2_w_angulo", {}, "pico2_w_angulo"),
+    for base_, set_, want in (("pico2_w_release", {"ui": "angulo"}, "pico2_w_release"),
+                              ("pico2_w_release", {}, "pico2_w_release"),
                               ("pico_wiretft", {"ui": "angulo"}, "pico_wiretft_angulo"),
                               ("pico_wiretft_angulo", {}, "pico_wiretft_angulo"),
                               ("pico_w_release", {"ui": "angulo", "net": "enc28j60", "sensor_ds18b20": False}, "pico_wiretft_angulo")):
         got, why = bc.ui_ram_env(bc.resolve(base_, set_, M), M, budgets)
         check(got == want, f"{base_} {set_}: o orçamento de RAM é o de {got!r} ({why}), esperado {want!r}")
     # Derivado, nao copiado: o nome vem do hardware, e o numero e o da entrada que existe agora.
-    mudado = {**budgets, "pico2_w_angulo": {"budget": 1}}
-    check(bc.ui_ram_env(bc.resolve("pico2_w_release", {"ui": "angulo"}, M), M, mudado)[0] == "pico2_w_angulo",
+    mudado = {**budgets, "pico2_w_release": {"budget": 1}}
+    check(bc.ui_ram_env(bc.resolve("pico2_w_release", {"ui": "angulo"}, M), M, mudado)[0] == "pico2_w_release",
           "o ambiente do orçamento mudou com o número da entrada: o nome deveria sair do hardware")
-    semente = {k: v for k, v in budgets.items() if k != "pico2_w_angulo"}
+    semente = {k: v for k, v in budgets.items() if k != "pico2_w_release"}
     got, why = bc.ui_ram_env(bc.resolve("pico2_w_release", {"ui": "angulo"}, M), M, semente)
-    check(got is None and "ui_ram_budget.json" in why, f"sem a entrada do pico2_w_angulo, deveria recusar e dizer onde registrá-la: {got!r} {why!r}")
+    check(got is None and "ui_ram_budget.json" in why, f"sem a entrada do pico2_w_release, deveria recusar e dizer onde registrá-la: {got!r} {why!r}")
     # Toda combinacao de hardware que as regras deixam passar com o Angulo tem um ambiente com orcamento (e so as duas de hoje passam).
     cobertas = set()
     for nome in M["profiles"]:
@@ -491,9 +491,9 @@ if budgets is not None:
     check(cobertas == {("rp2040", "enc28j60"), ("rp2350", "cyw43")}, f"o hardware que leva o Angulo mudou: {sorted(cobertas)}")
     # O texto do ambiente temporario: o de sempre, mais a opcao so quando a build leva o Angulo.
     prof_a = bc.resolve("pico2_w_release", {"ui": "angulo"}, M)
-    prof_o = bc.resolve("pico2_w_release", {}, M)
-    texto_a = bc.custom_env(prof_a, gf.compose(prof_a, M), "pico2_w_angulo")
-    check(texto_a == gf.emit_env(bc.ENV, gf.compose(prof_a, M)) + f"{cur.OPCAO_ORCAMENTO} = pico2_w_angulo\n",
+    prof_o = bc.resolve("pico2_w_release", {"ui": "original"}, M)
+    texto_a = bc.custom_env(prof_a, gf.compose(prof_a, M), "pico2_w_release")
+    check(texto_a == gf.emit_env(bc.ENV, gf.compose(prof_a, M)) + f"{cur.OPCAO_ORCAMENTO} = pico2_w_release\n",
           f"o ambiente temporário do Angulo não é o de sempre mais a opção do orçamento:\n{texto_a}")
     check(bc.custom_env(prof_o, gf.compose(prof_o, M), None) == gf.emit_env(bc.ENV, gf.compose(prof_o, M)),
           "o ambiente temporário de uma build sem o Angulo mudou")

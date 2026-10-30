@@ -874,6 +874,10 @@ def matrix_model(flips):
     m = copy.deepcopy(MODEL)
     for pc in m["costs"]["products"].values():
         pc["flips"] = {k: v for k, v in pc["flips"].items() if not k.startswith("ui=")}
+    if any(pid == "pico2_w_original" for pid, _ in flips):
+        # S10c C3 (2026-10-30): the Pico 2 W's own look is the Ângulo, so the price of CHOOSING the Ângulo (from a build that starts at the original) is no row of the real matrix, and pico2_w_original,
+        # the bench product that starts there, has none. A fixture may price it as if the matrix had measured the original image as a base; the numbers are invented, as the others.
+        m["costs"]["products"]["pico2_w_original"] = {"base": copy.deepcopy(m["costs"]["products"]["pico2_w_release"]["base"]), "flips": {}}
     for (pid, key), f in flips.items():
         pc = m["costs"]["products"][pid]
         pc["flips"][key] = f(pc["base"]) if callable(f) else f
@@ -886,14 +890,14 @@ MODELS = {
     # 41 KB a mais no Pico 2 W, um estouro do slot no Air, uma regra no Pico W, um erro no Alpha; e um flip de
     # `ui=original` no Alpha, que a página não pode mostrar (é a UI do próprio produto).
     "measured": matrix_model({
-        ("pico2_w_release", "ui=angulo"): lambda b: {"used": b["used"] + 41984, "bin": b["bin"] + 42336, "ram": b["ram"] + 7036},
+        ("pico2_w_original", "ui=angulo"): lambda b: {"used": b["used"] + 41984, "bin": b["bin"] + 42336, "ram": b["ram"] + 7036},
         ("pico_w_air", "ui=angulo"): {"overflow": 3148},
         ("pico_w_release", "ui=angulo"): {"rule": "angulo-cyw43-needs-rp2350"},
         ("pico_w_alpha", "ui=angulo"): {"error": "the build failed"},
         ("pico_w_alpha", "ui=original"): lambda b: {"used": b["used"] + 1024, "bin": b["bin"] + 1024, "ram": b["ram"]},
     }),
-    "smaller": matrix_model({("pico2_w_release", "ui=angulo"): lambda b: {"used": b["used"] - 1024, "bin": b["bin"] - 1024, "ram": b["ram"]}}),
-    "overflow": matrix_model({("pico2_w_release", "ui=angulo"): {"overflow": 3148}}),
+    "smaller": matrix_model({("pico2_w_original", "ui=angulo"): lambda b: {"used": b["used"] - 1024, "bin": b["bin"] - 1024, "ram": b["ram"]}}),
+    "overflow": matrix_model({("pico2_w_original", "ui=angulo"): {"overflow": 3148}}),
 }
 
 
@@ -979,15 +983,15 @@ for (const [name, fx] of Object.entries(input.fixtures)) {
   }
 }
 out.links = {
-  one: L.formatHash("pico2_w_release", { ui: "angulo" }),
-  oneBack: L.parseHash(model, "#b=pico2_w_release&ui=angulo"),
+  one: L.formatHash("pico2_w_original", { ui: "angulo" }),
+  oneBack: L.parseHash(model, "#b=pico2_w_original&ui=angulo"),
   mixed: L.formatHash("pico_w_release", { sensor_ds18b20: false, mdns: true, net: "enc28j60", ui: "angulo" }),
   mixedBack: L.parseHash(model, "#b=pico_w_release&net=enc28j60&ui=angulo&on=mdns&off=sensor_ds18b20"),
-  sameAsProduct: L.parseHash(model, "#b=pico2_w_angulo&ui=angulo"),
-  otherThanProduct: L.parseHash(model, "#b=pico2_w_angulo&ui=original"),
-  originalDefault: L.parseHash(model, "#b=pico2_w_release&ui=original"),
-  defaultNotWritten: L.formatHash("pico2_w_angulo", L.normalizeSet(model, "pico2_w_angulo", { ui: "angulo" })),
-  normalized: L.normalizeSet(model, "pico2_w_angulo", { ui: "angulo", mdns: true }),
+  sameAsProduct: L.parseHash(model, "#b=pico2_w_release&ui=angulo"),
+  otherThanProduct: L.parseHash(model, "#b=pico2_w_release&ui=original"),
+  originalDefault: L.parseHash(model, "#b=pico2_w_original&ui=original"),
+  defaultNotWritten: L.formatHash("pico2_w_release", L.normalizeSet(model, "pico2_w_release", { ui: "angulo" })),
+  normalized: L.normalizeSet(model, "pico2_w_release", { ui: "angulo", mdns: true }),
 };
 out.hostile = input.hostile.map((h) => L.parseHash(model, h));
 process.stdout.write(JSON.stringify(out));
@@ -1465,7 +1469,7 @@ def ui_logic_findings(js):
         ok(get(x["id"], x["config"]["ui"])["lock"] is None, f"{x['id']}: a UI do próprio produto está travada")
     #    O gráfico do painel: sem ele o Ângulo está travado, com o motivo da regra; e com o Ângulo escolhido
     #    é a chave do gráfico que fica travada, ligada. Das duas pontas, o mesmo motivo.
-    for p in ("pico2_w_release", "pico_wiretft"):
+    for p in ("pico2_w_original", "pico_wiretft"):   # S10c C3: the Pico 2 W's own look is the Ângulo, which is never locked; the original image is the one that starts without it
         r = get(p, "angulo", {"tft_graph": False})
         ok(r["lock"] == "angulo-needs-tft-graph" and r["why"] == rule_why("angulo-needs-tft-graph"),
            f"{p}: com o gráfico desligado o Ângulo devia travar por angulo-needs-tft-graph: {r['lock']}")
@@ -1502,18 +1506,18 @@ def ui_logic_findings(js):
             fs.append(f"{p}/ui={u}: o build_custom recusou o perfil {r['profile']} ({e})")
         ok(r["hash"] == f"#b={p}" + (f"&ui={u}" if want_set else ""), f"{p}/ui={u}: o link é {r['hash']}")
     nl = js["links"]
-    ok(nl["one"] == "#b=pico2_w_release&ui=angulo", f"formatHash com a UI deu {nl['one']!r}")
-    ok(nl["oneBack"] == {"productId": "pico2_w_release", "set": {"ui": "angulo"}}, f"o link com ui=angulo voltou como {nl['oneBack']}")
+    ok(nl["one"] == "#b=pico2_w_original&ui=angulo", f"formatHash com a UI deu {nl['one']!r}")
+    ok(nl["oneBack"] == {"productId": "pico2_w_original", "set": {"ui": "angulo"}}, f"o link com ui=angulo voltou como {nl['oneBack']}")
     ok(nl["mixed"] == "#b=pico_w_release&net=enc28j60&ui=angulo&on=mdns&off=sensor_ds18b20",
        f"formatHash com a rede, a UI e interruptores deu {nl['mixed']!r}")
     rel = gf.config_of(gf.resolve_profile("pico_w_release", M["profiles"]))
     want_mixed = {k: v for k, v in {"mdns": True, "sensor_ds18b20": False, "net": "enc28j60", "ui": "angulo"}.items() if v != rel[k]}
     ok(nl["mixedBack"] == {"productId": "pico_w_release", "set": want_mixed} and want_mixed.get("ui") == "angulo",
        f"o link com a rede, a UI e interruptores voltou como {nl['mixedBack']}")
-    ok(nl["sameAsProduct"] == {"productId": "pico2_w_angulo", "set": {}}, f"ui= igual ao do produto não é uma mudança: {nl['sameAsProduct']}")
-    ok(nl["otherThanProduct"] == {"productId": "pico2_w_angulo", "set": {"ui": "original"}}, f"ui=original no produto do Ângulo voltou como {nl['otherThanProduct']}")
-    ok(nl["originalDefault"] == {"productId": "pico2_w_release", "set": {}}, f"ui=original no Pico 2 W não é uma mudança: {nl['originalDefault']}")
-    ok(nl["defaultNotWritten"] == "#b=pico2_w_angulo", f"a UI do produto foi escrita no link: {nl['defaultNotWritten']!r}")
+    ok(nl["sameAsProduct"] == {"productId": "pico2_w_release", "set": {}}, f"ui= igual ao do produto não é uma mudança: {nl['sameAsProduct']}")
+    ok(nl["otherThanProduct"] == {"productId": "pico2_w_release", "set": {"ui": "original"}}, f"ui=original no produto do Ângulo voltou como {nl['otherThanProduct']}")
+    ok(nl["originalDefault"] == {"productId": "pico2_w_original", "set": {}}, f"ui=original no Pico 2 W não é uma mudança: {nl['originalDefault']}")
+    ok(nl["defaultNotWritten"] == "#b=pico2_w_release", f"a UI do produto foi escrita no link: {nl['defaultNotWritten']!r}")
     ok(nl["normalized"] == {}, f"normalizeSet deveria tirar ui e mdns quando são os do produto: {nl['normalized']}")
     #    Os links hostis da UI, lidos por esta cópia da lógica: recusados, com o motivo certo.
     for h, got in zip(HOSTILE_UI, js["hostile"]):
@@ -1544,16 +1548,17 @@ def ui_logic_findings(js):
         want = expected_price(MODELS[r["fixture"]], r["p"], r["u"])
         ok(r["price"] == want, f"{r['fixture']}/{r['p']}/ui={r['u']}: priceUi deu {r['price']!r}, devia ser {want!r}")
     priced = {(r["p"], r["u"]) for r in js["prices"] if r["fixture"] == "measured" and isinstance(r["price"], dict)}
-    ok(priced == {("pico2_w_release", "angulo"), ("pico_w_air", "angulo")},
+    ok(priced == {("pico2_w_original", "angulo"), ("pico_w_air", "angulo")},
        f"o modelo medido devia dar preço ao Ângulo do Pico 2 W e ao do Air (estouro) e a mais nenhuma UI: {sorted(priced)}")
     ok(all(r["price"] is None for r in js["prices"] if r["fixture"] == "unmeasured"), "sem a entrada na matriz nenhuma UI tem preço")
     cell = {(r["fixture"], r["p"], r["u"]): r["est"] for r in js["prices"]}
-    b = MODELS["measured"]["costs"]["products"]["pico2_w_release"]["base"]
-    e = cell[("measured", "pico2_w_release", "angulo")]
+    b = MODELS["measured"]["costs"]["products"]["pico2_w_original"]["base"]
+    e = cell[("measured", "pico2_w_original", "angulo")]
     ok(e and e["missing"] == [] and e["used"] == b["used"] + 41984 and e["bin"] == b["bin"] + 42336 and e["ram"] == b["ram"] + 7036,
-       f"measured/pico2_w_release/angulo: a estimativa com a medida é a base mais ela: {e}")
-    e = cell[("unmeasured", "pico2_w_release", "angulo")]
-    ok(e and e["missing"] == ["ui"], f"unmeasured/pico2_w_release/angulo: sem a entrada `ui` fica em missing: {e}")
+       f"measured/pico2_w_original/angulo: a estimativa com a medida é a base mais ela: {e}")
+    # S10c C3: with no `ui=original` entry the published Pico 2 W (the Ângulo's) leaves `ui` in missing when the reader chooses the original; pico2_w_original is a bench product and has no estimate at all.
+    e = cell[("unmeasured", "pico2_w_release", "original")]
+    ok(e and e["missing"] == ["ui"], f"unmeasured/pico2_w_release/original: sem a entrada `ui` fica em missing: {e}")
     return fs
 
 
@@ -1562,17 +1567,17 @@ def ui_scenarios():
     sc = [{"name": f"sweep:{lang}:{p}", "hash": f"#b={p}", "lang": lang, "actions": []}
           for lang in ("en", "pt", "es") for p in PRODUCTS]
     sc += [
-        {"name": "two", "hash": "#b=pico2_w_release", "lang": "en", "model": "unmeasured",
+        {"name": "two", "hash": "#b=pico2_w_original", "lang": "en", "model": "unmeasured",
          "actions": [{"click": "u-angulo"}, {"click": "t-tft_graph"}, {"click": "u-original"}]},
-        {"name": "nochart", "hash": "#b=pico2_w_release&off=tft_graph", "lang": "en",
+        {"name": "nochart", "hash": "#b=pico2_w_original&off=tft_graph", "lang": "en",
          "actions": [{"click": "u-angulo"}, {"click": "t-tft_graph"}, {"click": "u-angulo"}]},
         {"name": "wiretft", "hash": "#b=pico_wiretft", "lang": "en",
          "actions": [{"click": "u-angulo"}, {"click": "n-cyw43"}]},
-        {"name": "twoangulo", "hash": "#b=pico2_w_angulo", "lang": "en",
+        {"name": "twoangulo", "hash": "#b=pico2_w_release", "lang": "en",
          "actions": [{"click": "u-original"}, {"click": "u-angulo"}]},
         {"name": "linkblocked", "hash": "#b=pico_w_release&ui=angulo", "lang": "en", "actions": [{"click": "u-original"}]},
         {"name": "linkunknown", "hash": "#b=pico2_w_release&ui=nonsense", "lang": "en", "actions": []},
-        {"name": "ptflow", "hash": "#b=pico2_w_release", "lang": "pt", "model": "unmeasured", "actions": [{"click": "u-angulo"}]},
+        {"name": "ptflow", "hash": "#b=pico2_w_original", "lang": "pt", "model": "unmeasured", "actions": [{"click": "u-angulo"}]},
         # A rede mudada e de volta, e a chave mudada, nas duas línguas: a marca "mudou" de cada uma (C1b-b).
         {"name": "netchange:en", "hash": "#b=pico_wire", "lang": "en", "actions": [{"click": "n-cyw43"}, {"click": "n-enc28j60"}]},
         {"name": "netchange:pt", "hash": "#b=pico_wire", "lang": "pt", "actions": [{"click": "n-cyw43"}]},
@@ -1580,24 +1585,24 @@ def ui_scenarios():
         # A build pronta pertence à escolha que a pediu: sai da tela quando o leitor muda a UI, como quando muda a
         # rede; uma build em curso fica, com o nome do que ela compila (dropFinishedRun( ), C1b-b).
         {"name": "run:look", "hash": "#b=pico2_w_release", "lang": "en", "api": "finish", "token": True,
-         "actions": [{"press": "compilar"}, {"click": "u-angulo"}]},
+         "actions": [{"press": "compilar"}, {"click": "u-original"}]},
         {"name": "run:net", "hash": "#b=pico_wire", "lang": "en", "api": "finish", "token": True,
          "actions": [{"press": "compilar"}, {"click": "n-cyw43"}]},
         {"name": "run:busy", "hash": "#b=pico2_w_release", "lang": "en", "api": "hang", "token": True,
-         "actions": [{"press": "compilar"}, {"click": "u-angulo"}]},
+         "actions": [{"press": "compilar"}, {"click": "u-original"}]},
         # O preço da linha da UI (C1d): a matriz com a medida, com uma economia, com o estouro do slot, com uma regra
         # (o Pico W) e sem a entrada. As do "two" e do "ptflow" (sem medida) rodam no modelo sem a entrada, para
         # valerem também no dia em que a matriz de verdade a tiver.
-        {"name": "price:measured", "hash": "#b=pico2_w_release", "lang": "en", "model": "measured", "actions": [{"click": "u-angulo"}]},
-        {"name": "price:measured:pt", "hash": "#b=pico2_w_release", "lang": "pt", "model": "measured", "actions": []},
-        {"name": "price:smaller", "hash": "#b=pico2_w_release", "lang": "en", "model": "smaller", "actions": []},
-        {"name": "price:overflow", "hash": "#b=pico2_w_release", "lang": "en", "model": "overflow", "actions": []},
+        {"name": "price:measured", "hash": "#b=pico2_w_original", "lang": "en", "model": "measured", "actions": [{"click": "u-angulo"}]},
+        {"name": "price:measured:pt", "hash": "#b=pico2_w_original", "lang": "pt", "model": "measured", "actions": []},
+        {"name": "price:smaller", "hash": "#b=pico2_w_original", "lang": "en", "model": "smaller", "actions": []},
+        {"name": "price:overflow", "hash": "#b=pico2_w_original", "lang": "en", "model": "overflow", "actions": []},
         {"name": "price:rule", "hash": "#b=pico_w_release", "lang": "en", "model": "measured", "actions": [{"click": "u-angulo"}]},
-        {"name": "price:unmeasured", "hash": "#b=pico2_w_release&ui=angulo", "lang": "en", "model": "unmeasured", "actions": []},
+        {"name": "price:unmeasured", "hash": "#b=pico2_w_release&ui=original", "lang": "en", "model": "unmeasured", "actions": []},
         # A matriz mediu o Ângulo no produto como publicado; com o gráfico desligado a opção está travada, e a linha travada não mostra preço.
-        {"name": "price:locked", "hash": "#b=pico2_w_release&off=tft_graph", "lang": "en", "model": "measured", "actions": []},
+        {"name": "price:locked", "hash": "#b=pico2_w_original&off=tft_graph", "lang": "en", "model": "measured", "actions": []},
         # A matriz de verdade, como estiver: com ou sem a entrada `ui=angulo` do Pico 2 W (a conferência lê o próprio modelo).
-        {"name": "price:real", "hash": "#b=pico2_w_release", "lang": "en", "actions": [{"click": "u-angulo"}]},
+        {"name": "price:real", "hash": "#b=pico2_w_release", "lang": "en", "actions": [{"click": "u-original"}]},
         # O preço da linha da rede (C1e): o Wi-Fi do SIMUT Wire com uma medida inventada na matriz; o leitor de tela lê a frase.
         {"name": "price:net", "hash": "#b=pico_wire", "lang": "en", "model": "netpriced", "actions": []},
         {"name": "price:net:es", "hash": "#b=pico_wire", "lang": "es", "model": "netpriced", "actions": []},
@@ -1607,7 +1612,7 @@ def ui_scenarios():
         # O espanhol (C1d, 2026-10-29): o fluxo do Ângulo com o preço, a língua pelo botão, a salva, a do navegador, o texto
         # que falta em es, a build pedida e a janela do token (os textos de STR que só aparecem aí). Toda visita em es, e as
         # marcadas "mark", rodam também na passada em que os textos em inglês de STR levam uma marca (ui_marker_findings).
-        {"name": "es:flow", "hash": "#b=pico2_w_release", "lang": "es", "model": "measured",
+        {"name": "es:flow", "hash": "#b=pico2_w_original", "lang": "es", "model": "measured",
          "actions": [{"click": "u-angulo"}, {"click": "t-tft_graph"}, {"click": "u-original"}]},
         {"name": "es:saved", "hash": "#b=pico2_w_release", "lang": "en", "saved": "es", "mark": True, "actions": []},
         {"name": "es:nav", "hash": "#b=pico2_w_release", "lang": "en", "nav": "es-MX", "mark": True, "actions": []},
@@ -1741,23 +1746,23 @@ def ui_app_findings(res):
     s0, s1, s2, s3 = r["snaps"]
     chart = rule_why("angulo-needs-tft-graph")
     ang_en = M["ui_panels"]["angulo"]["label"]["en"]
-    ok(s0["hash"] == "#b=pico2_w_release" and row(s0, "u-original")["checked"] and not row(s0, "u-angulo")["checked"]
+    ok(s0["hash"] == "#b=pico2_w_original" and row(s0, "u-original")["checked"] and not row(s0, "u-angulo")["checked"]
        and not row(s0, "u-angulo")["disabled"], f"two: a tela de partida: {s0['hash']}")
     ok(switch(s0, "t-tft_graph")["checked"] and not switch(s0, "t-tft_graph")["disabled"], "two: o gráfico devia estar ligado e livre")
-    ok(s1["hash"] == "#b=pico2_w_release&ui=angulo", f"two: o link com o Ângulo é {s1['hash']!r}")
+    ok(s1["hash"] == "#b=pico2_w_original&ui=angulo", f"two: o link com o Ângulo é {s1['hash']!r}")
     ok(row(s1, "u-angulo")["checked"] and not row(s1, "u-original")["checked"], "two: o Ângulo devia estar marcado")
     ok(fieldset(s1, "visual")["changed"], "two: o título da escolha devia dizer 'mudou'")
     sw1 = switch(s1, "t-tft_graph")
     ok(sw1["checked"] and sw1["disabled"] and sw1["locks"] == [say("en", "locked", why=chart["en"])],
        f"two: a chave do gráfico devia estar ligada e travada pelo motivo da regra: {sw1}")
     ok(s1["build"] == {"disabled": False}, f"two: o botão de compilar com o Ângulo: {s1['build']}")
-    ok(s1["summary"] == say("en", "result.changes1", p=label_of("pico2_w_release", "en")), f"two: o resumo é {s1['summary']!r}")
-    ok(say("en", "warn.missing", list=ang_en) in [w["text"] for w in s1["warnings"]],
-       f"two: sem o aviso de que a UI não tem medida: {[w['text'] for w in s1['warnings']]}")
-    ok(s1["profile"] == f"python3 tools/build_custom.py --profile '{bc.canonical('pico2_w_release', {'ui': 'angulo'})}'",
+    ok(s1["summary"] == say("en", "result.changes1", p=label_of("pico2_w_original", "en")), f"two: o resumo é {s1['summary']!r}")
+    ok(say("en", "warn.bench") in [w["text"] for w in s1["warnings"]],   # S10c C3: pico2_w_original is a bench product, which has no estimate (the missing-measure warning is price:unmeasured's)
+       f"two: sem o aviso de que o produto de bancada não tem estimativa: {[w['text'] for w in s1['warnings']]}")
+    ok(s1["profile"] == f"python3 tools/build_custom.py --profile '{bc.canonical('pico2_w_original', {'ui': 'angulo'})}'",
        f"two: o perfil que a página manda compilar é {s1['profile']!r}")
     ok(s1["issue"] and f"- {M['ui_panel']['label']['en']}: {ang_en}" in s1["issue"]["body"].splitlines()
-       and s1["issue"]["title"] == f"Build request: {label_of('pico2_w_release', 'en')}, 1 change",
+       and s1["issue"]["title"] == f"Build request: {label_of('pico2_w_original', 'en')}, 1 change",
        f"two: o pedido não leva a UI: {s1['issue']}")
     ok(s2 == s1, "two: um clique em controle travado mexeu na tela")
     ok(s3 == s0, f"two: ao voltar ao visual original a tela devia ser a de partida; hash {s3['hash']!r}, perfil {s3['profile']!r}")
@@ -1771,9 +1776,9 @@ def ui_app_findings(res):
        f"nochart: o Ângulo sem o gráfico devia estar travado pelo motivo da regra: {ang}")
     ok(not switch(s0, "t-tft_graph")["checked"] and not switch(s0, "t-tft_graph")["disabled"], "nochart: a chave do gráfico devia estar desligada e livre")
     ok(s1 == s0, "nochart: um clique em controle travado mexeu na tela")
-    ok(s2["hash"] == "#b=pico2_w_release" and not row(s2, "u-angulo")["disabled"] and row(s2, "u-angulo")["lock"] is None,
+    ok(s2["hash"] == "#b=pico2_w_original" and not row(s2, "u-angulo")["disabled"] and row(s2, "u-angulo")["lock"] is None,
        f"nochart: ligado o gráfico o Ângulo devia se libertar: {s2['hash']}, {row(s2, 'u-angulo')}")
-    ok(s3["hash"] == "#b=pico2_w_release&ui=angulo" and switch(s3, "t-tft_graph")["disabled"], f"nochart: {s3['hash']}")
+    ok(s3["hash"] == "#b=pico2_w_original&ui=angulo" and switch(s3, "t-tft_graph")["disabled"], f"nochart: {s3['hash']}")
 
     # 4. O SIMUT Wire com tela touch (RP2040 com o cabo): o Ângulo é livre; escolhido, o Wi-Fi de volta trava
     #    pela regra do Pico W, que é a pergunta que a escolha da rede faz.
@@ -1794,9 +1799,9 @@ def ui_app_findings(res):
     r = by["twoangulo"]
     ok([st["result"] for st in r["steps"]] == ["clicked", "clicked"], f"twoangulo: cliques {r['steps']}")
     s0, s1, s2 = r["snaps"]
-    ok(s0["hash"] == "#b=pico2_w_angulo" and row(s0, "u-angulo")["checked"] and not row(s0, "u-original")["disabled"]
+    ok(s0["hash"] == "#b=pico2_w_release" and row(s0, "u-angulo")["checked"] and not row(s0, "u-original")["disabled"]
        and not fieldset(s0, "visual")["changed"], f"twoangulo: partida {s0['hash']}")
-    ok(s1["hash"] == "#b=pico2_w_angulo&ui=original" and row(s1, "u-original")["checked"] and fieldset(s1, "visual")["changed"],
+    ok(s1["hash"] == "#b=pico2_w_release&ui=original" and row(s1, "u-original")["checked"] and fieldset(s1, "visual")["changed"],
        f"twoangulo: ao escolher o original o link é {s1['hash']!r}")
     ok(s2 == s0, "twoangulo: voltar ao Ângulo devia deixar a tela como a de partida")
 
@@ -1824,7 +1829,7 @@ def ui_app_findings(res):
     ang_pt = M["ui_panels"]["angulo"]["label"]["pt"]
     sw1 = switch(s1, "t-tft_graph")
     ok(sw1["disabled"] and sw1["locks"] == [say("pt", "locked", why=chart["pt"])], f"ptflow: a trava da chave do gráfico em português: {sw1}")
-    ok(say("pt", "warn.missing", list=ang_pt) in [w["text"] for w in s1["warnings"]], "ptflow: sem o aviso de que a UI não tem medida, em português")
+    ok(say("pt", "warn.bench") in [w["text"] for w in s1["warnings"]], "ptflow: sem o aviso de que o produto de bancada não tem estimativa, em português")
     ok(f"- {M['ui_panel']['label']['en']}: {M['ui_panels']['angulo']['label']['en']}" in (s1["issue"] or {"body": ""})["body"].splitlines(),
        "ptflow: o pedido devia dizer a UI em inglês")
 
@@ -1869,7 +1874,7 @@ def ui_app_findings(res):
     def stock_of(pid):
         return say("en", "run.for", what=say("en", "result.stock", p=label_of(pid, "en")))
 
-    for name, pid, click, suffix in (("run:look", "pico2_w_release", "u-angulo", "&ui=angulo"),
+    for name, pid, click, suffix in (("run:look", "pico2_w_release", "u-original", "&ui=original"),
                                      ("run:net", "pico_wire", "n-cyw43", "&net=cyw43")):
         r = by[name]
         ok([st["result"] for st in r["steps"]] == ["pressed", "clicked"], f"{name}: cliques {r['steps']}")
@@ -1890,7 +1895,7 @@ def ui_app_findings(res):
     s0, s1, s2 = r["snaps"]
     going = {"texts": [stock_of("pico2_w_release"), say("en", "run.dispatching")], "links": []}
     ok(s1["run"] == going and s1["build"] == {"disabled": True}, f"run:busy: a build em curso: {s1['run']}, {s1['build']}")
-    ok(s2["hash"] == "#b=pico2_w_release&ui=angulo" and s2["run"] == going and s2["build"] == {"disabled": True},
+    ok(s2["hash"] == "#b=pico2_w_release&ui=original" and s2["run"] == going and s2["build"] == {"disabled": True},
        f"run:busy: escolhida a UI, a build em curso devia ficar, com o nome do que ela compila: {s2['run']}, {s2['build']}")
     ok(s2["summary"] == say("en", "result.changes1", p=label_of("pico2_w_release", "en")),
        f"run:busy: o resumo da página devia ser o da escolha nova: {s2['summary']!r}")
@@ -1932,22 +1937,25 @@ def ui_app_findings(res):
     ok([st["result"] for st in by["price:rule"]["steps"]] == ["disabled"], f"price:rule: cliques {by['price:rule']['steps']}")
     a = row(by["price:locked"]["snaps"][0], "u-angulo")
     ok(a["disabled"] and a["cost"] is None and a["costTitle"] is None and a["lock"] == say("en", "locked", why=chart["en"])
-       and expected_ui_price(MODELS["measured"], "pico2_w_release", "angulo", "en", {"tft_graph": False}) == (None, None),
+       and expected_ui_price(MODELS["measured"], "pico2_w_original", "angulo", "en", {"tft_graph": False}) == (None, None),
        f"price:locked: sem o gráfico a opção está travada e a linha travada não mostra o preço que a matriz mediu: {a}")
     s0 = by["price:unmeasured"]["snaps"][0]
-    ok(row(s0, "u-angulo")["cost"] is None and say("en", "warn.missing", list=ang_en) in [w["text"] for w in s0["warnings"]],
-       f"price:unmeasured: sem a entrada na matriz a linha não mostra preço e o aviso de 'sem medida' fica: {row(s0, 'u-angulo')['cost']!r}, {[w['text'] for w in s0['warnings']]}")
+    orig_unm = M["ui_panels"]["original"]["label"]["en"]
+    ok(row(s0, "u-original")["cost"] is None and say("en", "warn.missing", list=orig_unm) in [w["text"] for w in s0["warnings"]],
+       f"price:unmeasured: sem a entrada na matriz a linha não mostra preço e o aviso de 'sem medida' fica: {row(s0, 'u-original')['cost']!r}, {[w['text'] for w in s0['warnings']]}")
 
-    # 12b. A matriz de verdade (C1d): com a entrada `ui=angulo` do Pico 2 W a linha mostra o preço e o aviso de "sem medida" some; sem
-    #      ela a linha não mostra nada e o aviso fica. A conferência lê a entrada do próprio modelo e vale nos dois estados.
+    # 12b. A matriz de verdade (C1d; S10c C3, 2026-10-30): o visual do produto do Pico 2 W é o Ângulo, e o que a matriz mede nele é o preço do original (`ui=original`, uma economia): com a entrada a
+    #      linha do original mostra o preço e o aviso de "sem medida" some; sem ela a linha não mostra nada e o aviso fica. A conferência lê a entrada do próprio modelo e vale nos dois estados.
     s0, s1 = by["price:real"]["snaps"]
-    has_entry = expected_price(MODEL, "pico2_w_release", "angulo") is not None
-    want = expected_ui_price(MODEL, "pico2_w_release", "angulo", "en")
-    got = (row(s0, "u-angulo")["cost"], row(s0, "u-angulo")["costTitle"])
+    orig_en = M["ui_panels"]["original"]["label"]["en"]
+    has_entry = expected_price(MODEL, "pico2_w_release", "original") is not None
+    want = expected_ui_price(MODEL, "pico2_w_release", "original", "en")
+    got = (row(s0, "u-original")["cost"], row(s0, "u-original")["costTitle"])
     ok(got == want and (want[0] is not None) == has_entry,
-       f"price:real: o preço do Ângulo no Pico 2 W é {got}, devia ser {want}; a matriz de verdade {'tem' if has_entry else 'não tem'} a entrada")
+       f"price:real: o preço do original no Pico 2 W é {got}, devia ser {want}; a matriz de verdade {'tem' if has_entry else 'não tem'} a entrada")
+    ok(row(s0, "u-angulo")["cost"] is None, "price:real: a UI do próprio produto (o Ângulo) não devia ter preço")
     texts = [w["text"] for w in s1["warnings"]]
-    ok((say("en", "warn.missing", list=ang_en) in texts) == (not has_entry),
+    ok((say("en", "warn.missing", list=orig_en) in texts) == (not has_entry),
        f"price:real: o aviso de 'sem medida' {'não devia' if has_entry else 'devia'} estar na tela: {texts}")
 
     # 12c. O preço da linha da REDE (C1e): como o da UI, o valor fica escondido do leitor de tela e a frase é lida na descrição da linha.
@@ -2035,7 +2043,7 @@ def ui_app_findings(res):
        f"es:flow: o preço do Ângulo é {a0['cost']!r}, título {a0['costTitle']!r}, devia ser 41,0 KB e 41.984 B")
     ok(a0["description"] == [a0["help"], a0["costTitle"]], f"es:flow: o leitor de tela devia receber a ajuda e a frase do preço: {a0['description']}")
     ok(switch(s1, "t-tft_graph")["locks"] == [say("es", "locked", why=chart["es"])], f"es:flow: a trava da chave do gráfico: {switch(s1, 't-tft_graph')['locks']}")
-    ok(s1["summary"] == say("es", "result.changes1", p=label_of("pico2_w_release", "es")), f"es:flow: o resumo é {s1['summary']!r}")
+    ok(s1["summary"] == say("es", "result.changes1", p=label_of("pico2_w_original", "es")), f"es:flow: o resumo é {s1['summary']!r}")
     ok(s3 == s0, "es:flow: voltar ao visual original devia deixar a tela como a de partida")
     r = by["es:buttons"]
     ok([st["result"] for st in r["steps"]] == ["clicked"] * 3, f"es:buttons: cliques {r['steps']}")

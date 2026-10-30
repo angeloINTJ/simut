@@ -257,6 +257,11 @@ jobs:
       - name: Angulo link set (the gate and its controls)
         run: python3 tools/check_ui_link.py --selftest
 
+      # The gates that hold an Ângulo image follow the profile's `ui`, not the ending of the environment's name (S10c C3): tools/env_ui.py, the workflow's link-gate step
+      # and the list of tools/ui_ram_budget.json against the manifest, each with its mutants.
+      - name: Angulo gates follow the profile's ui (the question, the workflow and the RAM budget's list)
+        run: python3 tools/test_env_ui.py
+
       # The Angulo driver's colour tokens: src/ui/angulo/kit/angulo_tokens.h is generated
       # from tools/tft_ui/tokens_tft.json (the guide's palette and the panel's deviations)
       # and never edited by hand, so the header must be what the JSON generates; and the
@@ -462,7 +467,7 @@ jobs:
       # number changed in one and not the others is a board that boots one
       # layout and reads another. What only a build can show is
       # tools/check_rp2350_image.py's, after every link of a slot image (pico2_w_release,
-      # pico2_w_angulo).
+      # pico2_w_original).
       - name: RP2350 flash layout (one map in four places)
         run: python3 tools/test_rp2350_layout.py
 
@@ -614,7 +619,11 @@ jobs:
           # The release on the Pico 2 W's RP2350 (2026-10-01, S0 of Phase 4 in
           # docs/analysis/PLANO_REVISAO_EXTERNA.md). Nothing runs it on a board
           # yet; building it here is what keeps the code from drifting back to
-          # RP2040-only addresses with nobody noticing.
+          # RP2040-only addresses with nobody noticing. Since 2026-10-30 (S10c C3) it
+          # is the image with the Ângulo (the manifest's `ui = "angulo"`, the maintainer's
+          # decision C-D1); the original panel it carried is pico2_w_original, last in
+          # this list. The name, the published assets (releasetwo) and this required
+          # check stay as they were. It is held to the Ângulo's link set and RAM budget.
           - pico2_w_release
           # The SIMUT Wire (2026-10-12): a plain Pico, without the radio, its
           # network on an ENC28J60 module (src/net/, net/NetworkManager_Wired.cpp).
@@ -641,17 +650,13 @@ jobs:
           # mark that moves with the driver's stages. Like pico_wire and
           # pico_wiretft it is not a required check (CLAUDE.md says which nine are).
           - pico_wiretft_angulo
-          # The Ângulo on the Pico 2 W (2026-10-21): pico2_w_release with the touch
-          # panel drawn by src/ui/angulo/ (the manifest's `ui = "angulo"`), the board the
-          # Ângulo ships on first (the maintainer's decision of 2026-10-21). The Wire's
-          # Ângulo above leaves out the original's Wi-Fi paths (showApConfirm( )'s caller
-          # is under #if SIMUT_NET_WIFI); this one has the radio, so those paths and the
-          # Ângulo's share of the RP2350 slot are built and sized under -Werror here too.
-          # Not published (publish = false), not approved for products, and not a required
-          # check (CLAUDE.md says which nine are). Held to its own budgets in
-          # tools/flash_budget.json and tools/ui_ram_budget.json, and to the checks of
-          # tools/check_rp2350_image.py after the link. Nothing runs it on a board yet.
-          - pico2_w_angulo
+          # The original panel on the Pico 2 W (2026-10-30, S10c C3): what pico2_w_release was until the
+          # Ângulo became its panel, kept as the alternative the configurator offers
+          # (`ui = "original"`). Its SIMUT_ENV_NAME is the release's (releasetwo), so a device moves
+          # between the two over the air, both ways. Not published (publish = false) and not a
+          # required check (CLAUDE.md says which nine are). Held to its own budget in
+          # tools/flash_budget.json and to the checks of tools/check_rp2350_image.py after the link.
+          - pico2_w_original
     name: firmware (${{ matrix.env }})
     steps:
       - uses: actions/checkout@v7
@@ -712,12 +717,21 @@ jobs:
       - name: Check flash budget
         run: python3 tools/check_flash_budget.py ${{ matrix.env }} build.log
 
-      # The two Angulo images link nothing the function table (docs/analysis/UI_DRIVERS_funcoes.tsv) calls original, bar the named allowances of
-      # tools/check_ui_link.py, and no draw, render or blit name or pixel primitive that the table does not know: S4 to S10b made that so, and nothing
-      # else in CI holds it (the flash budget counts bytes, not names). Reads the ELF this job just built. The images are not required checks
-      # (CLAUDE.md names the nine), and neither is this step.
+      # Which touch look this image builds, from its profile in tools/features.toml (tools/env_ui.py), and not from the ending of its name: the Pico 2 W's release
+      # is an Ângulo image since 2026-10-30 (S10c C3) and its name says nothing of it. An assignment of its own, so that a failing question fails the step instead
+      # of writing an empty answer that would skip the gate below. tools/test_env_ui.py holds this step and the gate's condition, with mutants.
+      - name: Which touch look ${{ matrix.env }} builds
+        id: ui
+        run: |
+          ui=$(python3 tools/env_ui.py ${{ matrix.env }})
+          echo "ui=$ui" >> "$GITHUB_OUTPUT"
+
+      # The Ângulo images (the profiles with ui = angulo: pico2_w_release and pico_wiretft_angulo) link nothing the function table (docs/analysis/UI_DRIVERS_funcoes.tsv)
+      # calls original, bar the named allowances of tools/check_ui_link.py, and no draw, render or blit name or pixel primitive that the table does not know: S4 to S10b made
+      # that so, and nothing else in CI holds it (the flash budget counts bytes, not names). Reads the ELF this job just built. pico2_w_release is a required check, so this
+      # step is part of it; pico_wiretft_angulo is not (CLAUDE.md names the nine).
       - name: Angulo link set (no original draws, no pixel primitives)
-        if: endsWith(matrix.env, '_angulo')
+        if: steps.ui.outputs.ui == 'angulo'
         run: python3 tools/check_ui_link.py .pio/build/${{ matrix.env }}/firmware.elf
 
       # The sizes tools/pio_budget.py counts with, held to the programs' own

@@ -19,7 +19,7 @@ A number changed in one and not the others is a board that boots one layout
 and reads another. This test holds the four to each other. What only a build
 can show (the image's first block, the stub gone, the framework's template)
 is tools/check_rp2350_image.py's, after every link of a slot image (pico2_w_release,
-pico2_w_angulo).
+pico2_w_original).
 
 Run: python3 tools/test_rp2350_layout.py
 Exit status is 0 on pass, 1 on failure.
@@ -176,7 +176,7 @@ def test_ldscript():
 
 
 # The images that boot from a slot of the table: the release, and since 2026-10-21 the Angulo on the Pico 2 W.
-SLOT_ENVS = ("pico2_w_release", "pico2_w_angulo")
+SLOT_ENVS = ("pico2_w_release", "pico2_w_original")
 
 
 def test_profile():

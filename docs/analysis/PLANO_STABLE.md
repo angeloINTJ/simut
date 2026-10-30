@@ -87,13 +87,13 @@ de recebê-la pelo ar: o aparelho a recusa no stage, na validação e no aplicad
 | `pico_w_release` | 1.036.301 | 4.083 |
 | `pico_w_air` | 1.035.581 | 4.803 |
 | `pico_w_alpha` | 990.621 | 49.763 |
-| `pico2_w_release` | 1.000.289 | 568.479 |
+| `pico2_w_release` | 1.037.105 | 531.663 |
 | `pico_w_test` | 1.037.117 | 3.267 |
 | `pico_w_asserts` | 1.038.605 | 1.779 |
 | `pico_wire` | 604.665 | 435.719 |
 | `pico_wiretft` | 788.017 | 252.367 |
 | `pico_wiretft_angulo` | 827.857 | 212.527 |
-| `pico2_w_angulo` | 1.037.105 | 531.663 |
+| `pico2_w_original` | 1.000.289 | 568.479 |
 | `pico_w_test_https` | isenta | — |
 <!-- ota-headroom:end -->
 
@@ -117,8 +117,10 @@ de recebê-la pelo ar: o aparelho a recusa no stage, na validação e no aplicad
   Desde o passo 4 do [OTA_AB_RP2350.md](OTA_AB_RP2350.md) ela atualiza pelo ar
   no outro slot de uma tabela de partições, e o teto dela é esse slot,
   1.568.768 B (`"slot"` no `flash_budget.json`; `OTA_IMAGE_MAX` no stage). Entre
-  os passos 2 e 4 (03/10) ela foi isenta, porque recusava todo OTA. A `pico2_w_angulo`
-  (21/10) tem o mesmo slot e a mesma conta.
+  os passos 2 e 4 (03/10) ela foi isenta, porque recusava todo OTA. A `pico2_w_original`
+  tem o mesmo slot e a mesma conta. Desde 2026-10-30 (S10c C3) a `pico2_w_release` é a imagem
+  do Ângulo (a antiga `pico2_w_angulo`, 21/10), e a `pico2_w_original` é o painel original, o que a
+  `pico2_w_release` foi até 29/10: as duas linhas trocaram de nome, não de número.
 
 ---
 

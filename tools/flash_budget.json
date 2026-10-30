@@ -571,9 +571,9 @@
    "bin": 1035340
   },
   "pico2_w_release": {
-   "budget": 1000024,
-   "measured": 1000024,
-   "bin": 1000048,
+   "budget": 1036840,
+   "measured": 1036840,
+   "bin": 1036864,
    "ceiling": 3145728,
    "slot": 1568768
   },
@@ -592,10 +592,10 @@
    "measured": 815580,
    "bin": 827616
   },
-  "pico2_w_angulo": {
-   "budget": 1036840,
-   "measured": 1036840,
-   "bin": 1036864,
+  "pico2_w_original": {
+   "budget": 1000024,
+   "measured": 1000024,
+   "bin": 1000048,
    "ceiling": 3145728,
    "slot": 1568768
   }

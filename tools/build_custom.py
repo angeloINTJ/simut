@@ -148,7 +148,7 @@ def resolve(base, changes, M):
 def ui_ram_env(prof, M, budgets=None):
     """(o ambiente de verdade cuja entrada no tools/ui_ram_budget.json segura uma build de `prof` que leva o Ângulo, "") ou (None, por quê).
 
-    O ambiente é o do manifesto que leva o Ângulo no mesmo hardware (chip, rede e mostrador) e tem entrada no orçamento: o pico2_w_angulo para o Pico 2 W, o pico_wiretft_angulo para
+    O ambiente é o do manifesto que leva o Ângulo no mesmo hardware (chip, rede e mostrador) e tem entrada no orçamento: o pico2_w_release para o Pico 2 W, o pico_wiretft_angulo para
     o Wire, seja qual for o produto de que a build parte. Só o nome sai daqui; o número é o da entrada no momento em que o portão o lê (`budgets` é a tabela "envs" do orçamento,
     lida do arquivo quando não vem)."""
     if budgets is None:

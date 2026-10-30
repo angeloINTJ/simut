@@ -1,7 +1,7 @@
 /**
  * @file DisplayManager_UiA_Textos.cpp
  * @brief The Ângulo build's glue for the texts the panel draws (S10c, B2b): at boot it loads the active language pack's @ANGULO section into
- *        the table UA_TXT( ) answers from (Textos.h). pico_wiretft_angulo and pico2_w_angulo only.
+ *        the table UA_TXT( ) answers from (Textos.h). pico_wiretft_angulo and pico2_w_release only.
  *
  * The chain, end to end. LangPackScanner (src/LangPackIndex.h) finds the section while loadLangFile( ) streams the pack, and the loader keeps
  * its byte range in _activeLang (anguloOffset, anguloLen: DisplayManager_LangParser.cpp), the way it keeps @HELP's and @WEBDICT's. AppManager::setup( )

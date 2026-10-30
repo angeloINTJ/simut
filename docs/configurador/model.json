@@ -604,14 +604,14 @@
         "es": "SIMUT para la Pico 2 W"
       },
       "desc": {
-        "en": "The touch display product on the Pico 2 W (RP2350), with twice the flash: it boots from slot A or B, and an update over the air goes into the other slot and runs on trial.",
-        "pt": "O produto com tela touch no Pico 2 W (RP2350), com o dobro de flash: sobe do slot A ou B, e uma atualização pelo ar vai para o outro slot e roda em teste.",
-        "es": "El producto con pantalla táctil en la Pico 2 W (RP2350), con el doble de flash: arranca desde la ranura A o B, y una actualización inalámbrica va a la otra ranura y se ejecuta a prueba."
+        "en": "The touch display product on the Pico 2 W (RP2350) in the Ângulo look, with twice the flash: it boots from slot A or B, and an update over the air goes into the other slot and runs on trial.",
+        "pt": "O produto com tela touch no Pico 2 W (RP2350) no visual Ângulo, com o dobro de flash: sobe do slot A ou B, e uma atualização pelo ar vai para o outro slot e roda em teste.",
+        "es": "El producto con pantalla táctil en la Pico 2 W (RP2350) en el aspecto Ángulo, con el doble de flash: arranca desde la ranura A o B, y una actualización inalámbrica va a la otra ranura y se ejecuta a prueba."
       },
       "config": {
         "display": "tft",
         "net": "cyw43",
-        "ui": "original",
+        "ui": "angulo",
         "chip": "rp2350",
         "cli_full": false,
         "web_https": true,
@@ -910,7 +910,7 @@
       }
     },
     {
-      "id": "pico2_w_angulo",
+      "id": "pico2_w_original",
       "order": 11,
       "bench": true,
       "publish": false,
@@ -927,19 +927,19 @@
         "ota_bin": 1568527
       },
       "label": {
-        "en": "SIMUT Pico 2 W Ângulo",
-        "pt": "SIMUT Pico 2 W Ângulo",
-        "es": "SIMUT Pico 2 W Ángulo"
+        "en": "SIMUT Pico 2 W original",
+        "pt": "SIMUT Pico 2 W original",
+        "es": "SIMUT Pico 2 W original"
       },
       "desc": {
-        "en": "The touch display product on the Pico 2 W (RP2350) in the Ângulo look, a study that is not approved for products. Not published.",
-        "pt": "O produto com tela touch no Pico 2 W (RP2350) no visual Ângulo, um estudo ainda não aprovado para produtos. Não publicada.",
-        "es": "El producto con panel táctil en la Pico 2 W (RP2350) en el aspecto Ángulo, un estudio aún no aprobado para productos. No publicada."
+        "en": "The touch display product on the Pico 2 W (RP2350) in the original look, the one every release before the Ângulo carried. Not published.",
+        "pt": "O produto com tela touch no Pico 2 W (RP2350) no visual original, o que toda release antes do Ângulo levou. Não publicada.",
+        "es": "El producto con panel táctil en la Pico 2 W (RP2350) en el aspecto original, el que llevó toda versión antes del Ángulo. No publicada."
       },
       "config": {
         "display": "tft",
         "net": "cyw43",
-        "ui": "angulo",
+        "ui": "original",
         "chip": "rp2350",
         "cli_full": false,
         "web_https": true,
@@ -1082,7 +1082,7 @@
         "pt": "No Pico W com Wi-Fi o visual Ângulo ainda não é oferecido. Escolha o Pico 2 W ou o visual original.",
         "es": "En la Pico W con Wi-Fi el aspecto Ángulo aún no se ofrece. Elija la Pico 2 W o el aspecto original."
       },
-      "evidence": "The rule applies a decision, not a measurement: the maintainer decided on 2026-10-21 that the Ângulo ships first on the Pico 2 W only, with a smaller version for the Pico W later, so the rule refuses every Pico W profile (the RP2040 with the CYW43 radio, whatever its display, the Wire TFT with the Wi-Fi back included), and the measurement below covers the Pico W's Wi-Fi release image only. No Ângulo build of the Pico W exists, so there is no compiler error to quote; the gap is measured on other images (docs/analysis/UI_DRIVERS.md section 3.6). Measured on 2026-10-14 (baseline images of 192e1ad, the study's Ângulo): 45,856 B above the plain pico_wiretft, against 5,643 B of OTA headroom in the Pico W's Wi-Fi release (PLANO_STABLE.md section 3.1), a gap of 34 to 40 kB. Rerun on 2026-10-21 (after S10b-1): pico2_w_angulo, a real Wi-Fi Ângulo build, is 31,008 B above pico2_w_release (.bin 1,029,952 against 998,944 B), and the Pico W's Wi-Fi release has 5,195 B of headroom in the same record and no Ângulo build, so a transposition of the 31 kB would not fit it. The SIMUT Wire TFT (RP2040 with the ENC28J60, pico_wiretft_angulo) has no radio and is not refused: it is the Ângulo's bench image."
+      "evidence": "The rule applies a decision, not a measurement: the maintainer decided on 2026-10-21 that the Ângulo ships first on the Pico 2 W only, with a smaller version for the Pico W later, so the rule refuses every Pico W profile (the RP2040 with the CYW43 radio, whatever its display, the Wire TFT with the Wi-Fi back included), and the measurement below covers the Pico W's Wi-Fi release image only. No Ângulo build of the Pico W exists, so there is no compiler error to quote; the gap is measured on other images (docs/analysis/UI_DRIVERS.md section 3.6). Measured on 2026-10-14 (baseline images of 192e1ad, the study's Ângulo): 45,856 B above the plain pico_wiretft, against 5,643 B of OTA headroom in the Pico W's Wi-Fi release (PLANO_STABLE.md section 3.1), a gap of 34 to 40 kB. Rerun on 2026-10-21 (after S10b-1): pico2_w_angulo, a real Wi-Fi Ângulo build, is 31,008 B above pico2_w_release (.bin 1,029,952 against 998,944 B), and the Pico W's Wi-Fi release has 5,195 B of headroom in the same record and no Ângulo build, so a transposition of the 31 kB would not fit it. The SIMUT Wire TFT (RP2040 with the ENC28J60, pico_wiretft_angulo) has no radio and is not refused: it is the Ângulo's bench image. Names as of 2026-10-21, the day of the measurement: pico2_w_angulo is today's pico2_w_release, and that day's pico2_w_release is today's pico2_w_original (S10c C3, 2026-10-30)."
     },
     {
       "id": "angulo-needs-tft-graph",

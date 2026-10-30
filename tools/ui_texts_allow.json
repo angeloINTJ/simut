@@ -264,7 +264,7 @@
    }
   },
   {
-   "reason": "the bench endpoint GET /api/ui (src/ui/angulo/WebManager_UiA.cpp, which only the two Ângulo images compile, pico_wiretft_angulo and pico2_w_angulo): its route, headers, content type, JSON keys and error strings are read by the bench scripts and never drawn",
+   "reason": "the bench endpoint GET /api/ui (src/ui/angulo/WebManager_UiA.cpp, which only the two Ângulo images compile, pico_wiretft_angulo and pico2_w_release): its route, headers, content type, JSON keys and error strings are read by the bench scripts and never drawn",
    "texts": {
     "src/ui/angulo/WebManager_UiA.cpp": [
      "%s[%d,%d,%d,%d,%u,%d]",

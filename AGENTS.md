@@ -416,7 +416,7 @@ O CI cobre tudo isto, mas só em pull request — meça antes:
 ```bash
 pio run -e pico_w_release -e pico_w_test -e pico_w_test_https \
         -e pico_w_asserts -e pico_w_alpha -e pico_w_air -e pico2_w_release \
-        -e pico_wire -e pico_wiretft -e pico_wiretft_angulo -e pico2_w_angulo
+        -e pico_wire -e pico_wiretft -e pico_wiretft_angulo -e pico2_w_original
 pio test -e native -e native_history_v5 -e native_cli -e native_lan \
          -e native_logpolicy -e native_alarmqueue -e native_network -e native_air \
          -e native_sensors -e native_wired -e native_otasig
@@ -974,7 +974,7 @@ calado é.
   microcopy, a área segura e a grade de 4 px, todo estado desenhado — e emoji
   nem existe na fonte CP437. **Em 2026-10-28, no ramo `feat/ui-drivers`:** isso vale
   para a UI original, que mantém os temas. A UI Ângulo existe nas imagens
-  `pico2_w_angulo` e `pico_wiretft_angulo` (nenhuma release a leva ainda), com o
+  `pico2_w_release` e `pico_wiretft_angulo` (a `pico2_w_release` a leva desde 2026-10-30, S10c C3; o painel original do Pico 2 W é a `pico2_w_original`), com o
   tema dela (modo e acento) em `docs/analysis/UI_DRIVERS.md` §2.16 e os desvios
   registrados em §2.18 (a cor de perigo).
 - **LCD 16×2 do alpha:** vale a microcopy.

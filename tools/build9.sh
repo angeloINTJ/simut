@@ -6,7 +6,7 @@
 #
 # Default list, the first nine environments of CLAUDE.md: pico_w_release pico_w_test pico_w_test_https
 # pico_w_asserts pico_w_alpha pico_w_air pico2_w_release pico_wire pico_wiretft. The tenth and the eleventh,
-# the unpublished images pico_wiretft_angulo and pico2_w_angulo, are not among them: name them to build them.
+# the unpublished images pico_wiretft_angulo and pico2_w_original, are not among them: name them to build them.
 #
 # What it is for (V-SHA, docs/analysis/UI_DRIVERS.md): a change that promises the product images
 # unchanged builds the base and the branch with this script, and

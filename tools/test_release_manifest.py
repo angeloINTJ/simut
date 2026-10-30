@@ -30,6 +30,7 @@ Run: python3 tools/test_release_manifest.py
 Exit status is 0 on pass, 1 on failure.
 """
 
+import copy
 import hashlib
 import json
 import re
@@ -216,6 +217,35 @@ def test_pico2_refusals():
     refused(all_images(pico2_w_release=pico2(env="release")), "tag says release")
 
 
+def published_pico2_findings(M):
+    """What is wrong with how the published releasetwo asset relates to the manifest (S10c C3, 2026-10-30): it is built from pico2_w_release, whose profile carries the Angulo and is published; the
+    original image of the Pico 2 W (pico2_w_original) is not published, and no other environment is published as releasetwo."""
+    out = []
+    prof = M["profiles"]
+    if rm.ENVS.get("releasetwo") != "pico2_w_release":
+        out.append(f"releasetwo is published from {rm.ENVS.get('releasetwo')}, not pico2_w_release")
+    rel = gf.resolve_profile("pico2_w_release", prof)
+    if rel.get("ui") != "angulo" or not rel.get("publish"):
+        out.append(f"pico2_w_release must be published and carry the Angulo (ui = angulo): ui={rel.get('ui')!r} publish={rel.get('publish')!r}")
+    orig = gf.resolve_profile("pico2_w_original", prof)
+    if orig.get("publish") or "pico2_w_original" in rm.ENVS.values():
+        out.append("pico2_w_original is the original panel kept as the alternative: it must not be published")
+    return out
+
+
+def test_the_published_pico2_is_the_angulo():
+    M = gf.load_manifest()
+    check(published_pico2_findings(M) == [], f"the published Pico 2 W image: {published_pico2_findings(M)}")
+    # the control: each edit of the manifest that undoes the switch gives exactly one finding
+    for name, edit in (("the release goes back to the original panel", lambda m: m["profiles"]["pico2_w_release"].__setitem__("ui", "original")),
+                       ("the release is no longer published", lambda m: m["profiles"]["pico2_w_release"].__setitem__("publish", False)),
+                       ("the original image is published", lambda m: m["profiles"]["pico2_w_original"].__setitem__("publish", True))):
+        mutated = copy.deepcopy(M)
+        edit(mutated)
+        found = published_pico2_findings(mutated)
+        check(len(found) == 1, f"mutant `{name}` gives exactly one finding: {found}")
+
+
 def test_the_workflow_publishes_these():
     text = WORKFLOW.read_text(encoding="utf-8")
     want = set(rm.ENVS.values())
@@ -239,7 +269,7 @@ def test_the_workflow_publishes_these():
 
 def main():
     for t in (test_pico_w_writer_unchanged, test_four_entries, test_pico2_factory_image,
-              test_pico2_refusals, test_the_workflow_publishes_these):
+              test_pico2_refusals, test_the_published_pico2_is_the_angulo, test_the_workflow_publishes_these):
         before = len(fails)
         try:
             t()

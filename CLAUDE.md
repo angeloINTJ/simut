@@ -46,13 +46,16 @@ driver's bench image, `pico_wiretft` with the touch panel drawn by
 `src/ui/angulo/` (`ui = "angulo"` in the manifest). It is transitional, not
 approved for products and not published; CI builds it and holds it to its own
 flash budget, and it is not a required check. The eleventh, since 2026-10-21 on
-the same branch, is `pico2_w_angulo`: the Ângulo on the Pico 2 W, `pico2_w_release`
-with the touch panel drawn by `src/ui/angulo/` (the maintainer decided that day
-that the Ângulo ships first on that board). Not approved for products and not
-published either; CI builds it and holds it to its own flash and static-RAM
-budgets, it is not a required check, and since 2026-10-22 the Pico 2 W on the
-bench runs it (the S10b tip's image, then the S10c A' tip's: see section 2.16 of
-`docs/analysis/UI_DRIVERS.md`). Name the eleven.
+the same branch, was `pico2_w_angulo`: the Ângulo on the Pico 2 W. Since 2026-10-30 (S10c C3, the
+maintainer's decision C-D1) the Pico 2 W's release **is** that image: `pico2_w_release` has
+`ui = "angulo"` in the manifest, and keeps its name, its required check and its published
+assets (`releasetwo`). The eleventh is now `pico2_w_original`, the original panel it carried
+until then: not published and not a required check; CI builds it and holds it to its own flash
+budget. The Ângulo images (`pico_wiretft_angulo` and `pico2_w_release`) are held to the link-set
+and static-RAM gates, picked by the profile's `ui` (`tools/env_ui.py`) and not by the name. Both
+Pico 2 W images are `releasetwo` for the OTA, so a device moves between them over the air, both
+ways (the retention gate on the board is C5's; the Pico 2 W on the bench ran the S10b and S10c
+tips' images, section 2.16 of `docs/analysis/UI_DRIVERS.md`). Name the eleven.
 There is no debug environment — see the note in `platformio.ini` for why.
 
 ## What will fail your build before CI does
@@ -111,7 +114,7 @@ locally. When one fires, it is usually right:
 
 - `main` is protected. Every change goes through a pull request, and the nine
   required checks must pass: every CI job except the `pico_w_test_https`,
-  `pico_wire`, `pico_wiretft`, `pico_wiretft_angulo` and `pico2_w_angulo` images
+  `pico_wire`, `pico_wiretft`, `pico_wiretft_angulo` and `pico2_w_original` images
   (`firmware (pico2_w_release)` joined on 2026-10-01).
 - Commit messages and pull requests are written in English; conversation with
   the maintainer is in Portuguese.

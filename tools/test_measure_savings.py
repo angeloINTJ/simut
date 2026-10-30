@@ -535,16 +535,17 @@ def flips_cases():
     check("a choice's key carries its value: ui=angulo", ms.flip_key("ui", "angulo") == "ui=angulo", ms.flip_key("ui", "angulo"))
     check("the network's key is unchanged: net=enc28j60", ms.flip_key("net", "enc28j60") == "net=enc28j60")
     check("a switch's key is its name", ms.flip_key("buzzer", True) == "buzzer")
-    check("the build env of a ui flip has no '=' (PlatformIO refuses it)", "=" not in ms.cost_env("pico2_w_release", "ui=angulo"))
+    check("the build env of a ui flip has no '=' (PlatformIO refuses it)", "=" not in ms.cost_env("pico2_w_release", "ui=original"))
     p2 = gf.resolve_profile("pico2_w_release", M["profiles"])
     flips = dict(ms.flips_of(p2, M))
-    check("pico2_w_release flips to the Ângulo", "ui=angulo" in flips, sorted(k for k in flips if "=" in k))
-    check("the flipped profile asks for the Ângulo and keeps the rest",
-          "ui=angulo" in flips and flips["ui=angulo"].get("ui") == "angulo"
-          and {k: v for k, v in flips["ui=angulo"].items() if k != "ui"} == {k: v for k, v in p2.items() if k != "ui"})
+    # S10c C3 (2026-10-30): the Pico 2 W's base is the Ângulo image, so its look flip goes to the original (it went to the Ângulo until then).
+    check("pico2_w_release flips to the original", "ui=original" in flips, sorted(k for k in flips if "=" in k))
+    check("the flipped profile asks for the original and keeps the rest",
+          "ui=original" in flips and flips["ui=original"].get("ui") == "original"
+          and {k: v for k, v in flips["ui=original"].items() if k != "ui"} == {k: v for k, v in p2.items() if k != "ui"})
     check("no flip to the product's own look", "ui=" + p2.get("ui", gf.DEFAULT_UI) not in flips)
     only = ms.flips_of(p2, M, ["ui"])
-    check("--only ui gives the ui flips alone", [k for k, _ in only] == ["ui=angulo"], [k for k, _ in only])
+    check("--only ui gives the ui flips alone", [k for k, _ in only] == ["ui=original"], [k for k, _ in only])
     plans = {}
     for prod in ("pico_w_release", "pico_w_alpha", "pico_w_air", "pico2_w_release"):
         prof = gf.resolve_profile(prod, M["profiles"])
@@ -553,12 +554,19 @@ def flips_cases():
             ms.plan_flip(blocks, plan, prod, key, flipped, M)
         plans[prod] = (blocks, plan)
     b, pl = plans["pico2_w_release"]
-    check("the Ângulo on the Pico 2 W is built: one env, no rule", len(b) == 1 and pl[0][2] and pl[0][3] is None, pl)
+    check("the original on the Pico 2 W is built: one env, no rule", len(b) == 1 and pl[0][2] and pl[0][3] is None, pl)
+    check("... and its env names no RAM budget: an original image has no Ângulo objects for the gate to hold", len(b) == 1 and "custom_ui_ram_budget_env" not in b[0], b[0][-160:] if b else b)
     # The Ângulo's static-RAM gate (tools/check_ui_ram.py) holds every environment to an entry in tools/ui_ram_budget.json, and a
     # temporary one has none: the matrix of 2026-10-29 lost this flip at the end of its link ("[ui-ram] FATAL: no static-RAM budget
     # for _cost_pico2_w_release_ui_angulo"). The env names the real one whose entry holds it, as build_custom.py does for _custom.
-    check("the Ângulo's env names the budget of the real Ângulo env on that hardware (pico2_w_angulo)",
-          len(b) == 1 and "\ncustom_ui_ram_budget_env = pico2_w_angulo\n" in "\n" + b[0], b[0][-160:] if b else b)
+    # Since S10c C3 the Ângulo flip is one from the original image (pico2_w_original), and the real env on that hardware is pico2_w_release.
+    po = gf.resolve_profile("pico2_w_original", M["profiles"])
+    bo, plo = [], []
+    for key, flipped in ms.flips_of(po, M, ["ui"]):
+        ms.plan_flip(bo, plo, "pico2_w_original", key, flipped, M)
+    check("the Ângulo flip of pico2_w_original is built: one env, no rule", len(bo) == 1 and plo[0][1] == "ui=angulo" and plo[0][2] and plo[0][3] is None, plo)
+    check("the Ângulo's env names the budget of the real Ângulo env on that hardware (pico2_w_release)",
+          len(bo) == 1 and "\ncustom_ui_ram_budget_env = pico2_w_release\n" in "\n" + bo[0], bo[0][-160:] if bo else bo)
     # No real Ângulo env holds this hardware's budget: the flip is not built and says why (the review of 2026-10-29 found
     # this branch untested). build_custom.ui_ram_env stubbed to answer "none".
     import build_custom as bc
@@ -566,21 +574,30 @@ def flips_cases():
     try:
         bc.ui_ram_env = lambda prof, M_, budgets=None: (None, "no budget here")
         b2, pl2 = [], []
-        for key, flipped in ms.flips_of(p2, M, ["ui"]):
-            ms.plan_flip(b2, pl2, "pico2_w_release", key, flipped, M)
+        for key, flipped in ms.flips_of(po, M, ["ui"]):
+            ms.plan_flip(b2, pl2, "pico2_w_original", key, flipped, M)
         check("with no real Ângulo env for the hardware the flip is unsupported, with the reason, and not built",
-              b2 == [] and pl2 == [("pico2_w_release", "ui=angulo", None, {"unsupported": "no budget here"})], (b2, pl2))
+              b2 == [] and pl2 == [("pico2_w_original", "ui=angulo", None, {"unsupported": "no budget here"})], (b2, pl2))
     finally:
         bc.ui_ram_env = saved_ure
-    # The checks: one carries the Ângulo (2026-10-29), so the page's margin covers its line; its env names the budget too.
-    ang = [(i, c) for i, c in enumerate(ms.CHECKS) if c[1].get("ui") == "angulo"]
-    check("a check carries the Ângulo, on the Pico 2 W", len(ang) == 1 and ang[0][1][0] == "pico2_w_release", ang)
-    if ang:
-        prof = gf.resolve_profile(ang[0][1][0], M["profiles"])
-        prof.update(ang[0][1][1])
+    # The checks (S10c C3, 2026-10-30): the Pico 2 W's own look is the Ângulo, so no check sets it (a `set` holds changes, and `ui=angulo` is no flip of pico2_w_release: the matrix run of that day
+    # ended in print_checks( ) with KeyError on the check that did); one check sets the original, the change that exists, and its env names no RAM budget (the original holds no Ângulo objects).
+    eff = lambda p, ch: ch.get("ui", gf.resolve_profile(p, M["profiles"]).get("ui", gf.DEFAULT_UI))
+    own = [(p, ch) for p, ch in ms.CHECKS if ch.get("ui") == gf.resolve_profile(p, M["profiles"]).get("ui", gf.DEFAULT_UI)]
+    check("no check sets the product's own look (a set holds changes only)", own == [], own)
+    orig = [(i, c) for i, c in enumerate(ms.CHECKS) if c[1].get("ui") == "original"]
+    check("one check sets the original, on the Pico 2 W", len(orig) == 1 and orig[0][1][0] == "pico2_w_release", orig)
+    if orig:
+        prof = gf.resolve_profile(orig[0][1][0], M["profiles"])
+        prof.update(orig[0][1][1])
         text, why = ms.env_text("_check_x", prof, M)
-        check("the Ângulo check's env names the budget of pico2_w_angulo",
-              why is None and "\ncustom_ui_ram_budget_env = pico2_w_angulo\n" in "\n" + text, why)
+        check("the original check's env names no RAM budget", why is None and "custom_ui_ram_budget_env" not in text, why)
+    first_two = [c for c in ms.CHECKS if c[0] == "pico2_w_release" and "ui" not in c[1]]
+    prof = gf.resolve_profile(first_two[0][0], M["profiles"])
+    prof.update(first_two[0][1])
+    text, why = ms.env_text("_check_x", prof, M)
+    check("a Pico 2 W check on the product's own look (the Ângulo) names the budget of pico2_w_release",
+          why is None and "\ncustom_ui_ram_budget_env = pico2_w_release\n" in "\n" + text, why)
     # measure_checks( ) itself builds its environments through env_text( ): the TempEnvs and the builds stubbed, exactly one of
     # the CHECKS environments names an Ângulo budget, and it is the one whose set carries the Ângulo (the review of 1414638d:
     # a revert of measure_checks( ) to the bare emit_env( ), or an env_text( ) that looks the budget up for every profile, both
@@ -604,9 +621,9 @@ def flips_cases():
     finally:
         ms.TempEnvs, ms.pio_build_full = saved_te, saved_pbf
     with_budget = [b.splitlines()[0] for b in seen_blocks if "custom_ui_ram_budget_env = " in b]
-    want = [f"[env:_check_{i}]" for i, c in enumerate(ms.CHECKS) if c[1].get("ui") == "angulo"]
-    check("measure_checks( ): one environment per check, and only the Ângulo's names a RAM budget",
-          len(seen_blocks) == len(ms.CHECKS) and len(out) == len(ms.CHECKS) and with_budget == want and len(want) == 1,
+    want = [f"[env:_check_{i}]" for i, c in enumerate(ms.CHECKS) if eff(c[0], c[1]) == "angulo"]
+    check("measure_checks( ): one environment per check, and only the Ângulo images' name a RAM budget (two, the Pico 2 W's own look since S10c C3)",
+          len(seen_blocks) == len(ms.CHECKS) and len(out) == len(ms.CHECKS) and with_budget == want and len(want) == 2,
           (len(seen_blocks), with_budget, want))
     # print_checks( ) names a choice by its value: "ui=angulo", not "ui=on" (a switch prints on/off).
     import io, contextlib

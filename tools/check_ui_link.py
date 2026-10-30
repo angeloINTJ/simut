@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """check_ui_link.py -- the Angulo images must not link the original UI driver: the function table decides, the name patterns check what it does not cover (S10b: C6, 2026-10-21; C6b, C6c, C6d and C6e, 2026-10-22).
 
-usage: check_ui_link.py [--nm PATH] [--readelf PATH] [--tsv FILE] [--original-units A,B] ELF [ELF...]    each ELF an image that carries the Angulo (pico_wiretft_angulo, pico2_w_angulo)
+usage: check_ui_link.py [--nm PATH] [--readelf PATH] [--tsv FILE] [--original-units A,B] ELF [ELF...]    each ELF an image that carries the Angulo (the profiles with ui = angulo: pico_wiretft_angulo, pico2_w_release)
        check_ui_link.py --selftest                  the gate's own cases on synthetic `nm` text and synthetic table rows, a read of the real table, and the command line's own function (main) on a fake nm and a fake readelf, a shell script each, then the script itself run as a process, the way CI runs it (no toolchain, no ELF: it can run in the gates job)
 exit 0: every ELF clean. 1: a finding (a symbol the Angulo image must not hold, or an allowance that no longer applies). 2: a refusal (no ELF, nm or readelf missing or failed, not an Angulo image, a table it cannot read).
 

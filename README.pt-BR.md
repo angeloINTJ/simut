@@ -329,7 +329,7 @@ Todo push e pull request para a `main` roda quatro jobs:
 - **fuzz** — 60 s de libFuzzer contra os validadores da API web, com oráculos de contrato.
 - **análise estática** — cppcheck, em versão fixa.
 
-A `main` é protegida: nove dessas checagens precisam passar antes de qualquer merge, todos os jobs menos as imagens `pico_w_test_https`, `pico_wire`, `pico_wiretft`, `pico_wiretft_angulo` e `pico2_w_angulo`.
+A `main` é protegida: nove dessas checagens precisam passar antes de qualquer merge, todos os jobs menos as imagens `pico_w_test_https`, `pico_wire`, `pico_wiretft`, `pico_wiretft_angulo` e `pico2_w_original`.
 
 ### Verificação no hardware
 
