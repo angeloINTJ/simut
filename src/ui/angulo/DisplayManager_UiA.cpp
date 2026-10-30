@@ -13,7 +13,7 @@
  */
 
 #include "../../DisplayManager.h"
-#include "../../simut_config.h"   /* SIMUT_NET_WIFI is tested below (the setup-network confirmation, S10c D7): included here, not left to DisplayManager.h's chain */
+#include "../../simut_config.h"   /* SIMUT_NET_WIFI is tested below (the setup-network confirmation, S10c D7) and read by uaVmStatus( ): included here, not left to DisplayManager.h's chain */
 #include "../../DisplayManager_Ticks.h"   /* the core's ticks, which uiPass( ) calls */
 #include "../../FlashIrqProbe.h"          /* C1_PHASE */
 #include "../../sensors/SensorHelpers.h"    /* sensorLimitCount( ) */
@@ -197,9 +197,22 @@ void DisplayManager::uaVmStatus( ua::VmStatus &s ) {
     s.aviso = ua::Aviso::WEB;
     ua::copiar( s.avisoNome, _webNotifyUser, sizeof s.avisoNome );
   }
-  /* The wired build's RSSI is the link: above -100 the cable is up (the old
-   * top bar's glyph, DisplayManager_Dashboard.cpp). */
-  s.rede = _lastRenderedState.wifiRssi > -100 ? ua::Rede::CABO : ua::Rede::CABO_SEM_LINK;
+  /* The network glyph, from the level Core 0 publishes (NetworkManager::getRssi( ) through setSystemStatus( )): the radio's dBm while the link is up, -100 when it is not (the shared
+   * state starts there too), and on a cable a stand-in above -100 while the link is up (NetworkManager_Wired.cpp). The old top bar reads the same number (DisplayManager::drawTopBar( ),
+   * DisplayManager_Dashboard.cpp), and this says the same things with the kit's icons:
+   *  - a cable image: above -100 the cable is up, at -100 or less it has no link (the old bar's green cable and its grey one);
+   *  - a Wi-Fi image: at -100 or less no signal (the old bar draws no bar), above it a link; the old bar's lowest level, one bar of four, at -75 or less (the `else` after its
+   *    `> -75`), is the weak one, and its two to four bars (above -75: the -65 and -55 steps) are one state here, for the icon has no levels.
+   * The old bar has no glyph for the setup access point (apMode is read only by the alphanumeric display) and none for "no network", so Rede::NENHUMA is never answered. The image's
+   * network is read as a value, SIMUT_NET_WIFI in a constant expression, and not by an `#if`: a macro that is not defined does not compile here and is not a silent 0, and the file's
+   * one `#if` on the network class (the setup-network confirmation, below) stays its only one. tools/tft_ui/test_rede.py reads the ladder out of the old bar and holds this to it. */
+  constexpr int SEM_SINAL = -100;
+  constexpr int UMA_BARRA = -75;
+  const int nivel = _lastRenderedState.wifiRssi;
+  if constexpr ( SIMUT_NET_WIFI )
+    s.rede = nivel > SEM_SINAL ? ( nivel > UMA_BARRA ? ua::Rede::WIFI : ua::Rede::WIFI_FRACO ) : ua::Rede::WIFI_SEM;
+  else
+    s.rede = nivel > SEM_SINAL ? ua::Rede::CABO : ua::Rede::CABO_SEM_LINK;
   s.pendentes = _lastRenderedState.pendingPkts;
   s.envio = _pktArrowState == 2 ? 2 : _pktArrowState == 1 ? 1 : 0;
 }
@@ -701,7 +714,7 @@ UaToque DisplayManager::uaToqueBase( const ua::Alvo *a, int16_t &, int16_t & ) {
 }
 
 /* The setup network's confirmation (MODE_CONFIRM_AP), the dialog's third user after the two above (S10c, D7). Only a Wi-Fi image reaches the mode: MENU_SETUP_AP is not in the wired
- * build's menu (telas/MenusConfig.h:30) and showApConfirm( ) exists only under SIMUT_NET_WIFI (DisplayManager.h:672). So the one conditional of this file on the network class carries
+ * build's menu (telas/MenusConfig.h:30) and showApConfirm( ) exists only under SIMUT_NET_WIFI (DisplayManager.h:672). So the one `#if` of this file on the network class carries
  * both members, and the wired Ângulo image gets the stubs of the #else, which claim nothing: it keeps neither the texts nor the code (the sprawl watermark 364 -> 365, recorded in
  * tools/features.toml next to D2's). The body says only what changes: the unit leaves its station for its own setup network, and the telemetry stops until it rejoins, 15 minutes later
  * (AP_MODE_TIMEOUT_MS, NetworkManager_Cyw43.cpp:331: with a network configured). It says nothing about sensors, because the loop keeps measuring and alarming in AP mode (6933dcb3).
