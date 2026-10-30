@@ -12589,7 +12589,7 @@ Prosseguir com a restauração?</code></pre>
 <h3 id="cap-17-ota">Atualizar o firmware</h3>
 <h4 id="cap-17-ota-antes">Antes de começar</h4>
 <aside class="faixa faixa-perigo"><span class="selo selo-perigo"><i></i>Perigo</span>
-<p><strong>Não há volta automática.</strong> O aparelho tem um único espaço para o firmware. A imagem nova substitui a atual, e não existe uma cópia da anterior para recuar. Se algo der errado na aplicação, a recuperação é pelo cabo USB e pelo botão BOOTSEL (<a href="#cap-18">capítulo 18</a>).</p>
+<p><strong>No Pico W, não há volta automática.</strong> O aparelho tem um único espaço para o firmware. A imagem nova substitui a atual, e não existe uma cópia da anterior para recuar. Se algo der errado na aplicação, a recuperação é pelo cabo USB e pelo botão BOOTSEL (<a href="#cap-18">capítulo 18</a>). O Pico 2 W tem dois slots: a imagem nova vai para o outro slot, sobe em teste, e a anterior volta sozinha quando a nova não se confirma (<a href="#cap-26-ota">capítulo 26</a>).</p>
 </aside>
 <p>Você precisa de:</p>
 <ul>
@@ -22016,7 +22016,7 @@ assert dados[-8:] == b&quot;SIMUTSIG&quot;, &quot;imagem sem assinatura&quot;</c
 <aside class="faixa faixa-atencao"><span class="selo selo-alerta"><i></i>Atenção</span>
 <p><strong>Sem o passo 5, o aparelho fica sem histórico, sem certificado HTTPS e sem origem CORS.</strong> A atualização reformata o sistema de arquivos e só a configuração principal sobrevive (<a href="#cap-26-ota">capítulo 26</a>). O backup restaurado traz os pacotes de idioma antigos: por isso o passo 6 vem depois dele.</p>
 </aside>
-<p>Uma imagem de 1 MB leva cerca de 30 s para chegar. Não desligue nem reinicie o aparelho entre os passos 2 e 4: há um único espaço de firmware, e uma falha na gravação exige o cabo USB (<a href="#cap-18">capítulo 18</a>).</p>
+<p>Uma imagem de 1 MB leva cerca de 30 s para chegar. Não desligue nem reinicie o aparelho entre os passos 2 e 4: no Pico W há um único espaço de firmware, e uma falha na gravação exige o cabo USB (<a href="#cap-18">capítulo 18</a>); no Pico 2 W a imagem vai para o outro slot, e um reinício antes de ela se confirmar traz de volta a versão anterior (<a href="#cap-26-ota">capítulo 26</a>).</p>
 <h4 id="cap-27-ondas">Em ondas</h4>
 <p>Nunca atualize a frota inteira de uma vez.</p>
 <figure id="fig-27-ondas" class="fig fig-diagrama"><div class="pendente pendente-diagrama" role="img" aria-label="Imagem a capturar: A atualização em ondas. Cada onda só começa depois de a anterior se provar estável."><span class="selo selo-alerta"><i></i>Imagem a capturar</span><span class="pend-tipo">Diagrama · <code>27-ondas.png</code></span><span class="pend-como">diagrama: a frota dividida em três ondas; onda 0 com um aparelho de bancada, onda 1 com poucos aparelhos de cada imagem, onda 2 com o resto; entre as ondas, uma barreira &#x27;conferir versão, telemetria e alarmes por um período&#x27;; dentro de cada aparelho, a sequência backup, envio, aplicação, confirmação, restauração, idioma</span></div><figcaption><b>Figura 244.</b> A atualização em ondas. Cada onda só começa depois de a anterior se provar estável.</figcaption></figure>

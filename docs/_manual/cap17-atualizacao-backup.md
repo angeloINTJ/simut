@@ -204,7 +204,7 @@ Uma recusa aparece como **Validação falhou:** ou **Falha ao aplicar:**, seguid
 ### Antes de começar {#cap-17-ota-antes}
 
 ::: perigo
-**Não há volta automática.** O aparelho tem um único espaço para o firmware. A imagem nova substitui a atual, e não existe uma cópia da anterior para recuar. Se algo der errado na aplicação, a recuperação é pelo cabo USB e pelo botão BOOTSEL ([capítulo 18](#cap-18)).
+**No Pico W, não há volta automática.** O aparelho tem um único espaço para o firmware. A imagem nova substitui a atual, e não existe uma cópia da anterior para recuar. Se algo der errado na aplicação, a recuperação é pelo cabo USB e pelo botão BOOTSEL ([capítulo 18](#cap-18)). O Pico 2 W tem dois slots: a imagem nova vai para o outro slot, sobe em teste, e a anterior volta sozinha quando a nova não se confirma ([capítulo 26](#cap-26-ota)).
 :::
 
 Você precisa de:

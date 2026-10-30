@@ -463,7 +463,7 @@ A sequência é a do [capítulo 26](#cap-26-ota), com dois passos a mais no fim:
 **Sem o passo 5, o aparelho fica sem histórico, sem certificado HTTPS e sem origem CORS.** A atualização reformata o sistema de arquivos e só a configuração principal sobrevive ([capítulo 26](#cap-26-ota)). O backup restaurado traz os pacotes de idioma antigos: por isso o passo 6 vem depois dele.
 :::
 
-Uma imagem de 1 MB leva cerca de 30 s para chegar. Não desligue nem reinicie o aparelho entre os passos 2 e 4: há um único espaço de firmware, e uma falha na gravação exige o cabo USB ([capítulo 18](#cap-18)).
+Uma imagem de 1 MB leva cerca de 30 s para chegar. Não desligue nem reinicie o aparelho entre os passos 2 e 4: no Pico W há um único espaço de firmware, e uma falha na gravação exige o cabo USB ([capítulo 18](#cap-18)); no Pico 2 W a imagem vai para o outro slot, e um reinício antes de ela se confirmar traz de volta a versão anterior ([capítulo 26](#cap-26-ota)).
 
 ### Em ondas {#cap-27-ondas}
 

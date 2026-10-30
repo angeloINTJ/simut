@@ -53,7 +53,7 @@ Os três compartilham o mesmo núcleo:
 **Limitações conhecidas.** Cada uma está documentada onde se aplica.
 - **Atualização.** A atualização pelo ar reformata o sistema de arquivos:
   - Wi-Fi, contas e slots de sensor atravessam a atualização. Histórico, arquivos de calibração e packs de idioma não, por isso a página web baixa um backup antes de começar, e restaurá-lo traz tudo de volta.
-  - Há um único slot de firmware e nenhum rollback. Uma gravação ruim se recupera com BOOTSEL e cabo USB.
+  - No Pico W há um único slot de firmware e nenhum rollback. Uma gravação ruim se recupera com BOOTSEL e cabo USB. O Pico 2 W tem dois slots: a atualização sobe em teste, e a imagem que ela trocou volta sozinha se a nova não se confirmar ([Rollback](docs/MANUAL.pt-BR.md#rollback)).
   - Desde a v2.9.0, só uma imagem que o projeto assinou se instala pelo ar: o `.bin` de uma release, ou uma build do configurador. Uma build sua vai pelo USB.
 - **Resets sem explicação.** Um reset de watchdog (`ctx=209` ou `ctx=455`) apareceu três vezes na imagem de teste em 20–21 de setembro, e não desde então; o que foi capturado com o contexto tinha o Core 0 no console (`ctx=209`). Os dois núcleos agora estão instrumentados para explicar o próximo. Um `ctx=455` (trace vazio) no primeiro boot depois de `picotool load -x` não é isso: esse reinício passa pelo watchdog, e o registro apareceu depois de 11 de 11 gravações assim e de nenhum de 7 resets pelo pino (30/09/2026).
 - **Conexões ociosas.** No soak da v2.7.0, 7,1 % das respostas numa conexão keep-alive ociosa chegaram cortadas. O aparelho derruba um fluxo que não consegue enviar por 4 s.

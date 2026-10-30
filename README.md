@@ -55,7 +55,7 @@ They share one core:
 **Known limitations.** Each one is documented where it applies.
 - **Updates.** An update over the air reformats the filesystem:
   - Wi-Fi, accounts and sensor slots are carried across. History, calibration files and language packs are not, so the web page downloads a backup before it starts, and restoring it brings them back.
-  - There is one firmware slot and no rollback. A bad flash is recovered with BOOTSEL and a USB cable.
+  - On the Pico W there is one firmware slot and no rollback. A bad flash is recovered with BOOTSEL and a USB cable. The Pico 2 W has two slots: an update boots on trial, and the image it replaced comes back by itself if the new one does not keep itself ([Rollback](docs/MANUAL.md#rollback)).
   - Since v2.9.0, only an image the project signed installs over the air: a release `.bin`, or a build from the configurator. A build of your own goes over USB.
 - **Unexplained resets.** A watchdog reset (`ctx=209` or `ctx=455`) appeared three times on the test image on 20–21 September and not since; the one caught with its context had Core 0 in the console (`ctx=209`). Both cores are now instrumented to explain the next one. A `ctx=455` (empty trace) on the first boot after `picotool load -x` is not this: that reboot goes through the watchdog, and the record appeared after 11 of 11 such flashes and after none of 7 hardware resets (2026-09-30).
 - **Idle connections.** During the v2.7.0 soak, 7.1 % of responses on an idle keep-alive connection arrived cut short. The device drops a stream it cannot send for 4 s.
