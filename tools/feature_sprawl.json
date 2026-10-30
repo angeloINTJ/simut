@@ -234,8 +234,7 @@
   "ui/original/Themes.cpp": 1
  },
  "SIMUT_UI_ANGULO": {
-  "AppManager_Events.cpp": 4,
-  "ui/UiDriverTouch.h": 1
+  "AppManager_Events.cpp": 4
  },
  "SIMUT_UI_CUSTOM_THEMES": {
   "WebManager_Files.cpp": 2

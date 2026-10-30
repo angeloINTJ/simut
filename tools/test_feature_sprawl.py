@@ -96,6 +96,10 @@ CASOS = [
     ('a comment line counts nothing', {'a.cpp': '// if constexpr ( SIMUT_A )\n/* if constexpr ( SIMUT_A )\n * if constexpr ( SIMUT_A )\n */\n'}, {}),
     ('the files the gate skips count nothing', {'NetCaps.h': '  if constexpr ( SIMUT_A )\n'}, {}),
     ('a file that is not source counts nothing', {'a.txt': '  if constexpr ( SIMUT_A )\n'}, {}),
+    # The five selection headers of the UI driver (S11 A5, 2026-10-30): UiDriverTouch.h, the fifth, picks the touch chain with an `#if SIMUT_UI_ANGULO` around an include, as the four before it pick the members, the hooks and the web part.
+    ('the five selection headers of the UI driver count nothing', {'ui/UiDriver.h': '#if SIMUT_UI_ANGULO\n#endif\n', 'ui/UiDriverMembers.h': '#if SIMUT_UI_ANGULO\n#endif\n',
+      'ui/UiDriverHooks.h': '#if SIMUT_UI_ANGULO\n#endif\n', 'ui/UiDriverWeb.h': '#if SIMUT_UI_ANGULO\n#endif\n', 'ui/UiDriverTouch.h': '#if SIMUT_UI_ANGULO\n#endif\n'}, {}),
+    ('a sixth header of that name is not let off: it counts', {'ui/UiDriverFoo.h': '#if SIMUT_UI_ANGULO\n#endif\n'}, {'SIMUT_UI_ANGULO': {'ui/UiDriverFoo.h': 1}}),
     # The code and not the comment: a macro named in an end-of-line comment is no site (2026-10-30, the reviewer's false positive).
     ('an if constexpr whose comment names a macro counts nothing', {'a.cpp': '  if constexpr ( kX )   // SIMUT_A only\n    g();\n'}, {}),
     ('an #if whose comment names a macro counts nothing', {'a.cpp': '#if FOO   // SIMUT_A only\n#endif\n'}, {}),

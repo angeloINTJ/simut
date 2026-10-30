@@ -61,10 +61,12 @@ BASELINE = os.path.join(ROOT, "tools", "feature_sprawl.json")
 # escolhe o driver da imagem (um `#if SIMUT_UI_ANGULO` em volta de um include), a funcao do UiCaps.h. Contados,
 # tirar os `#if` do DisplayManager.h e do WebManager.h os poria em quatro arquivos e a marca subiria dois sitios
 # sem que nada tivesse se emaranhado: o que sai do nucleo e o que este gate quer ver.
-# O quinto (ui/UiDriverTouch.h, S10b C3, a cadeia de toque dentro de handleTouch) nao esta na lista: seu `#if SIMUT_UI_ANGULO`
-# conta como um sitio, movido do DisplayManager_Touch.cpp (a marca ficou em 362; feature_sprawl.json: "ui/UiDriverTouch.h": 1).
+# O quinto (ui/UiDriverTouch.h, S10b C3, a cadeia de toque dentro de handleTouch) estava de fora ate 2026-10-30: seu `#if SIMUT_UI_ANGULO` contava
+# como um sitio, movido do DisplayManager_Touch.cpp (a marca ficou em 362; feature_sprawl.json tinha "ui/UiDriverTouch.h": 1). Entrou na lista em S11 A5 (Q2 do
+# plano do S11, decidida pela sessao principal e dita ao mantenedor): faz o mesmo que os quatro, escolher o driver da imagem num `#if SIMUT_UI_ANGULO` em volta
+# de um include, e a marca desceu 1 (369 -> 368). Um sexto cabecalho continua sendo uma edicao aqui, de proposito (tools/test_feature_sprawl.py: 'a sixth header of that name is not let off').
 SKIP_FILES = {"simut_config.h", "FeatureBits.h", "NetCaps.h", "UiCaps.h",
-              "UiDriver.h", "UiDriverMembers.h", "UiDriverHooks.h", "UiDriverWeb.h"}
+              "UiDriver.h", "UiDriverMembers.h", "UiDriverHooks.h", "UiDriverWeb.h", "UiDriverTouch.h"}
 EXTS = (".cpp", ".c", ".h", ".hpp", ".ino")
 
 COND = re.compile(r"^\s*#\s*(?:if|ifdef|ifndef|elif)\b(.*)$")

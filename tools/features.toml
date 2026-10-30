@@ -269,6 +269,11 @@ web_omit = "ui_angulo"
 # essa linha (so contava `#if`): a tools/check_feature_sprawl.py passou a contar `if constexpr ( SIMUT_X )` como sitio, com o primeiro teste do portao (tools/test_feature_sprawl.py: vermelho antes, onze mutantes
 # dele) e o emaranhamento subiu 1 (368 -> 369: SIMUT_NET_WIFI no DisplayManager_UiA.cpp, de 1 para 2), um desvio registrado como o do D7, pedido pela sessao principal em 2026-10-30 (a revisao do fix do Wi-Fi) e a
 # confirmar pelo mantenedor no merge: a [net_class.wifi] segue sem lista `units` por onde o codigo saisse da imagem cabeada, e as duas imagens do Angulo tem a uaVmStatus( ).
+# O ui/UiDriverTouch.h, o quinto cabecalho de selecao do driver (S10b C3), entrou em 2026-10-30 (S11, A5) na lista de arquivos que a tools/check_feature_sprawl.py nao conta (Q2 do plano do S11,
+# decidida pela sessao principal e dita ao mantenedor; tools/test_feature_sprawl.py: o caso novo falha antes, 52 verificacoes passam depois): o `#if SIMUT_UI_ANGULO` dele so escolhe o driver, como o dos
+# outros quatro, e o emaranhamento desceu 1 (369 -> 368: SIMUT_UI_ANGULO em ui/UiDriverTouch.h, de 1 para 0). A marca que o mantenedor confirma no merge e a de 368, e nao a de 369. Ela fica 14 acima da da
+# main (354 em origin/main 43b275d8, medida em 2026-10-30; por macro: SIMUT_UI_ANGULO +4, SIMUT_UI_PACK_TEXTS +4, SIMUT_NET_WIFI +3, SIMUT_UI_CUSTOM_THEMES +2, SIMUT_NET_LAN +2, SIMUT_DISPLAY_TFT -1). Os
+# desvios registrados acima (D2, D7 e o `if constexpr`) seguem contados: a A5 tirou da conta so um cabecalho de selecao.
 # O .bin do Angulo cabeado difere do do C8 em 579 bytes de 826736, e o veneer_proof.py (exit 0) os prova so da ordem dos veneers do ligador e dos operandos dos desvios que os chamam.
 # A DisplayManager_Calibration.cpp entrou em 2026-10-24 (S10c, D3): as duas entradas de modo das telas de calibracao, showTouchCalibration( ) e
 # showSettingsDisplayOffset( ), que o core0Yield( ), o handleResetTouchCal e a CLI chamam, so guardavam do original dois restos: as sete memorias de
