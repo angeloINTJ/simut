@@ -95,9 +95,9 @@ medidos em `4629e8c6` em 30/10/2026.
   alinhadas em 8, que acompanha o tamanho de tudo o que vem antes. O piso agora compara o `used` menos todo enchimento
   do mapa do linker (boot2, text, rodata e data) e recusa um mapa cujas seções não somam o `used`; uma queda de até
   `FLASH_TOL` = 8 B passa. Dezesseis pisos foram gravados de novo (13 caem de 1 a 102 B, 3 sobem de 1 a 5 B, porque a
-  unidade agora são os bytes de conteúdo), e o `tools/test_measure_savings.py` tem 45 casos, contra 21. Um caractere
-  da string de versão mexia seis das nove economias em 8 B; "2.13.0" não mexe nenhuma (medido com o #302, 30/10/2026;
-  o job noturno não rodou naquele ramo).
+  unidade agora são os bytes de conteúdo), e o `tools/test_measure_savings.py` foi de 21 para 45 casos com o #302 (76
+  nesta árvore). Um caractere da string de versão mexia seis das nove economias em 8 B; "2.13.0" não mexe nenhuma
+  (medido com o #302, 30/10/2026; o job noturno não rodou naquele ramo).
 - **O painel é um driver escolhido quando a imagem é compilada** (#304). O contrato e a auditoria são o
   `docs/analysis/UI_DRIVERS.md` (Living). O código do driver original é `src/ui/original/` (14 unidades e três tabelas
   de fontes) e o do Ângulo `src/ui/angulo/`; o release do Pico 2 W compila o Ângulo (`ui = "angulo"` no manifesto).
@@ -115,11 +115,14 @@ medidos em `4629e8c6` em 30/10/2026.
 - **Os orçamentos de flash acompanham as imagens** (`tools/flash_budget.json`): o release em +200 B, o `pico_w_test`
   +160, o `pico_w_test_https` +176, o `pico_w_asserts` +200, o `pico_wiretft` +160 e o `pico2_w_release` +38.104; o
   `pico_wire` cai 40 B; a alpha e o Air mantêm os seus; o `pico_wiretft_angulo` (816.836 B) e o `pico2_w_original`
-  (1.000.032 B) são novos. O piso de economia do `tft_graph` cai 68 B, de 20.433 para 20.365 B: a soma de cinco
-  funções do `DisplayManager` (`loopCore1` -48, `handleTouch` -28, `drawUserEdit` +4, `pinAppendChar` +4), e os mesmos
-  21 símbolos saem inteiros na main e no ramo. A marca d'água de entrelaçamento de recursos
+  (1.000.032 B) são novos. O piso de economia do `tft_graph` cai 68 B, de 20.433 B (o piso que o #302 gravou; o da
+  v2.12.0 era 20.432) para 20.365 B: a soma de quatro funções do `DisplayManager` (`loopCore1` -48, `handleTouch` -28,
+  `drawUserEdit` +4, `pinAppendChar` +4) e de uma quinta, `showSettingsAlarms`, renomeada por um const e sem mudança
+  de tamanho; os mesmos 21 símbolos saem inteiros na main e no ramo. A marca d'água de entrelaçamento de recursos
   (`tools/check_feature_sprawl.py`) sobe de 354 para 368 pontos (+14: `SIMUT_UI_PACK_TEXTS` +4, `SIMUT_UI_ANGULO` +4,
-  `SIMUT_NET_WIFI` +3, `SIMUT_NET_LAN` +2, `SIMUT_UI_CUSTOM_THEMES` +2, `SIMUT_DISPLAY_TFT` -1).
+  `SIMUT_NET_WIFI` +3, `SIMUT_NET_LAN` +2, `SIMUT_UI_CUSTOM_THEMES` +2, `SIMUT_DISPLAY_TFT` -1). O contador em si
+  mudou no #304 (ele conta linhas `if constexpr ( SIMUT_` e o `SKIP_FILES` ganhou 6 cabeçalhos); o contador novo sobre
+  a árvore da main dá 354, então o +14 compara coisas iguais.
 - **Documentos.** O `docs/analysis/UI_DRIVERS.md` (o contrato dos drivers e a auditoria), o parágrafo do `AGENTS.md`
   sobre o piso de economia e o `docs/analysis/ECONOMIA_DE_RECURSOS.md` (uma seção sobre o enchimento de alinhamento),
   os três Living.
@@ -148,8 +151,8 @@ de documentação do portão, a partir da candidata que o CI assina na `main`. A
 data em que foi medido. O que rodou numa placa antes, em imagens de desenvolvimento do Ângulo (o Pico 2 W da bancada;
 cada registro fica fora do repositório):
 - 22/10/2026: o catálogo de temas e uma comparação de pintura. O `/api/themes` lista 18 escolhas onde a build anterior
-  à paleta de destaques listava 3, as medianas de pintura ficam a 1 ms uma da outra, e um `.thm` enviado é guardado,
-  baixado byte a byte e apagado.
+  à paleta de destaques listava 3, as medianas de pintura ficam a 1 ms uma da outra (HTTP simples, 8 telas), e um
+  `.thm` enviado é guardado, baixado byte a byte e apagado.
 - 24/10/2026: o Ângulo percorrido em pt-BR, es-ES e inglês na imagem de `871a455e`; cada percurso passou nos próprios
   passos, e a única falha do percurso em inglês é a esperada (o idioma não é restaurado).
 - 28/10/2026: o A/B do painel original (67 iguais, 0 diferentes, 0 faltando, 1 não comparável por construção); o
@@ -162,8 +165,11 @@ cada registro fica fora do repositório):
 Não rodou numa placa: a conferência de retenção entre o painel original da v2.12.0 e o Ângulo, e o caminho de volta
 (rodam no portão, na candidata assinada pelo CI); as imagens da mudança (nenhum registro mostra a ponta desta série
 gravada); a confirmação para iniciar a rede de configuração apertada em Confirmar (só o Cancelar rodou); o percurso
-nos três idiomas numa imagem posterior a 24/10/2026. Visto só no host: os níveis de sinal do Wi-Fi da barra de status,
-as quatro fontes acrescentadas à tela Licença, os dois textos reescritos e toda figura do capítulo 11A.
+nos três idiomas numa imagem posterior a 24/10/2026. Em aberto e precisando de uma placa
+(`docs/analysis/UI_DRIVERS.md`): a pilha do Core 1 sob carga com `optimize("no-reorder-blocks")` (a única medida até
+agora é a do compilador), o custo de pintura sob carga TLS (não medido) e o `heap_lb` do Pico 2 W (não medido). Visto
+só no host: os níveis de sinal do Wi-Fi da barra de status, as quatro fontes acrescentadas à tela Licença, os dois
+textos reescritos e toda figura do capítulo 11A.
 
 ### Atualizando
 
@@ -203,9 +209,9 @@ as quatro fontes acrescentadas à tela Licença, os dois textos reescritos e tod
 - **Temas:** no painel original, um `.thm` restaurado de um `.bkp` mantém o nome com que foi instalado, em português
   para os temas de fábrica de uma instalação mais antiga; a página web traduz os códigos deles (#298). O aparelho
   carrega oito `.thm` (veja *Conhecido*). No Ângulo um `.thm` é guardado e não é usado.
-- **O simut-rx** não conhecia o `releasetwo` em 28/10/2026 (o pull request #14 dele estava aberto), então não oferecia
-  atualização a um Pico 2 W; quando conhecer, ele oferece esta release, com o Ângulo, a todo Pico 2 W, porque o painel
-  original e o Ângulo são o mesmo `releasetwo` para a atualização.
+- **O simut-rx** ainda não conhece o `releasetwo`, então não oferece atualização a um Pico 2 W (o pull request #14
+  dele segue aberto em 30/10/2026); quando conhecer, ele oferece esta release, com o Ângulo, a todo Pico 2 W, porque o
+  painel original e o Ângulo são o mesmo `releasetwo` para a atualização.
 
 ### Conhecido, e não consertado aqui
 

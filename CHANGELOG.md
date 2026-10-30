@@ -92,9 +92,9 @@ under the heading they belong to. #304 is the Ângulo series: 410 commits (390 w
   everything before it. The floor now compares `used` minus every fill of the linker map (boot2, text, rodata and
   data) and refuses a map whose sections do not add up to `used`; a drop of up to `FLASH_TOL` = 8 B passes. Sixteen
   floors were recorded again (13 fall by 1 to 102 B, 3 rise by 1 to 5 B, because the unit is the bytes of content
-  now), and `tools/test_measure_savings.py` has 45 cases, up from 21. One character of the version string moved six of
-  the nine floors by 8 B before; "2.13.0" moves none (measured with #302, 2026-10-30; the nightly job did not run on
-  that branch).
+  now), and `tools/test_measure_savings.py` went from 21 to 45 cases with #302 (76 on this tree). One character of the
+  version string moved six of the nine savings by 8 B before; "2.13.0" moves none (measured with #302, 2026-10-30; the
+  nightly job did not run on that branch).
 - **The panel is a driver chosen when the image is built** (#304). The contract and the audit are
   `docs/analysis/UI_DRIVERS.md` (Living). The original driver's code is `src/ui/original/` (14 units and three font
   tables) and the Ângulo's `src/ui/angulo/`; the Pico 2 W's release builds the Ângulo (`ui = "angulo"` in the
@@ -112,11 +112,14 @@ under the heading they belong to. #304 is the Ângulo series: 410 commits (390 w
 - **The flash budgets move with the images** (`tools/flash_budget.json`): the release by +200 B, `pico_w_test` +160,
   `pico_w_test_https` +176, `pico_w_asserts` +200, `pico_wiretft` +160 and `pico2_w_release` +38,104; `pico_wire`
   falls 40 B; the alpha and the Air keep theirs; `pico_wiretft_angulo` (816,836 B) and `pico2_w_original` (1,000,032
-  B) are new. The `tft_graph` savings floor falls 68 B, from 20,433 to 20,365 B: the sum of five `DisplayManager`
-  functions (`loopCore1` -48, `handleTouch` -28, `drawUserEdit` +4, `pinAppendChar` +4), and the same 21 symbols leave
-  whole on main and on the branch. The feature-entanglement watermark (`tools/check_feature_sprawl.py`) rises from 354
-  to 368 sites (+14: `SIMUT_UI_PACK_TEXTS` +4, `SIMUT_UI_ANGULO` +4, `SIMUT_NET_WIFI` +3, `SIMUT_NET_LAN` +2,
-  `SIMUT_UI_CUSTOM_THEMES` +2, `SIMUT_DISPLAY_TFT` -1).
+  B) are new. The `tft_graph` savings floor falls 68 B, from 20,433 B (the floor #302 set; v2.12.0's was 20,432) to
+  20,365 B: the sum of four `DisplayManager` functions (`loopCore1` -48, `handleTouch` -28, `drawUserEdit` +4,
+  `pinAppendChar` +4) and a fifth, `showSettingsAlarms`, renamed by a const with no change in size; the same 21
+  symbols leave whole on main and on the branch. The feature-entanglement watermark (`tools/check_feature_sprawl.py`)
+  rises from 354 to 368 sites (+14: `SIMUT_UI_PACK_TEXTS` +4, `SIMUT_UI_ANGULO` +4, `SIMUT_NET_WIFI` +3,
+  `SIMUT_NET_LAN` +2, `SIMUT_UI_CUSTOM_THEMES` +2, `SIMUT_DISPLAY_TFT` -1). The counter itself changed in #304 (it
+  counts `if constexpr ( SIMUT_` lines, and `SKIP_FILES` has 6 more headers); the new counter over main's tree gives
+  354, so the +14 compares like with like.
 - **Documents.** `docs/analysis/UI_DRIVERS.md` (the driver contract and the audit), the paragraph of `AGENTS.md` on
   the savings floor and `docs/analysis/ECONOMIA_DE_RECURSOS.md` (a section on the alignment fill), all three Living.
 
@@ -144,8 +147,8 @@ documentation change, from the candidate the CI signs on `main`. Until then, eac
 date it was measured on. What ran on a board before, on development images of the Ângulo (the Pico 2 W of the bench;
 each record is outside the repository):
 - 2026-10-22: the theme catalogue and a paint comparison. `/api/themes` lists 18 choices where the build before the
-  accent palette listed 3, the paint medians are within 1 ms, and an uploaded `.thm` is stored, downloaded byte for
-  byte and deleted.
+  accent palette listed 3, the paint medians are within 1 ms (plain HTTP, 8 screens), and an uploaded `.thm` is
+  stored, downloaded byte for byte and deleted.
 - 2026-10-24: the Ângulo walked in pt-BR, es-ES and English on the image of `871a455e`; each walk passed its own
   steps, and the English run's one failure is the expected one (the language is not restored).
 - 2026-10-28: the original panel's A/B (67 equal, 0 differ, 0 missing, 1 not comparable by design); the Ângulo's
@@ -158,8 +161,10 @@ each record is outside the repository):
 Not run on a board: the retention check between v2.12.0's original panel and the Ângulo, and the way down (they run at
 the gate, on the CI-signed candidate); the images of the move (no record shows this series' tip flashed); the
 confirmation to start the setup network pressed to Confirm (only Cancel ran); the three-language walk on an image
-after 2026-10-24. Seen on the host only: the Wi-Fi signal levels of the status bar, the licence screen's four added
-sources, the two reworded texts and every figure of chapter 11A.
+after 2026-10-24. Open and needing a board (`docs/analysis/UI_DRIVERS.md`): Core 1's stack under load with
+`optimize("no-reorder-blocks")` (the only measurement so far is the compiler's), the paint cost under TLS load
+(unmeasured) and the Pico 2 W's `heap_lb` (not measured). Seen on the host only: the Wi-Fi signal levels of the status
+bar, the licence screen's four added sources, the two reworded texts and every figure of chapter 11A.
 
 ### Upgrading
 
@@ -197,9 +202,9 @@ sources, the two reworded texts and every figure of chapter 11A.
 - **Themes:** on the original panel, a `.thm` restored from a `.bkp` keeps the name it was installed with, in
   Portuguese for the stock themes of an older install; the web page translates their codes (#298). The device loads
   eight `.thm` files (see *Known*). On the Ângulo a `.thm` is stored and not used.
-- **simut-rx** did not know `releasetwo` on 2026-10-28 (its pull request #14 was open), so it offered no update to a
-  Pico 2 W; once it does, it offers this release, with the Ângulo, to every Pico 2 W, because the original panel and
-  the Ângulo are the same `releasetwo` for the update.
+- **simut-rx** does not know `releasetwo` yet, so it offers no update to a Pico 2 W (its pull request #14 is still
+  open, 2026-10-30); once it does, it offers this release, with the Ângulo, to every Pico 2 W, because the original
+  panel and the Ângulo are the same `releasetwo` for the update.
 
 ### Known, and not fixed here
 
