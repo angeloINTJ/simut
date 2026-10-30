@@ -206,7 +206,7 @@ De cima para baixo:
 
 - **O título** traz o nome do sensor e a janela. À direita ficam **Dia** e **Voltar**. O título é só leitura: tocar nele não faz nada.
 - **As estatísticas** são da temperatura e da janela inteira: **máx** (*max*) e **mín** (*min*), cada um com a hora em que ocorreu (`dd/mm` na janela de 7 d), **média** (*avg*), **σ** (o desvio), **Δ** (a variação) e **agora** (*now*). Quando a janela termina no passado, **agora** vira **fim** (*end*).
-- **A curva** usa até 200 intervalos de tempo, e nunca menos de 40. Duas linhas tracejadas podem aparecer: os limites de alarme do sensor, em vermelho, só quando caem dentro da escala (eles nunca esticam a escala), e a média da janela, em cinza.
+- **A curva** usa até 200 intervalos de tempo, e nunca menos de 40. Dois tipos de linha tracejada podem aparecer: os limites de alarme do sensor, em vermelho, o inferior e o superior, só quando caem dentro da escala (eles nunca esticam a escala), e a média da janela, em cinza.
 - **O eixo de tempo** tem três marcas: começo, meio e fim da janela, em `hh:mm` até 24 h e em `dd/mm` na janela de 7 d. A data aparece também na primeira marca quando a janela cruza a meia-noite ou está no passado.
 - **O rodapé** tem a seta de recuar, os cinco períodos e a seta de avançar.
 
