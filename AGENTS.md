@@ -877,7 +877,7 @@ ficar na fila e executar vários inputs depois.
 `ANGULO.md`.** Não é gosto da ocasião: é o padrão de todos os sistemas do dono,
 e a casa dele é o repo `simut-rx` — lá fica a fonte da verdade dos valores, e o
 `ANGULO.md` daqui é cópia idêntica do de lá, com os anexos §11–§13. Vale para a
-UI web do aparelho, o site e a landing em
+UI web do aparelho, o painel de toque desenhado por `src/ui/angulo/` (o da release do Pico 2 W desde 2026-10-30), o site e a landing em
 `docs/`, o manual, os três READMEs, os documentos Living, a marca e as
 mensagens que o usuário lê no console. Antes de escrever, leia o §2 (as oito
 regras), o §7 (microcopy) e o §8 (o checklist) do guia.
@@ -965,12 +965,12 @@ calado é.
   abre. Dois desvios que nenhum anexo registrava: o traço dos ícones é 1,75 (o
   §6 pede 1,5) e, sem escolha guardada, o tema é o escuro (o §3.1 diz claro),
   guardado em `simut_ui_theme` e não em `angulo:tema`.
-- **Painel TFT — não é Ângulo.** As cores vêm do tema ativo (`.thm`, 24 campos,
+- **Painel TFT original — não é Ângulo.** É o painel da release do Pico W. As cores vêm do tema ativo (`.thm`, 24 campos,
   11 em `data/themes/`), e o de fábrica usa acento azul
   (`RGB565(0, 150, 255)`, `src/Themes.cpp`). Levar o painel ao Ângulo é decisão
-  de produto em aberto, salvo na Pico 2 W (em 2026-10-21 o mantenedor decidiu que
-  o Ângulo sai primeiro nela; CLAUDE.md). Enquanto isso, o que não depende de cor
-  vale lá também:
+  de produto: feita na Pico 2 W, onde a `pico2_w_release` o leva desde 2026-10-30 (S10c C3; em 2026-10-21 o mantenedor decidiu que
+  o Ângulo sai primeiro nela; CLAUDE.md), e em aberto na Pico W (a regra `angulo-cyw43-needs-rp2350` do manifesto o recusa no RP2040 com Wi-Fi). Enquanto isso, o que não depende de cor
+  vale no painel original também:
   microcopy, a área segura e a grade de 4 px, todo estado desenhado — e emoji
   nem existe na fonte CP437. **Em 2026-10-28, no ramo `feat/ui-drivers`:** isso vale
   para a UI original, que mantém os temas. A UI Ângulo existe nas imagens
