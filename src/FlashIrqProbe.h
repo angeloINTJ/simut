@@ -118,7 +118,7 @@ enum Core1Phase {
 	 * bottom of the loop, would both have printed 9 as well.
 	 *
 	 * These name each region so no value is a catch-all. */
-	C1P_ALARM_FLASH,     /* redrawAlarmFlash / restoreNormalDashboard (pre-render) */
+	C1P_ALARM_FLASH,     /* tickAlarmFlash( ): in the original, redrawAlarmFlash / restoreNormalDashboard (pre-render) */
 	C1P_R_BOOT,          /* render: boot-screen branch */
 	C1P_R_FULL,          /* render: full redraw (chrome + both panels + buttons) */
 	C1P_R_TOPBAR,        /* render: drawTopBar */

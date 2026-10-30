@@ -19,7 +19,13 @@
 #include "SystemDefs.h"
 #include "TelemetryManager.h" /* pushAlarm + AlarmErrCode (AlarmQueue.h) */
 #include "Themes.h"
+#include "display/GraphAnchor.h"   /* graphAnchorStep( ), graphAnchorDay( ), graphAnchorOpen( ): where the chart's window ends, under SIMUT_UI_ANGULO below */
 #include <time.h>
+
+/* display/GraphAnchor.h names three screens of UiMode by number, because the host suite that tests it cannot include the enum. Pinned here, in
+ * every image and not only the Angulo's, so that a reordered enum stops the build instead of moving the rule. */
+static_assert(MODE_GRAPH_LOADING == GRAPH_SCREEN_LOADING && MODE_GRAPH_VIEW == GRAPH_SCREEN_VIEW && MODE_GRAPH_DETAIL == GRAPH_SCREEN_DETAIL,
+              "display/GraphAnchor.h mirrors three values of UiMode");
 
 
 void AppManager::pushAlarmAction(int8_t slot, uint8_t errCodeErr, uint8_t errCodeLim, uint8_t actor) {
@@ -42,6 +48,13 @@ void AppManager::core0Yield( ) {
  static bool _isRenderingGraph = false;
  static bool _inYield = false;
  static uint32_t _yieldEntryTime = 0;
+#if SIMUT_UI_ANGULO
+ /* The end of the live window at the moment the first arrow left it, which the way back is measured against (display/GraphAnchor.h): the window is
+  * the present again when the taps bring it back there, however long they took. 0 when the anchor did not come from the live window. The three
+  * places that write _graphAnchorEnd below keep the pair: the arrows (graphAnchorStep), a calendar day (graphAnchorDay: its own anchor, no base)
+  * and an opening from another screen (graphAnchorOpen: both cleared). Core 0 only, and nothing outside this function writes the anchor. */
+ static time_t _graphLiveBase = 0;
+#endif
 
  /* Safety: reset guard if stuck >10s (partial crash) */
  if (_inYield && timeSince(_yieldEntryTime, 10000)) {
@@ -109,6 +122,20 @@ void AppManager::core0Yield( ) {
  time_t step = (_lastGraphRange >= 0 && _lastGraphRange <= 4)
  ? rangeDur[_lastGraphRange] : 86400;
 
+#if SIMUT_UI_ANGULO
+ /* The anchor starts at the clock read here and was judged below against a clock read later, so one period back and one forward, a few seconds
+  * apart, ended at the first tap's clock, marked as the past ("fim", ▶ still enabled), and a second ▶ reached the present with the anchor frozen at
+  * that moment. display/GraphAnchor.h measures the way back against where the taps left the live window (_graphLiveBase): back there, or past it, or at
+  * or after the clock, the window is the live one, anchor 0 and offset 0, whatever the wait and whatever period was chosen in between. A calendar
+  * window has no base and keeps its alignment (yesterday stays yesterday at 10:00), and one that stays in the past is placed as the lines below place
+  * it. The products keep those lines, so their images stay byte for byte as they are. */
+ {
+ const GraphAnchorPlace at = graphAnchorStep(_graphAnchorEnd, _graphLiveBase, time(nullptr), steps, step);
+ _graphAnchorEnd = at.anchorEnd;
+ _graphLiveBase = at.liveBase;
+ _graphNavOffset = at.offset;
+ }
+#else
  /* No anchor (graph opened without the calendar): anchor at now. */
  if (_graphAnchorEnd == 0) _graphAnchorEnd = time(nullptr);
 
@@ -120,6 +147,7 @@ void AppManager::core0Yield( ) {
 
  /* Offset derived from position: negative = past (▶ enabled) */
  _graphNavOffset = (_graphAnchorEnd < nowNav) ? -1 : 0;
+#endif
  _displayMgr->setGraphNavOffset(_graphNavOffset);
 
  _isRenderingGraph = true;
@@ -144,6 +172,15 @@ void AppManager::core0Yield( ) {
  {
  [[maybe_unused]] int sensorId = uiEv.id;
  int range = uiEv.param;
+#if SIMUT_UI_ANGULO
+ /* Asked from another screen (the dashboard's chart buttons, the calendar's Today) the chart starts at the present. Nothing ever cleared the
+  * anchor a calendar day or an arrow set, so every later opening showed that window: on the bench, a day picked in the calendar came back as
+  * 13/10 23:00-24:00 when the dashboard opened the chart again, 62094 s behind the clock and drawn as the present (2026-10-14, image
+  * 9c3e0a25). A period chosen inside the chart, or the way back from its detail, keeps the window (display/GraphAnchor.h has the rule); from
+  * another screen the anchor and its base both go.
+  * The products have the same defect; this build fixes it for itself only, so their images stay byte for byte as they are. */
+ graphAnchorOpen((int)_displayMgr->getUiMode( ), _graphAnchorEnd, _graphLiveBase);
+#endif
  bool hasAnchor = (_graphAnchorEnd != 0);
 
  if (!hasAnchor) {
@@ -210,7 +247,11 @@ void AppManager::core0Yield( ) {
  * 24H window will be exactly [00:00, 23:59] of the selected day.
  * ◀▶ navigation shifts from this anchor, not from now.
  */
+#if SIMUT_UI_ANGULO
+ graphAnchorDay(selMidnight, _graphAnchorEnd, _graphLiveBase);   /* the day's window is its own: a base from an earlier trip back goes (display/GraphAnchor.h) */
+#else
  _graphAnchorEnd = selMidnight + 86400;
+#endif
 
  /*
  * Offset for ▶ button control:
@@ -304,10 +345,10 @@ void AppManager::core0Yield( ) {
  }
  else if (uiEv.id == MENU_SETUP_AP) {
 #if SIMUT_DISPLAY_TFT && SIMUT_NET_WIFI
- /* The screen lives in DisplayManager_Settings.cpp, which is not in the
-  * alpha or Air link — the same reason MENU_OWN_PIN and MENU_PIN_POLICY
-  * carry a guard. A wired build lists no such row (display/SettingsMenu.h)
-  * and has no such screen. */
+ /* The entry lives in DisplayManager_SettingsCore.cpp and the screen in
+  * DisplayManager_Settings.cpp, neither in the alpha or Air link — the same
+  * reason MENU_OWN_PIN and MENU_PIN_POLICY carry a guard. A wired build
+  * lists no such row (display/SettingsMenu.h) and has no such screen. */
  if (panelAllowed(PERM_NET_CONFIG, -1)) _displayMgr->showApConfirm( );
 #endif
  }
@@ -364,8 +405,9 @@ void AppManager::core0Yield( ) {
   * panelAllowed( ) logs 458 and plays the error tone, and the refusal is
   * EVT_PIN_POLICY's (AppManager_Panel.cpp). No boot exception, unlike the
   * clock: nothing shows Idioma or Themes without a session. In this region
-  * because only the touch panel sends either event (DisplayManager_Touch.cpp),
-  * so the images without a panel keep their bytes. */
+  * because only the touch panel sends either event (actApplyTheme( ) and
+  * actApplyLang( ), DisplayManager_Actions.h, which both UIs call), so the
+  * images without a panel keep their bytes. */
  else if ((uiEv.type == UiEvent::EVT_APPLY_THEME || uiEv.type == UiEvent::EVT_APPLY_LANG) &&
           !panelAllowed(PERM_SYS_CONFIG, -1)) {
   _displayMgr->showPanelMessage(false, TR_NO_PERMISSION, MODE_SETTINGS_MAIN);

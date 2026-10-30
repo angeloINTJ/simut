@@ -403,7 +403,7 @@ Com o espelho ao vivo, clique na imagem (ou toque nela, no celular) no ponto que
 - Se o aparelho recusar o toque, a linha de estado mostra **Toque recusado** (*Touch refused*) com o código da resposta, por exemplo `Toque recusado (403)` para uma conta sem **Sistema**.
 - Um clique conta como atividade no painel: reinicia a contagem de 30 s que devolve o painel à tela inicial.
 
-O espelho não pula a proteção do painel. Para abrir as configurações do painel, você escolhe a conta e digita o PIN no teclado do painel pelo espelho, como faria com o dedo. O que se pode fazer ali depende das permissões da conta que o PIN identificou, não da sua sessão web ([capítulo 8](#cap-08), [capítulo 11](#cap-11)).
+O espelho não pula a proteção do painel. Para abrir as configurações do painel, você escolhe a conta e digita o PIN no teclado do painel pelo espelho, como faria com o dedo. O que se pode fazer ali depende das permissões da conta que o PIN identificou, não da sua sessão web ([capítulo 8](#cap-08), [capítulo 11](#cap-11), [capítulo 11A](#cap-11a)).
 
 ::: atencao
 **Um toque reserva o aparelho por 5 s.** Todo toque no painel, feito com o dedo ou pelo espelho, faz o aparelho adiar trabalhos pesados por 5 s. Nesse intervalo ele recusa com a mensagem `Display in use. Retry shortly.` a captura, **Salvar e reiniciar**, o envio e a exclusão de arquivos, o backup, a restauração, a atualização, o carregamento de gráficos e de eventos e a troca de senha obrigatória. Espere 5 s depois do último toque e repita. O espelho em si continua: ele é liberado depois de um toque feito por ele mesmo.
@@ -424,7 +424,7 @@ Uma captura da tela do painel, exibida no bloco Tela.
 
 ### Trocar o tema do painel {#cap-13-tema-painel}
 
-A lista do bloco **Tela** traz os temas do painel: os de fábrica e os instalados em `/themes`. Escolha um tema na lista, e o painel troca de tema na hora e grava a escolha, sem reiniciar. A cada 3 s, a lista volta a mostrar o tema que o painel está usando. Por isso, numa conta sem **Sistema**, a escolha volta atrás sozinha. Os temas do painel estão no [capítulo 11](#cap-11).
+A lista do bloco **Tela** traz os temas do painel: os de fábrica e os instalados em `/themes`. Escolha um tema na lista, e o painel troca de tema na hora e grava a escolha, sem reiniciar. A cada 3 s, a lista volta a mostrar o tema que o painel está usando. Por isso, numa conta sem **Sistema**, a escolha volta atrás sozinha. Os temas do painel estão no [capítulo 11](#cap-11); no Pico 2 W, veja o [capítulo 11A](#cap-11a-temas).
 
 Esta lista muda o painel do aparelho. O tema da interface web é outro, e fica no botão da barra de topo ([Tema claro e escuro](#cap-13-tema)).
 
@@ -458,7 +458,7 @@ O Painel de Controle no tema claro. Compare com a figura do tema escuro no iníc
 
 A interface traz o inglês embutido e pode mostrar mais um idioma: o do pacote de idioma que o aparelho carregou.
 
-O aparelho carrega um pacote no boot, e só quando o idioma do aparelho não é o inglês. O pacote é um arquivo `language_<código>.lng` na pasta `/lang`, como `language_pt-BR.lng`. Se houver mais de um, vale o primeiro em ordem alfabética. Depois de trocar o idioma do aparelho ([capítulo 11](#cap-11), [capítulo 14](#cap-14)) ou o arquivo do pacote ([capítulo 17](#cap-17)), reinicie o aparelho para a interface web oferecê-lo.
+O aparelho carrega um pacote no boot, e só quando o idioma do aparelho não é o inglês. O pacote é um arquivo `language_<código>.lng` na pasta `/lang`, como `language_pt-BR.lng`. Se houver mais de um, vale o primeiro em ordem alfabética. Depois de trocar o idioma do aparelho ([capítulo 11](#cap-11), [capítulo 11A](#cap-11a-idioma), [capítulo 14](#cap-14)) ou o arquivo do pacote ([capítulo 17](#cap-17)), reinicie o aparelho para a interface web oferecê-lo.
 
 Há dois seletores:
 
@@ -493,7 +493,7 @@ A página **Licença** (rota `/license`) exige a permissão **Painel** e fica no
 - **Licença de Software** (*Software License*), com a frase **Software livre. Abaixo, o que isso significa na prática.**;
 - **Em resumo** (*In short*): um resumo da licença em linguagem simples, com o aviso de que ele não substitui o texto da licença;
 - **Licença MIT** (*MIT License*): o texto da licença, em inglês, porque é a versão original e a que tem valor legal;
-- **Avisos de Terceiros** (*Third-Party Notices*): os 25 componentes de terceiros que entram nas imagens de firmware, com o titular do copyright, a licença, as imagens que levam cada um e o endereço. Os textos completos das licenças ficam no `THIRD_PARTY_NOTICES.md` e na pasta `LICENSES` do repositório, publicados com cada versão.
+- **Avisos de Terceiros** (*Third-Party Notices*): os 25 componentes de terceiros que entram nas imagens com Wi-Fi (a página de uma imagem com cabo, montada no configurador, lista 21), com o titular do copyright, a licença, as imagens que levam cada um e o endereço. Os textos completos das licenças ficam no `THIRD_PARTY_NOTICES.md` e na pasta `LICENSES` do repositório, publicados com cada versão. [main]{.img} Nas imagens com o painel Ângulo ([capítulo 11A](#cap-11a-licenca)), o bloco traz também, no fim, as fontes e os ícones desse painel, cada um com a sua licença: Bricolage Grotesque (SIL Open Font License 1.1), GNU FreeFont (GPL-3.0-or-later, com a exceção de fontes) e Lucide (ISC).
 
 Dois componentes têm licença própria em vez de uma licença livre comum: o driver do rádio (cyw43-driver), em todas as imagens, e o BTstack, a pilha Bluetooth das imagens alpha e Air. A Raspberry Pi concede os dois a quem monta produtos sobre o Pico W e o Pico 2 W, inclusive para uso comercial; fora desses chips eles não valem. Confira a lista antes de distribuir o aparelho.
 

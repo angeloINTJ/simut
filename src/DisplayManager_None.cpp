@@ -116,7 +116,7 @@ void DisplayManager::showUserEdit(int slot, bool isNew) { (void)slot; (void)isNe
 void DisplayManager::showPanelMessage(bool ok, LangKey msg, UiMode returnTo) { (void)ok; (void)msg; (void)returnTo; }
 void DisplayManager::getNewName(char* out, size_t cap) const { if (out && cap) out[0] = '\0'; }
 void DisplayManager::showSettingsMain( ) { }
-void DisplayManager::showSettingsAlarms(SystemConfig* cfg) { (void)cfg; }
+void DisplayManager::showSettingsAlarms(const SystemConfig* cfg) { (void)cfg; }
 void DisplayManager::refreshAlarmStatus( ) { }
 void DisplayManager::showAlarmEdit(int sensorIdx) { (void)sensorIdx; }
 void DisplayManager::showSettingsLang(int currentLang) { (void)currentLang; }

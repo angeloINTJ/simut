@@ -24,7 +24,9 @@
  * into that buffer, null-terminated in place. Every other section stays on
  * flash as a byte range: @HELP is read when the CLI asks for it,
  * GET /api/lang streams @WEBDICT and GET /api/logcodes scans for @LOGCODES on
- * its own. @TRL is read by nothing on the device. Packs carried a @LICENSE
+ * its own. @TRL is read by nothing on the device. In an Angulo image @ANGULO is
+ * a byte range too, kept in _activeLang and read once at boot by the panel
+ * (src/ui/angulo/DisplayManager_UiA_Textos.cpp). Packs carried a @LICENSE
  * section until 2026-10-02; the License screen draws the firmware's own text
  * now, so in an older pack that section is an unknown directive and skipped.
  *
@@ -51,6 +53,7 @@
 
 #include "DisplayManager.h"
 #include "LangPackIndex.h"
+#include "ui/UiCaps.h"   /* SIMUT_UI_PACK_TEXTS, tested in loadLangFile( ) */
 #include "Utf8Fold.h"
 #include "WebDictValue.h"
 #include "LogManager.h"
@@ -63,14 +66,18 @@ bool DisplayManager::_activeLangLoaded = false;
 
 /* Defensive limits */
 static constexpr size_t LANG_FILE_MIN = 64;
-/* LANG_DICT_MAX bounds the one allocation a pack keeps for the whole uptime:
- * its @DICT. es-ES is 2,910 B and pt-BR 2,815 B, so a pack can grow by more
- * than its whole dictionary before this bites, while a hostile one — the pack
- * is a file anyone with PERM_FILE_UPLOAD can put here — can no longer hold the
- * 16 KB the old prefix ceiling allowed. LANG_FILE_MAX only bounds the file on
- * flash: everything outside @DICT is read from there, if at all. */
+/* LANG_DICT_MAX bounds the allocation a pack keeps for the whole uptime, its
+ * @DICT (3,393 B in es-ES and 3,292 B in pt-BR on 2026-10-22), so a hostile
+ * pack, a file anyone with PERM_FILE_UPLOAD can put here, cannot pass it. The
+ * Ângulo images keep a second one, the @ANGULO table, at most 16,390 B (its
+ * bound UA_TEXTOS_MAX, src/ui/angulo/Textos.cpp). LANG_FILE_MAX only bounds the
+ * file on flash: everything outside those is read from there, if at all. */
 static constexpr size_t LANG_DICT_MAX = 6144;
-static constexpr size_t LANG_FILE_MAX = 49152;
+/* 65,536 since 2026-10-22 (S10c B4b-0; 49,152 before): the Ângulo's @ANGULO section took es-ES to 47,697 B, 97 % of the old
+ * ceiling, with three groups of screens still to translate. 64 KiB is the web's text viewer's cap (TV_CAP, WebUI.h's lang.js), which
+ * shows a file up to that size and downloads a bigger one: the largest file the device keeps is a pack, so a pack it accepts stays
+ * one the web can show, and tools/check_lang_packs.py holds the two in that order. */
+static constexpr size_t LANG_FILE_MAX = 65536;
 
 uint32_t DisplayManager::fnv1a32(const char* s) {
  uint32_t h = 0x811c9dc5u;
@@ -247,6 +254,14 @@ bool DisplayManager::loadLangImpl(const char* path) {
  _activeLang.webDictOffset = ix.start[LANG_SEC_WEBDICT];
  _activeLang.webDictLen = ix.end[LANG_SEC_WEBDICT] - ix.start[LANG_SEC_WEBDICT];
  }
+#if SIMUT_UI_PACK_TEXTS
+ /* @ANGULO: the Angulo panel's texts, a byte range like @HELP's; the panel reads it once, from uiLangLoaded( ), after this returns. Zeroed by
+  * unloadLang( ), so a board in English (no pack) and a pack without the section both read length 0. */
+ if (ix.end[LANG_SEC_ANGULO] > ix.start[LANG_SEC_ANGULO]) {
+ _activeLang.anguloOffset = ix.start[LANG_SEC_ANGULO];
+ _activeLang.anguloLen = ix.end[LANG_SEC_ANGULO] - ix.start[LANG_SEC_ANGULO];
+ }
+#endif
 
  /* Path is kept so /api/lang can reopen the file to stream @WEBDICT. */
  strncpy(_activeLang.path, path, sizeof(_activeLang.path) - 1);

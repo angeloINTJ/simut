@@ -5,7 +5,8 @@ medindo os seis ambientes de firmware com `tools/measure_savings.py`; o rastreio
 do que ainda não tem chave, em 2026-09-30 contra `main` `7b948e7` (v2.8.0); o
 piso, medido de novo sem o enchimento do banco do BTstack, em 2026-10-22 contra
 `main` `25e169df`, e sem todo enchimento do linker, medido em 2026-10-29 e gravado em
-2026-10-30 contra `main` `e7768221` ·
+2026-10-30 contra `main` `e7768221`; o do `tft_graph`, que desce 68 B com a UI como
+driver, medido e gravado em 2026-10-30 contra o ramo `feat/ui-drivers-s11` (`7d550359`) ·
 **Pergunta:** ao desligar um driver ou qualquer funcionalidade, quanto de flash
 e de RAM a imagem realmente devolve — e o que hoje **não** devolve o que deveria?
 
@@ -497,6 +498,101 @@ e 3 sobem de 1 a 5 B, e deixam de ser múltiplos de 8). A RAM não mudou:
 | `concurrency_asserts` | `pico_w_asserts` | 2 240 | 2 235 |
 | `syslog` | `pico_w_release` | 1 768 | 1 760 |
 
+### O piso do `tft_graph` com a UI como driver (2026-10-30)
+
+A UI como driver (`feat/ui-drivers`, da S10c à S11) chega à `main` com o
+`tft_graph` economizando 20 365 B, não os 20 433 B do piso da `main`: 68 B a
+menos, 60 B além da tolerância. Sem esta entrada o job noturno
+(`.github/workflows/savings.yml`) reprovaria na primeira manhã depois da fusão, e
+nenhum PR veria o vermelho. Não vazou código do gráfico: a diferença está em
+cinco funções do `DisplayManager`, decodificadas abaixo. O piso desce porque a
+conta de bytes dessas cinco mudou, não porque o recurso deixou de sumir.
+
+**Medido em 2026-10-30** (`pico_w_release` e `_sav_tft_graph_off`, o enchimento
+do linker lido do mapa), com a mesma ferramenta nos dois lados:
+
+| Árvore | `used` ligada | `used` desligada | Enchimento | Economia |
+|---|---:|---:|---:|---:|
+| `main` `43b275d8` (as imagens são, byte a byte, as de `cf97b955`: o #303 só mexeu em `docs/` e em `tools/build_manual.py`) | 1 023 860 | 1 003 436 | 692 / 701 | 20 433 |
+| ramo `22d83de3`, antes da fusão da sync 8 | 1 023 924 | 1 003 556 | 686 / 683 | 20 365 |
+| ramo `7d550359`, a ponta da S11 (`caafa549` mede o mesmo, nome a nome) | 1 024 060 | 1 003 692 | 685 / 682 | 20 365 |
+
+A RAM não muda: 2 232 B nas três. Os 68 B estão todos em símbolos com nome (a
+`main` tira 19 574 B por eles, o ramo 19 506 B); os 859 B sem nome (textos
+literais, alinhamento dentro dos objetos) saem iguais nos dois lados, e o
+enchimento sai das duas pontas da conta.
+
+**Por símbolo** (`nm -S` das duas imagens de cada árvore):
+
+- as 21 funções e dados que a chave tira por inteiro (16 354 B:
+  `renderGraphOptimized` 4 892, `drawGraphDetailScreen` 3 068, `drawGraphScreen`
+  2 888, `drawPeriodButtons` 1 232, `drawCalendarScreen` 1 012,
+  `graphAccumRecord` 904, `drawGraphHeaderBar` 748, ...; a menor tira
+  40 B) são as mesmas, com os mesmos bytes, na `main` e no ramo, e nenhuma
+  está na imagem desligada do ramo;
+- os únicos símbolos com nome de gráfico que a imagem desligada guarda são quatro
+  stubs e um flag, 17 B, os mesmos da `main` (`requestLoadingScreen( )` 12 B,
+  `setGraphNavOffset( )` 2 B, `showCalendar( )` 2 B, `_isRenderingGraph` 1 B);
+- cinco funções do `DisplayManager` tiram bytes diferentes:
+
+| Função | Tira na `main` | Tira no ramo | Diferença |
+|---|---:|---:|---:|
+| `loopCore1( )` | 484 | 436 | −48 |
+| `handleTouch( )` | 1 832 | 1 804 | −28 |
+| `drawUserEdit( )` | 0 | 4 | +4 |
+| `pinAppendChar(char)` | 0 | 4 | +4 |
+| `showSettingsAlarms( )` (a assinatura ganhou `const`: só o nome muda) | 12 | 12 | 0 |
+| Soma | | | −68 |
+
+**Por que as cinco.** Nenhuma leva código do gráfico para a imagem desligada. Em
+`handleTouch( )` as classes de instrução que carregam a lógica do gráfico
+(chamadas, comparações, desvios, leituras e escritas) saem com os mesmos 1 084 B
+nos dois lados; o que difere são palavras de literal do `ldr =`: a `main` tira 66
+palavras e 3 ilhas de literais, o ramo 59 e 4 (−7 palavras, −28 B). Em
+`loopCore1( )` o líquido do resto é zero e a diferença é de 12 palavras de
+literal, 10 delas as cinco constantes da sonda `C1_PHASE`, que cada ilha repete: a
+`main` perde duas cópias com as duas ilhas que o gráfico mantinha, o ramo
+nenhuma. Em `pinAppendChar( )` é um `nop` que alinha o literal da função, e que
+na `main` está na imagem desligada e no ramo na ligada (−2 contra +2); em
+`drawUserEdit( )`, oito `ldr r,=0x1a2c` a mais na imagem ligada do ramo contra
+seis acessos de pilha a menos (+16 B, −12 B). Com a chave desligada o objeto
+`DisplayManager` perde 5 872 B (a linha do gráfico na tabela de 2026-09-26) e todo
+membro depois do pacote do gráfico desce o mesmo tanto: o deslocamento `0x1a28`
+da imagem ligada é `0x338` na desligada, e `0x1c38` é `0x548`. Montar esse
+deslocamento (uma palavra de literal, `movs` com `lsls`, um registrador que fica) e fechar
+cada ilha de literais (o `ldr` de `pc` alcança 1 020 B) dependem do valor e da
+distância, e o layout do objeto no ramo não é o da `main` (o mesmo ponto de uso
+carrega `0x07c3` na `main` e `0x07f5` no ramo): cortar os mesmos blocos devolve
+menos bytes.
+
+**Como se provou.** A soma por nome fecha com o `used` que o PlatformIO reporta
+nas imagens medidas. Os nomes que a `main` tira por inteiro, procurados na imagem
+desligada do ramo: 0 de 21; procurados na imagem ligada, posta no lugar da
+desligada: 21 de 21. A varredura por nomes com gráfico lê 33 na imagem ligada e 4
+na desligada, e os 4 são os da `main`. Um par que não tirasse nada faria 107
+linhas diferirem da `main`, não as 6 reais. Os movimentos da S11 (as 14 unidades
+do painel original para `src/ui/original/`) não mudaram o tamanho de símbolo
+nenhum: de `caafa549` à ponta, nenhum dos 4 512 nomes muda de tamanho em
+`pico_w_release` nem em `_sav_tft_graph_off`, e `loopCore1( )` e `handleTouch( )`
+ficam iguais instrução a instrução, menos o endereço dos `bl` para destinos sem
+nome.
+
+**O piso.** O `tft_graph` desce de 20 433 para 20 365 B
+(`--only tft_graph --update`; a RAM fica em 2 232 B). Os outros 15 pisos não se
+mexem: no `--check` sobre `7d550359`, 12 medem o piso exato e 3 medem acima
+(`tel_mqtt` +2 B, `web_history` +4 B, `syslog` +3 B), então ficam como estão. A
+tolerância de 8 B continua valendo: o portão volta a reprovar o `tft_graph`
+abaixo de 20 357 B, e uma função do gráfico que passasse a ficar na imagem
+desligada tira ao menos 40 B da economia.
+
+**O que não está provado.** O mapa membro a membro do `DisplayManager` (o C++ do
+projeto é construído sem `-g`; o DWARF só tem as unidades C do framework) e uma
+recompilação controlada das ilhas de literais, que pediria mexer em `src/`: o
+mecanismo acima é o que serve a todos os números, não um experimento. Medido na
+máquina, `pico_w_release`, sem prova no ferro. Qualquer mudança nessas cinco
+funções ou nos membros do objeto move o número de novo por dezenas de bytes, e a
+decodificação se refaz (o kit, fora do repositório, é o `nm -S` das duas imagens somado por nome).
+
 ## O que ainda não tem chave — o rastreio de 2026-09-30
 
 A tabela acima mede o que já se desliga. Esta seção olha o contrário: **o que
@@ -547,6 +643,7 @@ produtos (alinhamento que o mapa não atribui a objeto nenhum).
 python3 tools/measure_savings.py              # a tabela acima
 python3 tools/measure_savings.py --only air   # só um recurso (rápido)
 python3 tools/measure_savings.py --update      # grava o piso no ledger
+python3 tools/measure_savings.py --only tft_graph --update   # grava só o piso desse recurso
 python3 tools/measure_savings.py --check       # reprova se a economia caiu
 python3 tools/flash_compose.py --env pico_w_air --objects   # o rastreio: flash e RAM por objeto
 ```

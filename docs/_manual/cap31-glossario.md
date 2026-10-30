@@ -120,13 +120,13 @@ mDNS
 :   O endereço pelo nome, como `http://simut.local`. Só existe na imagem release ([capítulo 9](#cap-09-mdns)).
 
 Modo de Configuração
-:   O item 8 das Configurações do painel, que abre o ponto de acesso de configuração ([capítulo 11](#cap-11-ap)).
+:   O item 8 das Configurações do painel, que abre o ponto de acesso de configuração ([capítulo 11](#cap-11-ap)). No painel Ângulo, é a linha **Modo de configuração** ([capítulo 11A](#cap-11a-ap)).
 
 Pacote de idioma
 :   Arquivo `.lng` que traduz o painel, a interface web e o log. Só é carregado no boot ([capítulo 13](#cap-13-idioma)).
 
 Painel
-:   A tela de toque da imagem release ([capítulo 11](#cap-11)).
+:   A tela de toque da imagem release: o painel original ([capítulo 11](#cap-11)) ou o painel Ângulo [main]{.img} ([capítulo 11A](#cap-11a)).
 
 Pendentes
 :   Registros do histórico que ainda não foram entregues ao coletor ([capítulo 21](#cap-21-quando)).

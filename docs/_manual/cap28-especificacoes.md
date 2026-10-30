@@ -407,11 +407,11 @@ O filtro vale só para a flash: o console com `debug on` e o syslog recebem todo
 
 | Situação | Tempo | Onde |
 |---|---|---|
-| Boot sem rede | Com rede configurada e fora do ar, o aparelho espera a rede por até 30 s e segue sem ela, e o painel mostra **Timeout de rede. Iniciando Offline...**; sem rede configurada, segue na hora, com **Conexão Ignorada pelo Usuário.** | [cap. 11](#cap-11-boot) |
+| Boot sem rede | Com rede configurada e fora do ar, o aparelho espera a rede por até 30 s e segue sem ela, e o painel mostra **Timeout de rede. Iniciando Offline...**; sem rede configurada, segue na hora, com **Conexão Ignorada pelo Usuário.** | [cap. 11](#cap-11-boot), [11A](#cap-11a-boot) |
 | [release]{.img} Um toque no painel ocupa o aparelho | 5 s; nesse intervalo, gravações, capturas e exportações respondem `503` com `Retry-After` de 5 s nas gravações e 3 s nas leituras | [cap. 26](#cap-26-ocupado) |
 | [release]{.img} Console durante um toque | Guarda até 2 comandos e os executa depois dos 5 s | [cap. 14](#cap-14-usb) |
-| [release]{.img} Volta do painel à tela inicial | 30 s sem toque | [cap. 11](#cap-11-ocioso) |
-| [release]{.img} Aviso `Web: <conta>` no painel | 5 s depois de uma entrada na web | [cap. 11](#cap-11-barra) |
+| [release]{.img} Volta do painel à tela inicial | 30 s sem toque | [cap. 11](#cap-11-ocioso), [11A](#cap-11a-ocioso) |
+| [release]{.img} Aviso `Web: <conta>` no painel | 5 s depois de uma entrada na web | [cap. 11](#cap-11-barra), [11A](#cap-11a-barra) |
 | [release]{.img} **Silenciar 120s** | 120 s | [cap. 7](#cap-07-silenciar) |
 | [alpha]{.img} Troca de grandeza no LCD | A cada 3 s; a tela atualiza a cada 0,5 s | [cap. 12](#cap-12-leituras) |
 | **Painel de Controle** da web | Consulta o aparelho a cada 3 s | [cap. 13](#cap-13-painel-de-controle) |

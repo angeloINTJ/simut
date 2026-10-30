@@ -301,6 +301,10 @@ O log de eventos registra a entrada em erro, com o GPIO do sensor ([capítulo 16
 
 ### Como o erro aparece {#cap-06-erro-aparece}
 
+::: nota
+**As telas desta seção são as do painel original (Pico W).** No Pico 2 W, veja o [capítulo 11A](#cap-11a-cartoes).
+:::
+
 - **Painel** [release]{.img}: o cartão do sensor mostra **Erro** (*ERROR*) em letras grandes, no lugar do valor. O alarme de falha deixa o cartão âmbar ([capítulo 7](#cap-07-tipos)).
 - **LCD** [alpha]{.img}: quando o LCD chega ao sensor em erro, mostra `ERRO` em letras grandes. O mesmo `ERRO` aparece quando não há nenhum sensor ativo.
 - **Interface web**: na tabela de sensores do **Painel de Controle**, o ponto fica vermelho e a leitura mostra `Error` ([capítulo 13](#cap-13-tabela-sensores)).

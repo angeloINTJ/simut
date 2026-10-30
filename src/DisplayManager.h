@@ -39,6 +39,7 @@ class Adafruit_GFX;
 #include "OtaScreen.h"          /* what the panel says during a firmware update */
 #include "Themes.h"
 #include "SoundManager.h"
+#include "ui/UiDriver.h"   /* the UI driver's share before the class: UI_HOOK, UiChange, the Ângulo's types */
 
 /* TFT/SPI pin assignments → see src/simut_config.h */
 
@@ -540,7 +541,7 @@ public:
 	bool getUiEvent(UiEvent& ev);
 	void refreshTheme( );
 	uint16_t readPixel(int16_t x, int16_t y);
-	void readRow(int16_t y, uint16_t* buffer, int16_t w = 320);
+	void readRow(int16_t y, uint16_t* buffer, int16_t w = DisplayDriver::W);
 	void readRect(int16_t x, int16_t y, int16_t w, int16_t h, uint16_t* out);
 
 	/* Same read, delegated to DMA so the caller can work while it runs. Start
@@ -556,7 +557,7 @@ public:
 	void showSettingsThemes(int currentThemeIdx);
 
 #if SIMUT_PANEL_PIN
-	/* ── v24: identity at the panel (DisplayManager_Users.cpp) ──────────────
+	/* ── v24: identity at the panel (DisplayManager_Users.cpp, DisplayManager_UsersUi.cpp) ──
 	 * The PIN identifies the user; Core 0 verifies it (EVT_AUTH_PIN) and
 	 * answers through authResult( ) and setPanelSession( ). Every screen below
 	 * only produces UiEvents — nothing here writes the configuration. */
@@ -632,7 +633,7 @@ public:
 	 * on EVT_SAVE_ALARMS; Core 1 never writes the config itself any more. */
 	const SensorRecord& editedAlarmRecord( ) const { return _tempAlarmConfig; }
 	void showSettingsMain( );
-	void showSettingsAlarms(SystemConfig* cfg);
+	void showSettingsAlarms(const SystemConfig* cfg);
 
 	/** Marks the selected row's ON/OFF word as stale without re-entering the
 	 *  screen. showSettingsAlarms() forces a full redraw and resets the cursor
@@ -948,49 +949,10 @@ private:
 	void drawSlotPanel(float t, float h, SensorType type, bool isValid, int slotIdx, const char* name, bool forceNameRedraw, DashPanel& panel, float p = NAN);
 	void drawBottomButtons(int selectedIdx);
 
-	/** Redraws top panel. Syncs topSlotIdx + data from current mode. */
-	void redrawTopPanel( ) {
-	 SystemState snap;
-	 mutex_enter_blocking(&_stateMutex);
-	 /* Always sync topSlotIdx based on fixed/interactive */
-	 _sharedState.topSlotIdx = (_topPanel.fixed && _topPanel.fixedIdx >= 0)
-	                         ? _topPanel.fixedIdx : _sharedState.selectedSlotIdx;
-	 /* When top panel is pinned, auto-switch bottom panel to the first
-	  * available different slot to avoid showing the same sensor twice. */
-	 if (_topPanel.fixed && _topPanel.fixedIdx >= 0 &&
-	     _topPanel.fixedIdx == _sharedState.selectedSlotIdx &&
-	     _sysConfigPtr) {
-	 	int8_t nextSlot = -1;
-	 	for (int i = 0; i < MAX_SENSORS; i++) {
-	 		if (i != _topPanel.fixedIdx && _sysConfigPtr->sensors[i].active) {
-	 			nextSlot = (int8_t)i; break;
-	 		}
-	 	}
-	 	if (nextSlot >= 0) {
-	 		_sharedState.selectedSlotIdx = nextSlot;
-	 		UiEvent ev; ev.type = UiEvent::EVT_SLOT_SELECT; ev.id = nextSlot;
-	 		pushUiEvent(ev); /* single choke point — invariant 2. */
-	 	}
-	 }
-	 /* Mirror slot* data when interactive or showing the same sensor.
-	  * NOT when fixed on a different slot: a pinned sensor in ERROR (missing
-	  * → topSlotValid=false) must keep its own panel, not mirror the bottom's. */
-	 if (!_topPanel.fixed ||
-	     _sharedState.topSlotIdx == _sharedState.selectedSlotIdx) {
-	 _sharedState.topSlotTemp = _sharedState.slotTemp;
-	 _sharedState.topSlotHum  = _sharedState.slotHum;
-	_sharedState.topSlotPres = _sharedState.slotPres;
-	 _sharedState.topSlotType = _sharedState.slotType;
-	 _sharedState.topSlotValid = _sharedState.slotValid;
-	 safeCopy(_sharedState.topSlotName, _sharedState.slotName, 31);
-	 }
-	 snap = _sharedState;
-	 mutex_exit(&_stateMutex);
-	 drawSlotPanel(snap.topSlotTemp, snap.topSlotHum, snap.topSlotType, snap.topSlotValid,
-	               snap.topSlotIdx, snap.topSlotName, true, _topPanel, snap.topSlotPres);
-	 /* Redraw bottom buttons — fixed sensor button may appear/disappear */
-	 drawBottomButtons(snap.selectedSlotIdx);
-	}
+	/** Redraws top panel. Syncs topSlotIdx + data from current mode, then asks the driver to show it (uiTopPanel( )).
+	 * Defined in src/DisplayManager_Actions.h, for the unit that calls it (DisplayManager_Touch.cpp): its body calls a hook, and
+	 * the original's hooks are defined only where ui/UiDriverHooks.h is included. */
+	inline void redrawTopPanel( );
 
 	
 
@@ -1141,7 +1103,7 @@ private:
 	int _lastLangPage = -1;
 	int _lastPreviewLangIdx = -1;
 
-	/* PIN keypad + lockout (v24: DisplayManager_Users.cpp) */
+	/* PIN keypad + lockout (v24: DisplayManager_Users.cpp; the draws are in DisplayManager_UsersUi.cpp) */
 	void drawPinScreen( );
 	void drawPinCardInto(GFXcanvas16* cv, int key, int16_t ox, int16_t oy);
 	void blitPinCards( );
@@ -1234,6 +1196,16 @@ private:
 	char _pinTaps[PIN_MAX_LEN][PinKb::SLOTS_MAX + 1] = {{0}};
 	bool _pinCardsDirty = false;    /**< the deal moved; the cards owe a blit */
 	volatile bool _pinWaiting = false; /**< handed to Core 0, no verdict yet */
+	/* The keypad's touch actions (S9), which both drivers run: the predicate that holds every key but Cancelar, and six controls. They
+	 * are declared here, with the state they move, and defined in DisplayManager_PinActions.h, which only the units with a panel PIN
+	 * include: a section of their own would be one more SIMUT_PANEL_PIN site (tools/check_feature_sprawl.py). */
+	inline __attribute__((always_inline)) bool pinInputBlocked( ) const;
+	inline __attribute__((always_inline)) void actPinPopupDrop( );
+	inline __attribute__((always_inline)) void actPinBackspace( );
+	inline __attribute__((always_inline)) void actPinOk( );
+	inline __attribute__((always_inline)) void actPinPopupKey( const char *mem, int n, int i );
+	inline __attribute__((always_inline)) void actPinOrderedKey( int k, uint8_t alphabet );
+	inline __attribute__((always_inline)) void actPinCard( const PinKb::Grid &g, int k );
 #endif /* SIMUT_PANEL_PIN */
 
 	int8_t _panelUser = -1;
@@ -1310,8 +1282,8 @@ private:
 	LangKey _kbMsgKey = TR_KEYS_COUNT;
 	int8_t _kbPopup = 0; /**< PwdKb popup id: 0 none, 1..8 letter group,
 	                      *   9 digits, 10 symbols. */
-
-	SystemConfig* _sysConfigPtr = nullptr;
+	/** Pointer to const since 2026-10-28 (#295): the panel changes the configuration by sending a UiEvent that Core 0 re-checks, never through this pointer; the compiler now refuses a write. */
+	const SystemConfig* _sysConfigPtr = nullptr;
 	int _alarmPage = 0;
 	int _lastAlarmPage = -1;
 	int _activeSensorCount = 0;
@@ -1325,6 +1297,9 @@ private:
 	SensorRecord _tempAlarmConfig;
 
 
+	/** The original's: sets the draw caches of its touch sensitivity and calibration screens back to "nothing painted"; its answer to UiChange::TOUCH_CAL_ENTER
+	 *  (ui/original/UiOriginal.h). Defined in DisplayManager_Calibration.cpp, next to the caches. */
+	void resetTouchCalCaches( );
 	void drawTouchCalibration( );
 	void drawCalibrationMessage( );
 #if SIMUT_DISPLAY_TFT
@@ -1381,6 +1356,9 @@ private:
 	volatile uint32_t _pktArrowFlashEnd = 0;
 
 
+	/** The licence screen's opening in the active language, composed on Core 0 when the screen opened (_licOpening, of
+	 * DisplayManager.cpp, declared in display/LicenseOpening.h); empty where there is no pack or it is English. Core 1 reads it. */
+	const char *licenseOpening( ) const;
 	void drawSettingsLicense( );
 	int _licensePage = 0;
 	int _licenseTotalPages = 1;
@@ -1434,8 +1412,18 @@ private:
 	static constexpr int STATUS_PAGES = 4;
 	uint32_t _statusLastDraw = 0;
 
-	static constexpr int16_t CAL_SCR_X[4] = { 20, 300, 20, 300 };
-	static constexpr int16_t CAL_SCR_Y[4] = { 20, 20, 220, 220 };
+	/* The calibration targets sit CAL_INSET px inside the panel's corners (x 20/300, y 20/220 on
+	 * 320x240). The solve in handleTouch (DisplayManager_Touch.cpp) takes the distance between
+	 * them, CAL_SPAN_X by CAL_SPAN_Y, as the stretch of glass its raw readings cover, and widens
+	 * the window by one inset past each end. A 0 x 0 driver (no panel) gives negative values
+	 * here; nothing reads them in those images. */
+	static constexpr int16_t CAL_INSET  = 20;
+	static constexpr int16_t CAL_SPAN_X = DisplayDriver::W - 2 * CAL_INSET;   /* 280 on 320 */
+	static constexpr int16_t CAL_SPAN_Y = DisplayDriver::H - 2 * CAL_INSET;   /* 200 on 240 */
+	static constexpr int16_t CAL_SCR_X[4] = { CAL_INSET, DisplayDriver::W - CAL_INSET,
+	                                          CAL_INSET, DisplayDriver::W - CAL_INSET };
+	static constexpr int16_t CAL_SCR_Y[4] = { CAL_INSET, CAL_INSET,
+	                                          DisplayDriver::H - CAL_INSET, DisplayDriver::H - CAL_INSET };
 
 public:
 	/* Full-screen render via 6 strips of RENDER_STRIP_H (40) px.
@@ -1539,6 +1527,159 @@ private:
 	bool otaEnd(uint32_t seen);         /**< dismisses `seen`, unless Core 0 published since */
 	void otaTick( );                    /**< Core 1, once a pass: take the panel, draw, let go */
 	void drawOtaScreen( );
+	/* UI driver hook (UI_HOOK, src/ui/UiDriver.h): paint the update screen at once. Core 1 calls it from otaTick( )
+	 * and Core 0 from otaPaintFromCore0( ) while Core 1 is parked, so either way the panel is the caller's for the
+	 * draw. The original draws it with drawOtaScreen( ); the Ângulo paints its own screen. */
+	UI_HOOK void uiPaintOta( );
+	/* UI driver hook: Core 1, once, when it has initialised the panel (loopCore1( )). The original clears the glass and
+	 * draws the fixed background unless the boot terminal has the panel; the Ângulo marks its whole frame to be repainted.
+	 * The core keeps the line after the call, `_lastRenderedState.selectedSlotIdx = -1`: the slot rotation reads it. */
+	UI_HOOK void uiBegin( );
+	/* UI driver hook: the theme changed (Core 0's refreshTheme( ) set _themeChanged). Core 1, once a pass, before the screen
+	 * dispatch. The original says "applying theme" and repaints the dashboard in full; the Ângulo goes to the dashboard,
+	 * which repaints with the new palette. Either leaves _uiMode at the dashboard unless the device is booting. The core
+	 * clears _themeChanged after the call. */
+	UI_HOOK void uiThemeChanged( );
+	/* UI driver hook: the core tells the driver that something it shows has changed (UiChange, src/ui/UiDriver.h); `arg`
+	 * is for a kind that needs more than its name: BOTTOM_BUTTONS carries the slot its row highlights, the others ignore it. The original draws the change, as the core
+	 * did before; the Ângulo marks its frame to be repainted. At each call `c` is a constant. */
+	UI_HOOK void uiChanged( UiChange c, int16_t arg );
+	/* UI driver hook: the top card is to be shown from `snap` (redrawTopPanel( ), a copy of the state taken after it synced
+	 * topSlotIdx and mirrored the bottom card's data into the top's). The original draws the card and then the bottom buttons,
+	 * because a pinned slot's button appears and disappears with the pin; the Ângulo marks its frame to be repainted. `snap`
+	 * has to travel by reference: it is a SystemState, 360 B (redrawTopPanel( )'s copy is a memcpy of 360 B, measured on 2026-10-15), and the Core 1 stack is small. */
+	UI_HOOK void uiTopPanel( const SystemState &snap );
+	/* UI driver hook: a touch while the device boots, with the skip button on the screen (showSkipButton): did it land on the
+	 * button? The original answers with the rectangle the button has always had, y > 190 and x 80..240; the Ângulo asks the
+	 * boot frame on the glass, whose target is the button, so the frame is free to put it where it likes. The core sets the
+	 * flag the boot terminal polls (actBootSkip( )) when the answer is yes. */
+	UI_HOOK bool uiBootSkipHit( int16_t x, int16_t y );
+	/* UI driver hooks of the touch sensitivity and the calibration screens, whose blocks in handleTouch( ) the core keeps: did the touch land on the sensitivity's Cancelar, or on the
+	 * button the calibration shows with its verdict? The original answers with the zones those buttons have always had (y > 195 and x < 125; y >= 185); the Ângulo asks the frame on
+	 * the glass, whose targets they are, so the frame is free to draw them where it likes. The core runs the action (actSensCancel( ), actCalVerdictTap( )) when the answer is yes. */
+	UI_HOOK bool uiSensCancelHit( int16_t x, int16_t y );
+	UI_HOOK bool uiCalVerdictHit( int16_t x, int16_t y );
+	/* UI driver hook: the screen chain of Core 1's pass, once a pass, after the theme change and the update screen. The
+	 * original answers the current mode by drawing it and runs the core's timers on the way (src/DisplayManager_Ticks.h);
+	 * the Ângulo runs the same timers, takes the repaint requests the chain answered by drawing, and paints one frame from
+	 * the state. `currentSnapshot` is loopCore1( )'s own. The core keeps the rule after the call that restores a full
+	 * repaint for a mode that changed under the pass. */
+	UI_HOOK void uiPass( SystemState &currentSnapshot );
+	/* Core ticks (src/DisplayManager_Ticks.h): the timers and transitions of the Core 1 pass that run whatever the UI
+	 * driver draws. The same code for every driver, inline where the screen chain used to hold it. */
+	inline __attribute__((always_inline)) void tickDashboard( );
+	inline __attribute__((always_inline)) void tickAuthLockout( );
+	inline __attribute__((always_inline)) void tickTouchSens( );
+	inline __attribute__((always_inline)) void tickAlarmFlash( );
+	inline __attribute__((always_inline)) bool minMaxIdleDue( ) const;
+	inline __attribute__((always_inline)) void repairAlarmLimits( SensorType sType, uint8_t nLimits );
+	inline __attribute__((always_inline)) void clampEditFocus( uint8_t nLimits );
+	/** What pktArrowShown( ) found: the packet arrow is not flashing, its flash goes on, or the flash has just ended. */
+	enum class ArrowFlash : uint8_t { NONE, GOING, OVER };
+	inline __attribute__((always_inline)) ArrowFlash pktArrowShown( );
+	/* Core touch actions (src/DisplayManager_Actions.h): what a touch on a zone does to the state, the same code for every
+	 * driver. Whoever decided which zone was hit holds its gate (acceptTouch( ) and its kin); the action is what follows it.
+	 * The Painel group. The alarm's action screen: silence, deactivate, back to the dashboard in min/max. The dashboard:
+	 * the upper card (its gate and the 3 s hold are inside the action), the lower card and the row of buttons under the cards
+	 * (the row's gates depend on the kind of the button, so they are inside the action). The boot screen: the skip button.
+	 * The Base group, the confirmation dialogs: the mute-all confirmation's two buttons (Back, and Confirm, whose hand-written gate is
+	 * inside the action), and the account-deletion confirmation's two buttons (Cancel, and Delete, which only asks: Core 0 checks the
+	 * permission), and the AP confirmation's Confirm button (its Back is showSettingsMain( ), core code already).
+	 * The Menus group, the lists: the settings list's Open button (it asks Core 0 for the item the row stands for) and the alarms list's
+	 * row (it opens the sensor's action menu), and the licence screen's page step (its callers set the repaint request).
+	 * The Gráficos group, the graph and the update screen: the X that closes the graph or its detail, the header's tap (the sensor's name for 3 s), a
+	 * step in time, the calendar, another period, the chart's central zone (it opens the detail), the detail's pages and its way back to the chart, the calendar's way back and its month arrows, a day
+	 * and Today, and the update screen's tap. The ones that read the graph's package take it as an argument, `g`, and the caller passes _graphData: the
+	 * member exists only when SIMUT_TFT_GRAPH is set, and a declaration here cannot say so without a block of its own.
+	 * The Ajustes 1 group, the settings screens of the themes, the language, the clock, the display alignment and the sounds: the themes' and the
+	 * language's Apply (the row they apply is the caller's), the clock entry (leaving it, Save, and a column's step), the display alignment (the
+	 * four arrows and Redefinir say whether the preview moved, a tail applies it to the panel, Voltar puts the saved offset back and Salvar asks
+	 * Core 0), the melody picker (a row or an arrow picks and previews, Voltar, Usar, and opening it from the sounds list) and the sounds list
+	 * (the two volumes, a switch, Silenciar tudo and Salvar).
+	 * The Ajustes 2 group, the settings screens of the limits, the maintenance window, the PIN policy, the touch sensitivity and the calibration: the limits
+	 * editor (an arrow on a bar, with the hold's ramp and the interlock that keeps MIN under MAX; the focus a tap gives a bar or a page; Voltar; Salvar), the
+	 * maintenance window (the focus, a bar's step and the primary button, whose permission Core 0 checks again), the PIN policy (the three values a control
+	 * sets, which the action clamps and stores; Salvar) and the two blocks of handleTouch( ) that read the touch before any driver, the sensitivity's
+	 * Cancelar and the calibration's result button, whose zone each driver says through a hook.
+	 * The Identidade group, the screens that say who is at the panel and what an account may do: the PIN keypad (the predicate that holds every
+	 * key but Cancelar while a lockout runs or Core 0 reads the entry, the popup's drop, the backspace with its re-deal, Entrar, a key of the
+	 * group popup, a key of the ordered keyboard and a dealt card with its re-deal), the account picker's and the users list's row and Nova conta,
+	 * the user editor (a row, and Salvar; slot 0's bits stay locked), the sensor menu's three rows (each behind its permission bit, which Core 0
+	 * checks again) and the password keyboard (its result, leaving it, a new account's name, the legacy PIN change, the eye, and the stores of a typed character and of the backspace). */
+	inline __attribute__((always_inline)) void actAlarmSilence( );
+	inline __attribute__((always_inline)) void actAlarmDeactivate( );
+	inline __attribute__((always_inline)) void actAlarmShowMinMax( );
+	inline __attribute__((always_inline)) void actBottomCardTap( bool onGraphBtn );
+	inline __attribute__((always_inline)) void actNavButton( int btnIdx );
+	inline __attribute__((always_inline)) void actTopCardPress( bool onGraphBtn );
+	inline __attribute__((always_inline)) void actBootSkip( );
+	inline __attribute__((always_inline)) void actMuteAllBack( );
+	inline __attribute__((always_inline)) void actMuteAllConfirm( );
+	inline __attribute__((always_inline)) void actUserDelCancel( );
+	inline __attribute__((always_inline)) void actUserDelConfirm( );
+	inline __attribute__((always_inline)) void actStartAp( );
+	inline __attribute__((always_inline)) void actMenuSelect( int idx );
+	inline __attribute__((always_inline)) void actAlarmListOpen( int idx );
+	inline __attribute__((always_inline)) void actLicensePage( int dir );
+	inline __attribute__((always_inline)) void actGraphClose( );
+	inline __attribute__((always_inline)) void actGraphShowName( );
+	inline __attribute__((always_inline)) void actGraphNav( const GraphDataPackage &g, int dir );
+	inline __attribute__((always_inline)) void actGraphOpenCalendar( const GraphDataPackage &g );
+	inline __attribute__((always_inline)) void actGraphPeriod( const GraphDataPackage &g, int range );
+	inline __attribute__((always_inline)) void actGraphDetailOpen( );
+	inline __attribute__((always_inline)) void actDetailPage( uint8_t p );
+	inline __attribute__((always_inline)) void actDetailBack( );
+	inline __attribute__((always_inline)) void actCalendarBack( );
+	inline __attribute__((always_inline)) void actCalendarMonth( const GraphDataPackage &g, int dir );
+	inline __attribute__((always_inline)) void actCalendarDay( const GraphDataPackage &g, int day );
+	inline __attribute__((always_inline)) void actCalendarToday( const GraphDataPackage &g );
+	inline __attribute__((always_inline)) void actOtaDismiss( );
+	inline __attribute__((always_inline)) void actApplyTheme( int idx );
+	inline __attribute__((always_inline)) void actApplyLang( int idx );
+	inline __attribute__((always_inline)) void actClockLeave( );
+	inline __attribute__((always_inline)) void actClockSave( );
+	inline __attribute__((always_inline)) void actClockStep( uint8_t i, int delta );
+	inline __attribute__((always_inline)) bool actOffsetUp( );
+	inline __attribute__((always_inline)) bool actOffsetDown( );
+	inline __attribute__((always_inline)) bool actOffsetLeft( );
+	inline __attribute__((always_inline)) bool actOffsetRight( );
+	inline __attribute__((always_inline)) bool actOffsetCentre( );
+	inline __attribute__((always_inline)) void actOffsetPreview( );
+	inline __attribute__((always_inline)) void actOffsetBack( );
+	inline __attribute__((always_inline)) void actOffsetApply( );
+	inline __attribute__((always_inline)) void actMelodyPick( uint8_t idx );
+	inline __attribute__((always_inline)) void actMelodyBack( );
+	inline __attribute__((always_inline)) void actMelodyUse( );
+	inline __attribute__((always_inline)) void actMelodyOpen( uint8_t type, uint8_t cur );
+	inline __attribute__((always_inline)) void actSoundVolume( bool down );
+	inline __attribute__((always_inline)) void actAlarmVolume( bool down );
+	inline __attribute__((always_inline)) void actSoundToggle( bool &flag );
+	inline __attribute__((always_inline)) void actMuteToggle( );
+	inline __attribute__((always_inline)) void actSaveSounds( );
+	inline __attribute__((always_inline)) void actLimitStep( SensorType sType, uint8_t nLimits, int idx, uint8_t zone, bool inc );
+	inline __attribute__((always_inline)) void actLimitFocus( int idx );
+	inline __attribute__((always_inline)) void actLimitsBack( );
+	inline __attribute__((always_inline)) void actLimitsSave( );
+	inline __attribute__((always_inline)) void actMaintFocus( int row );
+	inline __attribute__((always_inline)) void actMaintStep( int row, int delta );
+	inline __attribute__((always_inline)) void actMaintPrimary( bool open );
+	inline __attribute__((always_inline)) void actPolicySet( uint8_t minLen, uint8_t keypad, uint8_t alphabet );
+	inline __attribute__((always_inline)) void actPolicySave( );
+	inline __attribute__((always_inline)) void actSensCancel( );
+	inline __attribute__((always_inline)) void actCalVerdictTap( );
+	/* the PIN keypad's seven, pinInputBlocked( ) and actPin*( ), are declared with its state, in the SIMUT_PANEL_PIN section above */
+	inline __attribute__((always_inline)) void actUserOpen( bool picking );
+	inline __attribute__((always_inline)) void actUserNew( );
+	inline __attribute__((always_inline)) void actUserEditActivate( int idx, bool lockedBits );
+	inline __attribute__((always_inline)) void actUserEditSave( bool lockedBits );
+	inline __attribute__((always_inline)) void actSensorMenuActivate( int row );
+	inline __attribute__((always_inline)) void actPwdResult( );
+	inline __attribute__((always_inline)) void actPwdLeave( );
+	inline __attribute__((always_inline)) void actPwdNameAccept( const char *name );
+	inline __attribute__((always_inline)) void actPwdLegacyOk( );
+	inline __attribute__((always_inline)) void actPwdToggleShow( );
+	inline __attribute__((always_inline)) void actPwdAppend( char *buf, char c );
+	inline __attribute__((always_inline)) void actPwdBackspace( char *buf );
 
 	struct ActiveLang {
 		char name[16];
@@ -1559,6 +1700,12 @@ private:
 		 * back to inline English. */
 		uint32_t helpOffset;
 		uint32_t helpLen;
+#if SIMUT_UI_PACK_TEXTS
+		/* @ANGULO, the Angulo panel's texts (S10c, B2b): a byte range into the file, like @HELP's. The panel's boot hook reads it once
+		 * (uiLangLoaded( ), src/ui/angulo/DisplayManager_UiA_Textos.cpp). anguloLen == 0 means the pack has no such section. */
+		uint32_t anguloOffset;
+		uint32_t anguloLen;
+#endif
 	};
 	static ActiveLang _activeLang;
 	static bool _activeLangLoaded;
@@ -1569,4 +1716,7 @@ private:
 	 * allocating nothing. */
 	template <bool kListOnly> static bool loadLangImpl(const char* path);
 	static void unloadLang( );
+
+	/* The UI driver's members, last among them (src/ui/UiDriverMembers.h). */
+#include "ui/UiDriverMembers.h"
 };

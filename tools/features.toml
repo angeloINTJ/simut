@@ -23,7 +23,7 @@ generates = ["tools/generated/profiles.ini", "docs/configurador/model.json", "sr
 
 # Flags que todo perfil de firmware acrescenta sobre ${pico_base.build_flags}.
 [base]
-common_flags = ["-DNDEBUG"]   # as nove imagens carregam NDEBUG (release ganhou em 2026-09-18)
+common_flags = ["-DNDEBUG"]   # as dez imagens carregam NDEBUG (release ganhou em 2026-09-18)
 
 # ---------------------------------------------------------------------------
 #  O chip. Um valor por perfil; sem a chave, rp2040 (o Pico W, que o pico_base
@@ -70,11 +70,11 @@ exclude = ["DisplayManager_Alpha.cpp"]   # a implementacao alpha nao entra
 [display.alpha_paralelo]
 flags   = ["-DSIMUT_DISPLAY_TFT=0", "-DSIMUT_DISPLAY_ALPHA=1", "-DHD44780_MODE_PARALLEL=1"]
 exclude = [
-  "DisplayManager_Touch.cpp", "DisplayManager_Settings.cpp", "DisplayManager_Graph.cpp",
-  "DisplayManager_Dashboard.cpp", "DisplayManager_Calibration.cpp", "DisplayManager_Auth.cpp",
-  "DisplayManager_Alarm.cpp", "DisplayManager_Calendar.cpp", "DisplayManager_Fonts.cpp",
-  "DisplayManager_i18n.cpp", "DisplayManager_LangParser.cpp", "AppManager_Graph.cpp",
-  "DisplayManager_Ota.cpp",
+  "DisplayManager_Touch.cpp", "ui/original/DisplayManager_Settings.cpp", "DisplayManager_SettingsCore.cpp", "ui/original/DisplayManager_Graph.cpp", "DisplayManager_GraphCore.cpp",
+  "ui/original/DisplayManager_Dashboard.cpp", "DisplayManager_Panel.cpp", "ui/original/DisplayManager_Calibration.cpp", "DisplayManager_CalibrationCore.cpp", "DisplayManager_Auth.cpp",
+  "DisplayManager_Alarm.cpp", "ui/original/DisplayManager_AlarmUi.cpp", "ui/original/DisplayManager_LicenseUi.cpp", "ui/original/DisplayManager_Calendar.cpp", "DisplayManager_CalendarCore.cpp", "ui/original/DisplayManager_Fonts.cpp",
+  "DisplayManager_i18n.cpp", "ui/original/DisplayManager_i18nUi.cpp", "DisplayManager_LangParser.cpp", "AppManager_Graph.cpp",
+  "ui/original/DisplayManager_Ota.cpp", "DisplayManager_OtaCore.cpp", "ui/original/DisplayManager_Render.cpp", "ui/original/DisplayManager_UsersUi.cpp",
 ]
 include             = ["DisplayManager_Alpha.cpp"]
 ignore_display_libs = true    # o LCD nao usa ILI9341/GFX/XPT2046
@@ -84,11 +84,11 @@ web_omit            = "tft"   # a pagina recorta o bloco @IF tft
 # O mostrador headless do Air. Mantem i18n e LangParser (web e CLI os usam).
 flags   = ["-DSIMUT_DISPLAY_TFT=0", "-DSIMUT_DISPLAY_ALPHA=0"]
 exclude = [
-  "DisplayManager_Touch.cpp", "DisplayManager_Settings.cpp", "DisplayManager_Graph.cpp",
-  "DisplayManager_Dashboard.cpp", "DisplayManager_Calibration.cpp", "DisplayManager_Auth.cpp",
-  "DisplayManager_Alarm.cpp", "DisplayManager_Calendar.cpp", "DisplayManager_Fonts.cpp",
-  "AppManager_Graph.cpp", "DisplayManager.cpp", "DisplayManager_Alpha.cpp",
-  "DisplayManager_Ota.cpp",
+  "DisplayManager_Touch.cpp", "ui/original/DisplayManager_Settings.cpp", "DisplayManager_SettingsCore.cpp", "ui/original/DisplayManager_Graph.cpp", "DisplayManager_GraphCore.cpp",
+  "ui/original/DisplayManager_Dashboard.cpp", "DisplayManager_Panel.cpp", "ui/original/DisplayManager_Calibration.cpp", "DisplayManager_CalibrationCore.cpp", "DisplayManager_Auth.cpp",
+  "DisplayManager_Alarm.cpp", "ui/original/DisplayManager_AlarmUi.cpp", "ui/original/DisplayManager_LicenseUi.cpp", "ui/original/DisplayManager_Calendar.cpp", "DisplayManager_CalendarCore.cpp", "ui/original/DisplayManager_Fonts.cpp",
+  "AppManager_Graph.cpp", "DisplayManager.cpp", "ui/original/DisplayManager_Render.cpp", "DisplayManager_Alpha.cpp",
+  "ui/original/DisplayManager_Ota.cpp", "DisplayManager_OtaCore.cpp", "ui/original/DisplayManager_i18nUi.cpp", "ui/original/DisplayManager_UsersUi.cpp",
 ]
 include             = ["DisplayManager_None.cpp"]
 ignore_display_libs = true
@@ -210,6 +210,128 @@ web_omit = "slots16"
 # src/net/Enc28j60Device.h e o unico arquivo que a inclui, e o src/net/WiredLink.cpp a unica
 # unidade que inclui esse. O tools/wire_enc_bench.py le o commit daqui.
 lib_deps = ["https://github.com/angeloINTJ/pico-enc28j60.git#4984e2f55727c81cfd6a548c7d4728942192107a"]
+
+# ---------------------------------------------------------------------------
+#  A UI do painel touch (2026-10-14): como o painel desenha e responde ao toque. Uma escolha por
+#  perfil, como o mostrador e a rede: `ui = "<id>"` nomeia um [ui.<id>], o driver de UI da imagem.
+#  Um perfil sem a chave tem o `original`, o painel da release do Pico W, e ele nao emite nada: os
+#  nove ambientes de sempre saiam do gerador byte a byte os mesmos quando a chave nasceu (2026-10-14); o pico2_w_release deixou de ser um deles em 2026-10-30 (S10c C3). O `angulo` e
+#  o painel da release do Pico 2 W desde 2026-10-30 e so existe com a tela touch (a regra angulo-needs-tft). Quem manda
+#  na identidade e o src/ui/UiCaps.h (SIMUT_UI_ANGULO, o padrao 0): a identidade vai por -D nos
+#  `flags` do driver; o que ela deriva (SIMUT_UI_ORIGINAL, SIMUT_UI_CUSTOM_THEMES) NAO vai por -D,
+#  e o cabecalho recusa quem o passa. Cada driver diz:
+#    flags    flags que o driver soma aos do perfil (a identidade).
+#    include  unidades de traducao que so o driver traz e que o filtro do pico_base nao alcanca
+#             (+<unidade> no build_src_filter), como as do mostrador alpha.
+#    units    as unidades de traducao do driver. Toda unidade de um driver que NAO e o do perfil
+#             sai do build (-<unidade> no build_src_filter), como a de um driver de rede.
+# ---------------------------------------------------------------------------
+[ui.original]
+# O que as paginas desta UI nao levam (S10c C4, 2026-10-30): os textos de licenca das fontes e dos icones do Angulo (o bloco /* @IF ui_angulo */ do
+# WebUI.h, escrito por tools/gen_notices.py). Entra no web_omit de toda imagem com o painel original, a padrao tambem, depois do da rede; o Angulo nao o tem.
+web_omit = "ui_angulo"
+# O painel da release do Pico W (e o da pico2_w_original), o padrao: nada a emitir. `units`: as unidades so dele que as duas imagens do Angulo (a do Wire e a do
+# Pico 2 W) nao linkam e que a imagem do Angulo, por isso, nao compila: Themes.cpp (o catalogo de temas; o Angulo define o dele em
+# ui/angulo/Temas.cpp), o calendario, as fontes, o grafico, a tela de atualizacao, o desenho (Render), os textos do painel (i18nUi), os
+# widgets (UiWidgets) e o Dashboard (os cartoes e a barra de botoes). Medido em 2026-10-21 (S10b, sonda P4, sobre o C5b): as sete juntas
+# linkam nas duas imagens com o mesmo .bin e a mesma folga (o --gc-sections ja as descartava); o que a lista traz e que uma dependencia
+# nova delas vira erro de link, e nao bytes calados. O Dashboard entrou em 2026-10-23 (S10c, D1): a buildDashLayout( ), a unica funcao dele
+# que o Angulo chamava (uaMontarPainel e uaToquePainel), foi para o Panel.cpp, que as duas imagens compilam e onde a tabela a classifica como
+# core. Medido nesse dia, as duas imagens do Angulo de zero sem a unidade: .bin do mesmo tamanho (826752 e 1035632 B), nenhuma funcao mudada (V-ELF) e
+# os bytes do original nelas caem de 293 e 269 B para 17 B (a buildDashLayout tem 276 e 252 B).
+# A DisplayManager_AlarmUi.cpp entrou em 2026-10-23 (S10c, D5): as tres funcoes de desenho da tela de alarme (drawAlarmAction, slotAlarmBg e
+# redrawAlarmFlash), que so o original chama, sairam do Alarm.cpp (o estado do alarme, core) para ela. Medido nesse dia, as duas imagens do
+# Angulo de zero sem a unidade: .bin do mesmo tamanho (826752 e 1035632 B; os bytes que mudam sao veneers reordenados pelo linker e os
+# desvios ate eles, veneer_proof OTHER=0), nenhuma funcao mudada (V-ELF) e os mesmos 17 B do original; as tres
+# funcoes ja nao entravam nelas (o --gc-sections as descartava), entao a lista traz o erro de link de uma dependencia nova, e nao bytes. As
+# duas listas de exclusao do LCD trazem a unidade tambem: os tres .bin do LCD3 (alpha, air e wire) mantem o sha256 da base.
+# A DisplayManager_Settings.cpp entrou em 2026-10-24 (S10c, D2): a showApConfirm( ), a unica funcao dela que o nucleo chamava (o core0Yield( ), sob
+# #if SIMUT_NET_WIFI), foi para o SettingsCore.cpp, que as duas imagens do Angulo compilam e onde a tabela a classifica como core; o resto do
+# arquivo e desenho do original. O #if SIMUT_NET_WIFI foi junto com a funcao e o emaranhamento subiu 1 (363 -> 364: SIMUT_NET_WIFI no
+# SettingsCore.cpp, de 0 para 1), com o aceite do mantenedor de 2026-10-24, um desvio registrado como o do A'4: a [net_class.wifi] nao tem lista
+# `units` por onde o arquivo saisse das imagens cabeadas em vez de levar um #if. A unidade ja estava nas duas listas de exclusao do LCD (a
+# SettingsCore.cpp tambem), entao os tres .bin do LCD3 (alpha, air e wire) nem a compilam e mantem o sha256 da base. Medido nesse dia, as duas imagens
+# do Angulo de zero sem a unidade: o log de build nao a compila mais, os .bin tem o mesmo tamanho (826752 e 1035632 B), nenhuma funcao mudou (V-ELF:
+# 4290 e 4348 iguais), nenhum simbolo foi perdido ou ganho (5629 e 5706), os construtores e as tabelas de init sao os mesmos e o original nelas continua
+# em 17 B; a showApConfirm( ) era o unico simbolo do arquivo que a imagem do Pico 2 W linkava, e a do Wire nao linkava nenhum. Nos seis produtos com
+# painel TFT, V-ELF sai 0 (nenhuma funcao mudou; so a ordem do link, nos cinco com radio) e os onze .bin mantem o tamanho.
+# O DisplayManager_UiA.cpp ganhou em 2026-10-28 (S10c, D7) o seu primeiro #if SIMUT_NET_WIFI: a confirmacao da rede de configuracao (MODE_CONFIRM_AP), o terceiro uso do dialogo do Angulo
+# (depois do mudo e da exclusao de conta), so e alcancavel numa imagem com radio (o menu cabeado nao tem o MENU_SETUP_AP e a showApConfirm( ) so existe sob SIMUT_NET_WIFI). Os dois membros
+# que a montam e a tocam (uaMontarConfirmaAp e uaToqueConfirmaAp) vivem num unico bloco #if SIMUT_NET_WIFI do arquivo, com stubs no #else (false e NAO_E_MEU) para o Angulo cabeado, e o
+# emaranhamento subiu 1 (364 -> 365: SIMUT_NET_WIFI no DisplayManager_UiA.cpp, de 0 para 1), com o aceite do mantenedor de 2026-10-28, um desvio registrado como o do D2: a [net_class.wifi]
+# segue sem lista `units` por onde o codigo saisse da imagem cabeada em vez de levar um #if (a unidade e das duas imagens do Angulo, e so uma delas tem o modo). Medido nesse dia, de zero:
+# os nove produtos mantem o sha256 do C8; o Angulo cabeado (pico_wiretft_angulo) mantem o tamanho (826736 B) e as secoes .text, .rodata, .data e .bss, nenhuma funcao mudou (V-ELF: 4284
+# iguais, 0 mudaram, dados so-leitura e textos da flash iguais) e nem os dois simbolos nem os tres textos novos estao nele (nm e strings: 0); o pico2_w_angulo cresce 400 B (flash usado
+# 1035592 -> 1035992 B, .bin 1035616 -> 1036016 B; .text +240 B e .rodata +160 B, .data e .bss iguais), com os dois membros e os tres textos so nele; o V-ELF dele traz as duas funcoes
+# novas, a uaMontarBase (241 -> 242 instrucoes) e a uaToqueBase (97 -> 98) mudadas e onze funcoes de biblioteca cuja primeira diferenca e uma palavra de texto no fim da funcao.
+# O DisplayManager_UiA.cpp ganhou em 2026-10-30 (S10c, o glifo de rede da barra de status) o seu segundo desvio da rede: a uaVmStatus( ) escolhe o estado do icone de rede (o cabo, ou os quatro niveis do Wi-Fi e o sem
+# sinal, como a barra do painel original) por `if constexpr ( SIMUT_NET_WIFI )`, no corpo da funcao e nao por um #if, para que uma macro nao definida seja erro de compilacao e nao um 0 calado. O portao nao enxergava
+# essa linha (so contava `#if`): a tools/check_feature_sprawl.py passou a contar `if constexpr ( SIMUT_X )` como sitio, com o primeiro teste do portao (tools/test_feature_sprawl.py: vermelho antes, onze mutantes
+# dele) e o emaranhamento subiu 1 (368 -> 369: SIMUT_NET_WIFI no DisplayManager_UiA.cpp, de 1 para 2), um desvio registrado como o do D7, pedido pela sessao principal em 2026-10-30 (a revisao do fix do Wi-Fi) e a
+# confirmar pelo mantenedor no merge: a [net_class.wifi] segue sem lista `units` por onde o codigo saisse da imagem cabeada, e as duas imagens do Angulo tem a uaVmStatus( ).
+# O ui/UiDriverTouch.h, o quinto cabecalho de selecao do driver (S10b C3), entrou em 2026-10-30 (S11, A5) na lista de arquivos que a tools/check_feature_sprawl.py nao conta (Q2 do plano do S11,
+# decidida pela sessao principal e dita ao mantenedor; tools/test_feature_sprawl.py: o caso novo falha antes, 52 verificacoes passam depois): o `#if SIMUT_UI_ANGULO` dele so escolhe o driver, como o dos
+# outros quatro, e o emaranhamento desceu 1 (369 -> 368: SIMUT_UI_ANGULO em ui/UiDriverTouch.h, de 1 para 0). A marca que o mantenedor confirma no merge e a de 368, e nao a de 369. Ela fica 14 acima da da
+# main (354 em origin/main 43b275d8, medida em 2026-10-30; por macro: SIMUT_UI_ANGULO +4, SIMUT_UI_PACK_TEXTS +4, SIMUT_NET_WIFI +3, SIMUT_UI_CUSTOM_THEMES +2, SIMUT_NET_LAN +2, SIMUT_DISPLAY_TFT -1). Os
+# desvios registrados acima (D2, D7 e o `if constexpr`) seguem contados: a A5 tirou da conta so um cabecalho de selecao.
+# O .bin do Angulo cabeado difere do do C8 em 579 bytes de 826736, e o veneer_proof.py (exit 0) os prova so da ordem dos veneers do ligador e dos operandos dos desvios que os chamam.
+# A DisplayManager_Calibration.cpp entrou em 2026-10-24 (S10c, D3): as duas entradas de modo das telas de calibracao, showTouchCalibration( ) e
+# showSettingsDisplayOffset( ), que o core0Yield( ), o handleResetTouchCal e a CLI chamam, so guardavam do original dois restos: as sete memorias de
+# desenho (g_*) e as duas sentinelas do desvio. Passaram a avisar o que aconteceu (UiChange::TOUCH_CAL_ENTER e DISPLAY_OFFSET_ENTER, levantados no Core 0,
+# o segundo dentro do _stateMutex) e o original responde (resetTouchCalCaches( ) e dois stores em linha no UiOriginal.h); as duas funcoes foram para o
+# CalibrationCore.cpp, que as duas imagens do Angulo compilam, e sobrou na unidade so o original (as memorias, o resetTouchCalCaches( ) e os desenhos das
+# tres telas). A unidade e a CalibrationCore.cpp ja estavam nas duas listas de exclusao do LCD, entao os tres .bin do LCD3 (alpha, air e wire) nem a compilam
+# e mantem o sha256 da base. Medido nesse dia, as duas imagens do Angulo de zero: o log de build nao compila mais a unidade (0 linhas; eram 3), os bytes do
+# original nelas caem de 17 B de flash + 2 B de RAM para 0 B + 0 B (no D3a, que tirou as sete memorias do link; o D3b e o D3c mantem), nenhum simbolo foi
+# perdido ou ganho na mudanca (SYMDIFF 0 e 0), o .bin vale 826672 e 1035560 B (eram 826752 e 1035632 B antes do D3) e a lista traz o erro de link de uma
+# dependencia nova, e nao bytes.
+# A DisplayManager_LicenseUi.cpp entrou em 2026-10-24 (S10c, D4): a drawSettingsLicense( ), a tela de licenca do original (so o UiOriginal.h a chama; o Angulo
+# desenha a sua e le a abertura por licenseOpening( )), saiu do DisplayManager.cpp (core) para ela. O buffer que ela le, _licOpening, ficou la e ganhou ligacao
+# externa no passo anterior (D4b-1, declarado em display/LicenseOpening.h). A unidade entrou tambem nas duas listas de exclusao do LCD: o DisplayManager.cpp e
+# compilado pelo display.alpha_paralelo, onde a funcao estava sob #if !SIMUT_DISPLAY_ALPHA, e uma unidade vazia compilada ali pode mudar o sha256 do LCD3; os tres
+# .bin do LCD3 (alpha, air e wire) mantem o sha256 da base. Medido nesse dia, as duas imagens do Angulo de zero sem a unidade: o log de build nao compila a unidade
+# (0 linhas nas duas), os .bin tem o mesmo tamanho (826672 e 1035560 B), nenhuma funcao mudou (V-ELF: 4285 e 4343 iguais), o original nelas continua em 0 B + 0 B e
+# a funcao ja nao entrava nelas (o --gc-sections a descartava), entao a lista traz o erro de link de uma dependencia nova, e nao bytes. O que muda nas duas imagens
+# e o endereco de funcoes: a utf8FoldNext (180 B, funcao inline fraca) vinha da copia do DisplayManager.cpp, que so a drawSettingsLicense( ) usava, e o ligador
+# passou a tomar a de outra unidade.
+# Ainda NAO estao aqui, cada uma com o que a segura (tabela da P4; o S10b-2 as separa): Auth (fastRandom, readRect*, convert3to565 e readRow,
+# que o nucleo chama), Touch (loopCore1 chama handleTouch), Users, Alarm e DisplayManager.cpp (funcoes de estado e de show que o nucleo
+# e o Angulo chamam) e Panel.cpp (sem linha de original na tabela, nao sondada). Uma unidade entra aqui com a prova das duas imagens.
+# Desde o S11 (2026-10-30) as 14 unidades ficam em src/ui/original/ e esta lista as nomeia `ui/original/<unidade>`: o pico_base as compila (+<ui/original/*.cpp>), as duas listas de
+# exclusao do LCD e o off_exclude do tft_graph usam os mesmos nomes, e o -<ui/original/...> as tira das imagens do Angulo. Os cabecalhos delas continuam em src/.
+units = [
+    "ui/original/Themes.cpp",
+    "ui/original/DisplayManager_Calendar.cpp",
+    "ui/original/DisplayManager_Fonts.cpp",
+    "ui/original/DisplayManager_Graph.cpp",
+    "ui/original/DisplayManager_Ota.cpp",
+    "ui/original/DisplayManager_Render.cpp",
+    "ui/original/DisplayManager_i18nUi.cpp",
+    "ui/original/UiWidgets.cpp",
+    "ui/original/DisplayManager_Dashboard.cpp",
+    "ui/original/DisplayManager_AlarmUi.cpp",
+    "ui/original/DisplayManager_Settings.cpp",
+    "ui/original/DisplayManager_Calibration.cpp",
+    "ui/original/DisplayManager_LicenseUi.cpp",
+    "ui/original/DisplayManager_UsersUi.cpp",
+]
+
+[ui.angulo]
+flags = ["-DSIMUT_UI_ANGULO=1"]
+# As unidades do Angulo (src/ui/angulo/, 2026-10-14, passo S2a): a cola com o DisplayManager
+# (DisplayManager_UiA*.cpp), o kit (Angulo.cpp), a rota GET /api/ui e as telas (telas/*.cpp). O filtro do
+# pico_base alcanca a raiz de src/, ota/, net/ e (desde o S11) ui/original/, mas nao ui/angulo/, por isso estas entram como `include`. Sem `units`: nenhum outro perfil as
+# compilaria (o filtro nao as ve), e um `-<unidade>` a mais mudaria o ambiente de cada perfil que escolhe o
+# `original`. Transitorio: o driver ainda compila o desenho do original, que a imagem ja nao linka (`nm -C`
+# nao lista nenhuma funcao de desenho antiga); os passos S4 a S10b o separam.
+include = [
+    "ui/angulo/Angulo.cpp",
+    "ui/angulo/DisplayManager_UiA*.cpp",
+    "ui/angulo/Temas.cpp",
+    "ui/angulo/Textos.cpp",
+    "ui/angulo/WebManager_UiA.cpp",
+    "ui/angulo/telas/*.cpp",
+]
 
 # ---------------------------------------------------------------------------
 #  Os interruptores. `emit` diz como o flag e escrito, e por que:
@@ -356,7 +478,7 @@ off_web_omit = "syslog"
 bit         = 17
 macro       = "SIMUT_TFT_GRAPH"
 emit        = "off_is_0"
-off_exclude = ["DisplayManager_Graph.cpp", "AppManager_Graph.cpp", "DisplayManager_Calendar.cpp"]
+off_exclude = ["ui/original/DisplayManager_Graph.cpp", "DisplayManager_GraphCore.cpp", "AppManager_Graph.cpp", "ui/original/DisplayManager_Calendar.cpp", "DisplayManager_CalendarCore.cpp"]
 
 # Os três drivers de sensor (2026-09-26). O default do simut_config.h é 1, então
 # ligado não emite nada e o profiles.ini não muda; desligado emite -D<macro>=0,
@@ -379,8 +501,12 @@ macro = "SIMUT_SENSOR_BME280"
 emit  = "off_is_0"
 
 # ---------------------------------------------------------------------------
-#  Os perfis. Os nove ambientes de firmware que o CI constroi; o oitavo, o
-#  pico_wire, desde 2026-10-12, e o nono, o pico_wiretft, desde 2026-10-13.
+#  Os perfis. Os onze ambientes de firmware que o CI constroi; o oitavo, o
+#  pico_wire, desde 2026-10-12, o nono, o pico_wiretft, desde 2026-10-13, o decimo, o
+#  pico_wiretft_angulo, desde 2026-10-14, e o decimo primeiro, o pico2_w_original, desde 2026-10-30 (ate 2026-10-29 o
+#  decimo primeiro era o pico2_w_angulo, o Angulo do Pico 2 W; o pico2_w_release passou a ser essa imagem, e o painel original dele veio para ca).
+#  Os dois ultimos nao sao publicados: o CI os constroi e os confere contra um orcamento de flash proprio
+#  (tools/flash_budget.json), e eles nao sao checks obrigatorios.
 #  `extends` herda o dicionario de recursos do pai e sobrescreve.
 #
 #  `ota_trust_bench = true` (2026-10-01): a imagem aceita pelo ar tambem o que a
@@ -440,9 +566,9 @@ publish             = true
 #   .bin cai 3.624 B (1.040.068 -> 1.036.444, usado 1.028.036 -> 1.024.412), nao os 4.260
 #   B, porque esta imagem nao servia pagina nenhuma do arquivo e passa a linkar
 #   serveProtectedFsPage( ) (+428 B) e o aviso "Page asset missing" (+212 B de strings em
-#   .rodata). Folga de 3.427 B (assinado 1.036.957 B; eram 3.699 B antes do seletor de
-#   temas e 3.539 B antes do aviso do envio recusado, 28/10/2026): ainda menos que um
-#   setor, entao o WARN do portao continua. Suba
+#   .rodata). Folga de 3.427 B na main cf97b955 (assinado 1.036.957 B; eram 3.699 B antes do
+#   seletor de temas e 3.539 B antes do aviso do envio recusado, 28/10/2026; no feat/ui-drivers,
+#   depois do sync 8, 3.267 B, a linha da imagem na secao 3.1 do PLANO_STABLE.md): ainda menos que um setor, entao o WARN do portao continua. Suba
 #   data/web/license.html.gz para /web/ antes de uma suite
 #   (AGENTS.md, "Gravar firmware"): o web_test_suite.py abre /license e acusa "Page asset
 #   missing" sem ele.
@@ -586,10 +712,18 @@ publish       = true
 #   `publish` e o do configurador e das tabelas FEATURES*.md: desde 2026-10-05 o
 #   build_custom.py entrega o .bin em teste e o .uf2 de fabrica dele, a pagina o segura
 #   aos tetos do slot (check_flash_budget.ceilings) e a matriz de custo o mede.
+# pico2_w_release — o SIMUT do Pico 2 W (RP2350) com o painel Angulo (S10c C3, 2026-10-30). O mantenedor decidiu em 2026-10-21/22 que o Pico 2 W tem o Angulo
+#   por padrao e que o construtor monta as duas formas, e em 2026-10-30 que a release e a imagem do Angulo (C-D1): `ui = "angulo"` aqui, e o painel original do
+#   Pico 2 W foi para o perfil pico2_w_original, logo abaixo do pico_wiretft_angulo. Ficam como estavam os nomes publicados (simut_v<versao>_releasetwo.*) e o check
+#   obrigatorio `firmware (pico2_w_release)`; o SIMUT_ENV_NAME das duas imagens do Pico 2 W e `releasetwo` (C-D2: uma variante so, de modo que a atualizacao pelo
+#   ar vai e volta entre o original e o Angulo; o nome vem do chip, do mostrador e da rede, nao do ambiente: src/simut_config.h). Medido em 2026-10-30 (sync 8,
+#   as duas do zero na mesma arvore, core igual ao do CI): .bin de 1.036.864 B (Angulo) contra os 1.000.048 B do original, 36.816 B a mais; o Angulo define
+#   9.175 B de RAM estatica (tools/ui_ram_budget.json). Nenhuma placa rodou ainda esta imagem pela release: o portao de retencao dos dois sentidos e o C5.
 [profiles.pico2_w_release]
 extends = "pico_w_release"
 chip    = "rp2350"
 publish = true
+ui      = "angulo"
 
 # pico_wire — o SIMUT Wire: um Raspberry Pi Pico comum (RP2040 sem o radio CYW43) com a
 #   rede por cabo, num modulo ENC28J60. O produto oficial e o mostrador alfanumerico
@@ -645,6 +779,29 @@ sound_buzzer    = true
 publish         = false
 ota_trust_bench = true
 
+# pico_wiretft_angulo — o pico_wiretft com o driver de UI Angulo (2026-10-14). O Angulo e o painel
+#   da release do Pico 2 W desde 2026-10-30 (S10c C3): esta e a imagem de bancada que o leva no Wire,
+#   e nenhuma release a publica. A unica chave que ela muda e `ui`, que traz as unidades
+#   de src/ui/angulo/ ([ui.angulo].include, desde o passo S2a): .bin de 831.560 B contra os 785.736
+#   do pico_wiretft (14/10/2026, core igual ao do CI). Nao publicada; confia na raiz de bancada como
+#   o pai (as duas chaves vem dele, e ficam ditas aqui para que mexer no pai nao publique esta).
+[profiles.pico_wiretft_angulo]
+extends         = "pico_wiretft"
+ui              = "angulo"
+publish         = false
+ota_trust_bench = true
+
+# pico2_w_original — o painel original no Pico 2 W (S10c C3, 2026-10-30). Era o pico2_w_release ate 2026-10-29; desde C-D1 a release e o Angulo e esta imagem e a
+#   alternativa que o construtor oferece (`ui = "original"`). A unica chave que ela muda em relacao ao pai e `ui`, que tira as unidades de src/ui/angulo/ do
+#   build; o ambiente gerado e o do antigo pico2_w_release, linha a linha, e o .bin tambem (tools/flash_budget.json: 1.000.048 B). Nao publicada: o CI a constroi e a
+#   confere contra o orcamento proprio, e ela nao e um check obrigatorio. SIMUT_ENV_NAME `releasetwo`, como o pai (C-D2). Nao confia na raiz de bancada, como o
+#   pai (a chave fica dita aqui, falsa, para que mexer no pai nao mude isto); uma build que a queira sai com PLATFORMIO_BUILD_FLAGS=-DSIMUT_OTA_TRUST_BENCH=1 (AGENTS.md).
+[profiles.pico2_w_original]
+extends         = "pico2_w_release"
+ui              = "original"
+publish         = false
+ota_trust_bench = false
+
 # ===========================================================================
 #  O configurador (docs/configurador/): como cada escolha aparece na árvore.
 #  Nada daqui muda o build — compose( ) não lê as tabelas ui_*, rules nem
@@ -657,54 +814,67 @@ ota_trust_bench = true
 order    = 1
 label.en = "SIMUT"
 label.pt = "SIMUT"
+label.es = "SIMUT"
 desc.en  = "Touch display, web interface over HTTPS, sensors, alarms and telemetry."
 desc.pt  = "Tela touch, interface web por HTTPS, sensores, alarmes e telemetria."
+desc.es  = "Pantalla táctil, interfaz web por HTTPS, sensores, alarmas y telemetría."
 
 [ui_products.pico_w_alpha]
 order    = 2
 label.en = "SIMUT Alpha"
 label.pt = "SIMUT Alpha"
+label.es = "SIMUT Alpha"
 desc.en  = "16x2 character LCD instead of the touch display, and a Bluetooth console."
 desc.pt  = "LCD de caracteres 16x2 no lugar da tela touch, e um console por Bluetooth."
+desc.es  = "LCD de caracteres 16x2 en lugar de la pantalla táctil, y una consola por Bluetooth."
 
 [ui_products.pico_w_air]
 order    = 3
 label.en = "SIMUT Air"
 label.pt = "SIMUT Air"
+label.es = "SIMUT Air"
 desc.en  = "No display: wakes, reads, sends and sleeps again, to run on battery."
 desc.pt  = "Sem mostrador: acorda, lê, envia e volta a dormir, para rodar na bateria."
+desc.es  = "Sin pantalla: despierta, lee, envía y vuelve a dormir, para funcionar con batería."
 
 [ui_products.pico2_w_release]
 order    = 4
 label.en = "SIMUT for the Pico 2 W"
 label.pt = "SIMUT para o Pico 2 W"
 label.es = "SIMUT para la Pico 2 W"   # a coluna dele no FEATURES.es-ES.md
-desc.en  = "The touch display product on the Pico 2 W (RP2350), with twice the flash: it boots from slot A or B, and an update over the air goes into the other slot and runs on trial."
-desc.pt  = "O produto com tela touch no Pico 2 W (RP2350), com o dobro de flash: sobe do slot A ou B, e uma atualização pelo ar vai para o outro slot e roda em teste."
+desc.en  = "The touch display product on the Pico 2 W (RP2350) in the Ângulo look, with twice the flash: it boots from slot A or B, and an update over the air goes into the other slot and runs on trial."
+desc.pt  = "O produto com tela touch no Pico 2 W (RP2350) no visual Ângulo, com o dobro de flash: sobe do slot A ou B, e uma atualização pelo ar vai para o outro slot e roda em teste."
+desc.es  = "El producto con pantalla táctil en la Pico 2 W (RP2350) en el aspecto Ángulo, con el doble de flash: arranca desde la ranura A o B, y una actualización inalámbrica va a la otra ranura y se ejecuta a prueba."
 
 [ui_products.pico_w_test]
 order    = 5
 bench    = true
 label.en = "Bench image"
 label.pt = "Imagem de bancada"
+label.es = "Imagen de banco"
 desc.en  = "Full command line for the test suites. Not published."
 desc.pt  = "Linha de comando completa para as suítes de teste. Não publicada."
+desc.es  = "Línea de comandos completa para las suites de pruebas. No publicada."
 
 [ui_products.pico_w_test_https]
 order    = 6
 bench    = true
 label.en = "Bench image with HTTPS"
 label.pt = "Imagem de bancada com HTTPS"
+label.es = "Imagen de banco con HTTPS"
 desc.en  = "The only image with the full command line and the TLS server together. Not published."
 desc.pt  = "A única imagem com linha de comando completa e servidor TLS juntos. Não publicada."
+desc.es  = "La única imagen con la línea de comandos completa y el servidor TLS juntos. No publicada."
 
 [ui_products.pico_w_asserts]
 order    = 7
 bench    = true
 label.en = "Concurrency soak image"
 label.pt = "Imagem de soak de concorrência"
+label.es = "Imagen de soak de concurrencia"
 desc.en  = "The release image with the concurrency tripwire armed. Not published."
 desc.pt  = "A imagem de release com a armadilha de concorrência armada. Não publicada."
+desc.es  = "La imagen de release con la trampa de concurrencia armada. No publicada."
 
 [ui_products.pico_wire]
 order    = 8
@@ -726,17 +896,40 @@ desc.en  = "The SIMUT Wire with the touch display: a plain Raspberry Pi Pico wit
 desc.pt  = "O SIMUT Wire com a tela touch: um Raspberry Pi Pico comum, sem rádio, com a rede por um módulo ENC28J60, no cabo. Não publicada."
 desc.es  = "El SIMUT Wire con el panel táctil: una Raspberry Pi Pico común, sin radio, con la red por un módulo ENC28J60, por el cable. No publicada."
 
+[ui_products.pico_wiretft_angulo]
+order    = 10
+bench    = true
+label.en = "SIMUT Wire TFT Ângulo"
+label.pt = "SIMUT Wire TFT Ângulo"
+label.es = "SIMUT Wire TFT Ángulo"
+desc.en  = "The SIMUT Wire with the touch display in the Ângulo look. Not published."
+desc.pt  = "O SIMUT Wire com a tela touch no visual Ângulo. Não publicada."
+desc.es  = "El SIMUT Wire con el panel táctil en el aspecto Ángulo. No publicada."
+
+[ui_products.pico2_w_original]
+order    = 11
+bench    = true
+label.en = "SIMUT Pico 2 W original"
+label.pt = "SIMUT Pico 2 W original"
+label.es = "SIMUT Pico 2 W original"
+desc.en  = "The touch display product on the Pico 2 W (RP2350) in the original look, the one every release before the Ângulo carried. Not published."
+desc.pt  = "O produto com tela touch no Pico 2 W (RP2350) no visual original, o que toda release antes do Ângulo levou. Não publicada."
+desc.es  = "El producto con panel táctil en la Pico 2 W (RP2350) en el aspecto original, el que llevó toda versión antes del Ángulo. No publicada."
+
 [ui_displays.tft]
 label.en = "Touch display (ILI9341, 320x240)"
 label.pt = "Tela touch (ILI9341, 320x240)"
+label.es = "Pantalla táctil (ILI9341, 320x240)"
 
 [ui_displays.alpha_paralelo]
 label.en = "16x2 character LCD (HD44780)"
 label.pt = "LCD de caracteres 16x2 (HD44780)"
+label.es = "LCD de caracteres 16x2 (HD44780)"
 
 [ui_displays.nenhum]
 label.en = "No display"
 label.pt = "Sem mostrador"
+label.es = "Sin pantalla"
 
 # A escolha da rede (2026-10-13, pedido do mantenedor de um configurador "o mais modular
 # possivel"). Fica no grupo Rede, como o interruptor `lan` ficava, e o aviso
@@ -771,6 +964,38 @@ help.es  = "Compila para una Raspberry Pi Pico común, que no tiene radio, con u
 unsupported.en = "The ENC28J60 exists only for the plain Pico (RP2040) so far: the Pico 2 W (RP2350) has no board for it."
 unsupported.pt = "O ENC28J60 só existe, por enquanto, para o Pico comum (RP2040): o Pico 2 W (RP2350) não tem placa para ele."
 unsupported.es = "El ENC28J60 solo existe, por ahora, para la Pico común (RP2040): la Pico 2 W (RP2350) no tiene placa para él."
+
+# A escolha da UI do painel touch (2026-10-14). Fica no grupo Interface, com as chaves da tela. O
+# Ângulo é o painel da release do Pico 2 W desde 2026-10-30 (S10c C3), e o texto dele diz de que depende: só
+# existe com a tela touch (a regra angulo-needs-tft trava a opção nas outras, com o motivo à vista).
+# O custo em flash dele NÃO vai no texto (desde 2026-10-29, C1d): a linha da opção mostra o que a matriz de
+# custos mediu para `ui=angulo` (priceUi), com a data da medida na página, e um número escrito aqui seria um
+# segundo, mais velho ao lado do primeiro. A medida de 2026-10-21, 31.008 B a mais que o visual original na
+# comparação de duas imagens do Pico 2 W, está em docs/analysis/UI_DRIVERS.md seção 3.6, que a evidência de
+# angulo-cyw43-needs-rp2350 cita; o caminho fica aqui, onde o mantenedor o lê, e não na página.
+[ui_panel]
+group    = "interface"
+label.en = "Touch display look"
+label.pt = "Visual da tela touch"
+label.es = "Aspecto de la pantalla táctil"
+
+[ui_panels.original]
+order    = 1
+label.en = "Original look"
+label.pt = "Visual original"
+label.es = "Aspecto original"
+help.en  = "The touch display as the Pico W release ships it, and the Pico 2 W release did up to v2.12.0, with its themes. It is the only choice on the 16x2 LCD and with no display."
+help.pt  = "A tela touch como a release do Pico W a entrega, e a do Pico 2 W a entregou até a v2.12.0, com os temas dela. É a única opção no LCD 16x2 e sem mostrador."
+help.es  = "La pantalla táctil como la entrega la versión de la Pico W, y la de la Pico 2 W la entregó hasta la v2.12.0, con sus temas. Es la única opción con el LCD 16x2 y sin pantalla."
+
+[ui_panels.angulo]
+order    = 2
+label.en = "Ângulo look"
+label.pt = "Visual Ângulo"
+label.es = "Aspecto Ángulo"
+help.en  = "The touch display drawn to the Ângulo standard: the look of the Pico 2 W release from the next version on (v2.12.0 still ships the original panel). It needs the touch display."
+help.pt  = "A tela touch desenhada no padrão Ângulo: o visual da release do Pico 2 W a partir da próxima versão (a v2.12.0 ainda traz o painel original). Exige a tela touch."
+help.es  = "La pantalla táctil dibujada según el estándar Ángulo: el aspecto de la versión de la Pico 2 W a partir de la próxima versión (la v2.12.0 aún trae el panel original). Requiere la pantalla táctil."
 
 [ui_groups.network]
 order    = 1
@@ -990,6 +1215,7 @@ when     = { air = true }
 require  = { display = "nenhum" }
 why.en   = "Hibernation needs a build without a display."
 why.pt   = "A hibernação exige uma build sem mostrador."
+why.es   = "La hibernación exige una compilación sin pantalla."
 evidence = "TFT+air and alpha+air fail to link: multiple definition of DisplayManager::DisplayManager(). SIMUT_AIR switches on DisplayManager_None.cpp, which collides with the chosen display's DisplayManager."
 
 [[rules]]
@@ -998,6 +1224,7 @@ when     = { display = "nenhum" }
 require  = { air = true }
 why.en   = "A build without a display exists only with hibernation."
 why.pt   = "Uma build sem mostrador só existe com a hibernação."
+why.es   = "Una compilación sin pantalla solo existe con la hibernación."
 evidence = "The air profile with air=false fails to link: undefined reference to DisplayManager::begin(). The headless display drops DisplayManager.cpp and the non-air boot path calls it."
 
 [[rules]]
@@ -1006,6 +1233,7 @@ when     = { tft_graph = true }
 require  = { display = "tft" }
 why.en   = "The graph draws on the touch display."
 why.pt   = "O gráfico é desenhado na tela touch."
+why.es   = "El gráfico se dibuja en la pantalla táctil."
 evidence = "SIMUT_TFT_GRAPH follows SIMUT_DISPLAY_TFT in simut_config.h, so an alpha or Air profile with the switch on still comes out without the graph (its three units leave with the display), and forcing -DSIMUT_TFT_GRAPH=1 without the TFT stops at an #error there."
 
 [[rules]]
@@ -1014,6 +1242,7 @@ when     = { air = true }
 require  = { sound_buzzer = false }
 why.en   = "The hibernating build carries no buzzer: its sound code does not compile with hibernation on."
 why.pt   = "A build que hiberna não leva o buzzer: o código de som não compila com a hibernação ligada."
+why.es   = "La compilación que hiberna no lleva zumbador: su código de sonido no compila con la hibernación activada."
 evidence = "air+sound_buzzer fails to compile: SoundManager.cpp: 'BuzzerNote' does not name a type. SIMUT_AIR turns SoundManager.h into the no-op class, and SoundManager.cpp has no guard of its own."
 
 # As duas regras abaixo pedem o radio (net = "cyw43"), e nao a ausencia do cabo (2026-10-13):
@@ -1037,6 +1266,46 @@ why.pt   = "A hibernação é feita em torno do rádio CYW43, que ela desliga en
 why.es   = "La hibernación gira en torno a la radio CYW43, que apaga entre los despertares, así que necesita la conexión Wi-Fi."
 evidence = "With net = enc28j60, SIMUT_AIR stops at an #error in simut_config.h, pinned by tools/test_pin_masks.py (2026-10-12). The test of that #error was SIMUT_NET_LAN && SIMUT_AIR, the cable; since 2026-10-13 it is SIMUT_AIR && !SIMUT_NET_CYW43, the chip. Not compiled past that #error: AppManager_Air.cpp powers the CYW43 down through GPIO23 (WL_REG_ON) before every sleep, and board = rpipico has no CYW43. The rule asks for the radio, not for the absence of the cable: a wired board added later has no CYW43 either, and the #error already refuses it."
 
+# A UI Angulo desenha na TFT (2026-10-14). Como graph-needs-tft, a regra existe porque o simut_config.h
+# para num #error, e a evidencia e o erro que o compilador deu numa build do pico_w_alpha com ui = angulo.
+[[rules]]
+id       = "angulo-needs-tft"
+when     = { ui = "angulo" }
+require  = { display = "tft" }
+why.en   = "The Ângulo look draws on the touch display."
+why.pt   = "O visual Ângulo é desenhado na tela touch."
+why.es   = "El aspecto Ángulo se dibuja en la pantalla táctil."
+evidence = "pico_w_alpha with ui = angulo (the composed environment plus -DSIMUT_UI_ANGULO=1, built with pio run on 2026-10-14) stops on every unit that includes simut_config.h, with: src/simut_config.h:99:2: error: #error \"SIMUT_UI_ANGULO needs SIMUT_DISPLAY_TFT\". The Air (no display) stops at the same #error, pinned by tools/test_ui_caps.py. Not compiled past it: the Ângulo panel draws on the ILI9341 and reads the XPT2046, which neither the 16x2 LCD nor the headless image has, and the manifest refuses the combination before a build starts."
+
+# O Angulo no Pico W (2026-10-22). O mantenedor decidiu em 2026-10-21 que o Angulo chega primeiro ao Pico 2 W, com uma versao menor para o Pico W depois, e em 2026-10-22
+# que o construtor monta o Pico 2 W das duas formas (o Angulo e o original). O Pico W e o RP2040 com o radio CYW43 (net = "cyw43"), e nele o Angulo ainda nao e oferecido: a regra
+# recusa o Angulo em todo perfil do Pico W, pela decisao do mantenedor de 2026-10-21 (a medida de que nao cabe cobre so a imagem de release, e esta na evidencia),
+# e pede o RP2350 a quem junta o Angulo ao radio. O SIMUT Wire com TFT (RP2040 com o ENC28J60, o pico_wiretft_angulo) nao e atingido, porque nao tem o radio: e a imagem de
+# bancada do Angulo e continua. `chip` entrou no vocabulario das regras (config_of( )) por causa desta: sem ele nao ha como dizer "o RP2350", porque o Pico W e o Pico 2 W
+# escolhem o mesmo mostrador, a mesma rede e a mesma UI; a pagina le o chip do mesmo model.json (products[].config.chip). Nenhuma build do Angulo para o Pico W existe, entao
+# nao ha erro de compilador a citar: a evidencia e a medida de docs/analysis/UI_DRIVERS.md secao 3.6, com as datas dela.
+[[rules]]
+id       = "angulo-cyw43-needs-rp2350"
+when     = { ui = "angulo", net = "cyw43" }
+require  = { chip = "rp2350" }
+why.en   = "On the Pico W with Wi-Fi the Ângulo look is not offered yet. Choose the Pico 2 W, or the original look."
+why.pt   = "No Pico W com Wi-Fi o visual Ângulo ainda não é oferecido. Escolha o Pico 2 W ou o visual original."
+why.es   = "En la Pico W con Wi-Fi el aspecto Ángulo aún no se ofrece. Elija la Pico 2 W o el aspecto original."
+evidence = "The rule applies a decision, not a measurement: the maintainer decided on 2026-10-21 that the Ângulo ships first on the Pico 2 W only, with a smaller version for the Pico W later, so the rule refuses every Pico W profile (the RP2040 with the CYW43 radio, whatever its display, the Wire TFT with the Wi-Fi back included), and the measurement below covers the Pico W's Wi-Fi release image only. No Ângulo build of the Pico W exists, so there is no compiler error to quote; the gap is measured on other images (docs/analysis/UI_DRIVERS.md section 3.6). Measured on 2026-10-14 (baseline images of 192e1ad, the study's Ângulo): 45,856 B above the plain pico_wiretft, against 5,643 B of OTA headroom in the Pico W's Wi-Fi release (PLANO_STABLE.md section 3.1), a gap of 34 to 40 kB. Rerun on 2026-10-21 (after S10b-1): pico2_w_angulo, a real Wi-Fi Ângulo build, is 31,008 B above pico2_w_release (.bin 1,029,952 against 998,944 B), and the Pico W's Wi-Fi release has 5,195 B of headroom in the same record and no Ângulo build, so a transposition of the 31 kB would not fit it. The SIMUT Wire TFT (RP2040 with the ENC28J60, pico_wiretft_angulo) has no radio and is not refused: it is the Ângulo's bench image. Names as of 2026-10-21, the day of the measurement: pico2_w_angulo is today's pico2_w_release, and that day's pico2_w_release is today's pico2_w_original (S10c C3, 2026-10-30)."
+
+# O Angulo e o grafico do painel (2026-10-22). O Angulo le o pacote de dados do grafico (_graphData, um membro do DisplayManager que so existe com SIMUT_TFT_GRAPH) em
+# DisplayManager_UiA.cpp e em DisplayManager_UiA_Graficos.cpp. Com `tft_graph = false` o manifesto deixava passar `ui = "angulo"` e a build so parava no compilador (a revisao
+# do C1a, 2026-10-22). Como graph-needs-tft e angulo-needs-tft, a evidencia e o erro do compilador. A regra recusa; nao faz o Angulo compilar sem o grafico: isso e src/, e nao
+# o manifesto. Nos perfis sem TFT ela acende ao lado de angulo-needs-tft, porque tft_graph = false ali.
+[[rules]]
+id       = "angulo-needs-tft-graph"
+when     = { ui = "angulo" }
+require  = { tft_graph = true }
+why.en   = "The Ângulo look draws its charts on the touch display, so it needs the switch \"Graph and calendar on the touch display\" on."
+why.pt   = "O visual Ângulo desenha os gráficos na tela touch, então precisa da chave \"Gráfico e calendário na tela touch\" ligada."
+why.es   = "El aspecto Ángulo dibuja sus gráficos en la pantalla táctil, así que necesita el interruptor \"Gráfico y calendario en la pantalla táctil\" activado."
+evidence = "pico2_w_release with ui = angulo and tft_graph = false passed the manifest and did not compile. Run on 2026-10-22 on the tree of a6859ce5, before this rule existed: python3 tools/build_custom.py --profile '{\"v\":1,\"base\":\"pico2_w_release\",\"set\":{\"ui\":\"angulo\",\"tft_graph\":false}}' exits 1 with src/ui/angulo/DisplayManager_UiA.cpp:293:44: error: '_graphData' was not declared in this scope, and five more of the same error in src/ui/angulo/DisplayManager_UiA_Graficos.cpp (its --validate-only exited 0). The Wire TFT (base pico_wiretft, the same two choices) fails the same way. The Ângulo reads the data package of the panel chart, DisplayManager::_graphData (a GraphDataPackage), a member that exists only when SIMUT_TFT_GRAPH is set (src/DisplayManager.h), so the Ângulo needs the chart switch on. The manifest refuses the combination before a build starts; making the Ângulo compile without the chart is a change in src/, not in the manifest."
+
 # O que o orcamento de PIO e de pinos recusa (tools/pio_budget.py, 2026-10-13), com as
 # palavras que a pagina mostra: `why` e o problema; `fix`, o remedio, com {list} trocado
 # pelos rotulos de [ui_toggles] das chaves que, desligadas uma de cada vez, fazem caber,
@@ -1051,18 +1320,24 @@ evidence = "With net = enc28j60, SIMUT_AIR stops at an #error in simut_config.h,
 [ui_budget.pio-budget]
 why.en     = "This does not fit the PIO blocks of this chip."
 why.pt     = "Isto não cabe nos blocos PIO deste chip."
+why.es     = "Esto no cabe en los bloques PIO de este chip."
 fix.en     = "Turn off one of these: {list}."
 fix.pt     = "Desligue um destes: {list}."
+fix.es     = "Desactive uno de estos: {list}."
 fix_one.en = "Turn off: {list}."
 fix_one.pt = "Desligue: {list}."
+fix_one.es = "Desactive: {list}."
 
 [ui_budget.pin-conflict]
 why.en     = "Two features claim GP{pin}."
 why.pt     = "Dois recursos disputam o GP{pin}."
+why.es     = "Dos funciones se disputan el GP{pin}."
 fix.en     = "Turn off one of these: {list}."
 fix.pt     = "Desligue um destes: {list}."
+fix.es     = "Desactive uno de estos: {list}."
 fix_one.en = "Turn off: {list}."
 fix_one.pt = "Desligue: {list}."
+fix_one.es = "Desactive: {list}."
 
 # Avisos: combinações que compilam mas carregam um risco conhecido. Não travam
 # nada; a página mostra o motivo e de onde vem a evidência.
@@ -1071,6 +1346,7 @@ id       = "enc28j60-unsoaked"
 when     = { net = "enc28j60" }
 why.en   = "The ENC28J60 connection has run on the bench, not yet through a soak: a build with it is a bench build."
 why.pt   = "A conexão ENC28J60 rodou na bancada, mas ainda não passou por um soak: uma build com ela é de bancada."
+why.es   = "La conexión ENC28J60 ha funcionado en el banco, pero aún no ha pasado por un soak: una compilación con ella es de banco."
 evidence = "2026-10-13: pico_wiretft on the Wire rig, web and console over the cable for hours; no image with the ENC28J60 has run a 72 h soak."
 
 [[hazards]]
@@ -1078,4 +1354,5 @@ id       = "bt-flash-core1"
 when     = { bluetooth = true, display = "tft" }
 why.en   = "Bluetooth writes its pairing data to flash without pausing Core 1, which draws the touch display. Inferred from the framework source, never reproduced."
 why.pt   = "O Bluetooth grava os dados de pareamento no flash sem pausar o Core 1, que desenha a tela touch. Inferido do código do framework, nunca reproduzido."
+why.es   = "El Bluetooth graba los datos de emparejamiento en la flash sin pausar el Core 1, que dibuja la pantalla táctil. Deducido del código del framework, nunca reproducido."
 evidence = "MODELO_DE_RECURSOS.md R-H24 (inferred): btstack_flash_bank.cpp:53-56 writes the TLV without Core1FlashPause."

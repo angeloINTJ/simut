@@ -252,7 +252,7 @@ for (let n = 0; n < 300; n++) {
   });
 }
 
-/* Size and depth: a 48 KiB pack is the largest text the device writes, and a
+/* Size and depth: a 64 KiB pack is the largest text the device writes, and a
    deep nesting must not cost a stack frame per level. */
 let big = '[' + Array.from({ length: 5000 }, (_, i) => i).join(',') + ']';
 let t0 = Date.now(), mb = tvParse('big.json', big);

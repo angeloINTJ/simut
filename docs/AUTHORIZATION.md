@@ -12,6 +12,16 @@ own unit — the panel mirror into `WebManager_History.cpp`, `POST /api/tls` int
 `python3 tools/check_authz.py --list` to print the live matrix straight from the
 source.
 
+A UI driver's routes (any file under `src/ui/`, at any depth, with a C or C++
+source or header extension: `c`, `cc`, `cpp`, `cxx`, `h`, `hh`, `hpp`, `hxx`, `inl`,
+`ipp` or `tpp`, the `DRIVER_EXTS` of the gate, which the pre-commit hook and
+`tools/test_check_authz_drivers.py` hold to the same list; today only the Ângulo's
+`GET /api/ui`, in `src/ui/angulo/WebManager_UiA.cpp`) are parsed by the same rules
+and a finding there fails the check,
+but the gate counts them on a line of their own, outside the totals the READMEs
+quote: only an image built with `ui = "angulo"` serves one (the Pico 2 W release
+since 2026-10-30, S10c C3; from the next version on: v2.12.0 still ships the original panel on the Pico 2 W). They are in the tables below, marked **driver**.
+
 ## How a refusal is answered
 
 Every JSON route gates through `requirePerm(bits)` (`WebManager_Auth.cpp`):
@@ -123,6 +133,7 @@ handler checks.
 | `GET /api/logcodes` | `PERM_LOGS` — the event names the log view prints: the active pack's `@LOGCODES`, then the firmware's English names (`?l=en`: English only). Static labels, no device data; gated anyway because its only reader is the log view, which already needs the bit. |
 | `GET /api/screenshot`, `/api/screenshot_chunk` | `PERM_SYS_CONFIG` |
 | `GET /api/screen_stream` | `PERM_SYS_CONFIG` |
+| `GET /api/ui` (**driver**: only an image built with `ui = "angulo"` registers it, `src/ui/angulo/WebManager_UiA.cpp`) | `PERM_SYS_CONFIG` — the Ângulo panel's frame, one JSON object with these fields and no others (`handleApiUiA`): `modo` (the mode whose frame is on the glass) and `modo_atual` (the mode the panel is in now; they differ for one pass after Core 0 changes the screen), `tema` (`claro` or `escuro`, the palette of that frame), `hash` (8 hex digits, the hash of the frame's view model), `pinturas` (frames painted since boot), `ms` and `ms_max` (the last paint's duration and the longest one, in milliseconds), `faixas` (the strips the last paint pushed, 0 to 6), `painel` (the dashboard state the panel saves: `sel` the selected slot, `cima` the top card's, `fixado` whether it is pinned, `minmax` the two min/max modes, `nav` the slot behind each of the five buttons), `janela` (the chart's window, start and end in epoch seconds, `[0,0]` outside the chart and its detail), `agora` (the device's clock, epoch seconds) and `alvos` (the touch targets of the frame, at most 48, each `[x, y, w, h, tipo, indice]`), so a script touches the centre of what is drawn. It answers 503 with `Retry-After` while there is no frame yet or the panel is being repainted. The permission is `/api/screenshot`'s: the targets say as much about the screen as its picture does. `check_authz.py` checks that this handler has a gate, not which permission bit: `PERM_SYS_CONFIG` is held to this row and to review |
 | `POST /api/touch` | `PERM_SYS_CONFIG` — drives the panel UI; the panel's PIN keypad still guards the settings screens, and every panel action tests the bit of the account the PIN identified (below) |
 | `GET /api/keypad` | `PERM_SYS_CONFIG` — the four scrambled card faces, the same ones `show display keypad` prints. It describes the glass, not the secret: an account that may read `/api/screenshot` already has a picture of the identical cards, and neither says which slot of a card is the digit. Empty faces when the keypad is not the live screen |
 | `GET /api/sec_status` | `PERM_USER_MGR` |

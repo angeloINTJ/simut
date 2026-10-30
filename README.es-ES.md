@@ -24,7 +24,7 @@
 [![Contribuciones bienvenidas](https://img.shields.io/badge/Contribuciones-bienvenidas-1f6355?style=flat-square&labelColor=5f5b54)](CONTRIBUTING.es-ES.md)
 
 <p align="center">
-  <img src="docs/images/tft-tour.gif" alt="Tour del TFT de SIMUT — dashboard, gráficos de histórico, calendario y ajustes" width="400">
+  <img src="docs/images/tft-tour.gif" alt="Tour del TFT de SIMUT (Pico W) — dashboard, gráficos de histórico, calendario y ajustes" width="400">
 </p>
 
 ## Descripción general
@@ -50,7 +50,7 @@ Los tres comparten el mismo núcleo:
 | **Release actual** | **v2.12.0** (29/10/2026); el [changelog](CHANGELOG.md) dice qué cambió cada versión. SIMUT salió de beta con la v2.7.0, sobre mediciones: un soak de 8,18 h sin ningún reinicio y 6 de 6 actualizaciones por el aire sin perder nada. |
 | **Imágenes publicadas** | Cuatro imágenes, cada una en `.uf2` y `.bin`. Para la Pico W: `release` (panel táctil TFT), `alpha` (LCD 16×2 con consola Bluetooth) y `air` (registrador a batería sin pantalla). Para la Pico 2 W (RP2350): `releasetwo`, la release, cuyo `.uf2` lleva su tabla de particiones y cuyo `.bin` arranca a prueba. Junto a ellas van los packs de idioma pt-BR y es-ES y un manifiesto de OTA. Una imagen con otro conjunto de funciones sale del [configurador de build](https://angelointj.github.io/simut/configurador/), y el CI la compila desde `main`, también para la Pico 2 W. |
 | **Madurez** | <ul><li>`release`: **estable**.</li><li>`alpha`: publicado y probado en el banco, con su LCD 16×2 incluido desde el 26/09/2026.</li><li>`air`: **experimental**. Su único soak largo falló: un sueño en el ciclo 119 nunca despertó (F28). Hoy lo mitiga un watchdog a lo largo del despertar; la causa raíz no está confirmada.</li><li>`releasetwo`: **nueva** en la v2.11.0, probada en el banco en una Pico 2 W (RP2350 A2). Se actualiza por el aire en el otro slot, a prueba, y vuelve sola cuando la actualización no se confirma.</li></ul> |
-| **Pruebas** | Cada pull request ejecuta 734 casos de test en el host en 11 suites, 60 s de fuzzing y análisis estático, y compila las nueve imágenes de firmware con la caché fría. El comportamiento en hardware real se verifica en un banco — ver [Verificación en hardware](docs/VERIFICATION.es-ES.md). |
+| **Pruebas** | Cada pull request ejecuta 772 casos de test en el host en 11 suites, 60 s de fuzzing y análisis estático, y compila las once imágenes de firmware con la caché fría. El comportamiento en hardware real se verifica en un banco — ver [Verificación en hardware](docs/VERIFICATION.es-ES.md). |
 
 **Limitaciones conocidas.** Cada una está documentada donde aplica.
 - **Actualización.** La actualización por el aire reformatea el sistema de archivos:
@@ -119,11 +119,11 @@ Los tres comparten el mismo núcleo:
 
 ## Capturas de pantalla
 
-| Dashboard TFT | Gráfico de histórico en TFT | Dashboard web | Alpha inicial |
+| Dashboard TFT (Pico W) | Gráfico de histórico en TFT (Pico W) | Dashboard web | Alpha inicial |
 |:---:|:---:|:---:|:---:|
 | ![Dashboard TFT](docs/images/screens/dashboard.png) | ![Gráfico TFT](docs/images/screens/graph.png) | ![Dashboard web](docs/images/web-dashboard.png) | [![Video del alpha](https://img.youtube.com/vi/wLjghqId8nE/hqdefault.jpg)](https://youtu.be/wLjghqId8nE) |
 
-> Todas las pantallas del display, capturadas del framebuffer del panel real: [docs/images/screens/screens.md](docs/images/screens/screens.md).
+> Todas las pantallas del panel original de la Pico W, capturadas del framebuffer del panel real: [docs/images/screens/screens.md](docs/images/screens/screens.md).
 >
 > El video del **alpha inicial** muestra el primer prototipo TFT + táctil — la interfaz fue rediseñada desde entonces.
 
@@ -132,7 +132,7 @@ Los tres comparten el mismo núcleo:
 | Componente | Especificación |
 |-----------|---------------|
 | MCU | Raspberry Pi Pico W (RP2040, doble núcleo) |
-| Pantalla | `release`: TFT ILI9341 320×240 (SPI, con DMA) · `alpha`: LCD de caracteres HD44780 16×2 (4 bits) · `air`: ninguna |
+| Pantalla | `release`: TFT ILI9341 320×240 (SPI, con DMA), en el aspecto Ángulo en la Pico 2 W a partir de la próxima versión (la v2.12.0 aún trae el panel original) y en el aspecto original en la Pico W · `alpha`: LCD de caracteres HD44780 16×2 (4 bits) · `air`: ninguna |
 | Táctil | Pantalla táctil resistiva XPT2046 (`release`) |
 | Sensores | **16 slots universales en GP0–GP15** — cualquier mezcla de DS18B20 (1-Wire), DHT22 y BMP280/BME280. El BMx280 es I²C y ocupa dos pines; dos de ellos pueden compartir un par (0x76/0x77) |
 | Zumbador | Piezo pasivo (por PIO) — no existe en el Air |
@@ -145,10 +145,10 @@ Consulta la **[guía de cableado](docs/WIRING.md)** para el pinout completo y lo
 ## Características
 
 - **Sensores y alarmas** — 16 slots universales de sensor (DS18B20, DHT22, BMP280/BME280) asignados en tiempo de ejecución, curvas de calibración, límites por canal, alarma de fallo y ventanas de mantenimiento.
-- **Panel táctil** (`release`) — panel principal, gráficos del histórico y calendario, e identidad en el panel: la cuenta y luego su PIN.
+- **Panel táctil** (`release`) — panel principal, gráficos del histórico y calendario, e identidad en el panel: la cuenta y luego su PIN. La release de la Pico 2 W lo dibuja en el aspecto Ángulo; la de la Pico W conserva el panel original. A partir de la próxima versión: la v2.12.0 aún trae el panel original en la Pico 2 W.
 - **LCD de caracteres** (`alpha`) — cada slot por turno, el punto de acceso de configuración y una consola Bluetooth.
 - **Interfaz web** — 11 páginas, el espejo del panel en vivo, gráficos del histórico y exportación CSV en el navegador.
-- **API HTTP** — 62 rutas. Cada una está protegida por un permiso o es pública por diseño, y el CI lo comprueba.
+- **API HTTP** — 62 rutas. Cada una está protegida por un permiso o es pública por diseño, y el CI lo comprueba. Las imágenes con el panel Ángulo añaden `GET /api/ui`, protegida.
 - **Telemetría** — HTTP, HTTPS, MQTT y MQTTS, en lotes por cantidad, y una segunda línea, con confirmación, para las alarmas; Home Assistant, Prometheus y syslog.
 - **Red y hora** — Wi-Fi que se reconecta solo, punto de acceso de configuración abierto a pedido, y NTP con un reloj provisional hasta sincronizar.
 - **Almacenamiento** — el histórico binario V5 (unos 116 días en 1 MB), la configuración con CRC32 y `.bak`, y un log de eventos con 170 códigos de evento.
@@ -248,7 +248,7 @@ simut/
 | `pico_w_test` | Imagen de banco: la consola completa para las suites de prueba; sin HTTPS, sin mDNS | — |
 | `pico_w_test_https` | `pico_w_test` más el servidor HTTPS, para validar TLS; tres de sus páginas se sirven desde LittleFS para que quepa | — |
 | `pico_w_asserts` | Release + aserciones de concurrencia | — |
-| `pico2_w_release` | La release del Pico 2 W (RP2350): arranca desde el slot A o B de una tabla de particiones y se actualiza por el aire en el otro, a prueba ([OTA_AB_RP2350.md](docs/analysis/OTA_AB_RP2350.md)). Su `.uf2` es una imagen de fábrica, con la tabla de particiones | `…_releasetwo` |
+| `pico2_w_release` | La release del Pico 2 W (RP2350): arranca desde el slot A o B de una tabla de particiones y se actualiza por el aire en el otro, a prueba ([OTA_AB_RP2350.md](docs/analysis/OTA_AB_RP2350.md)). Su `.uf2` es una imagen de fábrica, con la tabla de particiones. Dibuja el panel táctil en el aspecto Ángulo a partir de la próxima versión; la v2.12.0 aún trae el panel original | `…_releasetwo` |
 | ocho entornos `native*` | Tests unitarios en el host — ver [Pruebas](#pruebas) | — |
 
 > **Nota de seguridad para `pico_w_alpha` y `pico_w_air`:** las dos compilan la
@@ -294,6 +294,7 @@ La consola serie está disponible por USB (115200 baudios) y, en el alpha y el A
 ### API Web
 El dispositivo expone una API REST en `http://<ip-del-dispositivo>/api/`:
 - **62 rutas** — 52 protegidas por un permiso, 10 públicas por diseño, ninguna sin protección, comprobadas por `tools/check_authz.py` en el CI;
+- las imágenes con el panel Ángulo también sirven `GET /api/ui`, protegida por `PERM_SYS_CONFIG` y contada aparte, fuera de las 62;
 - la tabla de rutas está en el [manual de usuario](docs/MANUAL.md);
 - [docs/AUTHORIZATION.md](docs/AUTHORIZATION.md) asocia cada ruta con su permiso;
 - [docs/API_POST.md](docs/API_POST.md) documenta los cuerpos de los POST.
@@ -303,7 +304,7 @@ El dispositivo expone una API REST en `http://<ip-del-dispositivo>/api/`:
 ### Tests en el host
 
 ```bash
-pio test -e native             # validadores, cursor de telemetría, etiquetas, parsers, paquetes de idioma, las pantallas Licencia y de actualización, el menú de Ajustes, la verificación de contraseña, la sesión web (328 casos)
+pio test -e native             # validadores, cursor de telemetría, etiquetas, parsers, paquetes de idioma, las pantallas Licencia y de actualización, el menú de Ajustes, la verificación de contraseña, la sesión web (366 casos)
 pio test -e native_history_v5  # códec del histórico V5 (62)
 pio test -e native_cli         # parser de la CLI (34)
 pio test -e native_lan         # parser de la CLI, ayuda del paquete, menú de Ajustes y códigos de log en una build cableada (14)
@@ -327,13 +328,13 @@ Cada push y pull request a `main` ejecuta cuatro jobs:
   - escaneo de secretos, tablas de códigos de log, matriz de autorización;
   - consistencia de la licencia, guarda del sistema de archivos, consistencia del Air;
   - tests de la fusión de días del histórico.
-- **firmware** — las nueve imágenes, compiladas con la caché fría:
+- **firmware** — las once imágenes, compiladas con la caché fría:
   - cada una se comprueba contra su presupuesto de flash y el techo de actualización por el aire;
   - la propia compilación aplica el `-Werror` y las puertas de la interfaz web, la ayuda de la CLI, los códigos de log, la tabla de canales y los packs de idioma.
 - **fuzz** — 60 s de libFuzzer contra los validadores de la API web, con oráculos de contrato.
 - **análisis estático** — cppcheck, en una versión fijada.
 
-`main` está protegida: nueve de estas comprobaciones tienen que pasar antes de cualquier merge, todos los jobs salvo las imágenes `pico_w_test_https`, `pico_wire` y `pico_wiretft`.
+`main` está protegida: nueve de estas comprobaciones tienen que pasar antes de cualquier merge, todos los jobs salvo las imágenes `pico_w_test_https`, `pico_wire`, `pico_wiretft`, `pico_wiretft_angulo` y `pico2_w_original`.
 
 ### Verificación en hardware
 
@@ -345,7 +346,7 @@ El comportamiento se comprueba en un banco: una Pico 2 W con el panel TFT y el t
 |----------|-------------|
 | [Manual de usuario (EN)](docs/MANUAL.md) | Montaje, pantalla/web/consola, OTA, referencia de la API, resolución de problemas — mantenido al día |
 | [Manual do usuário (pt-BR)](docs/MANUAL.pt-BR.md) | El mismo manual, en portugués |
-| [Manual completo (pt-BR)](docs/MANUAL.pt-BR.html) | El manual del producto en portugués, actualizado para la v2.12.0: 31 capítulos sobre instalación, configuración, uso diario e integración con servidores. Las pantallas se están recapturando; cada una que falta está marcada en su lugar |
+| [Manual completo (pt-BR)](docs/MANUAL.pt-BR.html) | El manual del producto en portugués, actualizado para la v2.12.0: instalación, configuración, uso diario e integración con servidores. Las pantallas se están recapturando; cada una que falta está marcada en su lugar |
 | [Guía de cableado](docs/WIRING.md) | Pinout completo y diagramas de conexión |
 | [Actualización por el aire](docs/OTA_USAGE.md) | Actualizar desde la página web, y lo que sobrevive |
 | [Guía de recuperación](docs/RECOVERY.md) | Recuperación de brick — BOOTSEL, picotool, reset 1200 bps |

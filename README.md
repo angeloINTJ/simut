@@ -24,7 +24,7 @@
 [![Contributions welcome](https://img.shields.io/badge/Contributions-welcome-1f6355?style=flat-square&labelColor=5f5b54)](CONTRIBUTING.md)
 
 <p align="center">
-  <img src="docs/images/tft-tour.gif" alt="SIMUT TFT tour — dashboard, history graphs, calendar and settings" width="400">
+  <img src="docs/images/tft-tour.gif" alt="SIMUT TFT tour (Pico W) — dashboard, history graphs, calendar and settings" width="400">
 </p>
 
 ## Overview
@@ -50,7 +50,7 @@ They share one core:
 | **Current release** | **v2.12.0** (2026-10-29); the [changelog](CHANGELOG.md) says what each version changed. SIMUT left beta with v2.7.0, on measurements: an 8.18 h soak with 0 reboots, and 6 of 6 over-the-air updates with nothing lost. |
 | **Published images** | Four images, each as `.uf2` and `.bin`. For the Pico W: `release` (TFT touch panel), `alpha` (16×2 LCD with a Bluetooth console) and `air` (headless battery logger). For the Pico 2 W (RP2350): `releasetwo`, the release, whose `.uf2` carries its partition table and whose `.bin` boots on trial. The pt-BR and es-ES language packs and an OTA manifest ship alongside. An image with a different set of features comes from the [build configurator](https://angelointj.github.io/simut/configurador/), and CI builds it from `main`, for the Pico 2 W too. |
 | **Maturity** | <ul><li>`release`: **stable**.</li><li>`alpha`: published and bench-tested, its 16×2 LCD included since 2026-09-26.</li><li>`air`: **experimental**. Its one long soak failed: a sleep in cycle 119 never woke (F28). A watchdog across the wake now mitigates it; the root cause is not confirmed.</li><li>`releasetwo`: **new** in v2.11.0, bench-tested on one Pico 2 W (RP2350 A2). It updates over the air into its other slot, on trial, and goes back by itself when the update does not keep itself.</li></ul> |
-| **Tests** | Every pull request runs 734 host test cases in 11 suites, 60 s of fuzzing and static analysis, and builds all nine firmware images from a cold cache. Behaviour on real hardware is verified on a bench — see [Verification on hardware](docs/VERIFICATION.md). |
+| **Tests** | Every pull request runs 772 host test cases in 11 suites, 60 s of fuzzing and static analysis, and builds all eleven firmware images from a cold cache. Behaviour on real hardware is verified on a bench — see [Verification on hardware](docs/VERIFICATION.md). |
 
 **Known limitations.** Each one is documented where it applies.
 - **Updates.** An update over the air reformats the filesystem:
@@ -119,11 +119,11 @@ They share one core:
 
 ## Screenshots
 
-| TFT dashboard | TFT history graph | Web dashboard | Early alpha |
+| TFT dashboard (Pico W) | TFT history graph (Pico W) | Web dashboard | Early alpha |
 |:---:|:---:|:---:|:---:|
 | ![TFT dashboard](docs/images/screens/dashboard.png) | ![TFT graph](docs/images/screens/graph.png) | ![Web dashboard](docs/images/web-dashboard.png) | [![Alpha video](https://img.youtube.com/vi/wLjghqId8nE/hqdefault.jpg)](https://youtu.be/wLjghqId8nE) |
 
-> Every display screen, captured off the real panel framebuffer: [docs/images/screens/screens.md](docs/images/screens/screens.md).
+> Every screen of the Pico W's original panel, captured off the real panel framebuffer: [docs/images/screens/screens.md](docs/images/screens/screens.md).
 >
 > The **early alpha** video shows the first TFT + touch prototype — the UI has been redesigned since.
 
@@ -132,7 +132,7 @@ They share one core:
 | Component | Specification |
 |-----------|---------------|
 | MCU | Raspberry Pi Pico W (RP2040, dual-core) |
-| Display | `release`: ILI9341 320×240 TFT (SPI, DMA-driven) · `alpha`: HD44780 16×2 character LCD (4-bit) · `air`: none |
+| Display | `release`: ILI9341 320×240 TFT (SPI, DMA-driven), in the Ângulo look on the Pico 2 W from the next version on (v2.12.0 still ships the original panel there) and the original look on the Pico W · `alpha`: HD44780 16×2 character LCD (4-bit) · `air`: none |
 | Touch | XPT2046 resistive touchscreen (`release`) |
 | Sensors | **16 universal slots on GP0–GP15** — any mix of DS18B20 (1-Wire), DHT22 and BMP280/BME280. A BMx280 is I²C and takes two pins; two of them can share a pair (0x76/0x77) |
 | Buzzer | Passive piezo (PIO-driven) — not on the Air |
@@ -145,10 +145,10 @@ See the **[wiring guide](docs/WIRING.md)** for the complete pinout and connectio
 ## Features
 
 - **Sensing and alarms** — 16 universal sensor slots (DS18B20, DHT22, BMP280/BME280) assigned at runtime, calibration curves, per-channel limits, a fault alarm and maintenance windows.
-- **Touch panel** (`release`) — dashboard, history graphs and calendar, and identity at the glass: an account, then its PIN.
+- **Touch panel** (`release`) — dashboard, history graphs and calendar, and identity at the glass: an account, then its PIN. The Pico 2 W release draws it in the Ângulo look; the Pico W release keeps the original panel. From the next version on: v2.12.0 still ships the original panel on the Pico 2 W.
 - **Character LCD** (`alpha`) — every slot in turn, the setup access point and a Bluetooth console.
 - **Web interface** — 11 pages, a live panel mirror, history graphs and CSV export in the browser.
-- **HTTP API** — 62 routes. Each one is either gated by a permission or public by design, and CI checks it.
+- **HTTP API** — 62 routes. Each one is either gated by a permission or public by design, and CI checks it. The images with the Ângulo panel add `GET /api/ui`, gated.
 - **Telemetry** — HTTP, HTTPS, MQTT and MQTTS, batched by quantity, and a second, acknowledged line for alarms; Home Assistant, Prometheus and syslog.
 - **Network and time** — Wi-Fi that reconnects itself, a setup access point opened on request, and NTP with a provisional clock until it syncs.
 - **Storage** — the V5 binary history (about 116 days in 1 MB), a configuration with CRC32 and a `.bak`, and an event log with 170 event codes.
@@ -248,7 +248,7 @@ simut/
 | `pico_w_test` | Bench image: the full console for the test suites; no HTTPS, no mDNS | — |
 | `pico_w_test_https` | `pico_w_test` plus the HTTPS server, for TLS validation; three of its pages are served from LittleFS to fit | — |
 | `pico_w_asserts` | Release + concurrency assertions | — |
-| `pico2_w_release` | The release for the Pico 2 W (RP2350): it boots from slot A or B of a partition table and updates over the air into the other, on trial ([OTA_AB_RP2350.md](docs/analysis/OTA_AB_RP2350.md)). Its `.uf2` is a factory image, with the partition table | `…_releasetwo` |
+| `pico2_w_release` | The release for the Pico 2 W (RP2350): it boots from slot A or B of a partition table and updates over the air into the other, on trial ([OTA_AB_RP2350.md](docs/analysis/OTA_AB_RP2350.md)). Its `.uf2` is a factory image, with the partition table. It draws the touch panel in the Ângulo look from the next version on; v2.12.0 still ships the original panel | `…_releasetwo` |
 | eight `native*` envs | Host-side unit tests — see [Testing](#testing) | — |
 
 > **Security note for `pico_w_alpha` and `pico_w_air`:** both compile the
@@ -292,6 +292,7 @@ A serial console is available over USB (115200 baud), and over Bluetooth SPP on 
 ### Web API
 The device exposes a REST API at `http://<device-ip>/api/`:
 - **62 routes** — 52 gated by a permission, 10 public by design, 0 ungated, checked by `tools/check_authz.py` in CI;
+- the images with the Ângulo panel also serve `GET /api/ui`, gated by `PERM_SYS_CONFIG` and counted apart, outside the 62;
 - the route table is in the [user manual](docs/MANUAL.md);
 - [docs/AUTHORIZATION.md](docs/AUTHORIZATION.md) maps each route to its permission;
 - [docs/API_POST.md](docs/API_POST.md) documents the POST bodies.
@@ -301,7 +302,7 @@ The device exposes a REST API at `http://<device-ip>/api/`:
 ### Host tests
 
 ```bash
-pio test -e native             # validators, telemetry cursor, labels, parsers, language packs, the License and update screens, the Settings menu, the password check, the web session (328 cases)
+pio test -e native             # validators, telemetry cursor, labels, parsers, language packs, the License and update screens, the Settings menu, the password check, the web session (366 cases)
 pio test -e native_history_v5  # V5 history codec (62)
 pio test -e native_cli         # CLI parser (34)
 pio test -e native_lan         # CLI parser, pack help, Settings menu and log codes of a wired build (14)
@@ -325,13 +326,13 @@ Every push and pull request to `main` runs four jobs:
   - secret scan, log-code tables, authorization matrix;
   - licence consistency, filesystem guard, Air consistency;
   - history day-merge tests.
-- **firmware** — all nine images, built from a cold cache:
+- **firmware** — all eleven images, built from a cold cache:
   - each is checked against its flash budget and the over-the-air ceiling;
   - the build itself enforces `-Werror` and the web UI, CLI help, log-code, channel-table and language-pack gates.
 - **fuzz** — 60 s of libFuzzer against the web-API validators, with contract oracles.
 - **static analysis** — cppcheck, at a pinned version.
 
-`main` is protected: nine of these checks must pass before anything merges, every job except the `pico_w_test_https`, `pico_wire` and `pico_wiretft` images.
+`main` is protected: nine of these checks must pass before anything merges, every job except the `pico_w_test_https`, `pico_wire`, `pico_wiretft`, `pico_wiretft_angulo` and `pico2_w_original` images.
 
 ### Verification on hardware
 
@@ -343,7 +344,7 @@ Behaviour is checked on a bench: a Pico 2 W with the TFT panel and touch, and a 
 |----------|-------------|
 | [User manual](docs/MANUAL.md) | Hardware setup, display/web/console guide, OTA, API reference, troubleshooting — kept current |
 | [Manual do usuário (pt-BR)](docs/MANUAL.pt-BR.md) | The same manual, in Portuguese |
-| [Complete manual (pt-BR)](docs/MANUAL.pt-BR.html) | The full product manual in Portuguese, updated for v2.12.0: 31 chapters on installation, configuration, daily use and server integration. Screenshots are being recaptured; each missing one is marked where it belongs |
+| [Complete manual (pt-BR)](docs/MANUAL.pt-BR.html) | The full product manual in Portuguese, updated for v2.12.0: installation, configuration, daily use and server integration. Screenshots are being recaptured; each missing one is marked where it belongs |
 | [Wiring guide](docs/WIRING.md) | Complete pinout and connection diagrams |
 | [Over-the-air updates](docs/OTA_USAGE.md) | Updating from the web page, and what survives it |
 | [Recovery guide](docs/RECOVERY.md) | Brick recovery — BOOTSEL, picotool, 1200 bps reset |

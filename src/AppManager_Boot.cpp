@@ -999,12 +999,13 @@ void AppManager::setup( ) {
  }
  
  /* Load the .lng pack only when a non-English language is in use: the EN
-  * path serves inline strings and does not need the heap the pack keeps,
-  * its @DICT: at most LANG_DICT_MAX + 2 = 6,146 B, and 3,294 B with the
-  * shipped pt-BR (@DICT 3,292 B, check_lang_packs.py, 2026-10-24). In English
-  * the panel only LISTS the pack: it reads the name and the code and keeps
-  * nothing on the heap, so the Idioma screen can offer it and the language
-  * has a way back. */
+  * path serves inline strings and does not need the heap the pack keeps: its
+  * @DICT (at most LANG_DICT_MAX + 2 = 6,146 B; 3,294 B with the shipped pt-BR,
+  * @DICT 3,292 B by check_lang_packs.py) and, on the Angulo images, its @ANGULO
+  * table (8,416 B in RAM with the shipped pt-BR, from a 9,536 B section, by python3
+  * tools/tft_ui/host_telas.py --idioma pt menus; both figures measured 2026-10-28). In
+  * English the panel only LISTS the pack: it reads the name and the code and keeps
+  * nothing on the heap, so the Idioma screen can offer it and the language has a way back. */
  if (cfg.displayLang != LANG_EN) {
   DisplayManager::findAndLoadLangFile( );
  }
@@ -1013,6 +1014,15 @@ void AppManager::setup( ) {
   DisplayManager::listLangFile( );
  }
 #endif
+ 
+ /* The UI driver's hook (src/ui/UiDriverMembers.h): the language pack, if the language needed one, has finished loading. Core 0, once, and this is the
+  * only call. The Angulo reads its own section of the pack now (src/ui/angulo/DisplayManager_UiA_Textos.cpp); a board in English loaded no pack, and the
+  * Angulo shows its English. Core 1 is already drawing the boot status (startCore1( ) is above), so a frame drawn before this point shows English; one drawn
+  * after it sees the whole table or none (Textos.cpp publishes the table with one release store). The hook returns 0, or why the Angulo kept no table, and the core logs
+  * that here, as it logs everything: a refusal is I18N_PACK_FAILED at WARN with the context 100 + the reason. The original's hook returns 0 and nothing is left of this. */
+ if (const int langWhy = _displayMgr->uiLangLoaded( )) {
+  LOG_CODE(LOG_WARN, "I18N", I18N_PACK_FAILED, 100 + langWhy, "ui_texts");   /* the pack loader's own record of this code is LOG_ERROR with context 0 (SystemDefs_Logging.h) */
+ }
  
  _displayMgr->setLanguage(cfg.displayLang);
  

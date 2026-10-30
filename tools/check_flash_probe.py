@@ -19,6 +19,7 @@ import sys
 Import("env")
 
 SRAM_BASE = 0x20000000
+# The RP2040's end, kept for every chip: on the RP2350 (SRAM to 0x20082000) it is only stricter, a false failure and never a false pass. The per-chip ends: SRAM_END in tools/check_ui_ram.py.
 SRAM_END = 0x20042000
 REQUIRED = ('__wrap_flash_range_erase', '__wrap_flash_range_program')
 

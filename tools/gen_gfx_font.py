@@ -13,7 +13,7 @@ Receita das fontes Latin-1 do TFT (FreeSansBold9pt8b_latin1.h / 12pt):
   2. pip install freetype-py (venv)
   3. gen_gfx_font.py FreeSansBold.ttf 9 0x20 0xFF FreeSansBold9pt8b out9.h
      (idem 12pt; conferir yAdvance legado: 9pt=22, 12pt=29)
-  4. tools/subset_font.py out9.h src/FreeSansBold9pt8b_latin1.h "<ASCII+acentos pt/es>"
+  4. tools/subset_font.py out9.h src/ui/original/FreeSansBold9pt8b_latin1.h "<ASCII+acentos pt/es>"
 """
 import sys
 import freetype

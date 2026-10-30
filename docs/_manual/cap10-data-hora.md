@@ -139,7 +139,7 @@ Para integradores, a rota é `POST /api/set_time` com o corpo `{"epoch": <segund
 [release]{.img} A tela **Data e hora** abre de dois jeitos:
 
 - **No fim do boot,** sozinha, num aparelho sem rede configurada e com o relógio provisório. Sem rede não há NTP, e o histórico leva a hora do relógio provisório, que perde o tempo em que o aparelho ficou desligado ([O relógio provisório](#cap-10-provisorio)).
-- **Pelo menu,** no item 4, **Data e hora**, a qualquer momento, com a permissão **Sistema** [PERM_SYS_CONFIG]{.perm} no painel, a mesma da rota `POST /api/set_time` ([capítulo 11](#cap-11-data-hora)).
+- **Pelo menu,** no item 4, **Data e hora**, a qualquer momento, com a permissão **Sistema** [PERM_SYS_CONFIG]{.perm} no painel, a mesma da rota `POST /api/set_time` ([capítulo 11](#cap-11-data-hora); no painel Ângulo, a linha **Data e hora**, [capítulo 11A](#cap-11a-data-hora)).
 
 A tela tem cinco colunas, `dd / mm / aaaa  hh : mm`, que começam na data e na hora do relógio em uso. Acima de cada valor há uma seta que soma 1; abaixo, uma seta que subtrai 1. Segurada, a seta repete a cada 300 ms. O dia fica dentro do mês: mudar o mês ou o ano ajusta o dia, e 31/03 menos um mês dá 28/02, ou 29/02 num ano bissexto. O dia, o mês, a hora e o minuto dão a volta; o ano para em 2026 e em 2099. Os segundos ficam em zero.
 
@@ -151,7 +151,7 @@ A tela tem cinco colunas, `dd / mm / aaaa  hh : mm`, que começam na data e na h
 Na pergunta do boot, a linha **Sem Wi-Fi, os dados levam esta hora.** aparece em âmbar acima dos botões. A tela está na [figura do capítulo 4](#fig-04-painel-data-hora).
 
 - **Quem pode salvar.** Pelo menu, o aparelho confere a permissão **Sistema** da conta identificada no painel. A pergunta do boot não pede conta nem PIN: o aparelho aceita **SALVAR** sem conta enquanto não houver rede configurada nem relógio acertado. O primeiro acerto, por qualquer caminho, encerra essa exceção; depois dele, um **SALVAR** sem conta toca o som de erro e não muda nada.
-- **Ninguém responde.** Depois de 30 s sem toque, o painel volta à tela inicial, como em qualquer tela ([capítulo 11](#cap-11-ocioso)), e o relógio continua o provisório. Um aparelho que volta de uma falta de energia sem ninguém por perto mostra as leituras, não uma pergunta.
+- **Ninguém responde.** Depois de 30 s sem toque, o painel volta à tela inicial, como em qualquer tela ([capítulo 11](#cap-11-ocioso); o painel Ângulo também volta em 30 s, [capítulo 11A](#cap-11a-ocioso)), e o relógio continua o provisório. Um aparelho que volta de uma falta de energia sem ninguém por perto mostra as leituras, não uma pergunta.
 - **A pergunta volta a cada boot.** O acerto à mão não sobrevive a um reinício, então um aparelho sem rede pergunta de novo sempre que liga.
 
 No mesmo boot, toda imagem escreve no console `Sem rede, relogio provisorio: conf time AAAA-MM-DD HH:MM:SS` ou, com o aparelho em inglês, `No network, provisional clock: conf time YYYY-MM-DD HH:MM:SS`. O Air escreve a linha num boot acordado (M0), não num despertar do ciclo. O comando que a linha cita funciona em todas as imagens ([No console](#cap-10-console)); no alpha e no Air, que não têm painel, é o jeito de responder à pergunta.
@@ -208,6 +208,10 @@ O que o primeiro acerto por NTP faz com as medições gravadas sob o relógio pr
 :::
 
 ## Onde a hora aparece {#cap-10-onde}
+
+::: nota
+**As telas desta seção são as do painel original (Pico W).** No Pico 2 W, veja o [capítulo 11A](#cap-11a-barra).
+:::
 
 | Lugar | Formato | Fuso |
 |---|---|---|

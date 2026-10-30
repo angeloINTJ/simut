@@ -84,14 +84,16 @@ de recebê-la pelo ar: o aparelho a recusa no stage, na validação e no aplicad
 <!-- ota-headroom:begin -->
 | Imagem | `.bin` assinado (B) | Folga (B) |
 |---|---:|---:|
-| `pico_w_release` | 1.036.133 | 4.251 |
+| `pico_w_release` | 1.036.333 | 4.051 |
 | `pico_w_air` | 1.035.581 | 4.803 |
 | `pico_w_alpha` | 990.621 | 49.763 |
-| `pico2_w_release` | 1.000.241 | 568.527 |
-| `pico_w_test` | 1.036.957 | 3.427 |
-| `pico_w_asserts` | 1.038.429 | 1.955 |
-| `pico_wire` | 604.705 | 435.679 |
-| `pico_wiretft` | 787.849 | 252.535 |
+| `pico2_w_release` | 1.038.345 | 530.423 |
+| `pico_w_test` | 1.037.117 | 3.267 |
+| `pico_w_asserts` | 1.038.629 | 1.755 |
+| `pico_wire` | 604.665 | 435.719 |
+| `pico_wiretft` | 788.009 | 252.375 |
+| `pico_wiretft_angulo` | 829.113 | 211.271 |
+| `pico2_w_original` | 1.000.297 | 568.471 |
 | `pico_w_test_https` | isenta | — |
 <!-- ota-headroom:end -->
 
@@ -107,11 +109,18 @@ de recebê-la pelo ar: o aparelho a recusa no stage, na validação e no aplicad
   de OTA no painel 3,3 KB. A folga da release cabia três telas dessas, ou seis
   A-04.
 - **A `pico_w_test_https` é isenta** (B6): imagem de bancada, gravada pela USB.
+- **Histórico da `pico_w_test`:** em 2026-10-28, depois do C1 do sync 6, ela ficou
+  101 B acima do teto (`check_flash_budget.py pico_w_test` saía com 1); o #297, que
+  serve a página de licença dela pelo LittleFS, tirou-a de lá neste merge (sync 6b,
+  2026-10-28), e a linha da tabela é a medida dele.
 - **A folga da `pico2_w_release` é contra o slot, não contra o teto acima.**
   Desde o passo 4 do [OTA_AB_RP2350.md](OTA_AB_RP2350.md) ela atualiza pelo ar
   no outro slot de uma tabela de partições, e o teto dela é esse slot,
   1.568.768 B (`"slot"` no `flash_budget.json`; `OTA_IMAGE_MAX` no stage). Entre
-  os passos 2 e 4 (03/10) ela foi isenta, porque recusava todo OTA.
+  os passos 2 e 4 (03/10) ela foi isenta, porque recusava todo OTA. A `pico2_w_original`
+  tem o mesmo slot e a mesma conta. Desde 2026-10-30 (S10c C3) a `pico2_w_release` é a imagem
+  do Ângulo (a antiga `pico2_w_angulo`, 21/10), e a `pico2_w_original` é o painel original, o que a
+  `pico2_w_release` foi até 29/10: as duas linhas trocaram de nome, não de número.
 
 ---
 

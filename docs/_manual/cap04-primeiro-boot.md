@@ -41,7 +41,11 @@ O comando que a linha cita funciona no console de todas as imagens, pelo USB ou 
 
 ### No painel
 
-[release]{.img} Depois de ligar, o painel leva alguns segundos para mostrar as etapas do boot: cerca de 7,5 s, medidos em bancada em 22/09/2026, durante o desenvolvimento da v2.7.1. Em seguida aparecem `SIMUT`, a versão e a caixa com as etapas ([capítulo 11](#cap-11-boot)). Sem rede configurada, a caixa não espera o roteador: mostra **Conexão Ignorada pelo Usuário.** e segue.
+::: nota
+**As telas desta seção são as do painel original (Pico W).** No Pico 2 W, veja o [capítulo 11A](#cap-11a-boot).
+:::
+
+[release]{.img} Depois de ligar, o painel leva alguns segundos para mostrar as etapas do boot: cerca de 7,5 s, medidos em bancada em 22/09/2026, durante o desenvolvimento da v2.7.1. Em seguida aparecem `SIMUT`, a versão e a caixa com as etapas ([capítulo 11](#cap-11-boot); no Pico 2 W, veja o [capítulo 11A](#cap-11a-boot)). Sem rede configurada, a caixa não espera o roteador: mostra **Conexão Ignorada pelo Usuário.** e segue.
 
 No fim do boot, num aparelho sem rede configurada, o painel abre a tela **Data e hora** em vez da tela inicial:
 
@@ -131,7 +135,7 @@ A conta `viewer`, a outra conta de fábrica, não tem senha conhecida. Gere uma 
    Conecte-se ao AP e acesse http://192.168.4.1
    ```
 
-   Na release, o item 8 do menu do painel, **Modo de Configuração**, faz o mesmo, com uma conta que tenha a permissão **Rede** no painel, e o painel passa a mostrar a rede e a chave ([capítulo 11](#cap-11-ap)). Na alpha, o `ap` funciona também pelo Bluetooth, e o LCD alterna o endereço, a rede e a chave ([capítulo 12](#cap-12-ap)).
+   Na release, o item 8 do menu do painel, **Modo de Configuração**, faz o mesmo, com uma conta que tenha a permissão **Rede** no painel, e o painel passa a mostrar a rede e a chave ([capítulo 11](#cap-11-ap)). No painel Ângulo, a linha se chama **Modo de configuração** ([capítulo 11A](#cap-11a-ap)). Na alpha, o `ap` funciona também pelo Bluetooth, e o LCD alterna o endereço, a rede e a chave ([capítulo 12](#cap-12-ap)).
 2. No celular ou no computador, conecte-se à rede `simut_SETUP` com a chave.
 3. Abra `http://192.168.4.1`. A página de entrada aparece.
 4. Entre como `admin`, com a senha inicial.
@@ -194,7 +198,7 @@ Na sua rede, o aparelho recebe um endereço IP do roteador. Para descobri-lo:
 | Console USB, todas as imagens | `show net status`: a linha `IP:` ([capítulo 14](#cap-14-show-net)) |
 | [alpha]{.img} LCD | `Conectado!` e o endereço, por 3 s, no fim do boot ([capítulo 12](#cap-12-rede)) |
 | [release]{.img} Nome na rede | `http://simut.local`, com o nome do aparelho seguido de `.local` ([capítulo 9](#cap-09-mdns)) |
-| [release]{.img} Painel | **Configurações > Status do Sistema**, página 2, linha `IP` ([capítulo 11](#cap-11-status)) |
+| [release]{.img} Painel | **Configurações > Status do Sistema**, página 2, linha `IP` ([capítulo 11](#cap-11-status); no Pico 2 W, veja o [capítulo 11A](#cap-11a-status)) |
 | Roteador | A lista de aparelhos conectados do roteador |
 
 Com o NTP ligado e sem servidor de hora alcançável, o nome `.local` não responde ([Idioma, fuso e hora](#cap-04-idioma)).
@@ -209,7 +213,7 @@ Sem pacote de idioma, a interface aparece em inglês. O resto da interface está
 
 ## Idioma, fuso e hora {#cap-04-idioma}
 
-1. **Idioma.** Envie `language_pt-BR.lng` para a pasta `/lang`, pela página **Arquivos**, e reinicie o aparelho ([capítulo 3](#cap-03-idioma)). O idioma de fábrica do aparelho é o português: depois do reinício com o pacote na pasta, o painel e a interface web ficam em português. O console já responde em português. [release]{.img} O idioma do painel muda em **Configurações > Idioma** ([capítulo 11](#cap-11-idioma)); o da web, no seletor de cada navegador ([capítulo 13](#cap-13-idioma)).
+1. **Idioma.** Envie `language_pt-BR.lng` para a pasta `/lang`, pela página **Arquivos**, e reinicie o aparelho ([capítulo 3](#cap-03-idioma)). O idioma de fábrica do aparelho é o português: depois do reinício com o pacote na pasta, o painel e a interface web ficam em português. O console já responde em português. [release]{.img} O idioma do painel muda em **Configurações > Idioma** ([capítulo 11](#cap-11-idioma); no Pico 2 W, [capítulo 11A](#cap-11a-idioma)); o da web, no seletor de cada navegador ([capítulo 13](#cap-13-idioma)).
 2. **Fuso.** O de fábrica é −3, o de Brasília. Para outro, mude o **Fuso Horário** na página **Configurações**, seção **Identidade**, e toque em **Salvar e reiniciar** ([capítulo 10](#cap-10-fuso)).
 3. **Hora.** O NTP vem ligado e acerta o relógio pela internet. Numa rede sem acesso à internet, aponte o aparelho para um servidor de hora da própria rede ou acerte o relógio à mão: sem o primeiro acerto, o aparelho não termina de entrar na rede, e a telemetria espera ([capítulo 10](#cap-10-sem-ntp)). Num aparelho que vai funcionar sem Wi-Fi, acerte a hora à mão depois de cada boot: em qualquer imagem, com o comando `time` no console; na release, também pela pergunta do boot ou pelo item 13 do menu, **Data e hora** ([capítulo 10](#cap-10-manual)).
 
@@ -222,7 +226,7 @@ Sem pacote de idioma, a interface aparece em inglês. O resto da interface está
 
 O passo a passo completo, com a busca de sondas e a calibração, está no [capítulo 6](#cap-06-adicionar). O sensor aparece no **Painel de Controle** depois das primeiras leituras.
 
-[release]{.img} O mínimo e o máximo do cartão no painel dependem de o número do slot coincidir com o do GPIO. Veja a atenção de [Os cartões](#cap-11-cartoes) antes de escolher os pinos.
+[release]{.img} O mínimo e o máximo do cartão no painel dependem de o número do slot coincidir com o do GPIO. Veja a atenção de [Os cartões](#cap-11-cartoes) antes de escolher os pinos; no Pico 2 W, veja [Mínimo e máximo](#cap-11a-minmax).
 
 [air]{.img} No Air, configure os sensores pela web com o aparelho acordado ou pelos comandos `sensor` do console ([capítulo 14](#cap-14-sensor)).
 
@@ -230,7 +234,7 @@ O passo a passo completo, com a busca de sondas e a calibração, está no [cap�
 
 [release]{.img} O painel não usa senha: cada pessoa se identifica com a conta e um PIN. A conta `admin` sai de fábrica com o PIN `1234`, que precisa ser trocado no primeiro uso ([capítulo 8](#cap-08-pin-fabrica)).
 
-1. Na tela inicial, toque em **CFG**, na barra de botões de baixo, logo depois do último sensor ([capítulo 11](#cap-11-rodape)).
+1. Na tela inicial, toque em **CFG**, na barra de botões de baixo, logo depois do último sensor ([capítulo 11](#cap-11-rodape)). No painel Ângulo, toque na engrenagem, que vem logo depois do último sensor ([capítulo 11A](#cap-11a-botoes)).
 2. Na tela **Quem está usando o painel?**, toque em `admin` e depois em **ENTRAR**.
 3. Digite `1234` e toque em **ENTRAR**.
 4. O painel abre a tela **Novo PIN**. Digite o PIN novo e toque em **ENTRAR**.

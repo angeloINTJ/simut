@@ -1,6 +1,6 @@
 /**
  * @file DisplayManager.cpp
- * @brief Implementation of DisplayManager — Core 1 render loop, touch handling, and all UI screens.
+ * @brief Implementation of DisplayManager — Core 1 loop, touch handling, and all UI screens; render( ) and the text truncation helpers are in DisplayManager_Render.cpp. The License screen's draw is in DisplayManager_LicenseUi.cpp.
  * @details Contains the complete rendering engine: Core 1 entry point, snapshot-
  * based dirty rendering, dashboard with ambient/slot panels, graph
  * plotting with dual Y-axis, settings menus (themes, alarms, sounds,
@@ -24,8 +24,9 @@
 #endif
 #include "DisplayManager_FmtFloat.h"
 #include "HelpLicenseEN.h" /* LICENSE_TEXT_EN inline in PROGMEM */
-#include "TextWrap.h"
-#include "Utf8Fold.h"
+#include "display/LicenseOpening.h" /* _licOpening: one declaration for this unit and the original's licence draw, checked against the definition below */
+/* TextWrap.h is not included here: S10c D4b-2 moved this unit's only reader, the licence draw, to DisplayManager_LicenseUi.cpp, which includes it. Dropped in the docs step of S10c (2026-10-28): the eleven images stayed sha256-equal. */
+/* Utf8Fold.h is not included here: S10c D4b-2 moved this unit's only reader, the licence draw, to DisplayManager_LicenseUi.cpp, which includes it. Dropped in the docs step of S10c (2026-10-28): the eleven images stayed sha256-equal. */
 #include <LittleFS.h>
 
 #include "hardware/structs/timer.h"
@@ -38,6 +39,7 @@
 
 #include "pico/multicore.h"
 #include "hardware/structs/scb.h"
+#include "ui/UiDriverHooks.h"   /* the UI driver's hook definitions and the core's ticks: after every other include, they need the complete class */
 
 
 /* Reduced from 8 to 2 languages (EN + PT) to save flash.
@@ -55,7 +57,7 @@
  * The opening is the pack's own @WEBDICT strings — the very sentences the page
  * shows — so there is no second translation of them to drift. They are read
  * from flash once per language, on Core 0 when the screen opens, into the
- * buffer below; Core 1 draws it and then LICENSE_TEXT_EN straight from flash,
+ * buffer below; Core 1 draws it (DisplayManager_LicenseUi.cpp since S10c D4b-2) and then LICENSE_TEXT_EN straight from flash,
  * as one text (TextWrap.h), folding each word to the CP437 font as it goes
  * (Utf8Fold.h). The buffer holds 768 B: the pt-BR opening is 614 B and the
  * es-ES one 623 B (measured 2026-10-02), and tools/check_lang_packs.py fails a
@@ -63,7 +65,7 @@
  * to English. Without a pack, or in English, the opening is the page's English
  * text, which tools/gen_notices.py copies into HelpLicenseEN.h. */
 #if !SIMUT_DISPLAY_ALPHA
-static char _licOpening[768];
+char _licOpening[768];              /* declared in display/LicenseOpening.h: external linkage since S10c D4b-1 */
 static int _licOpeningLang = -1;    /* the language _licOpening was composed for */
 
 /* What follows each of the five strings: the page's paragraphs. Mirrored by
@@ -97,6 +99,9 @@ static void composeLicenseOpening(int langIdx) {
 	}
 	_licOpeningLang = langIdx;
 }
+/* The licence screen's opening, as Core 0 composed it for the active language when the screen opened. The Ângulo's
+ * licence screen reads it (DisplayManager_UiA_Menus.cpp); no other image calls it, and the linker drops it there. */
+const char *DisplayManager::licenseOpening( ) const { return _licOpening; }
 #endif // !SIMUT_DISPLAY_ALPHA
 
 DisplayManager* _instance = nullptr;
@@ -282,140 +287,6 @@ void DisplayManager::setLanguage(int langId) {
 
 
 
-/**
- * @brief Truncates text to fit within maxPixelW pixels in the current GFX font.
- *
- * If the original text already fits, it is copied in full to out.
- * Otherwise, removes characters from the end and appends "..." so
- * the result fits within the maximum width. The font must already be set
- * in the GFX context before calling.
- */
-#if SIMUT_DISPLAY_TFT
-void DisplayManager::truncateText(Adafruit_GFX* gfx, const char* src,
-                                   char* out, size_t outSize, int16_t maxPixelW) {
-	if (!gfx || !src || !out || outSize < 4) {
-		if (out && outSize > 0) out[0] = '\0';
-		return;
-	}
-
-	/* Measure original text width */
-	int16_t bx, by;
-	uint16_t tw, th;
-	gfx->getTextBounds(src, 0, 0, &bx, &by, &tw, &th);
-
-	/* If it fits entirely, copy and return */
-	if ((int16_t)tw <= maxPixelW) {
-		strncpy(out, src, outSize - 1);
-		out[outSize - 1] = '\0';
-		return;
-	}
-
-	/* Measure ellipsis width */
-	uint16_t ellW, ellH;
-	gfx->getTextBounds("...", 0, 0, &bx, &by, &ellW, &ellH);
-	int16_t targetW = maxPixelW - (int16_t)ellW;
-	if (targetW < 0) targetW = 0;
-
-	/* Binary search for maximum length that fits */
-	int srcLen = (int)strlen(src);
-	int lo = 0, hi = srcLen;
-	int best = 0;
-
-	while (lo <= hi) {
-		int mid = (lo + hi) / 2;
-
-		/* Build candidate string in buffer */
-		int copyLen = mid;
-		if (copyLen > (int)(outSize - 4)) copyLen = (int)(outSize - 4);
-		memcpy(out, src, copyLen);
-		out[copyLen] = '\0';
-
-		gfx->getTextBounds(out, 0, 0, &bx, &by, &tw, &th);
-
-		if ((int16_t)tw <= targetW) {
-			best = copyLen;
-			lo = mid + 1;
-		} else {
-			hi = mid - 1;
-		}
-	}
-
-	/* Remove trailing spaces before ellipsis */
-	while (best > 0 && out[best - 1] == ' ') best--;
-
-	/* Build final result */
-	memcpy(out, src, best);
-	out[best] = '.';
-	out[best + 1] = '.';
-	out[best + 2] = '.';
-	out[best + 3] = '\0';
-}
-
-/**
- * @brief Same as truncateText, but a suffix is reserved before the name
- *        competes for what is left.
- * @details truncateText shortens the whole string, so "Temperature MAX" loses
- *          the MAX first — the one part of an alarm-limit label that must never
- *          disappear, because it is what distinguishes the two rows of a
- *          channel. Here the suffix width is subtracted up front and only the
- *          name is searched, giving "Conduct... MAX" instead of "Conductivit...".
- *          A suffix that does not fit on its own is written alone.
- */
-void DisplayManager::truncateTextKeepSuffix(Adafruit_GFX* gfx, const char* name,
-                                             const char* suffix, char* out,
-                                             size_t outSize, int16_t maxPixelW) {
-	if (!gfx || !name || !suffix || !out || outSize < 5) {
-		if (out && outSize > 0) out[0] = '\0';
-		return;
-	}
-
-	const size_t sufLen = strlen(suffix);
-	if (sufLen + 5 > outSize) { out[0] = '\0'; return; }
-
-	int16_t bx, by;
-	uint16_t tw, th;
-
-	/* Fits whole? Then no ellipsis at all. */
-	size_t nameLen = strlen(name);
-	if (nameLen + sufLen < outSize) {
-		memcpy(out, name, nameLen);
-		memcpy(out + nameLen, suffix, sufLen + 1);
-		gfx->getTextBounds(out, 0, 0, &bx, &by, &tw, &th);
-		if ((int16_t)tw <= maxPixelW) return;
-	}
-
-	/* Budget for the name = width minus the suffix and the ellipsis. Both are
-	 * measured in the context's current font, not assumed. */
-	uint16_t sufW, ellW, dummyH;
-	gfx->getTextBounds(suffix, 0, 0, &bx, &by, &sufW, &dummyH);
-	gfx->getTextBounds("...", 0, 0, &bx, &by, &ellW, &dummyH);
-	int16_t targetW = maxPixelW - (int16_t)sufW - (int16_t)ellW;
-	if (targetW < 0) targetW = 0;
-
-	const int maxName = (int)(outSize - sufLen - 4);
-	int lo = 0, hi = (int)nameLen;
-	int best = 0;
-	while (lo <= hi) {
-		int mid = (lo + hi) / 2;
-		int copyLen = mid;
-		if (copyLen > maxName) copyLen = maxName;
-		memcpy(out, name, copyLen);
-		out[copyLen] = '\0';
-		gfx->getTextBounds(out, 0, 0, &bx, &by, &tw, &th);
-		if ((int16_t)tw <= targetW) { best = copyLen; lo = mid + 1; }
-		else { hi = mid - 1; }
-	}
-
-	while (best > 0 && out[best - 1] == ' ') best--;
-
-	memcpy(out, name, best);
-	out[best] = '.';
-	out[best + 1] = '.';
-	out[best + 2] = '.';
-	memcpy(out + best + 3, suffix, sufLen + 1);
-}
-
-#endif // SIMUT_DISPLAY_TFT
 bool DisplayManager::isMenuActive( ) {
 	mutex_enter_blocking(&_stateMutex);
 	bool active = (_uiMode >= MODE_AUTH);
@@ -1240,7 +1111,15 @@ static void __no_inline_not_in_flash_func(core1WaitUs)(uint32_t us) {
 	if (wakes > 1) g_core1WaitExtraWakes++;
 }
 
-void DisplayManager::loopCore1( ) {
+/* no-reorder-blocks, for this function only. Since S4 the screen chain is the original
+ * driver's uiPass( ), inlined here, and with GCC's default block reordering its 43 exits
+ * landed out of reach of a 2-byte b.n (Thumb-1 reaches 2 KB either way) and became 4-byte
+ * bl far jumps: pico_w_release grew 88 B, pico2_w_release 96 B (2026-10-15). Kept in source
+ * order, the exits stay in reach and every image that compiles the chain ends under its size
+ * before S4, with the same stack frames (loopCore1 800 B on the RP2040). GCC documents the
+ * optimize attribute as meant for debugging: what it buys is held by the sizes recorded in
+ * tools/flash_budget.json, and taking it out gives those bytes back. */
+__attribute__((optimize("no-reorder-blocks"))) void DisplayManager::loopCore1( ) {
 
 	multicore_lockout_victim_init( );
 	_core1Ready = true;
@@ -1257,7 +1136,9 @@ void DisplayManager::loopCore1( ) {
 	 * on subsequent launches. */
 	if (!_driver.tft) _driver.tft = new TftWithOffset(TFT_CS, TFT_DC, TFT_RST);
 	if (!_driver.ts) _driver.ts = new XPT2046_Touchscreen(TOUCH_CS, TOUCH_IRQ);
-	if (!_driver.canvas) _driver.canvas = new GFXcanvas16(320, 45);
+	/* As wide as the panel, so a full-width blit goes straight from the buffer (blitCanvas
+	 * compacts a narrower one in place first); 45 rows tall. */
+	if (!_driver.canvas) _driver.canvas = new GFXcanvas16(DisplayDriver::W, 45);
 	/* The 140x40 canvasSmall that used to be allocated here was dead weight:
 	 * since the widget overhaul nothing drew into it, yet it held 11.2 KB of
 	 * heap hostage on a device whose low-water mark dips below 40 KB. */
@@ -1287,8 +1168,7 @@ void DisplayManager::loopCore1( ) {
 		 * 33250000u, the next rung. */
 		_driver.tft->begin(SIMUT_TFT_SPI_HZ);
 		_driver.tft->setRotation(3);
-		fastClearScreen(C_BG_MAIN);
-		if (!_sharedState.isBooting) drawInterfaceFixed( );
+		uiBegin( );
 		_lastRenderedState.selectedSlotIdx = -1;
 		_driver.firstInit = false;
 	} else {
@@ -1419,291 +1299,11 @@ void DisplayManager::loopCore1( ) {
 		const UiMode modeBeforeDraw = _uiMode;
 
 		if (_themeChanged) {
-			C1_PHASE(C1P_THEME_MUTEX);
-			SystemState snap;
-			mutex_enter_blocking(&_stateMutex);
-			snap = _sharedState;
-			mutex_exit(&_stateMutex);
-
-			if (!snap.isBooting) {
-				fastClearScreen(C_BG_MAIN);
-				_driver.tft->setFont(&simutFont12pt);
-				_driver.tft->setTextColor(C_TEXT_MAIN);
-				int16_t x1, y1; uint16_t w, h;
-				/* T1.2: Core-1 render path is heap-free — tr( ) already
-				 * returns const char*, the String wrapper was pure waste
-				 * (and a reset-inside-malloc hazard). */
-				const char* msg = tr(TR_APPLYING_THEME);
-				_driver.tft->getTextBounds(msg, 0, 0, &x1, &y1, &w, &h);
-				_driver.tft->setCursor(160 - (w/2), 127);
-				_driver.tft->print(msg);
-				delay(200);
-
-				mutex_enter_blocking(&_stateMutex);
-				snap = _sharedState;
-				/* Mesmo guarda do render(): espelha só se interativo — topo fixado
-				 * em sensor de erro (inválido) mantém o próprio painel. */
-				if (!_topPanel.fixed && !snap.topSlotValid) {
-				snap.topSlotTemp = snap.slotTemp; snap.topSlotHum = snap.slotHum;
-				snap.topSlotType = snap.slotType; snap.topSlotValid = snap.slotValid;
-				safeCopy(snap.topSlotName, snap.slotName, 31);
-				}
-				_isDirty = false;
-				mutex_exit(&_stateMutex);
-
-				drawInterfaceFixed( );
-				drawTopBar(snap);
-				drawSlotPanel(snap.topSlotTemp, snap.topSlotHum, snap.topSlotType, snap.topSlotValid, snap.topSlotIdx, snap.topSlotName, true, _topPanel, snap.topSlotPres);
-				drawSlotPanel(snap.slotTemp, snap.slotHum, snap.slotType, snap.slotValid, snap.selectedSlotIdx, snap.slotName, true, _bottomPanel, snap.slotPres);
-				drawBottomButtons(snap.selectedSlotIdx);
-				_lastRenderedState = snap;
-				_uiMode = MODE_DASHBOARD;
-			} else {
-				fastClearScreen(C_BG_MAIN);
-				_lastRenderedState.isBooting = false;
-
-				mutex_enter_blocking(&_stateMutex);
-				_isDirty = true;
-				mutex_exit(&_stateMutex);
-			}
+			uiThemeChanged( );
 			_themeChanged = false;
 		}
 
-		if (_uiMode == MODE_DASHBOARD) {
-
-			/* Fallback to _lastWebBusy instead of false when
-			 * mutex_try_enter fails — avoids overlay flicker. */
-			bool webBusyNow = _lastWebBusy;
-			if (mutex_try_enter(&_stateMutex, NULL)) {
-				webBusyNow = _webBusy;
-				_lastWebBusy = webBusyNow;
-				mutex_exit(&_stateMutex);
-			}
-
-
-			if (_alarmNavPending >= 0) {
-				int8_t navTarget = _alarmNavPending;
-				_alarmNavPending = -1;
-				if (navTarget < 4) _currentPage = 0;
-				else if (navTarget < 8) _currentPage = 1;
-				else _currentPage = 2;
-				_alarmRotateTimer = millis( );
-				C1_PHASE(C1P_DASH_MUTEX);
-				mutex_enter_blocking(&_stateMutex);
-				_isDirty = true;
-				mutex_exit(&_stateMutex);
-			}
-
-
-			if ((_alarmSlotMask != 0 || _alarmErrMask != 0) && !_alarmSilenced) {
-				uint16_t m = _alarmSlotMask | _alarmErrMask;
-				int alarmCount = 0;
-				/* Slot fixado no painel superior não conta para a rotação:
-				 * ele já está sempre visível no topo; rotacioná-lo também para
-				 * o painel inferior duplicaria o sensor nos dois painéis. */
-				for (int i = 0; i < 10; i++) {
-					if ((m & (1 << i)) && !(_topPanel.fixed && _topPanel.fixedIdx == i)) alarmCount++;
-				}
-
-				if (alarmCount >= 2 && timeSince(_alarmRotateTimer, ALARM_ROTATE_INTERVAL_MS)) {
-					_alarmRotateTimer = millis( );
-					int current = _lastRenderedState.selectedSlotIdx;
-					for (int i = 1; i <= 10; i++) {
-						int idx = (current + i) % 10;
-						if ((_alarmSlotMask | _alarmErrMask) & (1 << idx)) {
-							/* Nunca rotacionar o slot fixado no topo para o
-							 * painel inferior (duplicação). */
-							if (_topPanel.fixed && _topPanel.fixedIdx == idx) continue;
-							if (idx < 4) _currentPage = 0;
-							else if (idx < 8) _currentPage = 1;
-							else _currentPage = 2;
-							UiEvent ev;
-							ev.type = UiEvent::EVT_SLOT_SELECT;
-							ev.id = idx;
-							pushUiEvent(ev);
-							break;
-						}
-					}
-				}
-			}
-
-
-			/* During boot screen (state.isBooting=true after
-			 * web reboot), redrawAlarmFlash overwrites the boot screen with
-			 * alarm cards — visually "alarm flashing over
-			 * Rebooting...". Skip while isBooting. */
-			if (isAnyAlarmActive( ) && !_lastRenderedState.isBooting) {
-				uint32_t now = millis( );
-				if (now - _alarmFlashTimer >= ALARM_FLASH_INTERVAL_MS) {
-					_alarmFlashTimer = now;
-					_alarmFlashPhase = !_alarmFlashPhase;
-					C1_PHASE(C1P_ALARM_FLASH);
-					redrawAlarmFlash( );
-				}
-			} else if (_alarmFlashPhase && !_lastRenderedState.isBooting) {
-
-				_alarmFlashPhase = false;
-				_alarmFlashTimer = 0;
-				_alarmRotateTimer = 0;
-				C1_PHASE(C1P_ALARM_FLASH);
-				restoreNormalDashboard( );
-			}
-
-
-			/* Render unconditionally. This used to be gated on _webOverlayShown,
-			 * which meant that once the user touched during a web transfer the
-			 * dashboard STOPPED UPDATING until the transfer finished — the readings
-			 * froze underneath a blanked screen. Touch is still rejected while a web
-			 * client holds the device (aborting a download would truncate the
-			 * caller's chart), but that is now said in a top-bar banner instead of
-			 * by hiding everything. See drawTopBar( ). */
-			C1_PHASE(C1P_SNAPSHOT);
-			if (pullSnapshot(currentSnapshot)) { C1_PHASE(C1P_RENDER); render(currentSnapshot); }
-		}
-#if SIMUT_TFT_GRAPH
-		else if (_uiMode == MODE_GRAPH_LOADING) {
-			if (_repaintLoading) { C1_PHASE(C1P_UI_GRAPH); drawLoadingScreen( ); _repaintLoading = false; }
-		}
-		else if (_uiMode == MODE_GRAPH_VIEW) {
-			if (_repaintGraph) { C1_PHASE(C1P_UI_GRAPH); drawGraphScreen( ); _repaintGraph = false; }
-		}
-		else if (_uiMode == MODE_GRAPH_DETAIL) {
-			if (_repaintGraph) { C1_PHASE(C1P_UI_GRAPH); drawGraphDetailScreen( ); _repaintGraph = false; }
-		}
-		else if (_uiMode == MODE_CALENDAR) {
-			if (_repaintCalendar) { C1_PHASE(C1P_UI_SETTINGS); drawCalendarScreen( ); _repaintCalendar = false; }
-		}
-#endif
-
-		C1_PHASE(C1P_LOOP_TAIL);
-
-		/* Revert header to date/time after 3s of showing the name */
-#if SIMUT_TFT_GRAPH
-		if ((_uiMode == MODE_GRAPH_VIEW || _uiMode == MODE_GRAPH_DETAIL)
-		    && _headerShowName
-		    && timeSince(_headerNameTimer, 3000))
-		{
-			_headerShowName = false;
-			drawGraphHeaderBar( );
-		}
-		else
-#endif
-		if (_uiMode == MODE_SETTINGS_THEMES) {
-			if (_repaintSettings) { _repaintSettings = false; C1_PHASE(C1P_UI_SETTINGS); drawSettingsThemes( ); }
-		}
-		else if (_uiMode == MODE_SETTINGS_ALARMS) {
-			if (_repaintSettings) {
-				_repaintSettings = false;
-				C1_PHASE(C1P_UI_SETTINGS);
-				/* A flag that flipped in place repaints its own word; anything
-				 * else goes through the full path. */
-				if (_alarmStatusDirty && !_forceSettingsRedraw) drawAlarmStatusOnly( );
-				else drawSettingsAlarms( );
-				_alarmStatusDirty = false;
-			}
-		}
-		else if (_uiMode == MODE_SETTINGS_ALARM_EDIT) {
-			if (_repaintSettings) { _repaintSettings = false; C1_PHASE(C1P_UI_SETTINGS); drawAlarmEdit( ); }
-		}
-		else if (_uiMode == MODE_AUTH) {
-			if (_permanentLockout) {
-				/* Wrap-safe: direct comparison with millis() fails on wrap every ~49.7 days. */
-				if (timeReached(_lockoutUntil)) forceDashboard( );
-			} else if (_lockoutUntil > 0) {
-				if (!timeReached(_lockoutUntil)) _repaintSettings = true;
-				else { _lockoutUntil = 0; _forceSettingsRedraw = true; _repaintSettings = true; }
-			}
-			if (_repaintSettings) { _repaintSettings = false; C1_PHASE(C1P_UI_SETTINGS); drawPinScreen( ); }
-		}
-		else if (_uiMode == MODE_AUTH_USER) {
-			if (_repaintSettings) { _repaintSettings = false; C1_PHASE(C1P_UI_SETTINGS); drawAuthUser( ); }
-		}
-		else if (_uiMode == MODE_SETTINGS_PIN_POLICY) {
-			if (_repaintSettings) { _repaintSettings = false; C1_PHASE(C1P_UI_SETTINGS); drawPinPolicy( ); }
-		}
-		else if (_uiMode == MODE_SETTINGS_MAIN) {
-			if (_repaintSettings) { _repaintSettings = false; C1_PHASE(C1P_UI_SETTINGS); drawSettingsMain( ); }
-		}
-		else if (_uiMode == MODE_SETTINGS_LANG) {
-			if (_repaintSettings) { _repaintSettings = false; C1_PHASE(C1P_UI_SETTINGS); drawSettingsLang( ); }
-		}
-		else if (_uiMode == MODE_SETTINGS_PASSWORD) {
-			if (_repaintSettings) { _repaintSettings = false; C1_PHASE(C1P_UI_SETTINGS); drawSettingsPassword( ); }
-		}
-		else if (_uiMode == MODE_SETTINGS_TOUCH_CAL) {
-			if (_repaintSettings) { _repaintSettings = false; C1_PHASE(C1P_UI_SETTINGS); drawTouchCalibration( ); }
-		}
-		else if (_uiMode == MODE_SETTINGS_TOUCH_SENS) {
-			if (_repaintSettings) { _repaintSettings = false; C1_PHASE(C1P_UI_SETTINGS); drawTouchSensitivity( ); }
-			/* After 1.5s from completion, advance to position calibration */
-			if (_sensDone && timeSince(_sensDoneTime, 1500)) {
-				_uiMode = MODE_SETTINGS_TOUCH_CAL;
-				_calStep = 0;
-				_calPhase = 0;
-				_forceSettingsRedraw = true;
-				_repaintSettings = true;
-			}
-		}
-		else if (_uiMode == MODE_SETTINGS_SOUNDS) {
-
-			if (_repaintSettings) {
-				_repaintSettings = false;
-				if (_inMelodySelect) drawMelodySelect( );
-				else drawSettingsSounds( );
-			}
-		}
-		else if (_uiMode == MODE_SETTINGS_STATUS) {
-			/* Renders every 1 second or when forced */
-			if (_repaintSettings || timeSince(_statusLastDraw, 1000)) {
-				_repaintSettings = false;
-				drawSystemStatus( );
-			}
-		}
-		else if (_uiMode == MODE_SETTINGS_LICENSE) {
-			if (_repaintSettings) { _repaintSettings = false; C1_PHASE(C1P_UI_SETTINGS); drawSettingsLicense( ); }
-		}
-		else if (_uiMode == MODE_SETTINGS_DISPLAY_OFFSET) {
-			if (_repaintSettings) { _repaintSettings = false; C1_PHASE(C1P_UI_SETTINGS); drawSettingsDisplayOffset( ); }
-		}
-		else if (_uiMode == MODE_ALARM_ACTION) {
-
-			if (_repaintSettings) { _repaintSettings = false; C1_PHASE(C1P_UI_SETTINGS); drawAlarmAction( ); }
-		}
-		/* v24 — identity at the panel (DisplayManager_Users.cpp) */
-		else if (_uiMode == MODE_SETTINGS_ALARM_SENSOR) {
-			if (_repaintSettings) { _repaintSettings = false; C1_PHASE(C1P_UI_SETTINGS); drawAlarmSensorMenu( ); }
-		}
-		else if (_uiMode == MODE_SETTINGS_MAINT) {
-			/* an open window counts down on screen: once a second, like the status screen */
-			if (_repaintSettings || timeSince(_maintLastDraw, 1000)) {
-				_repaintSettings = false;
-				C1_PHASE(C1P_UI_SETTINGS); drawMaintEntry( ); _maintLastDraw = millis( );
-			}
-		}
-		else if (_uiMode == MODE_SETTINGS_USERS) {
-			if (_repaintSettings) { _repaintSettings = false; C1_PHASE(C1P_UI_SETTINGS); drawSettingsUsers( ); }
-		}
-		else if (_uiMode == MODE_SETTINGS_USER_EDIT) {
-			if (_repaintSettings) { _repaintSettings = false; C1_PHASE(C1P_UI_SETTINGS); drawUserEdit( ); }
-		}
-		else if (_uiMode == MODE_SETTINGS_USER_CONFIRM_DEL) {
-			if (_repaintSettings) { _repaintSettings = false; C1_PHASE(C1P_UI_SETTINGS); drawUserConfirmDel( ); }
-		}
-		else if (_uiMode == MODE_PANEL_MESSAGE) {
-			if (_repaintSettings) { _repaintSettings = false; C1_PHASE(C1P_UI_SETTINGS); drawPanelMessage( ); }
-		}
-		else if (_uiMode == MODE_CONFIRM_MUTE_ALL) {
-
-			if (_repaintSettings) { _repaintSettings = false; C1_PHASE(C1P_UI_SETTINGS); drawMuteConfirm( ); }
-		}
-#if SIMUT_NET_WIFI
-		else if (_uiMode == MODE_CONFIRM_AP) {
-			if (_repaintSettings) { _repaintSettings = false; C1_PHASE(C1P_UI_SETTINGS); drawApConfirm( ); }
-		}
-#endif
-		else if (_uiMode == MODE_SET_CLOCK) {
-			if (_repaintSettings) { _repaintSettings = false; C1_PHASE(C1P_UI_SETTINGS); drawClockEntry( ); }
-		}
+		uiPass( currentSnapshot );
 
 		/* A request that lands WHILE a draw is running must survive that draw.
 		 * Every branch above used to clear _repaintSettings after painting, and
@@ -1790,227 +1390,6 @@ bool DisplayManager::pullSnapshot(SystemState& localSnapshot) {
 #endif // !SIMUT_DISPLAY_ALPHA
 
 #if !SIMUT_DISPLAY_ALPHA
-void DisplayManager::render(const SystemState& state) {
- SystemState st = state;
- /* Espelho do painel inferior para o topo SÓ quando o topo é interativo
- * (segue a seleção). O espelho por topSlotValid=false era o bug: um topo
- * FIXADO num sensor em erro (sensor ausente → inválido) tem topSlotValid
- * falso e o render substituía o painel do erro pelos dados do painel
- * inferior — "trazendo o sensor de baixo para cima". Com o topo fixado,
- * o painel superior mantém os próprios dados (mesmo inválidos). */
- if (!_topPanel.fixed && !st.topSlotValid) {
- st.topSlotTemp = st.slotTemp; st.topSlotHum = st.slotHum;
- st.topSlotType = st.slotType; st.topSlotValid = st.slotValid;
- safeCopy(st.topSlotName, st.slotName, 31);
- st.topSlotIdx = st.selectedSlotIdx;
- }
-	if (state.isBooting) {
-		C1_PHASE(C1P_R_BOOT);
-		/* _langChanged forces fullRedraw to retranslate bootLogs already
-		 * shown in EN before .lng loaded. */
-		bool langJustChanged = _langChanged;
-		if (langJustChanged) _langChanged = false;
-		bool fullRedraw = (_lastRenderedState.isBooting == false) ||
-		                  (_lastRenderedState.apProgressPct != state.apProgressPct) ||
-		                  langJustChanged;
-		if (state.apProgressPct >= 0) {
-			/* Until 2.7.1 this branch was unreachable: the AP-hold window ran
-			 * before startCore1( ), so nothing rendered it. Now that it does
-			 * run, the redraw condition above is true on EVERY step — the
-			 * percentage is what changed — and clearing 320x240 plus
-			 * re-stamping the caption twenty times a second is a 3-second
-			 * flicker. Only the bar moves, so only the bar is painted after
-			 * the first frame. */
-			const bool enterAp = fullRedraw || (_lastRenderedState.apProgressPct < 0);
-			if (enterAp) {
-				fastClearScreen(C_BG_MAIN);
-				_driver.tft->setFont(&simutFont9pt); _driver.tft->setTextColor(C_TEXT_MAIN);
-				_driver.tft->setCursor(55, 120); _driver.tft->print(tr(TR_AP_MODE));
-				_driver.tft->drawRoundRect(40, 140, 240, 20, 6, C_TEXT_SUB);
-			}
-			int wBar = map(state.apProgressPct, 0, 100, 0, 236);
-			if (wBar > 0) {
-				_driver.tft->fillRoundRect(42, 142, wBar, 16, 4, C_ACCENT);
-			}
-			_lastRenderedState = state;
-			_bootPaintSeq++;
-			return;
-		}
-
-		int boxY = 105;
-
-		if (fullRedraw) {
-			fastClearScreen(C_BG_MAIN);
-			_driver.tft->setFont(&simutFont24pt); _driver.tft->setTextColor(C_TEXT_MAIN);
-			int16_t x1, y1; uint16_t w, h;
-			_driver.tft->getTextBounds("SIMUT", 0, 0, &x1, &y1, &w, &h);
-			_driver.tft->setCursor((320 - w) / 2, 60); _driver.tft->print("SIMUT");
-			_driver.tft->setFont(&simutFont9pt); _driver.tft->setTextColor(C_ACCENT);
-			_driver.tft->getTextBounds(SIMUT_VERSION, 0, 0, &x1, &y1, &w, &h);
-			_driver.tft->setCursor((320 - w) / 2, 85); _driver.tft->print(SIMUT_VERSION);
-
-			_driver.tft->fillRoundRect(10, boxY, 300, 80, 8, C_CARD_BG);
-			_driver.tft->drawRoundRect(10, boxY, 300, 80, 8, C_TEXT_OFF);
-			_driver.tft->setFont(NULL);
-			_driver.tft->setTextSize(1);
-			_driver.tft->setTextColor(C_ACCENT_HIGH, C_CARD_BG);
-			_driver.tft->setCursor(20, boxY + 8);
-			_driver.tft->print("> system_init( ) ");
-		}
-		/* Per-line diff: only repaints lines that changed. Boot logs are
-		 * BootLogEntry (key + suffix). In render, we resolve tr(key) +
-		 * suffix. Comparison includes key, suffix AND active language
-		 * (langJustChanged -> fullRedraw). */
-		_driver.tft->setFont(NULL);
-		_driver.tft->setTextSize(1);
-		_driver.tft->setTextColor(C_TEXT_SUB, C_CARD_BG);
-		for(int i=0; i<5; i++) {
-			const BootLogEntry& cur = state.bootLogs[i];
-			const BootLogEntry& prev = _lastRenderedState.bootLogs[i];
-			if (!fullRedraw && cur.key == prev.key &&
-			    strncmp(cur.suffix, prev.suffix, sizeof(cur.suffix)) == 0) continue;
-			_driver.tft->setCursor(20, boxY + 22 + (i*10));
-			/* T1.2: fixed buffer on the Core-1 render path (was 2-3 heap
-			 * allocations per changed line). Pad to 46 columns preserved
-			 * so shorter lines still overwrite older, longer ones.
-			 *
-			 * This box draws with setFont(NULL) — the built-in 5x7 font,
-			 * which is NOT Latin-1: byte 0xE7 is a math symbol there, not
-			 * 'c-cedilla'. tr() hands back Latin-1 (the TFT fonts carry it),
-			 * so every accented boot line rendered as tau/theta/pi. Fold to
-			 * ASCII the way the license screen already does.
-			 *
-			 * The fold has to come BEFORE the padding, too: an accent is 2
-			 * bytes in and 1 out, so padding measured on the pre-fold length
-			 * left the tail of a longer previous line on screen. */
-			char logRaw[96];
-			char logLine[48];
-			if (cur.key >= 0 && cur.key < (int16_t)TR_KEYS_COUNT) {
-				snprintf(logRaw, sizeof(logRaw), "%s%s",
-				         tr((LangKey)cur.key), cur.suffix);
-			} else {
-				snprintf(logRaw, sizeof(logRaw), "%s", cur.suffix); /* raw legacy */
-			}
-			unaccent(logRaw, logLine, sizeof(logLine));
-			size_t llen = strlen(logLine);
-			while (llen < 46 && llen < sizeof(logLine) - 1) logLine[llen++] = ' ';
-			logLine[llen] = '\0';
-			_driver.tft->print(logLine);
-		}
-
-		/* Skip button: paint only on off->on transition. Idempotent otherwise. */
-		bool skipOn = state.showSkipButton;
-		bool wasOn = _lastRenderedState.showSkipButton;
-		if (skipOn && (fullRedraw || !wasOn)) {
-			_driver.tft->fillRoundRect(80, 195, 160, 35, 8, C_ACCENT_HIGH);
-			_driver.tft->setFont(&simutFont9pt); _driver.tft->setTextColor(C_BG_MAIN);
-			int16_t x1, y1; uint16_t w, h;
-			const char* skipLabel = tr(TR_SKIP);
-			_driver.tft->getTextBounds(skipLabel, 0, 0, &x1, &y1, &w, &h);
-			_driver.tft->setCursor(80 + (160 - w)/2, 218); _driver.tft->print(skipLabel);
-		} else if (!skipOn && (fullRedraw || wasOn)) {
-			_driver.tft->fillRect(80, 195, 160, 35, C_BG_MAIN);
-		}
-
-		_lastRenderedState = state;
-		_bootPaintSeq++;
-		return;
-	}
-	if (_lastRenderedState.isBooting && !state.isBooting) {
-
-
-		_forceFullRedraw = true;
-	}
-
-	bool full = _forceFullRedraw;
-	if (full) {
-		C1_PHASE(C1P_R_FULL);
-		drawInterfaceFixed( );
-		drawTopBar(state);
-
-
-		drawSlotPanel(st.topSlotTemp, st.topSlotHum, st.topSlotType, st.topSlotValid, st.topSlotIdx, st.topSlotName, true, _topPanel, st.topSlotPres);
-		drawSlotPanel(st.slotTemp, st.slotHum, st.slotType, st.slotValid, st.selectedSlotIdx, st.slotName, true, _bottomPanel, st.slotPres);
-		drawBottomButtons(state.selectedSlotIdx);
-		_forceFullRedraw = false;
-		_lastRenderedState = state;
-		return;
-	}
-
-	/* Barrier before reading _pktArrowState (published by Core 0
-	 * along with flash vars in setTelemetrySendStatus). */
-	__dmb( );
-	if (state.wifiRssi != _lastRenderedState.wifiRssi ||
-	    state.btActive != _lastRenderedState.btActive ||
-	    strcmp(state.timeString, _lastRenderedState.timeString) != 0 ||
-	    _webNotifyStartMs > 0 ||
-	    _alarmSilenced ||
-	    _pktArrowState == 3) {
-		C1_PHASE(C1P_R_TOPBAR);
-		drawTopBar(state);
-	}
-
-	/* Sync topSlot* from slot* whenever both panels show the same sensor */
-	if (st.topSlotIdx == st.selectedSlotIdx) {
-	 st.topSlotTemp = st.slotTemp; st.topSlotHum = st.slotHum;
-	 st.topSlotType = st.slotType; st.topSlotValid = st.slotValid;
-	 safeCopy(st.topSlotName, st.slotName, 31);
-	}
-
-	if (!_topPanel.showMinMax) {
-		if (abs(st.topSlotTemp - _lastRenderedState.topSlotTemp) > 0.01 ||
-		    abs(st.topSlotHum - _lastRenderedState.topSlotHum) > 0.01 ||
-		    st.topSlotValid != _lastRenderedState.topSlotValid ||
-		    st.topSlotIdx != _lastRenderedState.topSlotIdx) {
-			C1_PHASE(C1P_R_TOP_PANEL);
-			drawSlotPanel(st.topSlotTemp, st.topSlotHum, st.topSlotType, st.topSlotValid, st.topSlotIdx, st.topSlotName, true, _topPanel, st.topSlotPres);
-		}
-	}
-
-	/* Return panels to normal mode after 30s without touch */
-	if ((_topPanel.showMinMax || _bottomPanel.showMinMax) &&
-	    timeSince(_lastTouchTime, 30000)) {
-		C1_PHASE(C1P_R_MINMAX);
-		if (_topPanel.showMinMax) {
-			_topPanel.showMinMax = false;
-			drawSlotPanel(st.topSlotTemp, st.topSlotHum, st.topSlotType, st.topSlotValid, st.topSlotIdx, st.topSlotName, true, _topPanel, st.topSlotPres);
-		}
-		if (_bottomPanel.showMinMax) {
-			_bottomPanel.showMinMax = false;
-			drawSlotPanel(st.slotTemp, st.slotHum, st.slotType, st.slotValid,
-			              st.selectedSlotIdx, st.slotName, true, _bottomPanel, st.slotPres);
-		}
-	}
-
-	bool slotChanged = (state.selectedSlotIdx != _lastRenderedState.selectedSlotIdx);
-	bool bNameChanged = (strcmp(st.slotName, _lastRenderedState.slotName) != 0);
-	bool bTempChanged = (abs(st.slotTemp - _lastRenderedState.slotTemp) > 0.01) || (st.slotValid != _lastRenderedState.slotValid);
-
-	if (slotChanged || bNameChanged || (!_bottomPanel.showMinMax && bTempChanged)) {
-		C1_PHASE(C1P_R_BOT_PANEL);
-		if (slotChanged) {
-			drawBottomButtons(state.selectedSlotIdx);
-		}
-
-		drawSlotPanel(st.slotTemp, st.slotHum, st.slotType, st.slotValid, st.selectedSlotIdx, st.slotName, (slotChanged || bNameChanged), _bottomPanel, st.slotPres);
-	}
-
-	/* Detect alarm state change and redraw buttons + panels */
-	if (_alarmSlotMask != _prevAlarmSlotMask) {
-		C1_PHASE(C1P_R_ALARM);
-		drawBottomButtons(state.selectedSlotIdx);
-		if (!_topPanel.showMinMax) {
-			drawSlotPanel(st.topSlotTemp, st.topSlotHum, st.topSlotType, st.topSlotValid, st.topSlotIdx, st.topSlotName, true, _topPanel, st.topSlotPres);
-		}
-		if (!_bottomPanel.showMinMax) {
-			drawSlotPanel(st.slotTemp, st.slotHum, st.slotType, st.slotValid,
-			              st.selectedSlotIdx, st.slotName, true, _bottomPanel, st.slotPres);
-		}
-		_prevAlarmSlotMask = _alarmSlotMask;
-	}
-
-	_lastRenderedState = state;
-}
 
 
 
@@ -2041,87 +1420,6 @@ void DisplayManager::showSettingsLicense( ) {
 	_forceSettingsRedraw = true;
 	_repaintSettings = true;
 	mutex_exit(&_stateMutex);
-}
-
-
-void DisplayManager::drawSettingsLicense( ) {
-	bool fullRedraw = _forceSettingsRedraw;
-
-	/* The opening (RAM, composed on Core 0) and the licence with the list of
-	 * third-party software (flash), laid out as one text. */
-	const char* const parts[] = { _licOpening, LICENSE_TEXT_EN };
-
-	const int MAX_COLS = 50;
-	const int LINE_H = 9;
-	const int TEXT_Y0 = 36;
-	const int MAX_VIS = 17;
-
-	TextWrap count;
-	for (const char* part : parts) {
-		count.walk(part, MAX_COLS, [](int, int, const char*, size_t) { return true; });
-	}
-	int totalLines = count.lines( );
-
-	/* Calculate total pages */
-	_licenseTotalPages = (totalLines + MAX_VIS - 1) / MAX_VIS;
-	if (_licenseTotalPages < 1) _licenseTotalPages = 1;
-	if (_licensePage >= _licenseTotalPages) _licensePage = _licenseTotalPages - 1;
-	if (_licensePage < 0) _licensePage = 0;
-
-	if (fullRedraw) {
-		fastClearScreen(C_BG_MAIN);
-
-		/* Header with title and page dots — the pagination idiom every
-		 * paged screen shares now (status already used dots). */
-		blitTitleBar(tr(TR_LICENSE_TITLE), _licensePage, _licenseTotalPages);
-
-		/* Bottom buttons — composed in the canvas, one full-width band. */
-		if (_driver.canvas) {
-			_driver.canvas->fillScreen(C_BG_MAIN);
-			uiNavArrow(_driver.canvas, 5, 0, 100, 40, UI_UP);
-			uiNavArrow(_driver.canvas, 110, 0, 100, 40, UI_DOWN);
-			/* T1.2: heap-free render path. */
-			uiButton(_driver.canvas, 215, 0, 100, 40, tr(TR_BACK), UI_BTN_SECONDARY);
-			blitCanvas(_driver.canvas, 0, 195, 320, 45);
-		}
-	}
-
-	/* Clear text area */
-	fastFillRect(0, TEXT_Y0, 320, MAX_VIS * LINE_H, C_BG_MAIN);
-	_driver.tft->setFont(NULL); _driver.tft->setTextSize(1);
-	_driver.tft->setTextColor(C_TEXT_SUB);
-
-	/* Render current page: each word is folded to the CP437 font as it is
-	 * drawn, so the text itself can be UTF-8. */
-	const int startLine = _licensePage * MAX_VIS;
-	Adafruit_ILI9341* tft = _driver.tft;
-	TextWrap tw;
-	auto draw = [&](int line, int col, const char* w, size_t n) {
-		if (line >= startLine + MAX_VIS) return false;
-		if (line >= startLine) {
-			char raw[MAX_COLS * 4 + 1];
-			char word[MAX_COLS + 1];
-			const size_t m = (n < sizeof(raw) - 1) ? n : sizeof(raw) - 1;
-			memcpy(raw, w, m);
-			raw[m] = '\0';
-			utf8FoldAscii(raw, word, sizeof(word));
-			tft->setCursor(10 + col * 6, TEXT_Y0 + (line - startLine) * LINE_H);
-			tft->print(word);
-		}
-		return true;
-	};
-	for (const char* part : parts) {
-		if (!tw.walk(part, MAX_COLS, draw)) break;
-	}
-
-	/* Update page dots in header (without redrawing everything): repaint
-	 * only the dot strip region, then redraw the dots. */
-	if (!fullRedraw) {
-		_driver.tft->fillRect(212, 10, 100, 20, C_CARD_BG);
-		uiPageDots(_driver.tft, 20, _licensePage, _licenseTotalPages);
-	}
-
-	_forceSettingsRedraw = false;
 }
 #endif // !SIMUT_DISPLAY_ALPHA
 #endif // !SIMUT_DISPLAY_ALPHA

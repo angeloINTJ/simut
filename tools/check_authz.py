@@ -19,6 +19,34 @@ outside the core. The scan is text, so the ?op= prose that names
 "_server->on( )" in comments does not match the regex, which requires a
 "path", HTTP_x, registration.
 
+The UI drivers' routes are audited too, but counted apart (2026-10-14). The
+Angulo driver (tools/features.toml, [ui.angulo]) registers GET /api/ui from
+src/ui/angulo/WebManager_UiA.cpp, a unit only an image built with ui = "angulo"
+compiles, and the pico_base filter does not reach that subdirectory. Its handler
+needs the same gate as any other, so the gate parses every C or C++ source or
+header under src/ui/ (the extensions of DRIVER_EXTS: c, cc, cpp, cxx, h, hh, hpp,
+hxx, inl, ipp, tpp), at any depth and whatever the file is called, by the same
+rules, and a finding there fails the check. By convention a driver registers its
+routes from its own WebManager*.cpp, but a convention is not a gate: the first
+version read only src/ui/*/WebManager*.cpp, and a route moved into a screen's file
+(src/ui/angulo/telas/) was not audited at all (found by the review of S2a,
+2026-10-14; the same route, moved there ungated, now fails the check). The second
+read ".cpp" and ".h" and nothing else, so a route registered from a .hpp, .inl,
+.ipp, .cc or .cxx was not audited either: no finding, exit 0, the same as a
+clean file (found by a review on 2026-10-15). The list is wider than what a build
+compiles on purpose, since a file that is only #included (an .inl, a .tpp)
+registers its routes all the same; documents and leftovers (.md, .orig) are not
+on it, being no code. The pre-commit hook simut-authz fires on the same list (the
+`files:` of .pre-commit-config.yaml), and tools/test_check_authz_drivers.py moves the real
+route, ungated, into a file of each extension and holds the hook to DRIVER_EXTS.
+What the gate does not do is add the route to the totals: those are the routes of the published images,
+tools/check_readme_numbers.py holds them against the three READMEs, and no
+published image carried a driver route when this was written (2026-10-14: the Angulo driver was a bench image,
+profile pico_wiretft_angulo, publish = false). Since 2026-10-30 (S10c C3) pico2_w_release builds with
+ui = "angulo", so a published image serves the route. The totals still leave it out, and the three READMEs
+name it next to the total (the images with the Angulo panel also serve GET /api/ui, gated). The route gets a
+line of its own.
+
 Why a gate and not just a doc: the dangerous failure here is a NEW route added
 without a check — exactly the shape of the /api/restore?op=apply hole that once
 let an un-authenticated multipart feed overwrite /config and /history before
@@ -52,7 +80,7 @@ that its result is used at all (a `(void)panelAllowed(...)` passes), or that it 
 
 Usage:  python3 tools/check_authz.py              (exit 0 clean, 1 on a finding, 2 if the tree cannot be read)
         python3 tools/check_authz.py --list       (print the whole matrix, the routes and then the panel's events, exit 0)
-        python3 tools/check_authz.py --root DIR   (another tree, DIR/src: tools/test_check_authz.py uses it)
+        python3 tools/check_authz.py --root DIR   (another tree, DIR/src: tools/test_check_authz.py and tools/test_check_authz_drivers.py use it)
 
 CI runs the no-arg form as its own step, and the test next to it.
 """
@@ -63,6 +91,12 @@ import re
 import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+# The extensions of the files a UI driver's routes can be registered from. A route
+# in a file the gate never opens is not a finding but an absence, and it looks
+# exactly like a clean file: with ("cpp", "h") alone, a route moved into a .hpp or
+# an .inl passed the gate and the hook (found by a review on 2026-10-15). Named, so
+# that the hook's `files:` pattern is held to this list by tools/test_check_authz_drivers.py.
+DRIVER_EXTS = ("c", "cc", "cpp", "cxx", "h", "hh", "hpp", "hxx", "inl", "ipp", "tpp")
 
 # Tokens whose presence in a handler body proves it performs an authorization
 # check. Kept broad on purpose (see module docstring: present, not correct):
@@ -170,16 +204,18 @@ def routes_files(root):
     return sorted(glob.glob(os.path.join(root, "src", "WebManager*.cpp")))
 
 
-def http_half(root):
-    """The routes' half: (rows, failures), a row being (path, method, verdict, detail)."""
-    src = os.path.join(root, "src")
-    routes_text = "\n".join(read(p) for p in routes_files(root))
-    all_src = {}
-    for fn in os.listdir(src):
-        if fn.endswith(".cpp"):
-            all_src[fn] = read(os.path.join(src, fn))
+def driver_files(root):
+    # The UI drivers' route files: audited by the same rules, reported apart (see
+    # the module docstring). Every file with one of DRIVER_EXTS under src/ui/ at any
+    # depth, so a new driver's routes, and a route in any of its files, are found
+    # without an edit.
+    return sorted(p for ext in DRIVER_EXTS
+                  for p in glob.glob(os.path.join(root, "src", "ui", "**", "*." + ext), recursive=True))
 
-    routes = parse_routes(routes_text)
+
+def audit(routes, all_src):
+    """Judge every route: return (rows, failures), a row being
+    (path, method, verdict, detail). all_src is where handler bodies are found."""
     rows = []       # (path, method, verdict, detail)
     failures = []
 
@@ -229,6 +265,34 @@ def http_half(root):
         else:
             rows.append((path, method, "UNGATED", ", ".join(gate_detail)))
     return rows, failures
+
+
+def _core_sources(root):
+    """The core's own sources, src/*.cpp: where a handler's body is found."""
+    src = os.path.join(root, "src")
+    all_src = {}
+    for fn in os.listdir(src):
+        if fn.endswith(".cpp"):
+            all_src[fn] = read(os.path.join(src, fn))
+    return all_src
+
+
+def http_half(root):
+    """The routes' half: (rows, failures), a row being (path, method, verdict, detail). The published
+    images' routes; the UI drivers' are in driver_half( )."""
+    routes_text = "\n".join(read(p) for p in routes_files(root))
+    return audit(parse_routes(routes_text), _core_sources(root))
+
+
+def driver_half(root):
+    """The UI drivers' routes: (rows, failures), judged by the same rules but reported apart, their rows
+    and totals out of the published images' (see the module docstring). A handler there may bind one
+    defined in the core, so the core's sources are searched too."""
+    src = os.path.join(root, "src")
+    driver_src = {os.path.relpath(p, src).replace(os.sep, "/"): read(p) for p in driver_files(root)}
+    rows, failures = audit(parse_routes("\n".join(driver_src.values())),
+                           dict(_core_sources(root), **driver_src))
+    return rows, [f"UI driver (src/ui/**): {f}" for f in failures]
 
 
 # ── The panel's half ─────────────────────────────────────────────────────────
@@ -663,6 +727,8 @@ def main(argv=None):
         return 2
 
     rows, failures = http_half(root)
+    driver_rows, driver_failures = driver_half(root)
+    failures = failures + driver_failures
 
     if list_mode:
         rows.sort(key=lambda r: (r[0], r[1]))
@@ -673,6 +739,12 @@ def main(argv=None):
               f"{sum(1 for r in rows if r[2]=='GATED')} gated, "
               f"{sum(1 for r in rows if r[2]=='PUBLIC')} public-by-design, "
               f"{sum(1 for r in rows if r[2]=='UNGATED')} ungated")
+        if driver_rows:
+            driver_rows.sort(key=lambda r: (r[0], r[1]))
+            w = max(len(r[0]) for r in driver_rows)
+            print("\nUI drivers, src/ui/** (not in the totals above):")
+            for path, method, verdict, detail in driver_rows:
+                print(f"  {method:5} {path:<{w}}  {verdict:8} {detail}")
         try:
             findings, warnings, names = panel_half(root)
         except CannotRead as e:
@@ -694,6 +766,14 @@ def main(argv=None):
         print(f"AUTHZ GATE: clean ({len(rows)} routes — "
               f"{sum(1 for r in rows if r[2]=='GATED')} gated, "
               f"{sum(1 for r in rows if r[2]=='PUBLIC')} public-by-design)")
+        if driver_rows:
+            # No parenthesised "(N routes — G gated, P public-by-design)" here: that
+            # shape is what check_readme_numbers.py reads the published totals by.
+            print(f"AUTHZ GATE: UI drivers, src/ui/**: {len(driver_rows)} route{'s' if len(driver_rows) != 1 else ''}, "
+                  f"{sum(1 for r in driver_rows if r[2]=='GATED')} gated, "
+                  f"{sum(1 for r in driver_rows if r[2]=='PUBLIC')} public-by-design; "
+                  f"not in the totals above: they are the UI driver's, and only an image built with ui = \"angulo\" serves them "
+                  f"(the Pico 2 W release since 2026-10-30, S10c C3, and the bench image pico_wiretft_angulo)")
 
     try:
         findings, warnings, names = panel_half(root)

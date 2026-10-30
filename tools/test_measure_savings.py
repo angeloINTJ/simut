@@ -24,8 +24,14 @@ its switch removes grew 8 B. So:
   * The BTstack bank of #285 is one fill among the others: the 548 B before it on the Alpha are taken off, and the
     4,096 B step the Air's tel_tls saving made does not move the number.
 
-Each case carries an id ([a1], [d2] ...) that the mutations of the change (remove the fill subtraction, remove the
-tolerance, drop the self-check ...) are matched to.
+Each case of the floor's side carries an id ([a1], [d2] ...) that the mutations of #302 (remove the fill subtraction,
+remove the tolerance, drop the self-check ...) are matched to. The 22 cases of the configurator's matrix side (the
+`ui=` and `net=` flips, the Angulo's static-RAM budget in the temporary env, the checks of `--checks`) carry none.
+The cases of `--matrix --only` ([i0]-[i3]: the rebuilt bases are compared with the file before a flip is built) carry
+ids too, matched to the mutants of S11 B2 (2026-10-30: a mutant that dropped `used` from that comparison passed the
+whole suite, because no case ran the function). So do the two of S11 B3: [j1], the pio_run cases run to the end whatever
+SIMUT_SAVINGS_PIO the caller has (with a path that does not exist the suite used to die with SystemExit after 31 of 70 cases), and
+[j2], the tool's refusal of such a path says what to do.
 """
 import contextlib
 import hashlib
@@ -59,6 +65,25 @@ def case(name, fn):
     except Exception as e:                           # noqa: BLE001
         ok, detail = False, f"raised {type(e).__name__}: {e}"
     check(name, ok, detail)
+
+
+def aside(fn):
+    """Runs a group of cases on the side, so one case can ask how another group behaves under some other condition: (what
+    escaped it, the names that ran, the names that failed). Its lines are not printed and its cases do not count in this
+    suite. A SystemExit is caught here: it is what ended the whole suite on 2026-10-30 (S11 B3, see caller_env_cases( ))."""
+    global RAN, FAILS
+    outer = RAN, FAILS
+    RAN, FAILS = [], []
+    escaped = None
+    try:
+        with contextlib.redirect_stdout(io.StringIO()):
+            fn()
+    except (Exception, SystemExit) as e:             # noqa: BLE001
+        escaped = e
+    finally:
+        ran, failed = RAN, FAILS
+        RAN, FAILS = outer
+    return escaped, ran, failed
 
 
 # ---- a linker map, from entries ---------------------------------------------------------------------------------
@@ -382,6 +407,10 @@ def pio_run_cases():
         return types.SimpleNamespace(returncode=0, stdout="", stderr="")
 
     saved_run, saved_flags = ms.subprocess.run, os.environ.get("PLATFORMIO_BUILD_FLAGS")
+    # The caller's own SIMUT_SAVINGS_PIO is out of these cases, a real path or a typo: the two bare pio_run( ) calls below do not
+    # expect it, and a path that does not exist made the tool exit and the suite die with them (S11 B3, 2026-10-30; see
+    # caller_env_cases( )). The cases that need the variable set it themselves.
+    caller_pio = os.environ.pop("SIMUT_SAVINGS_PIO", None)
     try:
         ms.subprocess.run = fake_run
         os.environ["PLATFORMIO_BUILD_FLAGS"] = "-DX=1"
@@ -392,12 +421,73 @@ def pio_run_cases():
         seen.clear()
         ms.pio_run("pico_w_alpha")
         check("[g3] without linker_map the build inherits the environment untouched", seen.get("env") is None)
+        # SIMUT_SAVINGS_PIO names the pio to run, ahead of ~/.platformio/penv/bin/pio: on this host the penv broke under
+        # python 3.14 on 2026-10-24 (No module named 'platformio') and the matrix of 2026-10-29 died on its first base.
+        # Not "SIMUT_PIO": build.yml has a SIMUT_PIO_SOURCES that is something else (the review of 2026-10-29).
+        cmds = []
+        ms.subprocess.run = lambda cmd, **kw: (cmds.append(cmd), types.SimpleNamespace(returncode=0, stdout="", stderr=""))[1]
+        saved_pio = os.environ.get("SIMUT_SAVINGS_PIO")
+        try:
+            os.environ["SIMUT_SAVINGS_PIO"] = sys.executable          # a file that exists
+            ms.pio_run("pico_w_alpha")
+            check("SIMUT_SAVINGS_PIO is the pio that runs", cmds and cmds[-1][0] == sys.executable, cmds[-1:])
+            os.environ["SIMUT_SAVINGS_PIO"] = "/nonexistent/pio"
+            try:
+                ms.pio_run("pico_w_alpha")
+                said = None
+            except SystemExit as e:
+                said = str(e)
+            check("a SIMUT_SAVINGS_PIO that does not exist stops with its name, not a raw FileNotFoundError",
+                  said is not None and "SIMUT_SAVINGS_PIO" in said and "/nonexistent/pio" in said, said)
+            check("[j2] ... and says what to do about it: unset the variable or point it at a pio that exists (ANGULO.md 7)",
+                  said is not None and "unset SIMUT_SAVINGS_PIO" in said, said)
+            os.environ.pop("SIMUT_SAVINGS_PIO")
+            ms.pio_run("pico_w_alpha")
+            penv = os.path.expanduser("~/.platformio/penv/bin/pio")
+            want = penv if os.path.exists(penv) else "pio"
+            check("without SIMUT_SAVINGS_PIO: the penv's pio when it exists, else the PATH's", cmds[-1][0] == want, cmds[-1:])
+        finally:
+            if saved_pio is None:
+                os.environ.pop("SIMUT_SAVINGS_PIO", None)
+            else:
+                os.environ["SIMUT_SAVINGS_PIO"] = saved_pio
     finally:
         ms.subprocess.run = saved_run
         if saved_flags is None:
             os.environ.pop("PLATFORMIO_BUILD_FLAGS", None)
         else:
             os.environ["PLATFORMIO_BUILD_FLAGS"] = saved_flags
+        if caller_pio is not None:
+            os.environ["SIMUT_SAVINGS_PIO"] = caller_pio
+
+
+def caller_env_cases():
+    """S11 B3 (2026-10-30). The suite tests the tool, not the pio of whoever runs it. With SIMUT_SAVINGS_PIO=/nonexistent in the
+    caller's environment, the first bare pio_run( ) of pio_run_cases( ) did sys.exit( ) and the suite died there: rc 1, 31 of 70
+    cases run, no [FAIL] line, no summary, the tool's one line on stderr and nothing to say that 39 cases never ran. The cases that
+    do not expect the variable now run without it, and each one that does sets it. Here the pio_run cases run twice on the side,
+    for a caller with no variable and for one with a path that does not exist, and the two must come out the same: a case that
+    fails in both is that case's own finding, reported where it runs for real, and not a second one here."""
+    mine = "/nonexistent/caller/pio"
+    saved = os.environ.get("SIMUT_SAVINGS_PIO")
+    try:
+        os.environ.pop("SIMUT_SAVINGS_PIO", None)
+        clean = aside(pio_run_cases)
+        os.environ["SIMUT_SAVINGS_PIO"] = mine
+        hostile = aside(pio_run_cases)
+        back = os.environ.get("SIMUT_SAVINGS_PIO")
+    finally:
+        if saved is None:
+            os.environ.pop("SIMUT_SAVINGS_PIO", None)
+        else:
+            os.environ["SIMUT_SAVINGS_PIO"] = saved
+
+    def outcome(r):                                  # what escaped the group, the cases that ran, the ones that failed
+        return repr(r[0]), r[1], r[2]
+    check("[j1] the pio_run cases come out the same whatever SIMUT_SAVINGS_PIO the caller has, even a path that does not exist, "
+          "and leave it as they found it",
+          clean[0] is None and bool(clean[1]) and outcome(hostile) == outcome(clean) and back == mine,
+          (outcome(clean), outcome(hostile), back))
 
 
 def update_cases():
@@ -451,6 +541,80 @@ def matrix_cases():
     check("[h2] pio_build_full does not ask for the linker map", fake.calls == [("pico_w_alpha", False)], fake.calls)
 
 
+# ---- --matrix --only: the bases are rebuilt and compared with the file before a flip is built ------------------------
+PARTIAL_BASE = {"used": 1000000, "bin": 1010000, "ram": 100000}     # what the scratch feature_costs.json says of pico_w_release
+PARTIAL_FLIP = {"used": 990000, "bin": 1000000, "ram": 99000}       # the mdns flip, as the faked build returns it
+
+
+class NoTempEnvs:
+    """TempEnvs without the file: the environments are named and never written, because the builds are faked."""
+
+    def __init__(self, blocks):
+        pass
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        return False
+
+
+def partial_run(base_now):
+    """cmd_matrix_partial( ["mdns"] ) on a scratch feature_costs.json that holds PARTIAL_BASE for pico_w_release, with the
+    builds faked: the base builds as `base_now` and the flip as PARTIAL_FLIP. Returns (the exit message or None, the return
+    code, the file before, the file after, the environments built). ROOT is a temp dir, so nothing real is written."""
+    saved = ms.ROOT, ms.COSTS_PATH, ms.TempEnvs, ms.pio_build_full, ms._git
+    built = []
+
+    def fake_build(env, echo=False):
+        built.append(env)
+        base = env == "pico_w_release"
+        return dict(base_now if base else PARTIAL_FLIP, sha256="base" if base else "flip")
+
+    try:
+        with tempfile.TemporaryDirectory() as root:
+            ms.ROOT, ms.COSTS_PATH = root, os.path.join(root, "feature_costs.json")
+            ms.TempEnvs, ms.pio_build_full, ms._git = NoTempEnvs, fake_build, lambda *a: ""
+            with open(ms.COSTS_PATH, "w") as fh:
+                json.dump({"measured_at": {"date": "2026-10-30"},
+                           "products": {"pico_w_release": {"base": dict(PARTIAL_BASE), "flips": {}}}}, fh)
+            with open(ms.COSTS_PATH) as fh:
+                before = fh.read()
+            said = rc = None
+            try:
+                with contextlib.redirect_stdout(io.StringIO()):
+                    rc = ms.cmd_matrix_partial(["mdns"])
+            except SystemExit as e:
+                said = str(e)
+            with open(ms.COSTS_PATH) as fh:
+                after = fh.read()
+    finally:
+        ms.ROOT, ms.COSTS_PATH, ms.TempEnvs, ms.pio_build_full, ms._git = saved
+    return said, rc, before, after, built
+
+
+def matrix_partial_cases():
+    """`--matrix --only <key>` rebuilds each published base and compares it with the file BEFORE it builds a flip: the flips
+    it records are the file's only while the bases are still the file's images. The comparison is `used`, `bin` and `ram`.
+    S11 B2 (2026-10-30): a mutant that dropped `used` from it passed the whole suite, because no case ran the function. Each
+    refusal below differs from the control in ONE field, so a mutant that drops that field fails exactly that case."""
+    def control():
+        said, rc, before, after, built = partial_run(PARTIAL_BASE)
+        flips = json.loads(after)["products"]["pico_w_release"]["flips"]
+        return (said is None and rc == 0 and built == ["pico_w_release", "_cost_pico_w_release_mdns"]
+                and flips == {"mdns": PARTIAL_FLIP}), (said, rc, built, flips)
+    case("[i0] --matrix --only: a base that matches the file lets the flip through, builds it and records it", control)
+
+    for field, ident in (("used", "i1"), ("bin", "i2"), ("ram", "i3")):
+        def refused_alone(field=field):
+            now = dict(PARTIAL_BASE, **{field: PARTIAL_BASE[field] + 8})
+            said, rc, before, after, built = partial_run(now)
+            return (said is not None and "pico_w_release" in said and f"{field}={now[field]}" in said and "--matrix" in said
+                    and after == before and built == ["pico_w_release"]), (said, rc, after == before, built)
+        case(f"[{ident}] --matrix --only: a base whose `{field}` alone changed is refused with the product, the new number and what "
+             "to run; the file is not rewritten and no flip is built", refused_alone)
+
+
 def measure_cases():
     """measure( ) with the builds faked, and the temporary environments written to a scratch file."""
     saved = ms.PROFILES_INI, ms.pio_build
@@ -497,6 +661,124 @@ def measure_cases():
         os.unlink(fh.name)
 
 
+def flips_cases():
+    """The cost matrix's flips for the look of the touch display (2026-10-29): `ui` is a choice, like the network, so a product's flips
+    have one `ui=<id>` per [ui.<id>] of the manifest that is not its own, built where the rules allow it and recorded with the rule
+    where they do not. Read from the real manifest: these are the four published products the configurator prices."""
+    gf = ms.gf
+    M = gf.load_manifest()
+    check("a choice's key carries its value: ui=angulo", ms.flip_key("ui", "angulo") == "ui=angulo", ms.flip_key("ui", "angulo"))
+    check("the network's key is unchanged: net=enc28j60", ms.flip_key("net", "enc28j60") == "net=enc28j60")
+    check("a switch's key is its name", ms.flip_key("buzzer", True) == "buzzer")
+    check("the build env of a ui flip has no '=' (PlatformIO refuses it)", "=" not in ms.cost_env("pico2_w_release", "ui=original"))
+    p2 = gf.resolve_profile("pico2_w_release", M["profiles"])
+    flips = dict(ms.flips_of(p2, M))
+    # S10c C3 (2026-10-30): the Pico 2 W's base is the Ângulo image, so its look flip goes to the original (it went to the Ângulo until then).
+    check("pico2_w_release flips to the original", "ui=original" in flips, sorted(k for k in flips if "=" in k))
+    check("the flipped profile asks for the original and keeps the rest",
+          "ui=original" in flips and flips["ui=original"].get("ui") == "original"
+          and {k: v for k, v in flips["ui=original"].items() if k != "ui"} == {k: v for k, v in p2.items() if k != "ui"})
+    check("no flip to the product's own look", "ui=" + p2.get("ui", gf.DEFAULT_UI) not in flips)
+    only = ms.flips_of(p2, M, ["ui"])
+    check("--only ui gives the ui flips alone", [k for k, _ in only] == ["ui=original"], [k for k, _ in only])
+    plans = {}
+    for prod in ("pico_w_release", "pico_w_alpha", "pico_w_air", "pico2_w_release"):
+        prof = gf.resolve_profile(prod, M["profiles"])
+        blocks, plan = [], []
+        for key, flipped in ms.flips_of(prof, M, ["ui"]):
+            ms.plan_flip(blocks, plan, prod, key, flipped, M)
+        plans[prod] = (blocks, plan)
+    b, pl = plans["pico2_w_release"]
+    check("the original on the Pico 2 W is built: one env, no rule", len(b) == 1 and pl[0][2] and pl[0][3] is None, pl)
+    check("... and its env names no RAM budget: an original image has no Ângulo objects for the gate to hold", len(b) == 1 and "custom_ui_ram_budget_env" not in b[0], b[0][-160:] if b else b)
+    # The Ângulo's static-RAM gate (tools/check_ui_ram.py) holds every environment to an entry in tools/ui_ram_budget.json, and a
+    # temporary one has none: the matrix of 2026-10-29 lost this flip at the end of its link ("[ui-ram] FATAL: no static-RAM budget
+    # for _cost_pico2_w_release_ui_angulo"). The env names the real one whose entry holds it, as build_custom.py does for _custom.
+    # Since S10c C3 the Ângulo flip is one from the original image (pico2_w_original), and the real env on that hardware is pico2_w_release.
+    po = gf.resolve_profile("pico2_w_original", M["profiles"])
+    bo, plo = [], []
+    for key, flipped in ms.flips_of(po, M, ["ui"]):
+        ms.plan_flip(bo, plo, "pico2_w_original", key, flipped, M)
+    check("the Ângulo flip of pico2_w_original is built: one env, no rule", len(bo) == 1 and plo[0][1] == "ui=angulo" and plo[0][2] and plo[0][3] is None, plo)
+    check("the Ângulo's env names the budget of the real Ângulo env on that hardware (pico2_w_release)",
+          len(bo) == 1 and "\ncustom_ui_ram_budget_env = pico2_w_release\n" in "\n" + bo[0], bo[0][-160:] if bo else bo)
+    # No real Ângulo env holds this hardware's budget: the flip is not built and says why (the review of 2026-10-29 found
+    # this branch untested). build_custom.ui_ram_env stubbed to answer "none".
+    import build_custom as bc
+    saved_ure = bc.ui_ram_env
+    try:
+        bc.ui_ram_env = lambda prof, M_, budgets=None: (None, "no budget here")
+        b2, pl2 = [], []
+        for key, flipped in ms.flips_of(po, M, ["ui"]):
+            ms.plan_flip(b2, pl2, "pico2_w_original", key, flipped, M)
+        check("with no real Ângulo env for the hardware the flip is unsupported, with the reason, and not built",
+              b2 == [] and pl2 == [("pico2_w_original", "ui=angulo", None, {"unsupported": "no budget here"})], (b2, pl2))
+    finally:
+        bc.ui_ram_env = saved_ure
+    # The checks (S10c C3, 2026-10-30): the Pico 2 W's own look is the Ângulo, so no check sets it (a `set` holds changes, and `ui=angulo` is no flip of pico2_w_release: the matrix run of that day
+    # ended in print_checks( ) with KeyError on the check that did); one check sets the original, the change that exists, and its env names no RAM budget (the original holds no Ângulo objects).
+    eff = lambda p, ch: ch.get("ui", gf.resolve_profile(p, M["profiles"]).get("ui", gf.DEFAULT_UI))
+    own = [(p, ch) for p, ch in ms.CHECKS if ch.get("ui") == gf.resolve_profile(p, M["profiles"]).get("ui", gf.DEFAULT_UI)]
+    check("no check sets the product's own look (a set holds changes only)", own == [], own)
+    orig = [(i, c) for i, c in enumerate(ms.CHECKS) if c[1].get("ui") == "original"]
+    check("one check sets the original, on the Pico 2 W", len(orig) == 1 and orig[0][1][0] == "pico2_w_release", orig)
+    if orig:
+        prof = gf.resolve_profile(orig[0][1][0], M["profiles"])
+        prof.update(orig[0][1][1])
+        text, why = ms.env_text("_check_x", prof, M)
+        check("the original check's env names no RAM budget", why is None and "custom_ui_ram_budget_env" not in text, why)
+    first_two = [c for c in ms.CHECKS if c[0] == "pico2_w_release" and "ui" not in c[1]]
+    prof = gf.resolve_profile(first_two[0][0], M["profiles"])
+    prof.update(first_two[0][1])
+    text, why = ms.env_text("_check_x", prof, M)
+    check("a Pico 2 W check on the product's own look (the Ângulo) names the budget of pico2_w_release",
+          why is None and "\ncustom_ui_ram_budget_env = pico2_w_release\n" in "\n" + text, why)
+    # measure_checks( ) itself builds its environments through env_text( ): the TempEnvs and the builds stubbed, exactly one of
+    # the CHECKS environments names an Ângulo budget, and it is the one whose set carries the Ângulo (the review of 1414638d:
+    # a revert of measure_checks( ) to the bare emit_env( ), or an env_text( ) that looks the budget up for every profile, both
+    # passed the suite then; either kills `--checks` at the end of a link, hours later).
+    seen_blocks = []
+
+    class FakeTempEnvs:
+        def __init__(self, blocks):
+            seen_blocks.extend(blocks)
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *exc):
+            return False
+    saved_te, saved_pbf = ms.TempEnvs, ms.pio_build_full
+    try:
+        ms.TempEnvs = FakeTempEnvs
+        ms.pio_build_full = lambda env, echo=False: {"used": 1, "bin": 1, "ram": 1, "sha256": "x"}
+        out = ms.measure_checks()
+    finally:
+        ms.TempEnvs, ms.pio_build_full = saved_te, saved_pbf
+    with_budget = [b.splitlines()[0] for b in seen_blocks if "custom_ui_ram_budget_env = " in b]
+    want = [f"[env:_check_{i}]" for i, c in enumerate(ms.CHECKS) if eff(c[0], c[1]) == "angulo"]
+    check("measure_checks( ): one environment per check, and only the Ângulo images' name a RAM budget (two, the Pico 2 W's own look since S10c C3)",
+          len(seen_blocks) == len(ms.CHECKS) and len(out) == len(ms.CHECKS) and with_budget == want and len(want) == 2,
+          (len(seen_blocks), with_budget, want))
+    # print_checks( ) names a choice by its value: "ui=angulo", not "ui=on" (a switch prints on/off).
+    import io, contextlib
+    doc = {"products": {"pico2_w_release": {"base": {"used": 100, "bin": 100, "ram": 10},
+                                            "flips": {"ui=angulo": {"used": 130, "bin": 130, "ram": 12},
+                                                      "mdns": {"used": 90, "bin": 90, "ram": 9}}}},
+           "checks": [{"base": "pico2_w_release", "set": {"ui": "angulo", "mdns": False}, "used": 120, "bin": 120, "ram": 11}]}
+    buf = io.StringIO()
+    with contextlib.redirect_stdout(buf):
+        ms.print_checks(doc)
+    printed = buf.getvalue()
+    check("print_checks( ) prints a choice with its value and a switch on/off",
+          "ui=angulo, mdns=off" in printed and "ui=on" not in printed, printed.strip())
+    for prod, rule in (("pico_w_release", "angulo-cyw43-needs-rp2350"), ("pico_w_alpha", "angulo-needs-tft"),
+                       ("pico_w_air", "angulo-needs-tft")):
+        b, pl = plans[prod]
+        check(f"the Ângulo on {prod} is not built and names its rule ({rule})",
+              not b and len(pl) == 1 and pl[0][2] is None and pl[0][3] == rule, pl)
+
+
 def table_cases():
     res = {"bluetooth": {"base": "pico_w_alpha", "flash_saved": 136808, "ram_saved": 19348,
                          "flash_base": 976236, "flash_off": 838880, "fill_base": 548, "fill_off": 0}}
@@ -517,10 +799,13 @@ def main():
     gate_cases()
     pio_build_cases()
     pio_run_cases()
+    caller_env_cases()
     update_cases()
     matrix_cases()
+    matrix_partial_cases()
     measure_cases()
     table_cases()
+    flips_cases()
     print(f"\n{len(RAN) - len(FAILS)}/{len(RAN)} ok")
     return 1 if FAILS else 0
 

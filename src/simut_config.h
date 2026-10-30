@@ -84,6 +84,21 @@
 #error "SIMUT_TFT_GRAPH draws on the touch panel: it needs SIMUT_DISPLAY_TFT"
 #endif
 
+// Which UI driver the touch panel has (2026-10-14): the original, the default, or
+// Angulo (-DSIMUT_UI_ANGULO=1, the manifest's `ui = "angulo"`). The identity and
+// what it can do are settled in src/ui/UiCaps.h, as the network's are in
+// src/net/NetCaps.h, and only the identity is ever passed with -D.
+#include "ui/UiCaps.h"
+
+// Angulo is a panel UI: it draws on the ILI9341 and reads the XPT2046. On an image
+// whose display is the 16x2 LCD or none, its units would have nothing to draw on, and
+// the manifest refuses the combination before a build starts (tools/features.toml,
+// rule angulo-needs-tft). This is the same refusal where the compiler can see it, for
+// a hand-written -D line. After the display macros above, which UiCaps.h cannot see.
+#if SIMUT_UI_ANGULO && !SIMUT_DISPLAY_TFT
+#error "SIMUT_UI_ANGULO needs SIMUT_DISPLAY_TFT"
+#endif
+
 /* =========================================================================
  * SECTION 2: TFT DISPLAY PINS
  *

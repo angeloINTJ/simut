@@ -23,7 +23,8 @@ O aparelho atende um protocolo por vez. Com o par de certificados instalado, a i
 
 | Imagem | Rotas | Diferença |
 |---|---|---|
-| release | 62 | Todas |
+| release | 62 | Todas, menos `GET /api/ui` |
+| releasetwo, com o painel Ângulo [main]{.img} | 63 | As da release, mais `GET /api/ui` |
 | alpha | 54 | Sem as 5 rotas do painel, sem `GET /api/themes` e `POST /api/reset_touch_cal`, e sem `POST /api/tls` |
 | Air | 54 | As mesmas da alpha, e só enquanto o Air está acordado em M0 ([capítulo 19](#cap-19)) |
 
@@ -534,8 +535,9 @@ As três operações de `/api/restore` são uma única rota com o parâmetro `op
 | GET | `/api/screen_stream` | [PERM_SYS_CONFIG]{.perm} | Um quadro do painel no formato compacto do espelho |
 | POST | `/api/touch` | [PERM_SYS_CONFIG]{.perm} | Um toque no painel, ou um toque longo com `ms` |
 | GET | `/api/keypad` | [PERM_SYS_CONFIG]{.perm} | As faces do teclado de PIN na tela |
+| GET | `/api/ui` | [PERM_SYS_CONFIG]{.perm} | [main]{.img} Só nas imagens com o painel Ângulo (Pico 2 W): o quadro que está na tela, em JSON, com os alvos de toque |
 
-São 62 rotas: 52 exigem uma permissão ou uma sessão, e 10 são públicas por projeto. O repositório confere essa lista a cada mudança, e nenhuma rota fica sem portão ([capítulo 29](#cap-29-abuso)).
+São 62 rotas: 52 exigem uma permissão ou uma sessão, e 10 são públicas por projeto. O repositório confere essa lista a cada mudança, e nenhuma rota fica sem portão ([capítulo 29](#cap-29-abuso)). A conta não inclui `GET /api/ui`: só as imagens com o painel Ângulo a registram, e o repositório a confere à parte, também com portão.
 
 ## Receitas {#cap-26-receitas}
 
@@ -1314,7 +1316,7 @@ curl -s -u "metricas:$SIMUT_METRICS_PASS" "$H/metrics"
 
 [release]{.img}
 
-As cinco rotas do painel exigem **Sistema** [PERM_SYS_CONFIG]{.perm}. A interface web as usa no espelho do painel e na captura de tela ([capítulo 13](#cap-13-espelho)).
+As cinco rotas do painel exigem **Sistema** [PERM_SYS_CONFIG]{.perm}. A interface web as usa no espelho do painel e na captura de tela ([capítulo 13](#cap-13-espelho)). [main]{.img} As imagens com o painel Ângulo têm uma sexta, `GET /api/ui`, com a mesma permissão; a interface web não a usa.
 
 | Rota | Resposta |
 |---|---|
@@ -1323,6 +1325,7 @@ As cinco rotas do painel exigem **Sistema** [PERM_SYS_CONFIG]{.perm}. A interfac
 | `GET /api/screen_stream` | Um quadro inteiro no formato compacto do espelho, em 30 faixas de 8 linhas. O formato é interno e pode mudar entre versões |
 | `POST /api/touch` | Com `x` de 0 a 319 e `y` de 0 a 239, em coordenadas do painel, um toque. Com `ms`, o toque fica pressionado esse tempo antes de soltar — é o toque longo, como o de 3 s que fixa o cartão de cima; de 100 a 15000, e um valor fora disso é levado à borda. Responde `{"ok":true,"x":160,"y":120,"ms":100}`; `x` ou `y` fora da faixa, ou `ms` que não é número, `400` |
 | `GET /api/keypad` | As faces do teclado de PIN que está na tela, a geometria das teclas e a política de PIN |
+| `GET /api/ui` | [main]{.img} Só nas imagens com o painel Ângulo. Um objeto JSON com o que está no vidro: `modo` (a tela do quadro) e `modo_atual` (a tela em que o painel está agora), `tema` (`claro` ou `escuro`), `hash`, `pinturas`, `ms`, `ms_max` e `faixas` (o quadro e o custo da pintura), `painel` (o estado da tela inicial), `janela` (início e fim do gráfico, em segundos de época; `[0,0]` fora do gráfico e do detalhe), `agora` (o relógio do aparelho) e `alvos`, os alvos de toque do quadro, no máximo 48, cada um `[x, y, w, h, tipo, indice]`: o script toca no centro do que está desenhado, com `POST /api/touch`. Sem quadro na tela, ou com o painel sendo redesenhado, responde `503` com `Retry-After: 1` |
 
 ```bash
 curl -s -b jar -o tela.bmp "$H/api/screenshot"

@@ -8,7 +8,7 @@ O SIMUT é um firmware para o Raspberry Pi Pico W que transforma a placa num mon
 
 - **lê até 16 sensores** dos tipos DS18B20, DHT22, BME280 e BMP280, ligados aos pinos GP0 a GP15 ([capítulo 2](#cap-02), [capítulo 6](#cap-06));
 - **grava o histórico no próprio aparelho**, um registro por intervalo, a partir de 1 min. Com 11 grandezas e um registro por minuto, cabem cerca de 116 dias (medido em 31/07/2026; [capítulo 15](#cap-15));
-- **mostra as leituras** no painel de toque ou no LCD, conforme a imagem, e na interface web, que o próprio aparelho serve ([capítulo 11](#cap-11), [capítulo 12](#cap-12), [capítulo 13](#cap-13));
+- **mostra as leituras** no painel de toque ou no LCD, conforme a imagem, e na interface web, que o próprio aparelho serve ([capítulo 11](#cap-11), [capítulo 11A](#cap-11a), [capítulo 12](#cap-12), [capítulo 13](#cap-13));
 - **dispara alarmes** por limite, com som, tela e aviso ao servidor, e aceita janelas de manutenção ([capítulo 7](#cap-07));
 - **envia as medições** a um servidor seu por HTTP, HTTPS, MQTT ou MQTTS, e os alarmes por uma segunda linha, separada ([capítulo 21](#cap-21), [capítulo 22](#cap-22));
 - **conversa com outros sistemas** pelo Home Assistant, pelo Prometheus, pelo syslog e por uma API REST ([capítulo 20](#cap-20), [capítulo 26](#cap-26));
@@ -38,7 +38,7 @@ Um mesmo profissional pode acumular mais de uma dessas funções. O [roteiro de 
 
 O mesmo código gera quatro imagens de firmware publicadas, para três montagens de hardware:
 
-- **release:** o monitor com painel de toque colorido de 320×240, no Pico W (imagem `release`) ou no Pico 2 W (imagem `releasetwo`);
+- **release:** o monitor com painel de toque colorido de 320×240, no Pico W (imagem `release`, com o painel original, [capítulo 11](#cap-11)) ou no Pico 2 W (imagem `releasetwo`, com o painel Ângulo [main]{.img}, [capítulo 11A](#cap-11a));
 - **alpha:** o monitor com LCD de 16×2 caracteres e console pelo Bluetooth;
 - **Air (SIMUT Air):** o registrador a bateria, sem tela, que hiberna entre as leituras. É experimental.
 
@@ -131,7 +131,7 @@ Uma seção que vale só para algumas imagens começa com selos:
 
 | Selo | Significado |
 |---|---|
-| [release]{.img} | Vale para a imagem com painel de toque |
+| [release]{.img} | Vale para as imagens com painel de toque: a do Pico W e a do Pico 2 W (`releasetwo`) |
 | [alpha]{.img} | Vale para a imagem com LCD |
 | [air]{.img} | Vale para o SIMUT Air |
 | [main]{.img} | Está no código-fonte, mas ainda não numa versão publicada |
@@ -171,7 +171,7 @@ Os exemplos usam nomes de documentação: `simut` como nome do aparelho, `MinhaR
 | Leitor | Leia nesta ordem |
 |---|---|
 | Quem instala | [2](#cap-02) Hardware, [3](#cap-03) Firmware, [4](#cap-04) Primeiro boot, [9](#cap-09) Rede, [6](#cap-06) Sensores, [10](#cap-10) Data e hora, [18](#cap-18) Recuperação |
-| Quem opera | [11](#cap-11) Painel ou [12](#cap-12) LCD, [13](#cap-13) Interface web, [7](#cap-07) Alarmes, [15](#cap-15) Histórico, [16](#cap-16) Log de eventos |
+| Quem opera | [11](#cap-11) Painel original, [11A](#cap-11a) Painel Ângulo ou [12](#cap-12) LCD, [13](#cap-13) Interface web, [7](#cap-07) Alarmes, [15](#cap-15) Histórico, [16](#cap-16) Log de eventos |
 | Quem administra o aparelho | [5](#cap-05) Configuração pela web, [8](#cap-08) Contas, [17](#cap-17) Atualização e backup, [14](#cap-14) Console |
 | Quem integra | [20](#cap-20) Visão geral, [21](#cap-21) Telemetria, [22](#cap-22) Linha de alarmes, [23](#cap-23) Home Assistant, [24](#cap-24) Prometheus, [25](#cap-25) Syslog, [26](#cap-26) API REST, [27](#cap-27) Frota |
 | A equipe de TI | [9](#cap-09) Rede e HTTPS, [29](#cap-29) Segurança, [8](#cap-08) Contas, [17](#cap-17) Atualização, [20](#cap-20-rede) Portas, [27](#cap-27) Frota |

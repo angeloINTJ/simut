@@ -25,6 +25,7 @@ economia cai e o portao reprova: o recurso vazou para o caminho sempre-ligado.
   tools/measure_savings.py --matrix        # custos POR PRODUTO p/ o configurador
   tools/measure_savings.py --matrix --only tel_mqtt   # so as inversoes desta chave
   tools/measure_savings.py --matrix --only net        # so as trocas de rede (net=<id>)
+  tools/measure_savings.py --matrix --only ui         # so as trocas de visual da tela touch (ui=<id>)
   tools/measure_savings.py --checks        # so as combinacoes de conferencia
 
 --matrix mede, para cada produto publicado, o que muda ao inverter CADA chave a
@@ -37,6 +38,9 @@ anotada; inversao que estoura o flash registra o excesso que o linker da.
 A rede e uma escolha de driver, nao um interruptor (2026-10-13): alem das chaves,
 a matriz troca o driver de cada produto por cada outro [net.<id>] do manifesto, e
 a chave da inversao e `net=<id>` (um texto com "=", que nenhum interruptor tem).
+O visual da tela touch e outra escolha (2026-10-29, S10c C1c): a matriz troca o [ui.<id>] de
+cada produto por cada outro, e a chave e `ui=<id>`. Onde uma regra proibe (a Angulo no Pico W
+com Wi-Fi, ou sem a tela touch), a inversao fica anotada com a regra, sem build.
 Depois das inversoes, compila as combinacoes de CHECKS de verdade: a pagina
 soma as diferencas, e e contra estas builds que ela mede o quanto a soma erra.
 
@@ -274,10 +278,20 @@ def parse_sizes(text):
 
 def pio_run(env, linker_map=False):
     """`linker_map`: pede o mapa do linker (MAP_FLAG) somado a qualquer
-    PLATFORMIO_BUILD_FLAGS que ja esteja no ambiente."""
-    pio = os.path.expanduser("~/.platformio/penv/bin/pio")
-    if not os.path.exists(pio):
-        pio = "pio"
+    PLATFORMIO_BUILD_FLAGS que ja esteja no ambiente. SIMUT_SAVINGS_PIO, quando definido, e o
+    pio que roda, na frente do penv: nesta maquina o penv quebrou com o python 3.14 em 2026-10-24
+    ("No module named 'platformio'") e a matriz de 2026-10-29 morreu na primeira base por causa
+    dele; o CI nao define a variavel e segue no penv. Nao "SIMUT_PIO": o build.yml tem um
+    SIMUT_PIO_SOURCES que e outra coisa. Um caminho que nao existe para aqui, com o nome e o que fazer."""
+    pio = os.environ.get("SIMUT_SAVINGS_PIO")
+    if pio:
+        if not os.path.exists(pio):
+            sys.exit(f"measure_savings: SIMUT_SAVINGS_PIO={pio} nao existe. Aponte-a para um pio que exista "
+                     "ou tire-a do ambiente (unset SIMUT_SAVINGS_PIO) para usar o do penv.")
+    else:
+        pio = os.path.expanduser("~/.platformio/penv/bin/pio")
+        if not os.path.exists(pio):
+            pio = "pio"
     run_env = None
     if linker_map:
         run_env = dict(os.environ)
@@ -524,6 +538,10 @@ CHECKS = [
     # Bluetooth com a linha de comando completa, que no slot dele cabem.
     ("pico2_w_release", {"mdns": False, "sound_buzzer": False, "sensor_bme280": False}),
     ("pico2_w_release", {"bluetooth": True, "cli_full": True}),
+    # O visual numa combinacao: sem ela nenhuma conferencia leva `ui=`, e a margem de "No limite" da pagina nao cobria a linha (a revisao do C1c/C1d, 2026-10-29, com o Angulo
+    # como a mudanca). Desde S10c C3 (2026-10-30) a base do Pico 2 W e o Angulo e a mudanca e `ui=original`: o `set` de uma conferencia so tem mudancas, e `ui=angulo` ja
+    # nao e uma inversao do produto (a conferencia que o punha derrubou o fim da matriz de 2026-10-30 em print_checks( ) com KeyError, e a soma da pagina leria o mesmo arquivo).
+    ("pico2_w_release", {"ui": "original", "mdns": False, "sound_buzzer": False}),
 ]
 
 
@@ -540,7 +558,10 @@ def measure_checks():
         if bad:
             sys.exit(f"measure_savings: a conferencia {i} quebra a regra {bad[0]['id']}")
         env = f"_check_{i}"
-        blocks.append(gf.emit_env(env, gf.compose(prof, M)))
+        text, why = env_text(env, prof, M)
+        if text is None:
+            sys.exit(f"measure_savings: a conferencia {i} nao tem como ser construida: {why}")
+        blocks.append(text)
         plan.append((p, changes, env))
     out = []
     with TempEnvs(blocks):
@@ -571,7 +592,7 @@ def print_checks(doc):
                 return region + f["overflow"] - base["bin"]
             return 0
         est = base["used"] + sum(delta(flips[flip_key(k, v)]) for k, v in c["set"].items())
-        what = ", ".join(flip_key(k, v) if k == "net" else f"{k}={'on' if v else 'off'}"
+        what = ", ".join(flip_key(k, v) if k in CHOICES else f"{k}={'on' if v else 'off'}"
                          for k, v in c["set"].items())
         if "used" in c:
             print(f"  {c['base']:<15} {what}: real {c['used']}, soma {est}, erro {c['used'] - est:+} B")
@@ -591,32 +612,42 @@ def cmd_checks():
     return 0
 
 
+# As chaves que sao escolhas, nao interruptores: a rede (2026-10-13) e o visual da tela touch
+# (2026-10-29). A pagina monta a mesma chave para todo valor que nao e booleano (flipKey de
+# docs/configurador/logic.js).
+CHOICES = ("net", "ui")
+
+
 def flip_key(key, value):
     """A chave de `flips` (tools/feature_costs.json) de uma mudanca de `set`, a de um perfil ou a
-    de CHECKS: um interruptor e o proprio nome, e a rede e `net=<id>`, um texto com "=" que
-    nenhum interruptor tem, entao os dois nunca colidem."""
-    return f"{key}={value}" if key == "net" else key
+    de CHECKS: um interruptor e o proprio nome, e uma escolha e `<chave>=<id>` (`net=<id>`,
+    `ui=<id>`), um texto com "=" que nenhum interruptor tem, entao os dois nunca colidem."""
+    return f"{key}={value}" if key in CHOICES else key
 
 
 def cost_env(product, key):
     """O ambiente temporario que mede uma inversao. O PlatformIO so aceita letras, digitos, "_" e
     "-" num nome de ambiente (ENVNAME_RE de platformio/project/config.py, conferido na fonte em
     2026-10-13), e `validate( )` olha TODOS os [env:*] a cada `pio run`: um "=" no nome
-    derrubaria a medicao inteira, nao so a dele. A chave da rede, `net=<id>`, tem um."""
+    derrubaria a medicao inteira, nao so a dele. As chaves das escolhas, `net=<id>` e `ui=<id>`, tem um."""
     return f"_cost_{product}_{key}".replace("=", "_")
 
 
 def flips_of(prof, M, names=None):
     """As mudancas simples que a matriz mede a partir de um produto: [(chave em `flips`, o perfil
     com ela)]. Um interruptor vira ao contrario; a rede vira para cada [net.<id>] do manifesto
-    que nao e o do produto (flip_key: `net=<id>`). `names`: so estas (interruptores e/ou "net"),
-    na ordem dada; sem elas, todas, na ordem da pagina."""
+    que nao e o do produto (flip_key: `net=<id>`), e o visual da tela touch para cada [ui.<id>]
+    que nao e o dele (`ui=<id>`). `names`: so estas (interruptores, "net" e/ou "ui"), na ordem
+    dada; sem elas, todas, na ordem da pagina."""
     if names is None:
-        names = [*gf.TOGGLE_ORDER, "net"]
+        names = [*gf.TOGGLE_ORDER, "net", "ui"]
     out = []
     for name in names:
         if name == "net":
             out += [(flip_key("net", n), dict(prof, net=n)) for n in M["net"] if n != prof["net"]]
+        elif name == "ui":
+            own = prof.get("ui", gf.DEFAULT_UI)
+            out += [(flip_key("ui", u), dict(prof, ui=u)) for u in M["ui"] if u != own]
         else:
             out.append((name, dict(prof, **{name: not bool(prof.get(name, False))})))
     return out
@@ -636,8 +667,33 @@ def plan_flip(blocks, plan, p, key, flipped, M):
         plan.append((p, key, None, {"unsupported": bad[0]["detail"]}))
     else:
         env = cost_env(p, key)
-        blocks.append(gf.emit_env(env, gf.compose(flipped, M)))
+        text, why = env_text(env, flipped, M)
+        if text is None:
+            plan.append((p, key, None, {"unsupported": why}))
+            return
+        blocks.append(text)
         plan.append((p, key, env, None))
+
+
+def env_text(env, prof, M):
+    """(o texto do [env:<env>] temporario de `prof`, None) ou (None, por que nao ha build).
+
+    O que o gerador escreve para qualquer perfil e, num perfil que leva o Angulo, a opcao que diz
+    ao portao de RAM estatica do Angulo (tools/check_ui_ram.py, um extra_script) de que ambiente de
+    verdade vem o orcamento. O portao exige de todo ambiente uma entrada em tools/ui_ram_budget.json,
+    e um ambiente temporario nao tem: a matriz de 2026-10-29 perdeu a inversao do Angulo no fim do
+    link ("[ui-ram] FATAL: no static-RAM budget for _cost_pico2_w_release_ui_angulo"). A mesma
+    resposta que o build_custom.py da ao _custom: o ambiente de verdade com o Angulo neste
+    hardware, como teto; sem um, nao ha build. Importado aqui, nao no topo: o build_custom
+    importa este modulo."""
+    text = gf.emit_env(env, gf.compose(prof, M))
+    if prof.get("ui", gf.DEFAULT_UI) != "angulo":
+        return text, None
+    import build_custom as bc
+    ram_env, why = bc.ui_ram_env(prof, M)
+    if ram_env is None:
+        return None, why
+    return text + f"{bc.cur.OPCAO_ORCAMENTO} = {ram_env}\n", None
 
 
 def measure_matrix():
@@ -678,18 +734,21 @@ def measure_matrix():
 
 def cmd_matrix_partial(toggles):
     """So as inversoes de `toggles`, gravadas no feature_costs.json que existe.
-    Cada nome e uma chave do TOGGLE_ORDER ou "net", que vale por toda troca de
-    rede de cada produto (as chaves `net=<id>` de flips_of).
+    Cada nome e uma chave do TOGGLE_ORDER, "net", que vale por toda troca de
+    rede de cada produto (as chaves `net=<id>` de flips_of), ou "ui", por toda
+    troca de visual da tela touch (`ui=<id>`).
 
     Vale quando a chave nova nasce desligavel sem mudar nada ligada: as bases
     e as outras inversoes continuam as mesmas imagens. Isso nao se supoe — as
     bases sao reconstruidas e comparadas com o que o arquivo guarda (used,
     bin, ram); qualquer diferenca recusa, e a matriz inteira e o caminho. Custa
     uma build de base e uma por chave em cada produto publicado (quatro desde
-    que o Pico 2 W entrou, 2026-10-05), contra 69 e mais 12 conferencias da
-    matriz inteira; `net` custa uma por driver que nao e o do produto."""
+    que o Pico 2 W entrou, 2026-10-05), contra 70 e mais 13 conferencias da
+    matriz inteira (2026-10-29); `net` custa uma por driver que nao e o do
+    produto, e `ui` uma por visual que nao e o do produto e que as regras
+    deixam construir (hoje so a do Angulo no Pico 2 W: 5 builds)."""
     M = gf.load_manifest()
-    unknown = [t for t in toggles if t != "net" and t not in gf.TOGGLE_ORDER]
+    unknown = [t for t in toggles if t not in CHOICES and t not in gf.TOGGLE_ORDER]
     if unknown:
         sys.exit(f"measure_savings: chave desconhecida: {', '.join(unknown)}")
     with open(COSTS_PATH, encoding="utf-8") as fh:
@@ -767,7 +826,8 @@ def cmd_matrix():
             "`flips.net=<id>` e a mesma coisa para a rede, que e uma escolha de driver e",
             "nao um interruptor: a MESMA imagem com o driver de rede trocado para <id>,",
             "uma entrada por driver que nao e o do produto, medida ou anotada do mesmo",
-            "jeito.",
+            "jeito. `flips.ui=<id>` e o mesmo para o visual da tela touch (2026-10-29): a",
+            "MESMA imagem com o [ui.<id>] trocado, ou a regra que proibe a troca.",
             "`same: true` diz que a imagem saiu identica a base, byte a byte: a chave nao",
             "tem consumidor naquele produto, e a pagina diz isso em vez de mostrar +0 B.",
             "A pagina SOMA as diferencas quando mais de uma chave muda: estimativa, e ela",

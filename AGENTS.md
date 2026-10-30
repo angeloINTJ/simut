@@ -416,13 +416,13 @@ O CI cobre tudo isto, mas só em pull request — meça antes:
 ```bash
 pio run -e pico_w_release -e pico_w_test -e pico_w_test_https \
         -e pico_w_asserts -e pico_w_alpha -e pico_w_air -e pico2_w_release \
-        -e pico_wire -e pico_wiretft
+        -e pico_wire -e pico_wiretft -e pico_wiretft_angulo -e pico2_w_original
 pio test -e native -e native_history_v5 -e native_cli -e native_lan \
          -e native_logpolicy -e native_alarmqueue -e native_network -e native_air \
          -e native_sensors -e native_wired -e native_otasig
 ./tools/run_fuzz.sh                       # 60 s; NÃO está no pio test e já pegou defeito real
 PLATFORMIO_BUILD_FLAGS="-fsanitize=address,undefined -fno-omit-frame-pointer -fno-sanitize-recover=undefined" \
-  pio test -e native -e native_sensors …  # as dez de novo sob ASan/UBSan (apaga .pio/build); o relatório
+  pio test -e native -e native_sensors …  # as onze de novo sob ASan/UBSan (apaga .pio/build); o relatório
                                           # só aparece rodando .pio/build/<env>/program direto
 python3 tools/check_air_consistency.py
 python3 tools/check_angulo.py             # o padrão de interface (§7): site, marca, READMEs, docs Living
@@ -488,8 +488,9 @@ python3 tools/test_flash_budget.py                   # as duas regras que mantê
   o `build_custom.py --finish-signed` refaz o `.uf2` do Pico 2 W a partir do
   `.bin` assinado, como a release faz. A estimativa da página vem de
   `tools/feature_costs.json`, que envelhece com o código: quando uma mudança
-  mexe no tamanho de um recurso, rode `measure_savings.py --matrix` (69 builds
-  e 12 conferências nos quatro produtos publicados, cada uma completa) e depois
+  mexe no tamanho de um recurso, rode `measure_savings.py --matrix` (70 builds
+  e 13 conferências nos quatro produtos publicados, cada uma completa, contadas
+  em 2026-10-29) e depois
   `gen_features.py`, que leva os números ao `docs/configurador/model.json`.
 - `PLATFORMIO_BUILD_FLAGS` muda o checksum do projeto e **apaga `.pio/build`
   inteiro**, todos os ambientes. Cada experimento por flag é uma build completa.
@@ -876,7 +877,7 @@ ficar na fila e executar vários inputs depois.
 `ANGULO.md`.** Não é gosto da ocasião: é o padrão de todos os sistemas do dono,
 e a casa dele é o repo `simut-rx` — lá fica a fonte da verdade dos valores, e o
 `ANGULO.md` daqui é cópia idêntica do de lá, com os anexos §11–§13. Vale para a
-UI web do aparelho, o site e a landing em
+UI web do aparelho, o painel de toque desenhado por `src/ui/angulo/` (o da release do Pico 2 W desde 2026-10-30; a v2.12.0 publicada ainda traz o painel original nele), o site e a landing em
 `docs/`, o manual, os três READMEs, os documentos Living, a marca e as
 mensagens que o usuário lê no console. Antes de escrever, leia o §2 (as oito
 regras), o §7 (microcopy) e o §8 (o checklist) do guia.
@@ -964,12 +965,18 @@ calado é.
   abre. Dois desvios que nenhum anexo registrava: o traço dos ícones é 1,75 (o
   §6 pede 1,5) e, sem escolha guardada, o tema é o escuro (o §3.1 diz claro),
   guardado em `simut_ui_theme` e não em `angulo:tema`.
-- **Painel TFT — não é Ângulo.** As cores vêm do tema ativo (`.thm`, 24 campos,
+- **Painel TFT original — não é Ângulo.** É o painel da release do Pico W. As cores vêm do tema ativo (`.thm`, 24 campos,
   11 em `data/themes/`), e o de fábrica usa acento azul
-  (`RGB565(0, 150, 255)`, `src/Themes.cpp`). Levar o painel ao Ângulo é decisão
-  de produto em aberto. Enquanto isso, o que não depende de cor vale lá também:
+  (`RGB565(0, 150, 255)`, `src/ui/original/Themes.cpp`). Levar o painel ao Ângulo é decisão
+  de produto: feita na Pico 2 W, onde a `pico2_w_release` o leva desde 2026-10-30 (S10c C3; em 2026-10-21 o mantenedor decidiu que
+  o Ângulo sai primeiro nela; CLAUDE.md), e em aberto na Pico W (a regra `angulo-cyw43-needs-rp2350` do manifesto o recusa no RP2040 com Wi-Fi). Enquanto isso, o que não depende de cor
+  vale no painel original também:
   microcopy, a área segura e a grade de 4 px, todo estado desenhado — e emoji
-  nem existe na fonte CP437.
+  nem existe na fonte CP437. **Em 2026-10-28, no ramo `feat/ui-drivers`:** isso vale
+  para a UI original, que mantém os temas. A UI Ângulo existe nas imagens
+  `pico2_w_release` e `pico_wiretft_angulo` (a `pico2_w_release` a leva desde 2026-10-30, S10c C3, mas a v2.12.0 publicada ainda traz o painel original no Pico 2 W; o painel original do Pico 2 W é a `pico2_w_original`), com o
+  tema dela (modo e acento) em `docs/analysis/UI_DRIVERS.md` §2.16 e os desvios
+  registrados em §2.18 (a cor de perigo).
 - **LCD 16×2 do alpha:** vale a microcopy.
 - **Documentos Snapshot** (campanhas, auditorias, análises datadas — ver
   `docs/README.md`) **não se editam** para seguir o padrão: um registro editado

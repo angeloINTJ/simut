@@ -19,6 +19,18 @@ is how "PIN too short (min 4)" said 4 under any policy until 2026-10-04.
 And a @HELPWIRE ahead of @HELP: the alpha finds its console help by the prefix
 "@HELP" (DisplayManager_Alpha.cpp), so a radio alpha would print the wired
 build's help, `ip` and no `ap`, from such a pack (2026-10-13).
+
+And the Angulo's own section, @ANGULO (S10c, B2a): the touch panel of the Angulo driver draws UA_TXT( "<English>" ) and finds the text of the
+language in this section, one line each, "<8 hex digits: FNV-1a 32 of the English> <the text>" (src/ui/angulo/Textos.h). The gate holds, for
+every pack: each line well formed and no hash twice (the device refuses the whole section otherwise and every text shows its English); a line
+for every UA_TXT( ) literal under src/ui/angulo, and none for a hash that matches no literal (an orphan: the English changed); no hash shared
+by two literals; the section no larger than UA_TEXTOS_MAX, read from Textos.h; and, as for every section, before @WEBDICT. Since S10c, B3
+(2026-10-22) both packs carry the section for the texts converted so far (the Painel and Base screens and the kit's two) and the sources the literals; B4 and B5 add
+the rest, and the pack's size then meets LANG_FILE_MAX (the step that crosses it raises it).
+
+The English of a UA_TXT( ) literal is the compiler's bytes (S10c, B2a-b): the escapes of every piece are decoded to bytes, the pieces' bytes joined
+and the join read as UTF-8, because that is what the device hashes ("a\\xE2\\x80" "\\xA6" is a and an ellipsis). An English that is not valid UTF-8 is
+refused where it is written, once for the whole tree: a pack is a UTF-8 file and has no line for those bytes.
 """
 import json
 import os
@@ -38,16 +50,31 @@ except NameError:
 HEADER = ROOT / "src" / "DisplayManager.h"
 I18N = ROOT / "src" / "DisplayManager_i18n.cpp"
 PARSER = ROOT / "src" / "DisplayManager_LangParser.cpp"
+WEBUI = ROOT / "WebUI.h"
 PACKS = sorted((ROOT / "data" / "lang").glob("*.lng"))
+ANGULO_DIR = ROOT / "src" / "ui" / "angulo"
+TEXTOS_H = ANGULO_DIR / "Textos.h"
 
 # A pack over a ceiling is the same invisible failure as a short one:
 # loadLangFile() returns false, setLanguage() reverts to English, and nothing
 # says so. Two ceilings, both read from the parser source: LANG_FILE_MAX bounds
-# the file on flash, LANG_DICT_MAX the @DICT — the one section that is read
-# into RAM, and the one allocation a pack keeps for the whole uptime. A warning
-# band gives notice before a routine addition tips either over the edge in a
-# commit that "just adds a string".
+# the file on flash, LANG_DICT_MAX the @DICT — the section the original panel
+# reads into RAM and keeps for the whole uptime (the Ângulo images keep a second
+# one, the @ANGULO table, held to UA_TEXTOS_MAX below). A warning band gives
+# notice before a routine addition tips either over the edge in a commit that
+# "just adds a string".
 CEIL_WARN_FRAC = 0.95
+
+
+def web_viewer_cap():
+    """TV_CAP, the largest file the web's text viewer shows (WebUI.h, lang.js; a bigger one is downloaded), read from the source. The largest
+    file the device keeps is a pack, so LANG_FILE_MAX must not pass it, or a pack the device accepts could not be read on the web (S10c B4b-0,
+    when the ceiling rose from 48 to 64 KiB). Not found is a refusal, never a pass."""
+    # a plain number and nothing else: "64 * 1024" would read as 64 (the review of S10c B4b-0), so a form this reader does not know is refused
+    m = re.search(r"const TV_CAP = (\d+)\s*[,;]", WEBUI.read_text(encoding="utf-8")) if WEBUI.exists() else None
+    if not m:
+        raise SystemExit(f"check_lang_packs: TV_CAP not found in {WEBUI.name}: the gate cannot hold LANG_FILE_MAX to the web viewer's cap")
+    return int(m.group(1))
 
 
 def lang_limits():
@@ -64,7 +91,7 @@ def lang_limits():
     return tuple(out)
 
 
-BODY_SECTIONS = {b"DICT", b"HELP", b"HELPWIRE", b"LICENSE", b"LOGCODES", b"TRL",
+BODY_SECTIONS = {b"ANGULO", b"DICT", b"HELP", b"HELPWIRE", b"LICENSE", b"LOGCODES", b"TRL",
                  b"WEBDICT"}
 
 
@@ -243,8 +270,9 @@ def section(path, name):
 
 
 def fnv1a32(s):
+    """FNV-1a 32 of the bytes of `s` (a str is taken as UTF-8, which is what a pack carries; bytes are hashed as they are)."""
     h = 0x811C9DC5
-    for b in s.encode("utf-8"):
+    for b in (s if isinstance(s, bytes) else s.encode("utf-8")):
         h ^= b
         h = (h * 0x01000193) & 0xFFFFFFFF
     return h
@@ -341,6 +369,146 @@ def check_trl(pack, live):
     return not missing
 
 
+def textos_max():
+    """UA_TEXTOS_MAX, the most bytes an @ANGULO section may hold, read from the Angulo kit's header so that this gate can never drift from what
+    textosCarregar( ) enforces. A header that cannot be read stops the gate: a gate that cannot look must not pass."""
+    try:
+        src = TEXTOS_H.read_text(encoding="utf-8")
+    except OSError as e:
+        raise SystemExit(f"check_lang_packs: cannot read {TEXTOS_H}: {e}")
+    m = re.search(r"^constexpr\s+size_t\s+UA_TEXTOS_MAX\s*=\s*(\d+)\s*;", src, re.M)
+    if not m:
+        raise SystemExit("check_lang_packs: UA_TEXTOS_MAX not found in src/ui/angulo/Textos.h")
+    return int(m.group(1))
+
+
+def _angulo_scan():
+    """({english: first "file:line"}, [("file:line", shown)]) for every UA_TXT( "..." ) under src/ui/angulo, read as the compiler reads them and as
+    check_ui_texts.py does (one lexer: comments removed, escapes decoded to bytes, adjacent literals one text, a raw string verbatim). The first holds
+    the English that is valid UTF-8, keyed by its text (the hash of the text's UTF-8 is the hash of the compiler's bytes); the second the English that
+    is not, which no pack can carry a line for, with the text as far as it reads. A literal with no letter is not a text (check_ui_texts.py's rule) and
+    is in neither. Only a file that names UA_TXT is lexed, which keeps this cheap: it runs in every build."""
+    tools = str(ROOT / "tools")
+    if tools not in sys.path:
+        sys.path.insert(0, tools)   # PlatformIO exec's this file with no __file__, and its own directory is not on the path
+    import check_ui_texts as cut
+    found, refused = {}, []
+    for f in sorted(ANGULO_DIR.rglob("*")):
+        if f.suffix not in cut.EXTS or not f.is_file():
+            continue
+        text = f.read_text(encoding="utf-8", errors="replace")
+        if cut.MARK not in text:
+            continue
+        rel = "src/ui/angulo/" + f.relative_to(ANGULO_DIR).as_posix()
+        for lit in cut.texts_of(rel, text):
+            if not lit.converted:
+                continue
+            where = f"{rel}:{lit.line}"
+            if cut.is_utf8(lit.raw):
+                found.setdefault(lit.text, where)
+            else:
+                refused.append((where, lit.text))
+    return found, refused
+
+
+def angulo_literals():
+    """{english: first "file:line"} for the UA_TXT( "..." ) English that is valid UTF-8 (see _angulo_scan)."""
+    return _angulo_scan()[0]
+
+
+def angulo_bad_literals():
+    """[("file:line", shown)] for the UA_TXT( "..." ) English that is not valid UTF-8 (see _angulo_scan)."""
+    return _angulo_scan()[1]
+
+
+def angulo_collisions(live):
+    """{hash: [(english, where), ...]} for the hashes two literals share: the lookup could not tell them apart."""
+    by_hash = {}
+    for en, where in live.items():
+        by_hash.setdefault(fnv1a32(en), []).append((en, where))
+    return {h: v for h, v in by_hash.items() if len(v) > 1}
+
+
+_ANGULO_HEAD = re.compile(rb"[0-9A-Fa-f]{8} ")
+
+
+def angulo_entries(body):
+    """({hash: text}, [problem]) for the bytes of an @ANGULO body, by the rules textosCarregar( ) applies (src/ui/angulo/Textos.cpp): lines end at
+    '\\n' with a '\\r' before it allowed, a blank line is skipped, any other must be 8 hex digits, one space and a text that shows a character
+    (a space or a tab does not) and holds no NUL; a hash may come once. This also wants the text to be UTF-8, which the device does not test:
+    the Angulo's fonts decode it, and a byte that is not UTF-8 would draw as a wrong glyph."""
+    have, problems = {}, []
+    for no, ln in enumerate(body.split(b"\n"), 1):
+        ln = ln[:-1] if ln.endswith(b"\r") else ln
+        if not ln:
+            continue
+        txt = ln[9:]
+        if not _ANGULO_HEAD.match(ln) or not txt.strip(b" \t") or b"\0" in txt:
+            problems.append(f"line {no} is not \"<8 hex digits> <text>\" with a visible text and no NUL: {ln[:40].decode('utf-8', 'replace')!r}")
+            continue
+        try:
+            text = txt.decode("utf-8")
+        except UnicodeDecodeError:
+            problems.append(f"line {no}: the text is not UTF-8: {ln[:40].decode('utf-8', 'replace')!r}")
+            continue
+        h = int(ln[:8], 16)
+        if h in have:
+            problems.append(f"line {no}: hash {h:08x} is on an earlier line too")
+            continue
+        have[h] = text
+    return have, problems
+
+
+def check_angulo(pack, data, idx, live, limit, clashes):
+    """The @ANGULO section of one pack against the UA_TXT( ) literals of the Angulo (see the module docstring). Every refusal is a FAIL: the device
+    refuses the whole section for a malformed line, a repeated hash or a size over the bound, and shows the English for any text it lacks, and
+    none of these is visible on the glass until someone reads the other language."""
+    ok = True
+    twice = sum(1 for ln in data.split(b"\n") if re.match(rb"@ANGULO(?:[ \t\r]|$)", ln)) > 1
+    a, b = idx.get("ANGULO", (0, 0))
+    present = "ANGULO" in idx
+    if twice:
+        print(f"[lang-packs] FAIL {pack.name}: @ANGULO appears more than once — the device keeps the last and the others are dead weight",
+              file=sys.stderr)
+        ok = False
+    if present and b - a > limit:
+        print(f"[lang-packs] FAIL {pack.name}: @ANGULO is {b - a} B, over UA_TEXTOS_MAX ({limit}) — the device refuses the whole section and "
+              f"every Angulo text shows its English", file=sys.stderr)
+        ok = False
+    elif present and b - a >= int(limit * CEIL_WARN_FRAC):
+        print(f"[lang-packs] WARN {pack.name}: @ANGULO is {b - a} B, {(b - a) * 100 // limit}% of UA_TEXTOS_MAX ({limit - (b - a)} B left)",
+              file=sys.stderr)
+    have, problems = angulo_entries(data[a:b]) if present else ({}, [])
+    for pr in problems:
+        print(f"[lang-packs] FAIL {pack.name}: @ANGULO {pr} — the device refuses the whole section and every Angulo text shows its English",
+              file=sys.stderr)
+        ok = False
+    if problems:
+        return False
+    live_hashes = {fnv1a32(t): t for t in live}
+    missing = sorted((where, t) for t, where in live.items() if fnv1a32(t) not in have)
+    for where, t in missing[:20]:
+        print(f"[lang-packs] FAIL {pack.name}: @ANGULO has no {fnv1a32(t):08x} for {t[:60]!r} ({where}) — that text shows in English",
+              file=sys.stderr)
+    if len(missing) > 20:
+        print(f"[lang-packs] FAIL {pack.name}: ... and {len(missing) - 20} more UA_TXT( ) literals without a line in @ANGULO", file=sys.stderr)
+    orphans = sorted(h for h in have if h not in live_hashes)
+    for h in orphans:
+        print(f"[lang-packs] FAIL {pack.name}: @ANGULO {h:08x} matches no UA_TXT( ) literal — the English changed or the text is gone, and "
+              f"{have[h][:48]!r} is dead weight against UA_TEXTOS_MAX", file=sys.stderr)
+    if missing or orphans:
+        ok = False
+    for h, who in sorted(clashes.items()):
+        print(f"[lang-packs] FAIL {pack.name}: UA_TXT( ) literals share the hash {h:08x}: "
+              + " and ".join(f"{t[:40]!r} ({w})" for t, w in who) + " — the lookup could not tell them apart", file=sys.stderr)
+        ok = False
+    if ok:
+        print(f"[lang-packs] OK {pack.name}: @ANGULO " + (f"{len(have)} texts, {b - a} B ({(b - a) * 100 // limit}% of UA_TEXTOS_MAX)"
+              if present else "absent") + f"; {len(live)} UA_TXT( ) literals under src/ui/angulo"
+              + ("" if live or present else " (nothing to compare yet)"))
+    return ok
+
+
 def check_webdict(pack, keys, prefixes):
     body = "\n".join(section(pack, "WEBDICT")).strip()
     if not body:
@@ -371,18 +539,31 @@ def main():
     keys = enum_keys()
     want = len(keys)
     ceil, dict_ceil = lang_limits()
+    tv_cap = web_viewer_cap()
     warn_at = int(ceil * CEIL_WARN_FRAC)
     dict_warn_at = int(dict_ceil * CEIL_WARN_FRAC)
     trl_live = trl_literals()
     wkeys, wprefixes = web_keys()
+    ua_max = textos_max()
+    ua_live, ua_bad = _angulo_scan()
+    ua_clashes = angulo_collisions(ua_live)
     english = english_dict()
     if len(english) != want:
         raise SystemExit(f"check_lang_packs: read {len(english)} lines out of DICTIONARY_EN, "
                          f"TR_KEYS_COUNT is {want}: the reader is wrong, not the table")
     failed = False
+    if ceil > tv_cap:
+        print(f"[lang-packs] FAIL LANG_FILE_MAX ({ceil}) is over the web text viewer's TV_CAP ({tv_cap}, {WEBUI.name}): a pack the device "
+              f"accepts would be downloaded and not shown on the web; keep the ceiling at or under the cap", file=sys.stderr)
+        failed = True
+    for where, shown in ua_bad:
+        print(f"[lang-packs] FAIL {where}: the English {shown[:60]!r} of a UA_TXT( ) is not valid UTF-8 — the device hashes the compiler's bytes and a pack, "
+              f"a UTF-8 file, cannot carry a line for them; write the character as its UTF-8 bytes (\\xE2\\x80\\xA6 is one ellipsis)", file=sys.stderr)
+        failed = True
     for pack in PACKS:
         size = pack.stat().st_size
-        idx, tail = pack_index(pack.read_bytes())
+        raw = pack.read_bytes()
+        idx, tail = pack_index(raw)
         dict_bytes = idx["DICT"][1] - idx["DICT"][0] if "DICT" in idx else 0
         if size > ceil:
             print(f"[lang-packs] FAIL {pack.name}: {size} B exceeds LANG_FILE_MAX "
@@ -452,12 +633,14 @@ def main():
             failed = True
         if not check_webdict(pack, wkeys, wprefixes):
             failed = True
+        if not check_angulo(pack, raw, idx, ua_live, ua_max, ua_clashes):
+            failed = True
     if failed:
         print("[lang-packs] None of these failures is visible at runtime: a short "
               "pack is rejected whole and the UI reverts to English, a blank line "
               "makes the keys after it draw the wrong string or nothing at all, "
-              "and a missing @WEBDICT entry silently leaves that one line in "
-              "English. (@TRL is a ledger the device never reads.)", file=sys.stderr)
+              "and a missing @WEBDICT/@ANGULO entry silently leaves that one "
+              "line in English. (@TRL is a ledger the device never reads.)", file=sys.stderr)
         raise SystemExit(1)
 
 

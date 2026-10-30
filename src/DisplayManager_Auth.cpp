@@ -240,4 +240,4 @@ uint32_t DisplayManager::fastRandom(uint32_t maxVal) {
 /* The scrambled 4-button keypad that lived here (scrambleKeys, showAuthScreen,
  * drawAuthScreen) is gone with the device PIN: it worked by knowing the
  * expected PIN and could not identify a user. The numeric keypad is
- * drawPinScreen( ) in DisplayManager_Users.cpp — see its header for why. */
+ * drawPinScreen( ) in DisplayManager_UsersUi.cpp; why: DisplayManager_Users.cpp's header. */

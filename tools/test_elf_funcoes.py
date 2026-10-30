@@ -1,0 +1,1158 @@
+#!/usr/bin/env python3
+"""test_elf_funcoes.py — the proof of tools/elf_funcoes.py, the tool every "the refactor changed no
+machine code" claim of the UI-driver stages leans on.
+
+A comparison tool that is wrong in one direction says "equal" about anything, so it is proven on
+programs whose difference is known. This compiles small C programs with the PlatformIO ARM
+toolchain for the Cortex-M0+ (-mcpu=cortex-m0plus -mthumb -O2 -ffunction-sections
+-fdata-sections), links them with -nostdlib and a minimal script (code and read-only data at
+0x10000000, .data and .bss at 0x20000000, one function in RAM so that the linker has to put a
+veneer in front of its caller), and runs elf_funcoes.py as a subprocess on pairs of images.
+
+The six verdicts, and what each case checks:
+
+  (1) the same ELF twice                          exit 0
+  (2) the same objects linked in another order    exit 0; the layout really moved (the two .bin
+      differ, a function sits elsewhere, both carry the veneer); two variants of it: a call
+      through the veneer against a direct call, a function moved to another file (its
+      CSWTCH switch table is renumbered), and a hand-written shim in the manner of the SDK's
+      float wrappers whose pointer sits at a halfword address (only the second chance can say
+      it is the same), two static helpers of one name whose files are linked in the other order
+      (they swap places; they are paired by equal text), and two vtables moved with the layout
+  (3) one string edited, same length              exit 1, naming exactly that text and nothing
+      else; the string reached through a table of pointers, used directly by a function, in
+      .data, and in a local table of names that has no symbol (the functions that load the
+      table are not blamed: the text is the census's)
+  (4) one constant changed in one function        exit 1, naming exactly that function; also
+      when the change sits beside a `movs r0, #1`, so that a pair of halfwords reads as an
+      address in SRAM that has no name (a call retargeted from foo to bar, then `return 1`; an
+      argument changed from 7 to 8, then `+ 1`): the review of S2b found both called "equal".
+      Also a call that goes elsewhere: two static helpers of one name with F and G swapped between
+      their files (F and G named, the helpers, whose bodies are the same, not), the body of one
+      helper changed (that helper and its caller named, not the other caller), and a call retargeted
+      to the function that took its callee's place, so that the bytes of the caller are the same.
+      Also a constant that looks like an address with nothing readable behind it (flash
+      0x10120000, SRAM 0x20030000), in a function, in a const table and in a local initializer
+      (4g, 4h, 5g, 5h; 5i is the plain-number control); two same-named helpers that differ only
+      in an unnamed local table, F and G swapped (4i); two switch tables of one size swapped
+      between f and g, every byte of both functions the same (4j)
+  (5) a number changed in a static const table    exit 1, naming that table, with the same link
+      order and with another; the function that reads it through a pointer is not blamed. Its
+      two companions, the cases the second chance of the tool must not hide: the same edit in a
+      local initializer that has no symbol (the function that loads it is named), and two
+      tables of one name in two files (an edit in either one is named)
+  (6) an ELF with no code symbols                 exit 2: data only ("nenhuma instrução lida"),
+      stripped ("nenhum símbolo de código"), and one side data only; and a path with no file
+      behind it, a build that failed ("não consegui ler")
+
+and, beside them, a value changed in a switch table (exit 1, "CONTEÚDO DIFERENTE"), a slot of a
+vtable (a weak read-only object, nm type V) retargeted to another existing function, with the
+vtables alone to show it (exit 1 naming both), and the same vtables with the layout moved (exit 0,
+the weak objects counted among the read-only ones), and one known
+limit, held as an expected failure: an unnamed constant is read up to the next boundary the image knows
+(a symbol start, or an address a literal word of the code points at), 64 bytes at most, so a layout move
+that puts behind it something that neither marks, such as the strings only its own pointers name, reports the
+function that loads it (a false alarm, never a false "equal"). If that stops happening the test says so and asks for the mark to
+come off, as for any xfail.
+
+Then the instrument is bitten: each of the mutants below is elf_funcoes.py with one change (an
+instruction regex that wants leading blanks, which once made it compare empty bodies; a text
+census that skips a section; data compared loosely; the second chance excusing everything;
+the correction of 2026-10-14 taken out; and so on), and the cases that fail must be exactly the
+ones listed for it. A mutant whose text is no longer in the tool is an error.
+
+Written on 2026-10-14 with GCC 14.3.0 of the PlatformIO toolchain. Three defects of the tool
+came out of writing it, and are fixed in tools/elf_funcoes.py: an ELF with no code crashed it
+(and a stripped one was read as two "functions" named after its sections), one number edited in
+a local initializer with no symbol came out "equal" (the second chance read the function's own
+bytes, which had not changed), and two read-only objects of one name were collapsed into one
+(30 of 293 in the pico_wiretft image, so an edit in the other passed). The review of S2b found
+four more, each with its case (4b, 4c, 4d, 4f, 7v): two addresses with no name counted as the same
+target, a vtable and the other weak read-only objects were not compared, two functions of one name
+were not told apart, and a call to another function passed as a relocation when the bytes of the
+caller were the same. The review of those fixes found three (4g to 5h, 4i, 4j): an address-looking
+constant that cannot be read was "<?>" and so equal to any other, a colour was blind to an unnamed
+table, and a swapped switch table passed because the bytes of its readers were the same. One more on 2026-10-15 (case 6d): a path with no file behind it ended in a
+traceback, whose exit 1 reads as "changed" rather than as a refusal. And one on 2026-10-15 (cases 5j and 5k, the review of S8a C1 to C6): a name whose number of
+read-only objects changed was reported the same way whether the one left over had the same bytes or not, and a stage's acceptance script took the label as proof that only a
+copy had been dropped; the tool now says `conteúdo igual` or `conteúdo diferente`. And one on 2026-10-16 (cases 2t, 7t and 7u, S8b C6): the table that follows a call to a Thumb-1 switch
+helper was read as words, and a word of it that looks like a flash address (08 0a 0a 10 is 0x100a0a08) was shown by the bytes behind it, another function's in the other image: a
+function that only moved, CYW43lwIP::encryptionType in pico_w_test_https, came out changed; the table is now compared as bytes. The review of that fix found two more (cases 2t and 7w): the table swallowed every data directive behind the call, so a pool pointer after it became
+table and a moved pointer was called a changed table, and a table word moved by exactly the shift of the layout was excused as a relocated pointer; the table is now the N + 1 entries
+that the `cmp` before the call announces, compared as bytes with no second chance, and the words behind it go back to the pointer rules. And one on 2026-10-16 (case 7x, the review of S8b's
+batch 2): objdump prints an immediate of 33 or more with its value in hex as a comment (`cmp r0, #87 @ 0x57`), which the regex of the compare did not read, so a table announced by such a compare
+had no exact extent (535 of the 649 case-helper calls in the ten images of S8b C10 had one, 576 have it now); the case is the table word of 7w behind a compare of 87. And two on 2026-10-21 (S10a, the unit
+splits of P3): a text longer than 64 bytes was no text (the 64 bytes behind its address stood for it, at another alignment after a move: case 2x), and an unnamed constant was read for 64 bytes whatever
+lay behind it, which a split changes (the window now ends at the next symbol start or the next address a literal word points at: cases 2y and 2z); and the table behind a Cortex-M33 `tbb`/`tbh`, which objdump prints as
+.word, .short and .byte by the address's alignment, was compared line by line (cases 2u, 7y and 7z: the RP2350 image of the c9 split read clockEntryStep as changed). And the text census, which joined a table of printable bytes with no NUL of its own to what the layout put behind it (the Latin-1 fold tables, a label of 5 bytes, the first pointer of a table): cases 3x and 3z, and the known limit x2.
+
+Needs arm-none-eabi-gcc from the PlatformIO toolchain package (tools/elf_funcoes.py says where it
+looks). Without it the test skips with a message, and exits 1 instead when SIMUT_ELF_TOOLCHAIN is
+`require`: set it in a job that has the toolchain, so a missing package is a failure there and
+not a skip nobody reads. The `gates` job of build.yml has no ARM toolchain (it installs the
+native platform only), so this test is not wired into CI yet; the `firmware` jobs have it.
+
+Usage: python3 tools/test_elf_funcoes.py [--keep DIR]   exit 0 all cases and all mutants, 1 not
+"""
+import argparse
+import hashlib
+import os
+import re
+import shutil
+import subprocess
+import sys
+import tempfile
+from concurrent.futures import ThreadPoolExecutor
+from pathlib import Path
+
+HERE = Path(__file__).resolve().parent
+sys.path.insert(0, str(HERE))
+import elf_funcoes  # noqa: E402  (the tool and the test look for the toolchain in one place)
+
+BIN = elf_funcoes.TOOL
+GCC = BIN / 'arm-none-eabi-gcc'
+CFLAGS = ['-mcpu=cortex-m0plus', '-mthumb', '-O2', '-ffunction-sections', '-fdata-sections', '-fno-ident']
+LDFLAGS = ['-mcpu=cortex-m0plus', '-mthumb', '-nostdlib', '-nostartfiles', '-Wl,--entry=0x10000000',
+           '-Wl,--no-warn-rwx-segments']
+
+SCRIPT = '''MEMORY {
+  FLASH ( rx )  : ORIGIN = 0x10000000, LENGTH = 2M
+  RAM   ( rwx ) : ORIGIN = 0x20000000, LENGTH = 256K
+}
+SECTIONS {
+  .text : { *( .text .text.* ) } > FLASH
+  .rodata : { *( .rodata .rodata.* ) } > FLASH
+  .data : { *( .data .data.* ) } > RAM AT> FLASH
+  .ramtext : { *( .ramtext .ramtext.* ) } > RAM AT> FLASH
+  .bss : { *( .bss .bss.* COMMON ) } > RAM
+  /DISCARD/ : { *( .ARM.exidx* .ARM.attributes .comment ) }
+}
+'''
+
+# a.c: strings. A table of pointers, a literal that a function loads directly, text in .data, and
+# a switch (its table is CSWTCH.<n>, numbered per translation unit).
+A_C = '''const char *const g_names[] = { "alpha-sensor", "bravo-sensor", "charlie-probe", "delta-gauge" };
+char g_tag[] = "data-section-tag";
+const char *name_of( int i ) { return g_names[i & 3]; }
+const char *banner( void ) { return "SIMUT-TOY-BANNER"; }
+char tag_at( int i ) { return g_tag[i & 15]; }
+int pre_map( int c ) {
+  switch ( c ) {
+    case 0: return 41; case 1: return 7; case 2: return 88; case 3: return 15;
+    case 4: return 52; case 5: return 36; case 6: return 19; case 7: return 63;
+    default: return -2;
+  }
+}
+@MOVED@'''
+
+MAP_CODE = '''int map_code( int c ) {
+  switch ( c ) {
+    case 0: return 17; case 1: return 4; case 2: return 93; case 3: return 8;
+    case 4: return 61; case 5: return 29; case 6: return 12; case 7: return 70;
+    default: return -1;
+  }
+}
+'''
+
+# b.c: a constant in a function, a switch, and a static const table of numbers that a function
+# reads through a pointer.
+B_C = '''int scale( int x ) { return x * 37 + 11; }
+@MAP@static const unsigned short k_cal[8] = { 100, 220, 340, 460, 580, 700, 820, 940 };
+const unsigned short *cal_table( void ) { return k_cal; }
+unsigned cal_at( int i ) { return cal_table( )[i & 7]; }
+'''
+
+# c.c: a function in RAM, 0x10000000 bytes from its caller: out of the reach of BL, so the linker
+# puts a veneer (__ram_add_veneer) in flash and the caller branches to that.
+C_C = '''__attribute__(( @SECTION@noinline )) int ram_add( int a, int b ) { return a + b + 5; }
+int call_ram( int x ) { return ram_add( x, x ) ^ 3; }
+void entry( void ) { for ( ;; ) { } }
+'''
+RAM_SECTION = 'section( ".ramtext" ), '
+
+# e.c: local initializers, which have no symbol: the function holds the address of the bytes. One
+# of numbers, one of pointers to strings (a local table of month names is the real example).
+E_C = '''unsigned local_cal( int i ) {
+  const unsigned short t[8] = { 301, 302, 303, 304, 305, 306, 307, 308 };
+  return t[i & 7];
+}
+const char *month_at( int i ) {
+  const char *const t[4] = { "uno-month", "dos-month", "tres-month", "cuatro-month" };
+  return t[i & 3];
+}
+'''
+
+# u.c and v.c: a file-local static const table each, with the same name.
+U_C = '''static const unsigned short k_tab[4] = { 1, 2, 3, 4 };
+unsigned u_tab( int i ) { return k_tab[i & 3]; }
+'''
+V_C = '''static const unsigned short k_tab[4] = { 5, 6, 7, 8 };
+unsigned v_tab( int i ) { return k_tab[i & 3]; }
+'''
+# v.c with the bytes of u.c's table: two copies of one table, for the images whose number of copies changes (5j, 5k).
+V_EQ_C = '''static const unsigned short k_tab[4] = { 1, 2, 3, 4 };
+unsigned v_tab( int i ) { return k_tab[i & 3]; }
+'''
+
+# p.c and q.c: a call, then `return 1`. `movs r0, #1` is the halfword 0x2001, and the second half of
+# the BL before it makes with it the 32-bit window 0x2001xxxx, which reads as an address in SRAM
+# that has no name. r.c and s.c: the same with an argument, `movs r1, #7` then `movs r0, #1`.
+P_C = '''void foo( void );
+void bar( void );
+int f( void ) { foo( ); return 1; }
+'''
+Q_C = '''volatile int g_a, g_b;
+__attribute__(( noinline )) void foo( void ) { g_a = 1; }
+__attribute__(( noinline )) void bar( void ) { g_b = 2; }
+void entry( void ) { for ( ;; ) { } }
+'''
+Q2_C = '''volatile int g_a, g_b;
+__attribute__(( noinline )) void bar( void ) { g_b = 2; }
+__attribute__(( noinline )) void foo( void ) { g_a = 1; }
+void entry( void ) { for ( ;; ) { } }
+'''
+R_C = '''int ext( int, int );
+int f( void ) { return ext( 1, 7 ) + 1; }
+'''
+S_C = '''int ext( int a, int b ) { return a * b; }
+void entry( void ) { for ( ;; ) { } }
+'''
+
+# m.s and n.c: a hand-written shim in the manner of the SDK's float wrappers: after `bx lr` a table
+# byte pair and then a POINTER (to the end of the shim) at a halfword address, 2 mod 4. objdump
+# prints it as two .word that are not addresses, so the text differs when the shim moves, and only
+# the second chance, reading the pointer at its halfword address, can tell it is the same.
+M_S = '''    .syntax unified
+    .cpu cortex-m0plus
+    .thumb
+    .section .text.shim, "ax"
+    .balign 4
+    .global shim_dadd
+    .thumb_func
+    .type shim_dadd, %function
+shim_dadd:
+    movs r0, #0
+    bx lr
+    .byte 0x1c, 0xdf
+    .word shim_dadd_end + 1
+shim_dadd_end:
+    nop
+    nop
+    .size shim_dadd, . - shim_dadd
+'''
+N_C = '''int pad( int x ) { return x * 77 + 3; }
+const char *pick( int i ) { static const char *const t[] = { "aa", "bb" }; return t[i & 1]; }
+void entry( void ) { for ( ;; ) { } }
+'''
+
+# ct.s and ctp.c: a Thumb-1 switch the way GCC emits it, `bl __gnu_thumb1_case_uqi` and the table right behind the call. The first word of the table, 08 0a 0a 10 in the real image
+# (CYW43lwIP::encryptionType, S8b C6, 2026-10-16), reads as a flash address; here it is 0x10000080, inside a block of distinct words that follows the function, so that what lies
+# behind that address is not the same when the function moves. Their first byte is not a printable character, or the tool would read the block as a string and leave the difference to textos( ). The `cmp r0, #7` gives the table its extent, 8 bytes; the pointer behind it (ct_blk) is the literal pool, and must stay a pointer. The table starts on a word boundary, as the real one does, or objdump cuts it into a halfword and two words that are not the address. The helper is a stub, so that the link needs no libgcc.
+CT_S = '''    .syntax unified
+    .cpu cortex-m0plus
+    .thumb
+    .section .text.ct, "ax"
+    .balign 4
+    .global ct_f
+    .thumb_func
+    .type ct_f, %function
+ct_f:
+    movs r0, #0
+    cmp r0, #7
+    bhi 1f
+    nop
+    bl __gnu_thumb1_case_uqi
+    .word @TAB@
+    .word 0x0e0a0c0a
+    .word ct_blk
+1:  movs r0, #1
+    bx lr
+    .size ct_f, . - ct_f
+    .global __gnu_thumb1_case_uqi
+    .thumb_func
+    .type __gnu_thumb1_case_uqi, %function
+__gnu_thumb1_case_uqi:
+    bx lr
+    .size __gnu_thumb1_case_uqi, . - __gnu_thumb1_case_uqi
+    .balign 4
+ct_blk:
+''' + ''.join(f'    .word {0x40000001 + (i << 8):#x}\n' for i in range(64))
+CTP_C = '''int ctpad( int x ) { return x * 77 + 3; }
+void entry( void ) { for ( ;; ) { } }
+'''
+
+# ct87.s: the same switch with `cmp r0, #87`, which objdump prints as `cmp r0, #87 @ 0x57`: from an immediate of 33 up it adds the value in hex as a comment (32 prints plain; measured
+# with the toolchain's binutils 2.43.1, 2026-10-16), and the compare's regex wanted the plain form. 88 entries are the 22 words, and the pointer to the block is the pool behind them.
+CT87_S = CT_S.replace('cmp r0, #7', 'cmp r0, #87').replace('    .word 0x0e0a0c0a\n', '    .word 0x0e0a0c0a\n' + '    .word 0x0c0e0a0c\n' * 20)
+assert CT87_S.count('cmp r0, #87') == 1 and CT87_S.count('0x0c0e0a0c') == 20
+
+# vt.cpp and k.c: two classes with inline virtual functions have no key function, so their
+# vtables (`vtable for C1`) are weak objects, nm type V, in .rodata. C1 and C2 swap their bases
+# between the two images: every function is the same, only a slot of each vtable names another,
+# existing, function. The asm barrier hides the dynamic type, so that the call really goes
+# through the vtable; k.c is the padding that moves the layout.
+VT_CPP = '''struct Base1 { virtual int f( ) { return 1; } virtual int h( ) { return 10; } };
+struct Base2 { virtual int f( ) { return 2; } virtual int h( ) { return 20; } };
+struct C1 : @BA@ { int h( ) override { return 3; } };
+struct C2 : @BB@ { int h( ) override { return 4; } };
+int run1( void ) { C1 c; @BA@ *p = &c; __asm__ volatile( "" : "+r"( p ) ); return p->f( ) + p->h( ); }
+int run2( void ) { C2 c; @BB@ *p = &c; __asm__ volatile( "" : "+r"( p ) ); return p->f( ) + p->h( ); }
+'''
+K_C = '''int padk( int x ) { return x * 91 + 9; }
+void entry( void ) { for ( ;; ) { } }
+'''
+
+# h1.c and h2.c: a file-local helper of the same name in each, with different bodies, and a
+# caller of it. F and G swap files between the images: each now calls the other helper, and
+# every symbol still reads `bl helper`.
+H1_C = '''static __attribute__(( noinline )) int helper( int x ) { return x * 3 + 1; }
+int @CALLER@( int x ) { return helper( x ); }
+'''
+H2_C = '''static __attribute__(( noinline )) int helper( int x ) { return x * 5 + 2; }
+int @CALLER@( int x ) { return helper( x ); }
+void entry( void ) { for ( ;; ) { } }
+'''
+
+# t3.c: words that look like addresses (flash 0x10120000, SRAM 0x20030000) with nothing readable
+# behind them: the image is a few hundred bytes. A function constant, a word of a const table, and
+# a word of a local initializer that has no symbol. The tool printed `<?>` for all of them, on
+# both sides, and called a changed one "equal" (review of the fixes, 2026-10-15).
+T3_C = '''unsigned slot_base( void ) { return @FL@; }
+unsigned ram_mark( void ) { return @RAM@; }
+const unsigned k_off[4] = { 0x10100000, 0x10110000, @TAB@, 0x10130000 };
+unsigned off_at( int i ) { return k_off[i & 3]; }
+unsigned local_off( int i ) {
+  const unsigned t[4] = { 0x10100000, 0x10110000, @LOC@, 0x10130000 };
+  return t[i & 3];
+}
+void entry( void ) { for ( ;; ) { } }
+'''
+
+
+def t3(fl='0x10120000', ram='0x20030000', tab='0x10120000', loc='0x10120000'):
+    return T3_C.replace('@FL@', fl).replace('@RAM@', ram).replace('@TAB@', tab).replace('@LOC@', loc)
+
+
+# w1.c and w2.c: a file-local helper of one name in each, differing ONLY in a local table that has
+# no symbol (not text, not named); F and G swap files. The colour of the helper used to be the same
+# for both, because what lies behind an unnamed address was masked ("<@>").
+W1_C = '''static __attribute__(( noinline )) unsigned helper( int i ) {
+  const unsigned short t[8] = { 301, 302, 303, 304, 305, 306, 307, 308 };
+  return t[i & 7];
+}
+unsigned @CALLER@( int i ) { return helper( i ) + 1; }
+'''
+W2_C = '''static __attribute__(( noinline )) unsigned helper( int i ) {
+  const unsigned short t[8] = { 501, 502, 503, 504, 505, 506, 507, 508 };
+  return t[i & 7];
+}
+unsigned @CALLER@( int i ) { return helper( i ) + 1; }
+void entry( void ) { for ( ;; ) { } }
+'''
+
+# sw.c: two functions with a switch each, the two CSWTCH tables of the same size; the tables are
+# swapped between them in the other image. Every byte of f and g is the same.
+SW_X = 'case 0: return 41; case 1: return 7; case 2: return 88; case 3: return 15; case 4: return 52; case 5: return 36; case 6: return 19; case 7: return 63;'
+SW_Y = 'case 0: return 17; case 1: return 4; case 2: return 93; case 3: return 8; case 4: return 61; case 5: return 29; case 6: return 12; case 7: return 70;'
+SW_C = '''int f( int c ) { switch ( c ) { @F@ default: return -2; } }
+int g( int c ) { switch ( c ) { @G@ default: return -2; } }
+void entry( void ) { for ( ;; ) { } }
+'''
+
+# d.c: no code at all.
+D_C = '''const int g_only_data[4] = { 1, 2, 3, 4 };
+const char g_note[] = "just data, no code";
+'''
+
+
+# ls.c and lp.c, compiled with -Os (GCC word-aligns a string otherwise, and the address mod 4 is what a layout move changes): a function that returns a string of 120 bytes, no NUL in its first 64, and one that returns
+# a short string that moves the long one by 5 bytes when it comes first. A text read for 64 bytes only made the long string "no text": the 64 bytes behind its address stood for it, `@n` and all.
+LONG_MSG = 'The language pack is older than the firmware, so the strings that it lacks are shown in English until the pack is updated, and the user is told so.'
+assert 70 < len(LONG_MSG) and '"' not in LONG_MSG
+LS_C = f'const char *long_msg( void ) {{ return "{LONG_MSG}"; }}\n'
+LP_C = 'const char *pad_msg( void ) { return "padd"; }\n'
+OS_ONLY = {'ls', 'lp'}
+
+# fa.c, fb.c and fz.c, for the text census (S10a, P3: the Latin-1 fold tables are 64 printable bytes with no NUL of their own): two named const tables that nothing references, each an array filled by a string of exactly its
+# size, so that it has no terminator, and a table that begins with a zero byte. Linked in one order the first table's run goes on into the second and ends at the zero; in the other order the same bytes make another text.
+# fp.c and fq.c: the same with a local table each, which has no symbol, only a literal word that points at it (a known limit: the census cuts at symbols only).
+FA_C = 'const char k_fa[8] = "ABCDEFGH";\n'
+FB_C = 'const char k_fb[8] = "abcdefgh";\n'
+FZ_C = 'const unsigned char k_fz[4] = { 0, 1, 2, 3 };\n'
+FP_C = 'unsigned fp_cal( int i ) {\n  const unsigned short t[8] = { 0x4241, 0x4443, 0x4645, 0x4847, 0x4a49, 0x4c4b, 0x4e4d, 0x504f };\n  return t[i & 7];\n}\n'
+FQ_C = 'unsigned fq_cal( int i ) {\n  const unsigned short t[8] = { 0x6261, 0x6463, 0x6665, 0x6867, 0x6a69, 0x6c6b, 0x6e6d, 0x706f };\n  return t[i & 7];\n}\n'
+
+# wu.c and wv.c: a named const table each that nothing references (it stays: the link has no --gc-sections). Linked behind e.c they are what its unnamed tables have behind them, and they swap places in the other image: the window of
+# 64 bytes read through the end of a table into them (S10a, P3: the table of five period names, 20 bytes, and the NAME table behind it, which a unit split replaced by other bytes).
+WU_C = 'const unsigned g_u[16] = { 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26 };\n'
+WV_C = 'const unsigned g_v[16] = { 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46 };\n'
+# wt.c and wt2.c: a function each with a local table of numbers, which has no symbol (the window of the first, behind wu.c's table or wt2.c's, is what 2y and 2z move).
+WT_C = 'unsigned wt_cal( int i ) {\n  const unsigned short t[8] = { 401, 402, 403, 404, 405, 406, 407, 408 };\n  return t[i & 7];\n}\n'
+WT2_C = 'unsigned wt_cal2( int i ) {\n  const unsigned short t[8] = { 501, 502, 503, 504, 505, 506, 507, 508 };\n  return t[i & 7];\n}\n'
+
+# tb.s and tp.s: `tbb [pc, r1]` behind `cmp r1, #4` and `bhi`, as GCC emits it for the Cortex-M33 (the RP2350 images), the five bytes of its table right behind the instruction, the cases jumping to a common return (a table
+# that prints with one more line shifts the lines behind it, and chamada_mudou( ) pairs the lines by position: that is how the real function was called changed, and the second chance alone would have excused it). objdump prints them as one .word and two
+# .byte when the table sits on a word boundary and as two .short and two .byte two bytes further (S10a P3, c9_settingscore, clockEntryStep). tp.s is a function of two bytes: linked first, it moves tb_f by two. The
+# .cpu directive overrides the Cortex-M0+ of the flags, and the link accepts the mixture.
+TB_S = '''    .syntax unified
+    .cpu cortex-m33
+    .thumb
+    .section .text.tb, "ax"
+    .balign 2
+    .global tb_f
+    .thumb_func
+    .type tb_f, %function
+tb_f:
+    cmp r1, #4
+    bhi 1f
+    tbb [pc, r1]
+.Lt:
+    .byte (.L0-.Lt)/2, (.L1-.Lt)/2, (.L2-.Lt)/2, (.L3-.Lt)/2, (.L4-.Lt)/2
+    .balign 2
+.L0: movs r0, #10
+    b 2f
+.L1: movs r0, #20
+    b 2f
+.L2: movs r0, #30
+    b 2f
+.L3: movs r0, #40
+    b 2f
+.L4: movs r0, #50
+2:  bx lr
+1:  movs r0, #0
+    bx lr
+    .size tb_f, . - tb_f
+'''
+TP_S = '''    .syntax unified
+    .cpu cortex-m33
+    .thumb
+    .section .text.tp, "ax"
+    .balign 2
+    .global tp_f
+    .thumb_func
+    .type tp_f, %function
+tp_f:
+    bx lr
+    .size tp_f, . - tp_f
+'''
+
+ASSEMBLY = {'m', 'ct', 'ct87', 'tb', 'tp'}          # the sources that are assembly, not C
+CPLUSPLUS = {'vt'}       # and C++, compiled without RTTI or devirtualization
+CXXFLAGS = CFLAGS + ['-fno-rtti', '-fno-exceptions', '-fno-devirtualize', '-fno-devirtualize-speculatively']
+
+
+def fontes(moved=False, ram=True):
+    """The sources of the main program. moved: map_code lives in a.c (after pre_map) and not in b.c."""
+    return {
+        'a': A_C.replace('@MOVED@', MAP_CODE if moved else ''),
+        'b': B_C.replace('@MAP@', '' if moved else MAP_CODE),
+        'c': C_C.replace('@SECTION@', RAM_SECTION if ram else ''),
+        'e': E_C, 'u': U_C, 'v': V_C, 'd': D_C, 'p': P_C, 'q': Q_C, 'q2': Q2_C, 'r': R_C, 's': S_C,
+        'm': M_S, 'n': N_C, 'vt': VT_CPP.replace('@BA@', 'Base1').replace('@BB@', 'Base2'), 'k': K_C,
+        'h1': H1_C.replace('@CALLER@', 'F'), 'h2': H2_C.replace('@CALLER@', 'G'),
+        'w1': W1_C.replace('@CALLER@', 'F'), 'w2': W2_C.replace('@CALLER@', 'G'),
+        'ls': LS_C, 'lp': LP_C, 'tb': TB_S, 'tp': TP_S, 'wu': WU_C, 'wv': WV_C, 'wt': WT_C, 'wt2': WT2_C, 'fa': FA_C, 'fb': FB_C, 'fz': FZ_C, 'fp': FP_C, 'fq': FQ_C,
+    }
+
+
+def editar(src, arquivo, antigo, novo):
+    """A copy of the sources with one text replaced; the text must be there exactly once."""
+    assert src[arquivo].count(antigo) == 1, (arquivo, antigo)
+    return dict(src, **{arquivo: src[arquivo].replace(antigo, novo)})
+
+
+def rodar(cmd, **kw):
+    r = subprocess.run([str(c) for c in cmd], capture_output=True, text=True, encoding='utf-8', **kw)
+    if r.returncode:
+        raise RuntimeError(f'{cmd[0]} failed ({r.returncode}):\n{r.stderr}')
+    return r.stdout
+
+
+class Oficina:
+    """Compiles each distinct source once and links the images."""
+    def __init__(self, tmp):
+        self.tmp = tmp
+        self.ld = tmp / 'link.ld'
+        self.ld.write_text(SCRIPT)
+
+    def objeto(self, nome, texto):
+        h = hashlib.sha1(texto.encode()).hexdigest()[:10]
+        o = self.tmp / f'{nome}_{h}.o'
+        if not o.exists():
+            c = self.tmp / f'{nome}_{h}.{"s" if nome in ASSEMBLY else "cpp" if nome in CPLUSPLUS else "c"}'
+            c.write_text(texto)
+            rodar([GCC, *(CXXFLAGS if nome in CPLUSPLUS else CFLAGS), *(['-Os'] if nome in OS_ONLY else []), '-c', c, '-o', o])
+        return o
+
+    def elf(self, rotulo, src, ordem):
+        elf = self.tmp / f'{rotulo}.elf'
+        rodar([GCC, *LDFLAGS, f'-Wl,-T,{self.ld}', *[self.objeto(n, src[n]) for n in ordem], '-o', elf])
+        return elf
+
+
+def simbolos(elf):
+    out = rodar([BIN / 'arm-none-eabi-nm', '-S', elf])
+    return {l.split()[-1]: int(l.split()[0], 16) for l in out.splitlines() if len(l.split()) >= 3}
+
+
+def binario(elf):
+    b = elf.with_suffix('.bin')
+    rodar([BIN / 'arm-none-eabi-objcopy', '-O', 'binary', elf, b])
+    return b.read_bytes()
+
+
+class Rel:
+    """What the tool printed, as numbers and names."""
+    def __init__(self, code, out, err):
+        self.code, self.out, self.err = code, out, err
+        busca = lambda rx: re.search(rx, out, re.M)
+        m = busca(r'^lido: (\d+) funções e (\d+) instruções em A, (\d+) e (\d+) em B')
+        self.lido = tuple(map(int, m.groups())) if m else None
+        m = busca(r'^funções: (\d+) iguais \((\d+) só por relocação de ponteiro ou desvio\), (\d+) mudaram, '
+                  r'(\d+) só em A, (\d+) só em B')
+        self.func = tuple(map(int, m.groups())) if m else None
+        m = busca(r'^dados só-leitura: (\d+) iguais, (\d+) mudaram, (\d+) só em A, (\d+) só em B; '
+                  r'tabelas de switch: (\d+) em A, (\d+) em B, (mesmo conteúdo|CONTEÚDO DIFERENTE)')
+        self.dados = tuple(map(int, m.groups()[:6])) if m else None
+        self.tabelas_iguais = (m.group(7) == 'mesmo conteúdo') if m else None
+        m = busca(r'^textos na flash: (\d+) em A, (\d+) em B; (\d+) só em A, (\d+) só em B')
+        self.textos = tuple(map(int, m.groups())) if m else None
+        self.mudou = re.findall(r'^  mudou: (.+?) \(\d+ -> \d+ instruções\)', out, re.M)
+        self.so_a = re.findall(r'^  só em A: (.+)$', out, re.M)
+        self.so_b = re.findall(r'^  só em B: (.+)$', out, re.M)
+        self.dado_mudou = re.findall(r'^  dado mudou: (.+?)(?: \(\d+ objetos em A, \d+ em B(?:, conteúdo \w+)?\))?$', out, re.M)
+        self.dado_conteudo = re.findall(r'^  dado mudou: .+? \(\d+ objetos em A, \d+ em B, conteúdo (\w+)\)$', out, re.M)
+        self.dado_so = re.findall(r'^  dado só em [AB]: (.+)$', out, re.M)
+        self.texto_a = re.findall(r"^  texto só em A: b'(.*)' x\d+$", out, re.M)
+        self.texto_b = re.findall(r"^  texto só em B: b'(.*)' x\d+$", out, re.M)
+
+    def so(self, **kw):
+        """True when the report names exactly these (and no other) functions, tables, texts."""
+        want = dict(mudou=[], so_a=[], so_b=[], dado_mudou=[], dado_so=[], texto_a=[], texto_b=[])
+        want.update(kw)
+        return all(getattr(self, k) == v for k, v in want.items())
+
+    def nomes(self):
+        partes = []
+        for k in ('mudou', 'dado_mudou', 'texto_a', 'texto_b', 'so_a', 'so_b', 'dado_so'):
+            v = getattr(self, k)
+            if v:
+                partes.append(f'{k}={v}')
+        return ', '.join(partes) or 'nothing named'
+
+
+def executar(tool, a, b, env):
+    r = subprocess.run([sys.executable, str(tool), str(a), str(b), '--mostrar', '50'], capture_output=True,
+                       text=True, encoding='utf-8', env=env)
+    return Rel(r.returncode, r.stdout, r.stderr)
+
+
+# ---------------------------------------------------------------------------------------------
+# The cases. A case: id, title, the two images, the check on the report, and (optionally) a
+# precondition on the images that proves the scenario happened (it does not depend on the tool).
+
+def montar(tmp):
+    of = Oficina(tmp)
+    s = fontes()
+    ordem, volta = ['a', 'b', 'c'], ['c', 'b', 'a']
+    e = {}
+    e['base'] = of.elf('base', s, ordem)
+    e['movida'] = of.elf('movida', s, volta)
+    e['str'] = of.elf('str', editar(s, 'a', '"alpha-sensor"', '"alpha-sensoR"'), ordem)
+    e['lit'] = of.elf('lit', editar(s, 'a', '"SIMUT-TOY-BANNER"', '"SIMUT-TOY-BANNEr"'), ordem)
+    e['tag'] = of.elf('tag', editar(s, 'a', '"data-section-tag"', '"data-section-taG"'), ordem)
+    e['const'] = of.elf('const', editar(s, 'b', 'x * 37 + 11', 'x * 37 + 12'), ordem)
+    e['tab'] = of.elf('tab', editar(s, 'b', '340, 460', '341, 460'), ordem)
+    e['tab_movida'] = of.elf('tab_movida', editar(s, 'b', '340, 460', '341, 460'), volta)
+    e['sw'] = of.elf('sw', editar(s, 'b', 'case 4: return 61;', 'case 4: return 62;'), ordem)
+    e['sem_veneer'] = of.elf('sem_veneer', fontes(ram=False), ordem)
+    e['fn_movida'] = of.elf('fn_movida', fontes(moved=True), ordem)
+    anon = ['a', 'b', 'c', 'e']
+    e['anon'] = of.elf('anon', s, anon)
+    e['anon_edit'] = of.elf('anon_edit', editar(s, 'e', '303,', '399,'), anon)
+    e['anon_txt'] = of.elf('anon_txt', editar(s, 'e', '"dos-month"', '"dos-montH"'), anon)
+    e['anon_ord'] = of.elf('anon_ord', s, ['e', 'c', 'b', 'a'])
+    e['dup'] = of.elf('dup', s, ['u', 'v'])
+    e['dup_u'] = of.elf('dup_u', editar(s, 'u', '3, 4', '3, 9'), ['u', 'v'])
+    e['dup_v'] = of.elf('dup_v', editar(s, 'v', '7, 8', '7, 9'), ['u', 'v'])
+    e['dupeq'] = of.elf('dupeq', dict(s, v=V_EQ_C), ['u', 'v'])
+    e['dupeq_uma'] = of.elf('dupeq_uma', s, ['u'])
+    e['dupeq_uma_edit'] = of.elf('dupeq_uma_edit', editar(s, 'u', '3, 4', '3, 9'), ['u'])
+    e['dados'] = of.elf('dados', s, ['d'])
+    e['k3'] = of.elf('k3', dict(s, t3=t3()), ['t3'])
+    e['k3_fl'] = of.elf('k3_fl', dict(s, t3=t3(fl='0x10150000')), ['t3'])
+    e['k3_ram'] = of.elf('k3_ram', dict(s, t3=t3(ram='0x20031000')), ['t3'])
+    e['k3_tab'] = of.elf('k3_tab', dict(s, t3=t3(tab='0x10150000')), ['t3'])
+    e['k3_loc'] = of.elf('k3_loc', dict(s, t3=t3(loc='0x10150000')), ['t3'])
+    e['k3_num_a'] = of.elf('k3_num_a', dict(s, t3=t3(tab='0x00120000')), ['t3'])
+    e['k3_num_b'] = of.elf('k3_num_b', dict(s, t3=t3(tab='0x00150000')), ['t3'])
+    e['sw2'] = of.elf('sw2', dict(s, sw=SW_C.replace('@F@', SW_X).replace('@G@', SW_Y)), ['sw'])
+    e['sw2_troca'] = of.elf('sw2_troca', dict(s, sw=SW_C.replace('@F@', SW_Y).replace('@G@', SW_X)), ['sw'])
+    e['wlp'] = of.elf('wlp', s, ['w1', 'w2'])
+    e['wlp_troca'] = of.elf('wlp_troca', dict(s, w1=W1_C.replace('@CALLER@', 'G'), w2=W2_C.replace('@CALLER@', 'F')), ['w1', 'w2'])
+    e['hlp'] = of.elf('hlp', s, ['h1', 'h2'])
+    e['hlp_movida'] = of.elf('hlp_movida', s, ['h2', 'h1'])
+    e['hlp_troca'] = of.elf('hlp_troca', dict(s, h1=H1_C.replace('@CALLER@', 'G'), h2=H2_C.replace('@CALLER@', 'F')), ['h1', 'h2'])
+    e['hlp_mudou'] = of.elf('hlp_mudou', editar(s, 'h1', 'x * 3 + 1', 'x * 3 + 2'), ['h1', 'h2'])
+    e['vt'] = of.elf('vt', s, ['vt', 'k'])
+    e['vt_movida'] = of.elf('vt_movida', s, ['k', 'vt'])
+    sv = dict(s, vt=VT_CPP.replace('@BA@', 'Base2').replace('@BB@', 'Base1'))
+    e['vt_troca'] = of.elf('vt_troca', sv, ['vt', 'k'])
+    e['shim'] = of.elf('shim', s, ['m', 'n'])
+    e['shim_movida'] = of.elf('shim_movida', s, ['n', 'm'])
+    e['call_foo'] = of.elf('call_foo', s, ['p', 'q'])
+    e['call_bar_trocadas'] = of.elf('call_bar_trocadas', editar(dict(s, q=Q2_C), 'p', 'foo( ); return 1', 'bar( ); return 1'), ['p', 'q'])
+    e['call_bar'] = of.elf('call_bar', editar(s, 'p', 'foo( ); return 1', 'bar( ); return 1'), ['p', 'q'])
+    e['arg7'] = of.elf('arg7', s, ['r', 's'])
+    e['arg8'] = of.elf('arg8', editar(s, 'r', 'ext( 1, 7 )', 'ext( 1, 8 )'), ['r', 's'])
+    sc = dict(s, ct=CT_S.replace('@TAB@', '0x10000080'), ctp=CTP_C)
+    e['ct'] = of.elf('ct', sc, ['ct', 'ctp'])
+    e['ct_movida'] = of.elf('ct_movida', sc, ['ctp', 'ct'])
+    e['ct_byte'] = of.elf('ct_byte', dict(sc, ct=CT_S.replace('@TAB@', '0x10000081')), ['ct', 'ctp'])
+    e['ct_movida_byte'] = of.elf('ct_movida_byte', dict(sc, ct=CT_S.replace('@TAB@', '0x10000081')), ['ctp', 'ct'])
+    d_ct = simbolos(e['ct_movida'])['ct_f'] - simbolos(e['ct'])['ct_f']      # the first word of the table moved by exactly the shift of the layout
+    e['ct_movida_shift'] = of.elf('ct_movida_shift', dict(sc, ct=CT_S.replace('@TAB@', f'{0x10000080 + d_ct:#x}')), ['ctp', 'ct'])
+    sc87 = dict(s, ct87=CT87_S.replace('@TAB@', '0x10000080'), ctp=CTP_C)
+    e['ct87'] = of.elf('ct87', sc87, ['ct87', 'ctp'])
+    e['ct87_movida'] = of.elf('ct87_movida', sc87, ['ctp', 'ct87'])
+    d_ct87 = simbolos(e['ct87_movida'])['ct_f'] - simbolos(e['ct87'])['ct_f']
+    e['ct87_movida_shift'] = of.elf('ct87_movida_shift', dict(sc87, ct87=CT87_S.replace('@TAB@', f'{0x10000080 + d_ct87:#x}')), ['ctp', 'ct87'])
+    e['ls'] = of.elf('ls', s, ['ls', 'lp'])
+    e['ls_movida'] = of.elf('ls_movida', s, ['lp', 'ls'])
+    e['tb'] = of.elf('tb', s, ['tb', 'tp'])
+    e['tb_movida'] = of.elf('tb_movida', s, ['tp', 'tb'])
+    st = editar(s, 'tb', '(.L4-.Lt)/2', '(.L3-.Lt)/2')
+    e['tb_edit'] = of.elf('tb_edit', st, ['tb', 'tp'])
+    e['tb_edit_movida'] = of.elf('tb_edit_movida', st, ['tp', 'tb'])
+    e['win'] = of.elf('win', s, ['wt', 'wu', 'wv'])
+    e['win_b'] = of.elf('win_b', s, ['wt', 'wv', 'wu'])
+    e['wlit'] = of.elf('wlit', s, ['wt', 'wt2'])
+    e['wlit_b'] = of.elf('wlit_b', s, ['wt2', 'wt'])
+    e['cen'] = of.elf('cen', s, ['fa', 'fb', 'fz', 'k'])
+    e['cen_b'] = of.elf('cen_b', s, ['fb', 'fa', 'fz', 'k'])
+    e['cen_edit'] = of.elf('cen_edit', editar(s, 'fa', '"ABCDEFGH"', '"ABCDEFGX"'), ['fa', 'fb', 'fz', 'k'])
+    e['cenp'] = of.elf('cenp', s, ['fp', 'fq', 'fz', 'k'])
+    e['cenp_b'] = of.elf('cenp_b', s, ['fq', 'fp', 'fz', 'k'])
+    strip = tmp / 'strip.elf'
+    shutil.copy(e['base'], strip)
+    rodar([BIN / 'arm-none-eabi-strip', '-s', strip])
+    e['strip'] = strip
+    e['ausente'] = tmp / 'ausente.elf'   # never written: a build that failed
+    return e
+
+
+def pre_movida(e):
+    sa, sb = simbolos(e['base']), simbolos(e['movida'])
+    return (binario(e['base']) != binario(e['movida']) and sa['name_of'] != sb['name_of']
+            and '__ram_add_veneer' in sa and '__ram_add_veneer' in sb and sa['ram_add'] >= 0x20000000,
+            f'name_of at {sa["name_of"]:#x} then {sb["name_of"]:#x}, .bin differ, veneer in both, ram_add at {sa["ram_add"]:#x}')
+
+
+def pre_sem_veneer(e):
+    sa, sb = simbolos(e['base']), simbolos(e['sem_veneer'])
+    return ('__ram_add_veneer' in sa and '__ram_add_veneer' not in sb and sb['ram_add'] < 0x20000000,
+            'a call through __ram_add_veneer against a direct call to ram_add in flash')
+
+
+def pre_fn_movida(e):
+    na = sorted(n for n in simbolos(e['base']) if n.startswith('CSWTCH'))
+    nb = sorted(n for n in simbolos(e['fn_movida']) if n.startswith('CSWTCH'))
+    return (na != nb and len(na) == len(nb) == 2 and binario(e['base']) != binario(e['fn_movida']),
+            f'switch tables {na} then {nb}')
+
+
+def pre_anon_ord(e):
+    return (binario(e['anon']) != binario(e['anon_ord']), 'the same sources, the unnamed table behind other bytes')
+
+
+def pre_tab_movida(e):
+    return simbolos(e['base'])['k_cal'] != simbolos(e['tab_movida'])['k_cal'], 'k_cal moved'
+
+
+def pre_ct87(e):
+    lst = rodar([BIN / 'arm-none-eabi-objdump', '-d', '--no-show-raw-insn', e['ct87']])
+    a, b = simbolos(e['ct87']), simbolos(e['ct87_movida_shift'])
+    palavra_b = 0x10000080 + b['ct_f'] - a['ct_f']
+    return (re.search(r'cmp\s+r0, #87\s+@ 0x57', lst) is not None and a['ct_blk'] <= 0x10000080 < a['ct_blk'] + 256 and b['ct_blk'] <= palavra_b < b['ct_blk'] + 256
+            and a['ct_f'] != b['ct_f'], f'the compare is printed with its hex comment; the first word points into ct_blk in both images (A {a["ct_blk"]:#x}, B {b["ct_blk"]:#x}); ct_f at {a["ct_f"]:#x} then {b["ct_f"]:#x}')
+
+
+def cb_igual(r):
+    ok = (r.code == 0 and r.so() and r.tabelas_iguais and r.func[2:] == (0, 0, 0))
+    return ok, f'exit {r.code}, {r.func[0]} functions equal, {r.dados[0]} read-only objects, ' \
+               f'{r.dados[4]} switch tables, {r.textos[0]} texts'
+
+
+def c1(r):
+    ok, d = cb_igual(r)
+    # An instrument that reads nothing says "equal": the program has 11 functions (68 instructions
+    # with GCC 14.3.0), 2 read-only objects, 2 switch tables and 6 texts, and the report must show
+    # it saw them. Floors, not the exact counts, for a compiler that inlines a little more.
+    ok = ok and r.lido[0] >= 10 and r.lido[1] >= 50 and r.dados[0] >= 2 and r.dados[4] == 2 and r.textos[0] >= 6
+    return ok, d + f', {r.lido[1]} instructions read'
+
+
+def c2(r):
+    return cb_igual(r)
+
+
+def c2v(r):
+    ok, d = cb_igual(r)
+    return ok, d
+
+
+def c3(r):
+    return r.code == 1 and r.so(texto_a=['alpha-sensor'], texto_b=['alpha-sensoR']) and r.tabelas_iguais, \
+        f'exit {r.code}: {r.nomes()}'
+
+
+def c3b(r):
+    return r.code == 1 and r.so(texto_a=['SIMUT-TOY-BANNER'], texto_b=['SIMUT-TOY-BANNEr']) and r.tabelas_iguais, \
+        f'exit {r.code}: {r.nomes()}'
+
+
+def c3c(r):
+    return r.code == 1 and r.so(texto_a=['data-section-tag'], texto_b=['data-section-taG']) and r.tabelas_iguais, \
+        f'exit {r.code}: {r.nomes()}'
+
+
+def c4(r):
+    return r.code == 1 and r.so(mudou=['scale']) and r.tabelas_iguais, f'exit {r.code}: {r.nomes()}'
+
+
+def c5(r):
+    return r.code == 1 and r.so(dado_mudou=['k_cal']) and r.tabelas_iguais, f'exit {r.code}: {r.nomes()}'
+
+
+def c5b(r):
+    return c5(r)
+
+
+def c5c(r):
+    return r.code == 1 and r.so(mudou=['local_cal']) and r.tabelas_iguais, f'exit {r.code}: {r.nomes()}'
+
+
+def c3d(r):
+    return r.code == 1 and r.so(texto_a=['dos-month'], texto_b=['dos-montH']) and r.tabelas_iguais, \
+        f'exit {r.code}: {r.nomes()}'
+
+
+def c2s(r):
+    ok, d = cb_igual(r)
+    return ok and r.func[1] >= 1, d + f'; {r.func[1]} excused by the second chance'
+
+
+def c7t(r):
+    return r.code == 1 and r.so(mudou=['ct_f']), f'exit {r.code}: {r.nomes()}'
+
+
+def c7v(r):
+    return r.code == 1 and r.so(dado_mudou=['vtable for C1', 'vtable for C2']) and r.tabelas_iguais, \
+        f'exit {r.code}: {r.nomes()}'
+
+
+def c2w(r):
+    ok, d = cb_igual(r)
+    return ok and r.dados[0] >= 2, d + f'; {r.dados[0]} read-only objects compared, the weak ones included'
+
+
+def c4g(nome):
+    def chk(r):
+        return r.code == 1 and r.so(mudou=[nome]) and r.tabelas_iguais, f'exit {r.code}: {r.nomes()}'
+    return chk
+
+
+def c5g(r):
+    return r.code == 1 and r.so(dado_mudou=['k_off']) and r.tabelas_iguais, f'exit {r.code}: {r.nomes()}'
+
+
+def c9fg(r):
+    return r.code == 1 and sorted(r.mudou) == ['f', 'g'] and r.so(mudou=r.mudou), f'exit {r.code}: {r.nomes()}'
+
+
+def c9(r):
+    return r.code == 1 and sorted(r.mudou) == ['F', 'G'] and r.so(mudou=r.mudou) and r.tabelas_iguais, \
+        f'exit {r.code}: {r.nomes()}'
+
+
+def c9b(r):
+    # the helper that changed, and the one caller that now calls something else; not G
+    helpers = [n for n in r.mudou if n.startswith('helper')]
+    return r.code == 1 and len(helpers) == 1 and sorted(r.mudou) == sorted(helpers + ['F']) \
+        and r.so(mudou=r.mudou) and r.tabelas_iguais, f'exit {r.code}: {r.nomes()}'
+
+
+def corpo_de(elf, nome):
+    """The bytes of a function, read as the tool reads them."""
+    for linha in rodar([BIN / 'arm-none-eabi-nm', '-S', elf]).splitlines():
+        p = linha.split()
+        if len(p) == 4 and p[3] == nome:
+            return elf_funcoes.Imagem(str(elf)).ler(int(p[0], 16), int(p[1], 16))
+    raise KeyError(nome)
+
+
+def pre_mesmos_bytes(e):
+    a, b = corpo_de(e['call_foo'], 'f'), corpo_de(e['call_bar_trocadas'], 'f')
+    return a == b and len(a) > 0, f'the {len(a)} bytes of f are the same in both images, and it calls another function'
+
+
+def pre_hlp_movida(e):
+    sa, sb = simbolos(e['hlp']), simbolos(e['hlp_movida'])
+    return sa['F'] != sb['F'] and sa['G'] != sb['G'], f'F at {sa["F"]:#x} then {sb["F"]:#x}, the two helpers swapped places'
+
+
+def c8(r):
+    return r.code == 1 and r.so(mudou=['f']) and r.tabelas_iguais, f'exit {r.code}: {r.nomes()}'
+
+
+def c5d(r):
+    return r.code == 1 and r.so(dado_mudou=['k_tab']) and r.tabelas_iguais, f'exit {r.code}: {r.nomes()}'
+
+
+def c5e(r):
+    return r.code == 0 and r.so() and r.dados[0] == 2, f'exit {r.code}, {r.dados[0]} objects equal (two tables named k_tab)'
+
+
+def pre_dupeq(e):
+    n = lambda elf: sum(1 for ln in rodar([BIN / 'arm-none-eabi-nm', '-S', elf]).splitlines() if ln.split()[-1:] == ['k_tab'])
+    a, b, c = n(e['dupeq']), n(e['dupeq_uma']), n(e['dupeq_uma_edit'])
+    return (a, b, c) == (2, 1, 1), f'k_tab objects: {a} in A, then {b} and {c}'
+
+
+def c5j(r):
+    # one copy of a table gone, the other with the same bytes: only the count moved, and the report says so. u_tab is named as well: it holds the address of
+    # the table, which is `k_tab@colour` while two objects share the name and `k_tab` once only one is left (the tool's own rendering, not a change of its code)
+    return r.code == 1 and r.so(mudou=['u_tab'], so_a=['v_tab'], dado_mudou=['k_tab']) and r.dado_conteudo == ['igual'], \
+        f'exit {r.code}: {r.nomes()}, content {r.dado_conteudo}'
+
+
+def c5k(r):
+    # the same count change, and the table that is left has other bytes: not a dropped copy
+    return r.code == 1 and r.so(mudou=['u_tab'], so_a=['v_tab'], dado_mudou=['k_tab']) and r.dado_conteudo == ['diferente'], \
+        f'exit {r.code}: {r.nomes()}, content {r.dado_conteudo}'
+
+
+def c6(r):
+    return r.code == 2 and 'nenhuma instrução lida' in r.err, f'exit {r.code}: {r.err.strip().splitlines()[0] if r.err.strip() else "-"}'
+
+
+def c6b(r):
+    return r.code == 2 and 'nenhum símbolo de código em A' in r.err, \
+        f'exit {r.code}: {r.err.strip().splitlines()[0] if r.err.strip() else "-"}'
+
+
+def c6d(r):
+    return r.code == 2 and 'não consegui ler' in r.err and 'veredito recusado' in r.err, \
+        f'exit {r.code}: {r.err.strip().splitlines()[-1] if r.err.strip() else "-"}'
+
+
+def c7(r):
+    # the table differs, and so does what map_code reads: it is named, as a local initializer's reader is
+    return r.code == 1 and r.so(mudou=['map_code']) and r.tabelas_iguais is False, \
+        f'exit {r.code}, switch tables differ: {not r.tabelas_iguais}, {r.nomes()}'
+
+
+def cx(r):
+    # The known limit: reported although the sources are the same. XPASS (exit 0) is a failure.
+    if r.code == 0:
+        return False, 'XPASS: the unnamed constant is no longer reported when only the layout moved; take the ' \
+                      'mark off this case and the note off elf_funcoes.py'
+    return r.code == 1 and r.mudou and set(r.mudou) <= {'local_cal', 'month_at'} and r.so(mudou=r.mudou), \
+        f'xfail, as recorded: exit {r.code}, {r.nomes()}'
+
+
+def pre_ls_movida(e):
+    pa, pb = binario(e['ls']).find(LONG_MSG.encode()), binario(e['ls_movida']).find(LONG_MSG.encode())
+    return pa >= 0 and pb >= 0 and pa % 4 != pb % 4, f'the {len(LONG_MSG)}-byte string at offset {pa} then {pb} of the image'
+
+
+def pre_tb_movida(e):
+    corpo = lambda elf: re.search(r'<tb_f>:(.*?)movs\s+r0, #10', rodar([BIN / 'arm-none-eabi-objdump', '-d', '--no-show-raw-insn', elf]), re.S).group(1)
+    ta, tb = corpo(e['tb']), corpo(e['tb_movida'])
+    sa, sb = simbolos(e['tb']), simbolos(e['tb_movida'])
+    return ('.word' in ta and '.short' not in ta and '.short' in tb and '.word' not in tb and sa['tb_f'] % 4 != sb['tb_f'] % 4,
+            f'tb_f at {sa["tb_f"]:#x} then {sb["tb_f"]:#x}: the five bytes of the table print as .word and .byte in A, as .short and .byte in B')
+
+
+def pre_win(e):
+    sa, sb = simbolos(e['win']), simbolos(e['win_b'])
+    return (sa['g_u'] != sb['g_u'] and sa['g_v'] != sb['g_v'] and binario(e['win']) != binario(e['win_b']),
+            f'g_u at {sa["g_u"]:#x} then {sb["g_u"]:#x}, g_v at {sa["g_v"]:#x} then {sb["g_v"]:#x}: the two tables behind the unnamed ones swapped places')
+
+
+def pre_wlit(e):
+    sa, sb = simbolos(e['wlit']), simbolos(e['wlit_b'])
+    return (sa['wt_cal'] != sb['wt_cal'] and sa['wt_cal2'] != sb['wt_cal2'],
+            f'wt_cal at {sa["wt_cal"]:#x} then {sb["wt_cal"]:#x}: the two functions, and the two unnamed tables they load, swapped places')
+
+
+def pre_cen(e):
+    a, b = binario(e['cen']), binario(e['cen_b'])
+    return b'ABCDEFGHabcdefgh\x00' in a and b'abcdefghABCDEFGH\x00' in b, 'the two tables of printable bytes run on into each other and end at the zero of the third, in the order of the link'
+
+
+def pre_cenp(e):
+    a, b = binario(e['cenp']), binario(e['cenp_b'])
+    return (b'ABCDEFGHIJKLMNOPabcdefghijklmnop\x00' in a and b'abcdefghijklmnopABCDEFGHIJKLMNOP\x00' in b,
+            'the two local tables of printable bytes run on into each other and end at the zero of the named table')
+
+
+def c3z(r):
+    return r.code == 1 and r.so(dado_mudou=['k_fa'], texto_a=['ABCDEFGH'], texto_b=['ABCDEFGX']) and r.tabelas_iguais, f'exit {r.code}: {r.nomes()}'
+
+
+def cx2(r):
+    # The known limit: two unnamed tables of printable bytes with no NUL of their own, joined by the census. XPASS (exit 0) is a failure.
+    if r.code == 0:
+        return False, 'XPASS: the unnamed tables are no longer joined by the text census; take the mark off this case and the note off elf_funcoes.py'
+    # the census and the two functions that load the tables read the joined bytes: texto_em( ) stops at the NUL, whatever lies behind
+    return (r.code == 1 and len(r.texto_a) == 1 and len(r.texto_b) == 1 and r.mudou and set(r.mudou) <= {'fp_cal', 'fq_cal'} and r.so(mudou=r.mudou, texto_a=r.texto_a, texto_b=r.texto_b),
+            f'xfail, as recorded: exit {r.code}, {r.nomes()}')
+
+
+def c7y(r):
+    return r.code == 1 and r.so(mudou=['tb_f']), f'exit {r.code}: {r.nomes()}'
+
+
+CASOS = [
+    # id, title, A, B, check, precondition
+    ('1', 'the same ELF twice', 'base', 'base', c1, None),
+    ('2', 'the same objects linked in another order', 'base', 'movida', c2, pre_movida),
+    ('2v', 'a call through a veneer against a direct call', 'base', 'sem_veneer', c2v, pre_sem_veneer),
+    ('2m', 'a function moved to another file, its switch table renumbered', 'base', 'fn_movida', c2v, pre_fn_movida),
+    ('2s', 'an assembly shim with a pointer at a halfword address, moved', 'shim', 'shim_movida', c2s, None),
+    ('2w', 'two vtables (weak read-only objects), the layout moved', 'vt', 'vt_movida', c2w, None),
+    ('2h', 'two static helpers of one name, the files linked in the other order', 'hlp', 'hlp_movida', c2v, pre_hlp_movida),
+    ('3', 'one string edited, same length, in a table of pointers', 'base', 'str', c3, None),
+    ('3b', 'one string edited, loaded directly by a function', 'base', 'lit', c3b, None),
+    ('3c', 'one string edited in .data', 'base', 'tag', c3c, None),
+    ('3d', 'one string edited in a local table of names with no symbol', 'anon', 'anon_txt', c3d, None),
+    ('4', 'one constant changed in one function', 'base', 'const', c4, None),
+    ('5', 'a number changed in a static const table, same layout', 'base', 'tab', c5, None),
+    ('5b', 'the same, and the layout moved too', 'base', 'tab_movida', c5b, pre_tab_movida),
+    ('5c', 'a number changed in a local initializer with no symbol', 'anon', 'anon_edit', c5c, None),
+    ('4g', 'a flash-looking constant changed in a function, nothing readable behind it (0x10120000 to 0x10150000)', 'k3', 'k3_fl', c4g('slot_base'), None),
+    ('4h', 'an SRAM-looking constant (0x20030000 to 0x20031000)', 'k3', 'k3_ram', c4g('ram_mark'), None),
+    ('5g', 'an address-looking word of a const table (0x10120000 to 0x10150000)', 'k3', 'k3_tab', c5g, None),
+    ('5h', 'the same word in a local initializer with no symbol', 'k3', 'k3_loc', c4g('local_off'), None),
+    ('5i', 'control: a plain number in the table (0x00120000 to 0x00150000)', 'k3_num_a', 'k3_num_b', c5g, None),
+    ('4j', 'two switch tables of the same size swapped between f and g (every byte of both is the same)', 'sw2', 'sw2_troca', c9fg, None),
+    ('4i', 'two static helpers of one name that differ only in an unnamed local table, F and G swapped', 'wlp', 'wlp_troca', c9, None),
+    ('4d', 'two static helpers of one name, F and G swapped between their files', 'hlp', 'hlp_troca', c9, None),
+    ('4e', 'the body of one of the two helpers changed', 'hlp', 'hlp_mudou', c9b, None),
+    ('4b', 'a call retargeted, then return 1 (BL and movs r0,#1 read as an address)', 'call_foo', 'call_bar', c8, None),
+    ('4f', 'a call retargeted to the function that took its callee place (same displacement, same bytes)', 'call_foo', 'call_bar_trocadas', c8, pre_mesmos_bytes),
+    ('4c', 'an argument changed before movs r0,#1 (two movs read as an address)', 'arg7', 'arg8', c8, None),
+    ('5d', 'two tables of one name, the first edited', 'dup', 'dup_u', c5d, None),
+    ('5e', 'two tables of one name, the second edited', 'dup', 'dup_v', c5d, None),
+    ('5f', 'two tables of one name, none edited', 'dup', 'dup', c5e, None),
+    ('5j', 'two tables of one name with the same bytes, one copy gone (the count changes, the content does not)', 'dupeq', 'dupeq_uma', c5j, pre_dupeq),
+    ('5k', 'the same, and the table that is left edited (the count changes and so does the content)', 'dupeq', 'dupeq_uma_edit', c5k, pre_dupeq),
+    ('6', 'an ELF with no code at all', 'dados', 'dados', c6, None),
+    ('6b', 'a stripped ELF, no code symbols', 'strip', 'strip', c6b, None),
+    ('6c', 'code against an ELF with no code', 'base', 'dados', c6, None),
+    ('6d', 'a path with no file behind it (a build that failed)', 'base', 'ausente', c6d, None),
+    ('7', 'a value changed in a switch table', 'base', 'sw', c7, None),
+    ('7v', 'a vtable slot retargeted to another existing function (a weak object)', 'vt', 'vt_troca', c7v, None),
+    ('2t', 'a Thumb-1 case table whose first word reads as a flash address, the function moved (what lies behind that address is not the same)', 'ct', 'ct_movida', c2, None),
+    ('7t', 'the same table with one byte of that word changed, same layout', 'ct', 'ct_byte', c7t, None),
+    ('7u', 'the same, and the function moved too', 'ct', 'ct_movida_byte', c7t, None),
+    ('7w', 'the first word of the table moved by exactly the shift of the layout (a relocated pointer would be excused; a table word is no pointer)', 'ct', 'ct_movida_shift', c7t, None),
+    ('7x', 'a compare of 87, which objdump prints with a hex comment (cmp r0, #87 @ 0x57): the first word of its 88 table bytes moved by exactly the shift of the layout is a changed table, not a relocated pointer', 'ct87', 'ct87_movida_shift', c7t, pre_ct87),
+    ('2x', 'a string of 150 bytes, no NUL in its first 64, at another alignment after a layout move (a long message is a text)', 'ls', 'ls_movida', c2v, pre_ls_movida),
+    ('2u', 'a tbb table that objdump prints as one .word and two .byte at a word boundary and as two .short and two .byte two bytes further (the function moved)', 'tb', 'tb_movida', c2v, pre_tb_movida),
+    ('7y', 'the last entry of that table changed, the function moved to the other alignment too', 'tb', 'tb_edit_movida', c7y, None),
+    ('7z', 'the same edit, the layout unchanged', 'tb', 'tb_edit', c7y, None),
+    ('2y', 'an unnamed table of numbers with named tables behind it that nothing references, the two swapped (the window ends at the next symbol start)', 'win', 'win_b', c2v, pre_win),
+    ('2z', 'an unnamed table with another unnamed table behind it, which only a literal word points at, the two functions swapped (the window ends at the next address a literal points at)', 'wlit', 'wlit_b', c2v, pre_wlit),
+    ('3x', 'two named tables of printable bytes with no NUL of their own, that nothing references, swapped (the census ends a run at a symbol)', 'cen', 'cen_b', c2v, pre_cen),
+    ('3z', 'one byte of the first of those tables changed (it must still read as changed: the table by name, and its text)', 'cen', 'cen_edit', c3z, None),
+    ('x', 'known limit: an unnamed constant, the layout moved', 'anon', 'anon_ord', cx, pre_anon_ord),
+    ('x2', 'known limit: two unnamed tables of printable bytes with no NUL of their own, swapped with their functions (no symbol to end a run at: the census and the functions that load them read the joined bytes)', 'cenp', 'cenp_b', cx2, pre_cenp),
+]
+
+# Each mutant is the tool with one change: (id, what it does, text in the tool, replacement, the
+# cases that must fail).
+MUTANTES = [
+    ('m28', 'the bytes after a call to a switch helper are read as words again (a table word that looks like an address is shown by what lies behind it)',
+     "if c and c.group(1) in LARGURA_CASO:", "if False and c and c.group(1) in LARGURA_CASO:", {'7w', '7x'}),
+    ('m29', 'the table has no exact extent (every data directive behind the call is table: a pool pointer behind it is called a changed table)',
+     "((n + 1) * w + 1) & ~1", "1 << 20", {'2t'}),
+    ('m30', 'a changed table is excused as a relocation when its word moved by the shift of the layout',
+     "if [i for i in fa[n] if i.startswith('.casetab')] != [i for i in fb[n] if i.startswith('.casetab')]:", "if False:", {'7w', '7x'}),
+    ('m31', 'the compare before the helper is read in its plain form only: objdump adds the immediate in hex from 33 up (cmp r0, #87 @ 0x57), so a table of 34 entries or more has no exact extent',
+     "CMP_N = re.compile(r'^cmp r\\d+, #(\\d+)(?: @ 0x[0-9a-f]+)?$')", "CMP_N = re.compile(r'^cmp r\\d+, #(\\d+)$')", {'7x'}),
+    ('m1', 'instruction lines must start with blanks (the bug that read empty bodies)',
+     "m = re.match(r'^\\s*[0-9a-f]+:\\t(.*)$', linha)", "m = re.match(r'^\\s+[0-9a-f]+:\\t(.*)$', linha)",
+     None),
+    ('m2', 'the text census skips every section',
+     "if nome not in ('.rodata', '.data'):", 'if True:', {'1', '3', '3b', '3c', '3d', '3z', 'x2'}),
+    ('m3', 'the text census skips .data', "if nome not in ('.rodata', '.data'):", "if nome not in ('.rodata',):", {'1', '3c'}),
+    ('m4', 'read-only objects are never compared', "d_iguais, dmud, dso_a, dso_b = comparar_dados(da, db, ctx_a, ctx_b)",
+     "d_iguais, dmud, dso_a, dso_b = len(da), [], [], []", {'5', '5b', '5d', '5e', '5f', '5g', '5i', '7v', '5j', '5k', '3z'}),
+    ('m5', 'same-named objects are matched by position of the first only',
+     "la, lb = da[nome], db[nome]", "la, lb = da[nome][-1:], db[nome][-1:]", {'5d', '5f', '5j', '5k'}),
+    ('m6', 'every function the text normalization sees as changed is excused',
+     "mudaram = [n for n in diferem if mudou_de_fato(n, fa, fb, xa, xb, cfa, cfb)]",
+     "mudaram = []", {'7t', '7u', '7w', '7x', '7y', '7z', '4', '4b', '4c', '4d', '4e', '4f', '4g', '4h', '4i', '4j', '5c', '5h', '7', 'x', 'x2', '5j', '5k'}),
+    ('m7', 'a changed unnamed constant is excused (the fix of 2026-10-14 taken out)',
+     "constante_mudou(fa[n], fb[n]) or ", "", {'4j', '5c', '5h', '7'}),
+    ('m8', 'switch tables are never different', "tabelas_iguais = ta == tb", "tabelas_iguais = True", {'7'}),
+    ('m9', 'an empty reading is accepted', "if not lidas_a or not lidas_b:", "if False:", {'6', '6c'}),
+    ('m21', 'a file that cannot be read is not refused (its traceback exits 1)',
+     'except (OSError, subprocess.CalledProcessError) as exc:', 'except ZeroDivisionError as exc:', {'6d'}),
+    ('m10', 'a missing code symbol is accepted', "if not any(tam and tipo in 'TtWw' for _, tam, _, tipo in tab_):",
+     "if False:", {'6b'}),
+    ('m11', 'veneers are not read as the function they branch to',
+     "VENEER = re.compile(r'^__(.+)_veneer$')", "VENEER = re.compile(r'^__(.+)_veneer_x$')", {'2v'}),
+    ('m12', 'switch tables are named by number, not by content',
+     "CSWTCH = re.compile(r'^CSWTCH\\.\\d+$')", "CSWTCH = re.compile(r'^CSWTCHX\\.\\d+$')", {'2m', '4j', '7'}),
+    ('m13', 'the second chance is never given (a literal or a table edited under a function blames it)',
+     "or not so_relocacao(n, xa, xb, cfa, cfb))", "or True)", {'2s', '3b', '3d', '5d', '5e'}),
+    ('m15', 'two unnamed addresses count as the same target (nothing fails since 2026-10-15: an unreadable one now carries its value, so this is the second line of defence)',
+     "return x == y and not x.startswith('<')", "return x == y", set()),
+    ('m16', 'a pointer at a halfword address is never accepted (the first fix proposed by the review)',
+     "ok = mesmo_alvo(xa_, xb_) or mesmo_conteudo(xa_, xb_, va, vb, ra[0] + w, rb[0] + w)",
+     "ok = (ra[0] + w) % 4 == 0 and (mesmo_alvo(xa_, xb_) or mesmo_conteudo(xa_, xb_, va, vb, ra[0] + w, rb[0] + w))",
+     {'2s'}),
+    ('m17', 'weak read-only objects (vtables, typeinfo, inline variables) are skipped',
+     "if tipo not in 'rRVv' or tam == 0:", "if tipo not in 'rR' or tam == 0:", {'2w', '7v'}),
+    ('m18', 'a branch the text names differently is excused when the bytes are the same',
+     "return (constante_mudou(fa[n], fb[n]) or chamada_mudou(fa[n], fb[n])", "return (constante_mudou(fa[n], fb[n])", {'4d', '4e', '4f', '4i'}),
+    ('m19', 'same-named functions are paired by address order only',
+     "j = next((j for j in livres if lb[j][2] == r[2]), None)", "j = None", {'2h'}),
+    ('m20', 'a reference to a shared name carries no colour',
+     "self.tab_ref = renomear(self.tab, self.cores, dup_nomes)", "self.tab_ref = self.tab", {'4d', '4e', '4i', '5j', '5k'}),
+    ('m22', 'an unreadable address looking like one renders as "<?>", without its value',
+     "return f'<?{v:#x}>'", "return '<?>'", {'4g', '4h', '5g'}),
+    ('m23', 'a word of an unnamed table that looks like an address and cannot be read renders as "?"',
+     "('?' if img.ler(w, 1) else f'?{w:#x}')", "'?'", {'5h'}),
+    ('m24', 'a colour masks what an unnamed readable constant holds ("<@>")',
+     "return f'<@{b.hex()}{\"@\" + str(v & 3) if v & 3 else \"\"}>' if b else f'<?{v:#x}>'",
+     "return '<@>' if b else f'<?{v:#x}>'", {'4i'}),
+    ('m25', 'a pool word that shows the content of a switch table is not a changed constant',
+     "CONTEUDO = re.compile(r'^\\.word <(?:CSWTCH)?\\[')", "CONTEUDO = re.compile(r'^\\.word <\\[')", {'4j', '7'}),
+    ('m26', 'the three lines that keep 4b apart are out at once: unnamed addresses count as the same, a differing branch is excused by equal bytes, an unreadable address carries no value',
+     ["return x == y and not x.startswith('<')",
+      "return (constante_mudou(fa[n], fb[n]) or chamada_mudou(fa[n], fb[n])",
+      "return f'<?{v:#x}>'"],
+     ["return x == y", "return (constante_mudou(fa[n], fb[n])", "return '<?>'"],
+     {'4b', '4c', '4d', '4e', '4f', '4g', '4h', '4i', '5g'}),
+    ('m27', 'a change in the number of copies always says "conteúdo igual" (the review of S8a C1 to C6, 2026-10-15)',
+     'conteúdo {"igual" if igual else "diferente"}', 'conteúdo igual', {'5k'}),
+    ('m34', 'the window of an unnamed constant ignores the next symbol start (only the addresses that literal words point at end it)',
+     "for lista in (inicios, getattr(img, 'alvos', ())):", "for lista in (getattr(img, 'alvos', ()),):", {'2y'}),
+    ('m35', 'the window ignores the next address that a literal word points at (only symbol starts end it)',
+     "for lista in (inicios, getattr(img, 'alvos', ())):", "for lista in (inicios,):", {'2z'}),
+    ('m36', 'the window is always the 64 bytes behind the address (the reading before S10a)',
+     "for lista in (inicios, getattr(img, 'alvos', ())):", "for lista in ():", {'2y', '2z'}),
+    ('m37', 'the text census has no cuts: a table of printable bytes with no NUL of its own runs on into what follows it',
+     "return sorted(set(E.inicios) | {ini + tam for ini, tam, _, _ in E.tab if tam})", "return []", {'3x', '3z'}),
+    ('m32', 'a Thumb-2 table (tbb, tbh) is not collected: the same bytes print as .word at one alignment and as .short at the other, and the two texts differ',
+     "elif TABELA_T2.match(ins):", "elif False:", {'2u'}),
+    ('m33', 'a text is read for 64 bytes only: a message longer than that is no text, and the bytes behind its address stand for it',
+     "TETO_TEXTO = 4096", "TETO_TEXTO = 64", {'2x'}),
+    ('m14', 'a changed string in an unnamed table blames the functions that load it',
+     "and TEXTOS_ENTRE_ASPAS.sub('\"\"', p) != TEXTOS_ENTRE_ASPAS.sub('\"\"', q)", "", {'3d'}),
+]
+
+
+def avaliar(tool, imagens, env, pool):
+    """Runs every case with a tool; {id: (ok, detail)}."""
+    futuros = {c[0]: pool.submit(executar, tool, imagens[c[2]], imagens[c[3]], env) for c in CASOS}
+    out = {}
+    for cid, titulo, _, _, chk, _ in CASOS:
+        r = futuros[cid].result()
+        try:
+            out[cid] = chk(r) if r.lido is not None or r.code == 2 else (False, f'no report (exit {r.code}): {r.err.strip()[-200:]}')
+        except (TypeError, IndexError) as exc:       # a report that lacks a line
+            out[cid] = (False, f'unreadable report (exit {r.code}): {exc!r}')
+    return out
+
+
+def main():
+    ap = argparse.ArgumentParser(description=__doc__.split('\n')[0])
+    ap.add_argument('--keep', help='build in this folder and leave the images there')
+    args = ap.parse_args()
+
+    if not GCC.is_file():
+        msg = f'arm-none-eabi-gcc not found at {GCC} (the PlatformIO toolchain-rp2040-earlephilhower package)'
+        if os.environ.get('SIMUT_ELF_TOOLCHAIN') == 'require':
+            print('FAIL:', msg, '(SIMUT_ELF_TOOLCHAIN=require)')
+            return 1
+        print('SKIP:', msg, '- nothing was tested')
+        return 0
+
+    env = dict(os.environ, PYTHONIOENCODING='utf-8')
+    versao = rodar([GCC, '--version']).splitlines()[0]
+    print(f'toolchain: {versao}')
+    falhas = []
+    with (tempfile.TemporaryDirectory(prefix='elf_funcoes_test_') if not args.keep else _Pasta(args.keep)) as tmpdir:
+        tmp = Path(tmpdir)
+        imagens = montar(tmp)
+        with ThreadPoolExecutor(max_workers=8) as pool:
+            real = avaliar(HERE / 'elf_funcoes.py', imagens, env, pool)
+            print(f'\n{len(CASOS)} cases against tools/elf_funcoes.py:')
+            for cid, titulo, _, _, _, pre in CASOS:
+                ok, detalhe = real[cid]
+                if pre:
+                    pok, pdet = pre(imagens)
+                    if not pok:
+                        ok, detalhe = False, f'the scenario did not happen ({pdet}); {detalhe}'
+                    else:
+                        detalhe += f' [{pdet}]'
+                print(f'  {"ok  " if ok else "FAIL"} ({cid}) {titulo}: {detalhe}')
+                if not ok:
+                    falhas.append(cid)
+
+            print(f'\n{len(MUTANTES)} mutants of the tool (the cases that fail must be exactly the listed ones):')
+            fonte = (HERE / 'elf_funcoes.py').read_text(encoding='utf-8')
+            for mid, titulo, antigo, novo, esperado in MUTANTES:
+                # one replacement, or a list of them when no single change leaves a case unguarded
+                pares = list(zip(antigo, novo)) if isinstance(antigo, list) else [(antigo, novo)]
+                ausente = next((a for a, _ in pares if fonte.count(a) != 1), None)
+                if ausente is not None:
+                    print(f'  FAIL {mid}: its text is {fonte.count(ausente)} times in elf_funcoes.py, not once: {ausente[:60]!r}')
+                    falhas.append(mid)
+                    continue
+                mut = tmp / f'mutante_{mid}.py'
+                texto = fonte
+                for a, n in pares:
+                    texto = texto.replace(a, n)
+                mut.write_text(texto, encoding='utf-8')
+                res = avaliar(mut, imagens, env, pool)
+                caem = {cid for cid, (ok, _) in res.items() if not ok}
+                # m1 reads no instruction at all: every case that expects a report must fail.
+                alvo = esperado if esperado is not None else {c[0] for c in CASOS if c[0] not in ('6', '6c', '6d')}
+                ok = caem == alvo
+                print(f'  {"ok  " if ok else "FAIL"} {mid} {titulo}: fails {sorted(caem, key=_ordem)}'
+                      + ('' if ok else f', expected {sorted(alvo, key=_ordem)}'))
+                if not ok:
+                    falhas.append(mid)
+    print()
+    if falhas:
+        print(f'FAIL: {len(falhas)} of {len(CASOS) + len(MUTANTES)}: {", ".join(falhas)}')
+        return 1
+    print(f'OK: {len(CASOS)} cases and {len(MUTANTES)} mutants')
+    return 0
+
+
+def _ordem(cid):
+    m = re.match(r'(\d*)(\D*)', cid)
+    return (int(m.group(1)) if m.group(1) else 99, m.group(2))
+
+
+class _Pasta:
+    def __init__(self, caminho):
+        self.caminho = caminho
+
+    def __enter__(self):
+        Path(self.caminho).mkdir(parents=True, exist_ok=True)
+        return self.caminho
+
+    def __exit__(self, *a):
+        return False
+
+
+if __name__ == '__main__':
+    sys.exit(main())

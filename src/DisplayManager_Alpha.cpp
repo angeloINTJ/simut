@@ -602,7 +602,7 @@ const char* DisplayManager::getActiveLangCode( ){return _alphaLangCode;}
 const char* DisplayManager::getActiveLangName( ){return _alphaLangName;}
 void DisplayManager::setGraphNavOffset(int){}
 void DisplayManager::setWebNotification(const char*){}
-void DisplayManager::showSettingsAlarms(SystemConfig*){}
+void DisplayManager::showSettingsAlarms(const SystemConfig*){}
 void DisplayManager::showSettingsSounds(const SoundSettingsState&){}
 void DisplayManager::showSettingsThemes(int){}
 void DisplayManager::updateSystemStatus(const SystemStatusData& d) {

@@ -133,11 +133,15 @@ check("pico_wire usa a placa do Pico comum e tira o CYW43 do pico_base",
 wiretft = composed("pico_wiretft")
 check("pico_wiretft (a TFT no lugar do LCD) usa a mesma placa e tira o mesmo CYW43",
       wiretft["board"] == "rpipico" and wiretft["unflags"] == ["-DPICO_CYW43_SUPPORTED=1"], repr((wiretft["board"], wiretft["unflags"])))
+wiretft_angulo = composed("pico_wiretft_angulo")
+check("pico_wiretft_angulo (o pico_wiretft com o driver de UI trocado) usa a mesma placa e tira o mesmo CYW43",
+      wiretft_angulo["board"] == "rpipico" and wiretft_angulo["unflags"] == ["-DPICO_CYW43_SUPPORTED=1"],
+      repr((wiretft_angulo["board"], wiretft_angulo["unflags"])))
 for name in M["profiles"]:
     prof = gf.resolve_profile(name, M["profiles"])
     c = composed(name)
     chip = prof.get("chip", "rp2040")
-    if name not in ("pico_wire", "pico_wiretft"):
+    if name not in ("pico_wire", "pico_wiretft", "pico_wiretft_angulo"):
         check(f"{name}: a placa e o flag do pico_base ficam como eram",
               c["board"] == M["chip"][chip].get("board", "") and c["unflags"] == [], repr((c["board"], c["unflags"])))
     # A classe da rede (o macro de [net_class.*]) nunca vai por -D: o src/net/NetCaps.h a deriva da identidade

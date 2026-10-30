@@ -77,7 +77,9 @@ def _firmware_version():
 VERSION = _firmware_version()
 
 # Parts of the book, by chapter number. The chapter files carry their own
-# number in the name (capNN-*.md); this only decides where a part starts.
+# number in the name (capNN-*.md, or capNNa-*.md: see CHAPTER_FILE_RE); this
+# only decides where a part starts, by the number alone, so 11A is in the part
+# that holds 11.
 PARTS = [
     (1, "Parte I", "Conhecer"),
     (5, "Parte II", "Configurar"),
@@ -86,6 +88,23 @@ PARTS = [
     (20, "Parte V", "Integrar com servidores"),
     (28, "Parte VI", "Referência"),
 ]
+
+# A chapter file is capNN-*.md, or capNNa-*.md (one lowercase letter after the
+# number) for a chapter that sits between NN and NN+1: the chapters after it
+# keep their numbers, because docs/_manual/ holds 1,358 occurrences of
+# #cap-12 to #cap-31 (counted 2026-10-30) and the figure ids start with the
+# number (fig-11-dashboard). The reader sees the letter in capitals, "Capítulo
+# 11A"; the id on the file's first line is still its own ({#cap-11a}).
+CHAPTER_FILE_RE = re.compile(r"cap(\d+)([a-z]?)-.*\.md$")
+
+
+def chapter_order(name: str):
+    """11 < 11a < 12: the number, then the letter. Plain name order gives the
+    same today, but only because the numbers have two digits and "-" sorts
+    before a letter: two accidents of the file names, not a rule."""
+    num, letter = CHAPTER_FILE_RE.match(name).groups()
+    return int(num), letter, name
+
 
 FIG_KINDS = {
     "tft": "Tela do painel",
@@ -124,7 +143,7 @@ FIG_RE = re.compile(r'<div id="(fig-[^"]+)" class="figura"([^>]*)>(.*?)</div>', 
 ATTR_RE = re.compile(r'data-([a-z]+)="([^"]*)"')
 
 
-def render_figures(frag: str, chapter_no: int, chapter_title: str, figures: list) -> str:
+def render_figures(frag: str, chapter_label: str, chapter_title: str, figures: list) -> str:
     def one(m):
         fid, attrs, body = m.group(1), dict(ATTR_RE.findall(m.group(2))), m.group(3).strip()
         kind = attrs.get("tipo", "web")
@@ -134,7 +153,7 @@ def render_figures(frag: str, chapter_no: int, chapter_title: str, figures: list
         path = os.path.join(IMG, name)
         have = os.path.exists(path)
         figures.append({"id": fid, "kind": kind, "file": name, "how": how,
-                        "caption": re.sub(r"<[^>]+>", "", caption), "chapter": chapter_no,
+                        "caption": re.sub(r"<[^>]+>", "", caption), "chapter": chapter_label,
                         "chapter_title": chapter_title, "have": have})
         n = len(figures)
         label = f'<b>Figura {n}.</b> {caption}'
@@ -177,7 +196,9 @@ def callouts(frag: str) -> str:
 
 def chapter(path: str, figures: list, toc: list, check_errors: list):
     base = os.path.basename(path)
-    no = int(re.match(r"cap(\d+)", base).group(1))
+    num, letter = CHAPTER_FILE_RE.match(base).groups()
+    no = int(num)
+    label = f"{no}{letter.upper()}"          # "11", or "11A" for cap11a-*.md
     md = open(path, encoding="utf-8").read()
     if "[[VERIFICAR" in md:
         for line_no, line in enumerate(md.split("\n"), 1):
@@ -192,11 +213,11 @@ def chapter(path: str, figures: list, toc: list, check_errors: list):
     title_txt = re.sub(r"<[^>]+>", "", title)
     # Callouts first: their regex stops at the first </div>, so it has to run
     # before tables are wrapped in <div class="tw">.
-    rest = spans(wrap_tables(render_figures(callouts(rest), no, title_txt, figures)))
+    rest = spans(wrap_tables(render_figures(callouts(rest), label, title_txt, figures)))
     lede_html = lede.replace("<p>", '<p class="lede">', 1) if lede else ""
-    toc.append((no, cid, title_txt))
+    toc.append((no, label, cid, title_txt))
     return no, (f'<section class="capitulo" id="{cid}">'
-                f'<p class="rotulo-cap">Capítulo {no}</p><h2>{title}</h2>{lede_html}{rest}'
+                f'<p class="rotulo-cap">Capítulo {label}</p><h2>{title}</h2>{lede_html}{rest}'
                 f'<p class="volta"><a href="#sumario-t">Voltar ao sumário</a></p></section>')
 
 
@@ -407,7 +428,7 @@ try{localStorage.setItem('angulo:tema',n);}catch(e){}rotulo();});rotulo();})();"
 
 def main():
     check = "--check" in sys.argv
-    files = sorted(f for f in os.listdir(SRC) if re.match(r"cap\d+-.*\.md$", f))
+    files = sorted((f for f in os.listdir(SRC) if CHAPTER_FILE_RE.match(f)), key=chapter_order)
     if not files:
         raise SystemExit(f"no chapters in {SRC}")
     figures, toc, errors = [], [], []
@@ -428,13 +449,13 @@ def main():
         body.append(html_ch)
     toc_html = []
     pi = 0
-    for i, (no, cid, title) in enumerate(toc):
+    for i, (no, label, cid, title) in enumerate(toc):
         while pi < len(PARTS) and no >= PARTS[pi][0]:
             if toc_html:
                 toc_html.append("</ol></div>")
             toc_html.append(f'<div class="parte-toc"><h3><small>{PARTS[pi][1]}</small>{PARTS[pi][2]}</h3><ol>')
             pi += 1
-        toc_html.append(f'<li><a href="#{cid}"><span class="n">{no}</span><span>{html.escape(title)}</span></a></li>')
+        toc_html.append(f'<li><a href="#{cid}"><span class="n">{label}</span><span>{html.escape(title)}</span></a></li>')
     toc_html.append("</ol></div>")
     toc_html.append('<div class="parte-toc"><h3><small>Apêndices</small>Referência rápida</h3><ol>'
                     '<li><a href="#ap-a"><span class="n">A</span><span>Imagens a capturar</span></a></li>'

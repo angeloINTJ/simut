@@ -23,7 +23,7 @@ A snapshot is not stale. A **living** document that has fallen behind is.
 | document | state | about |
 |---|---|---|
 | [MANUAL.md](MANUAL.md) · [pt-BR](MANUAL.pt-BR.md) | Living | The user manual: screens, web UI, CLI, telemetry, OTA. |
-| [MANUAL.pt-BR.html](MANUAL.pt-BR.html) | Living | The complete product manual, in Portuguese: 31 chapters for v2.12.0. Generated from the chapter sources in [_manual/](_manual/) by `tools/build_manual.py` — edit those, never the HTML. Screenshots still to capture are listed in its Appendix A and in [images/manual/CAPTURAR.md](images/manual/CAPTURAR.md). |
+| [MANUAL.pt-BR.html](MANUAL.pt-BR.html) | Living | The complete product manual, in Portuguese, for v2.12.0. Generated from the chapter sources in [_manual/](_manual/) by `tools/build_manual.py` — edit those, never the HTML. Screenshots still to capture are listed in its Appendix A and in [images/manual/CAPTURAR.md](images/manual/CAPTURAR.md). |
 | [FEATURES.md](FEATURES.md) · [pt-BR](FEATURES.pt-BR.md) · [es-ES](FEATURES.es-ES.md) | Living | Every feature in detail, moved out of the README on 2026-10-02. |
 | [VERIFICATION.md](VERIFICATION.md) · [pt-BR](VERIFICATION.pt-BR.md) · [es-ES](VERIFICATION.es-ES.md) | Living | What has been measured on the bench, dated, newest first. Moved out of the README on 2026-10-02. |
 | [CLI-Manual.md](CLI-Manual.md) | Living | Every serial/Bluetooth command, for the `pico_w_test` profile. |
@@ -65,6 +65,7 @@ fixed, which is exactly what makes them useful when it comes back.
 | [analysis/PLANO_STABLE.md](analysis/PLANO_STABLE.md) | **Living** | O que precisa ser verdade para a linha sair de beta, a matriz de testes que prova cada item, e os três bloqueios abertos (pt-BR). |
 | [analysis/DIETA_FLASH.md](analysis/DIETA_FLASH.md) | **Living** | Where the 1 MB release image goes and what gives bytes back without dropping a feature: attributed from the linker map, six levers measured by A/B builds, −53,848 B in one image (pt-BR). |
 | [analysis/ESPELHO_DELTA.md](analysis/ESPELHO_DELTA.md) | **Living** | Sending only the blocks that changed in the panel mirror: measured on the rig, and what stands in the way (pt-BR). |
+| [analysis/UI_DRIVERS.md](analysis/UI_DRIVERS.md) | **Living** | Splitting the TFT panel's look into two build-time UI drivers (the original and the Ângulo): the contract a driver meets, and the audit of the tree that later stages depend on, each table with the command that produces it. The classification of every display function is in [UI_DRIVERS_funcoes.tsv](analysis/UI_DRIVERS_funcoes.tsv). |
 | [analysis/ANALISE_GESTOR_FROTA.md](analysis/ANALISE_GESTOR_FROTA.md) | 2026-09-11 | What the firmware would need to give a fleet manager watching hundreds of units — the design behind the unmerged `feat/fleet-api` branch (pt-BR). |
 | [analysis/SIMUT_AIR_PLANO_FIX.md](analysis/SIMUT_AIR_PLANO_FIX.md) | v2.3.9-beta | The Air fix and optimisation plan (F-numbered findings). |
 | [analysis/SIMUT_AIR_PLANO_ENERGIA.md](analysis/SIMUT_AIR_PLANO_ENERGIA.md) | 2026-09-07 | Energy budget: frequent readings, rare radio. |

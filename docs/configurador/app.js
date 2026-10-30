@@ -1,10 +1,10 @@
 /* app.js — the SIMUT build configurator (docs/configurador/).
  *
- * The page draws what model.json says: the products, the network drivers as a
- * choice and the switches grouped as a tree, the rules (each measured by
- * compiling the combination it forbids) and the per-product cost of every
- * switch. Nothing about the firmware is typed in this file; tools/features.toml
- * is the one source, and logic.js does the sums.
+ * The page draws what model.json says: the products, the network drivers and
+ * the look of the touch display as choices, the switches grouped as a tree, the
+ * rules (each measured by compiling the combination it forbids) and the
+ * per-product cost of every switch. Nothing about the firmware is typed in this
+ * file; tools/features.toml is the one source, and logic.js does the sums.
  *
  * The page is not the authority on what builds. It locks what a rule forbids so
  * nobody asks for it, and tools/build_custom.py applies the same rules again
@@ -26,12 +26,19 @@ const LANG_KEY = "simut-lang";          // the landing page's key: one choice fo
 const THEME_KEY = "angulo:tema";        // every Ângulo page's key
 const TOKEN_RE = /^(github_pat_[A-Za-z0-9_]{20,250}|ghp_[A-Za-z0-9]{36})$/;
 const POLL_MS = 10000;
+// The page's languages, and the locale each one formats numbers and dates in (and sets the document's lang to). es is
+// es-ES (2026-10-29): its texts are proposals that await a native review, and the page says so (renderReview).
+const LOCALES = { en: "en", pt: "pt-BR", es: "es-ES" };
+// A text that holds one link says {link} where it goes (renderReview): this character stands in for it while the text is split.
+const LINK_MARK = "\u0001";
 
 const STR = {
   en: {
     "skip": "Skip to content", "nav.home": "Home", "nav.manual": "Manual",
     "title": "Build configurator",
     "lede": "Pick a product, switch features on or off, and see whether the image still fits before you compile it.",
+    "lang.review": "Spanish translation under review: tell us on {link} if something does not read well.",
+    "lang.review.link": "GitHub",
     "loading": "Loading the feature model…",
     "ft.colophon": "SIMUT — Sistema Integrado de Monitoramento Universal e Telemetria. MIT licensed.",
     "ft.source": "Feature model", "ft.design": "How it works", "ft.edit": "Edit this page",
@@ -49,6 +56,9 @@ const STR = {
     "price.net.more": "Chosen over this product's own connection, the image is {n} B larger (measured).",
     "price.net.less": "Chosen over this product's own connection, the image is {n} B smaller (measured).",
     "price.net.over": "Chosen over this product's own connection, it no longer fits the flash slot (measured).",
+    "price.ui.more": "Chosen over this product's own look, the image is {n} B larger (measured).",
+    "price.ui.less": "Chosen over this product's own look, the image is {n} B smaller (measured).",
+    "price.ui.over": "Chosen over this product's own look, it no longer fits the flash slot (measured).",
     "result.title": "This build", "selo.estimate": "Estimate", "selo.none": "No estimate",
     "fit.ok": "Fits", "fit.near": "Tight", "fit.over": "Does not fit", "fit.blocked": "Blocked",
     "fixa.link": "See the result",
@@ -116,6 +126,8 @@ const STR = {
     "skip": "Pular para o conteúdo", "nav.home": "Início", "nav.manual": "Manual",
     "title": "Configurador de build",
     "lede": "Escolha um produto, ligue e desligue recursos, e veja se a imagem ainda cabe antes de compilar.",
+    "lang.review": "Tradução para o espanhol em revisão: avise no {link} se algo não estiver claro.",
+    "lang.review.link": "GitHub",
     "loading": "Carregando o modelo de recursos…",
     "ft.colophon": "SIMUT — Sistema Integrado de Monitoramento Universal e Telemetria. Licença MIT.",
     "ft.source": "Modelo de recursos", "ft.design": "Como funciona", "ft.edit": "Editar esta página",
@@ -133,6 +145,9 @@ const STR = {
     "price.net.more": "Escolhida no lugar da conexão deste produto, a imagem fica {n} B maior (medido).",
     "price.net.less": "Escolhida no lugar da conexão deste produto, a imagem fica {n} B menor (medido).",
     "price.net.over": "Escolhida no lugar da conexão deste produto, ele deixa de caber no slot de flash (medido).",
+    "price.ui.more": "Escolhido no lugar do visual deste produto, a imagem fica {n} B maior (medido).",
+    "price.ui.less": "Escolhido no lugar do visual deste produto, a imagem fica {n} B menor (medido).",
+    "price.ui.over": "Escolhido no lugar do visual deste produto, ele deixa de caber no slot de flash (medido).",
     "result.title": "Esta build", "selo.estimate": "Estimativa", "selo.none": "Sem estimativa",
     "fit.ok": "Cabe", "fit.near": "No limite", "fit.over": "Não cabe", "fit.blocked": "Bloqueada",
     "fixa.link": "Ver o resultado",
@@ -174,7 +189,7 @@ const STR = {
     "run.dispatching": "Enviando ao GitHub…",
     "run.finding": "Esperando a execução aparecer…",
     "run.queued": "Na fila do GitHub.",
-    "run.approval": "Compilada. Esperando o mantenedor aprovar a assinatura: o aparelho só instala imagem assinada pelo ar.",
+    "run.approval": "Compilada. Esperando o mantenedor aprovar a assinatura: o aparelho só instala, pelo ar, imagem assinada.",
     "run.progress": "Compilando: {m} min até agora.",
     "run.ok": "Compilada: .bin {bin} B, RAM {ram} B.",
     "run.okOta": "Cabe no teto de OTA: instale o .bin pela interface web, ou o .uf2 pelo USB.",
@@ -195,6 +210,95 @@ const STR = {
     "err.model": "Não deu para carregar o modelo de recursos ({m}). Recarregue a página.",
     "err.hash": "O link pedia algo que este modelo não conhece (“{v}”), e foi ignorado.",
     "err.hashLong": "O link é longo demais para ser desta página, e foi ignorado.",
+  },
+  es: {
+    "skip": "Saltar al contenido", "nav.home": "Inicio", "nav.manual": "Manual",
+    "title": "Configurador de compilación",
+    "lede": "Elija un producto, active o desactive funciones y compruebe si la imagen sigue cabiendo antes de compilarla.",
+    "lang.review": "Traducción en revisión: avísenos en {link} si algo no se lee bien.",
+    "lang.review.link": "GitHub",
+    "loading": "Cargando el modelo de funciones…",
+    "ft.colophon": "SIMUT — Sistema Integrado de Monitoramento Universal e Telemetria. Licencia MIT.",
+    "ft.source": "Modelo de funciones", "ft.design": "Cómo funciona", "ft.edit": "Editar esta página",
+    "theme.dark": "Usar el tema oscuro", "theme.light": "Usar el tema claro",
+    "sec.product": "Producto", "sec.features": "Funciones", "sec.result": "Resultado",
+    "bench.show": "Mostrar imágenes de banco",
+    "product.size": "{n} B de flash",
+    "product.nosize": "Sin medir: imagen de banco",
+    "changed": "Cambiado",
+    "locked": "Bloqueada. {why}",
+    "noeffect": "No cambia nada en este producto: compilada de las dos formas, la imagen salió idéntica, byte a byte.",
+    "price.more": "Activada, la imagen de este producto pesa {n} B más (medido).",
+    "price.less": "Activada, la imagen de este producto pesa {n} B menos (medido).",
+    "price.over": "Activada, este producto deja de caber en la ranura de flash (medido).",
+    "price.net.more": "Elegida en lugar de la conexión propia de este producto, la imagen pesa {n} B más (medido).",
+    "price.net.less": "Elegida en lugar de la conexión propia de este producto, la imagen pesa {n} B menos (medido).",
+    "price.net.over": "Elegida en lugar de la conexión propia de este producto, deja de caber en la ranura de flash (medido).",
+    "price.ui.more": "Elegido en lugar del aspecto propio de este producto, la imagen pesa {n} B más (medido).",
+    "price.ui.less": "Elegido en lugar del aspecto propio de este producto, la imagen pesa {n} B menos (medido).",
+    "price.ui.over": "Elegido en lugar del aspecto propio de este producto, deja de caber en la ranura de flash (medido).",
+    "result.title": "Esta compilación", "selo.estimate": "Estimación", "selo.none": "Sin estimación",
+    "fit.ok": "Cabe", "fit.near": "Al límite", "fit.over": "No cabe", "fit.blocked": "Bloqueada",
+    "fixa.link": "Ver el resultado",
+    "result.stock": "{p}, como se publicó",
+    "result.changes1": "{p}, 1 cambio", "result.changesN": "{p}, {n} cambios",
+    "meter.flash": "Ranura de flash", "meter.ota": ".bin para OTA",
+    "meter.of": "{a} de {b} B", "meter.left": "sobran {n} B", "meter.over": "se pasa en {n} B",
+    "ram": "RAM en uso: {n} B", "ram.unknown": "RAM: sin estimación, porque una imagen que no cabe no tiene cifra de RAM.",
+    "note": "Suma de las diferencias medidas de una en una el {date}; la compilación mide la cifra exacta.",
+    "note.acc": "Frente a {n} compilaciones reales de cambios combinados, la suma se equivocó hasta en {used} B de flash y {bin} B de .bin; por eso, a menos de {margin} B de un techo, la página dice Al límite.",
+    "warn.over": "No cabe en la ranura de flash. Desactive alguna función.",
+    "warn.near": "Cerca del límite, más cerca de lo que la estimación ha llegado a errar. La compilación da la cifra exacta.",
+    "warn.otaOver": "El .bin supera el techo de OTA: grabe el .uf2 por USB.",
+    "warn.rule": "No permitido. {why}",
+    "warn.hazard": "Riesgo. {why}",
+    "warn.missing": "Sin medida para {list}, así que la estimación lo deja fuera.",
+    "warn.bench": "Sin estimación: la matriz de coste mide solo los productos publicados. La compilación da la cifra.",
+    "warn.stock": "Sin cambios. La imagen publicada de este producto está en la última release; compilar aquí genera el main de hoy, que puede ir por delante.",
+    "warn.stockLink": "Abrir la última release",
+    "two.files": "En la Pico 2 W los dos archivos son imágenes distintas. El .bin es una actualización: se instala en la otra ranura y se ejecuta a prueba hasta que se confirma. El .uf2 es la imagen de fábrica, con la tabla de particiones, para la unidad que aparece como RP2350 al mantener pulsado BOOTSEL.",
+    "action.build": "Compilar esta configuración", "action.building": "Compilando…",
+    "action.copy": "Copiar enlace", "action.copied": "Enlace copiado",
+    "action.copyFailed": "El navegador no permitió copiar. El enlace es la dirección de la barra del navegador.",
+    "action.request": "Solicitar esta compilación",
+    "local.title": "Compilar en su equipo",
+    "local.help": "Desde un clon del repositorio, con PlatformIO instalado:",
+    "local.gh": "O inicie el workflow con la CLI de GitHub:",
+    "token.title": "Acceso a GitHub",
+    "token.help": "Compilar ejecuta un workflow en el repositorio, y solo las cuentas con acceso de escritura pueden iniciar uno. Pegue un token fine-grained limitado a este repositorio, con Actions: lectura y escritura y caducidad corta. Se queda en este navegador y solo va a api.github.com.",
+    "token.label": "Token",
+    "token.remember": "Recordar en este navegador",
+    "token.save": "Guardar token",
+    "token.create": "Crear un token fine-grained",
+    "token.saved": "Token guardado, termina en {last}.",
+    "token.forget": "Olvidar el token",
+    "token.bad": "Esto no es un token de GitHub. Uno fine-grained empieza por github_pat_.",
+    "token.noaccess": "¿Sin acceso de escritura? Solicite esta compilación: abre una solicitud en GitHub con esta configuración.",
+    "run.for": "Compilación solicitada: {what}.",
+    "run.dispatching": "Enviando a GitHub…",
+    "run.finding": "Esperando a que aparezca la ejecución…",
+    "run.queued": "En la cola de GitHub.",
+    "run.approval": "Compilada. Esperando a que el mantenedor apruebe la firma: el dispositivo solo instala, por el aire, imágenes firmadas.",
+    "run.progress": "Compilando: {m} min hasta ahora.",
+    "run.ok": "Compilada: .bin {bin} B, RAM {ram} B.",
+    "run.okOta": "Cabe en el techo de OTA: instale el .bin desde la interfaz web, o el .uf2 por USB.",
+    "run.okUsb": "El .bin supera el techo de OTA: grabe el .uf2 por USB.",
+    "run.okOtaTwo": "Cabe en su ranura: instale el .bin desde la interfaz web, en la otra ranura y a prueba, o el .uf2 por USB, en la unidad RP2350.",
+    "run.download": "Descargar .uf2 y .bin",
+    "run.page": "Abrir la ejecución",
+    "run.failed": "La compilación falló en el paso «{step}».",
+    "run.refused": "El workflow rechazó el perfil: abra la ejecución para ver la regla que citó.",
+    "run.cancelled": "Se canceló la ejecución.",
+    "run.lost": "La ejecución no apareció en un minuto. Búsquela en la pestaña Actions del repositorio.",
+    "err.401": "GitHub rechazó el token (401): caducó o se revocó. Olvídelo y pegue uno nuevo.",
+    "err.403": "El token no puede iniciar workflows aquí (403). Necesita Actions: lectura y escritura en este repositorio.",
+    "err.404": "GitHub no encontró el workflow (404): el token no tiene acceso a este repositorio.",
+    "err.422": "GitHub rechazó la solicitud (422): {m}",
+    "err.other": "GitHub respondió {status}: {m}",
+    "err.net": "No se pudo contactar con GitHub: {m}",
+    "err.model": "No se pudo cargar el modelo de funciones ({m}). Recargue la página.",
+    "err.hash": "El enlace pedía algo que este modelo no conoce («{v}»), y se ignoró.",
+    "err.hashLong": "El enlace es demasiado largo para ser de esta página, y se ignoró.",
   },
 };
 
@@ -224,11 +328,11 @@ function t(key, vars) {
 }
 
 function num(n) {
-  return new Intl.NumberFormat(state.lang === "pt" ? "pt-BR" : "en").format(n);
+  return new Intl.NumberFormat(LOCALES[state.lang]).format(n);
 }
 
 function kb(n) {
-  const f = new Intl.NumberFormat(state.lang === "pt" ? "pt-BR" : "en",
+  const f = new Intl.NumberFormat(LOCALES[state.lang],
                                   { minimumFractionDigits: 1, maximumFractionDigits: 1 });
   return `${n < 0 ? "−" : ""}${f.format(Math.abs(n) / 1024)} KB`;
 }
@@ -268,19 +372,22 @@ function storageSet(store, key, value) {
 
 /* ---- language and theme (the shell outside #app) -------------------------- */
 
+function isLang(code) {
+  return Object.prototype.hasOwnProperty.call(LOCALES, code);
+}
+
 function detectLang() {
   const saved = storageGet("localStorage", LANG_KEY);
-  if (saved === "en" || saved === "pt") return saved;
+  if (isLang(saved)) return saved;
   for (const l of navigator.languages || [navigator.language || "en"]) {
-    const s = String(l).toLowerCase();
-    if (s.startsWith("pt")) return "pt";
-    if (s.startsWith("en")) return "en";
+    const code = String(l).toLowerCase().split(/[-_]/)[0];
+    if (isLang(code)) return code;
   }
   return "en";
 }
 
 function applyShell() {
-  document.documentElement.lang = state.lang === "pt" ? "pt-BR" : "en";
+  document.documentElement.lang = LOCALES[state.lang];
   document.title = `SIMUT — ${t("title")}`;
   for (const el of document.querySelectorAll("[data-i18n]")) el.textContent = t(el.dataset.i18n);
   for (const b of document.querySelectorAll(".lang-btn")) {
@@ -297,7 +404,7 @@ function applyShell() {
 function wireShell() {
   for (const b of document.querySelectorAll(".lang-btn")) {
     b.addEventListener("click", () => {
-      state.lang = b.dataset.lang === "pt" ? "pt" : "en";
+      state.lang = isLang(b.dataset.lang) ? b.dataset.lang : "en";
       storageSet("localStorage", LANG_KEY, state.lang);
       applyShell();
       if (state.model) render();
@@ -372,6 +479,16 @@ function chooseNet(netId) {
   render();
 }
 
+/* The look of the touch display is a choice of driver too, not a switch: it rides
+ * in `set` as the driver's id, and goes again when it is the product's own. */
+function chooseUi(uiId) {
+  const next = { ...state.set, ui: uiId };
+  state.set = L.normalizeSet(state.model, state.productId, next);
+  dropFinishedRun();
+  writeHash();
+  render();
+}
+
 /* ---- rendering ------------------------------------------------------------ */
 
 function render() {
@@ -379,7 +496,7 @@ function render() {
   const focused = document.activeElement && document.activeElement.id;
   app.replaceChildren(
     h("div", { class: "cfg-grade" },
-      h("div", { class: "cfg-coluna" }, state.notice ? renderNotice() : null, renderProducts(), renderFeatures()),
+      h("div", { class: "cfg-coluna" }, renderReview(), state.notice ? renderNotice() : null, renderProducts(), renderFeatures()),
       renderResult()),
     renderFixa());
   if (focused) {
@@ -425,6 +542,16 @@ function renderFixa() {
     h("a", { href: "#resultado", text: t("fixa.link") }));
 }
 
+/* The Spanish texts are proposals that await a native review (the device's es-ES texts are too), and the page says so, once, in
+ * Spanish, above the choice, and says where to tell us: the text holds {link}, which becomes the anchor to a new issue of the
+ * repository (reviewUrl). The other languages have no such line. */
+function renderReview() {
+  if (state.lang !== "es") return null;
+  const [before, after] = t("lang.review", { link: LINK_MARK }).split(LINK_MARK);
+  return h("p", { class: "cfg-apoio", id: "cfg-revisao" }, before,
+    h("a", { href: reviewUrl(), target: "_blank", rel: "noopener", text: t("lang.review.link") }), after);
+}
+
 function renderNotice() {
   return h("p", { class: "cfg-aviso", role: "status" }, state.notice);
 }
@@ -461,18 +588,30 @@ function renderFeatures() {
     const rows = m.toggles.filter((x) => x.group === g.id).map((x) => renderToggle(x, config));
     // The choice of network driver sits in the group the model names, above its switches.
     const net = g.id === m.net.group ? renderNet(config) : null;
+    // The look of the touch display sits in the group the model names, above its switches.
+    const ui = g.id === m.ui.group ? renderUi(config) : null;
     const title = label(g.label);
     if (g.advanced) {
-      const changed = m.toggles.some((x) => x.group === g.id && x.id in state.set) || (net !== null && "net" in state.set);
+      const changed = m.toggles.some((x) => x.group === g.id && x.id in state.set) || (net !== null && "net" in state.set)
+        || (ui !== null && "ui" in state.set);
       const open = g.id in state.open ? state.open[g.id] : changed;
       return h("details", { class: "cfg-bloco cfg-detalhes", open,
                             ontoggle: (e) => { state.open[g.id] = e.target.open; } },
-        h("summary", {}, h("h3", { class: "cfg-bloco-titulo", text: title })), net, rows);
+        h("summary", {}, h("h3", { class: "cfg-bloco-titulo", text: title })), net, ui, rows);
     }
-    return h("div", { class: "cfg-bloco" }, h("h3", { class: "cfg-bloco-titulo", text: title }), net, rows);
+    return h("div", { class: "cfg-bloco" }, h("h3", { class: "cfg-bloco-titulo", text: title }), net, ui, rows);
   });
   return h("section", { class: "cfg-secao", "aria-labelledby": "h-recursos" },
     h("h2", { class: "cfg-secao-titulo", id: "h-recursos", text: t("sec.features") }), groups);
+}
+
+/* A price beside a control, as the cost matrix measured it: the figure for the eye (with its sentence as a title, for the pointer)
+ * and the sentence for a screen reader. The figure alone ("36.0 KB") means nothing read aloud, and a title is not part of a
+ * control's description, so the sentence is a visually hidden element that the control cites in its aria-describedby, and the
+ * figure is hidden from the reader so that it is not said twice. */
+function priceTags(priceId, text, sentence) {
+  return [h("span", { class: "cfg-chave-custo", title: sentence, "aria-hidden": "true", text }),
+          h("span", { class: "sr-only", id: priceId, text: sentence })];
 }
 
 function renderToggle(x, config) {
@@ -488,19 +627,25 @@ function renderToggle(x, config) {
     priceTitle = price.overflow ? t("price.over")
       : t(price.flash >= 0 ? "price.more" : "price.less", { n: num(Math.abs(price.flash)) });
   }
-  const helpId = `${id}-ajuda`;
+  const helpId = `${id}-ajuda`, lockId = `${id}-trava`, sameId = `${id}-sem-efeito`;
+  const priceId = `${id}-preco`;
+  // What a screen reader says about the switch is the help and then every line of reason the switch shows (the lock,
+  // "changes nothing"), in the order they are on the page. A switch that cannot be turned is disabled, and without
+  // these ids its reason was on the screen and in no description (the radios of renderNet and renderUi already cite theirs).
+  // A price the switch shows is said last: its sentence (priceTags) is cited after these.
+  const described = [helpId, lock ? lockId : null, same ? sameId : null].filter(Boolean).join(" ");
   return h("div", { class: "cfg-chave" },
     h("div", { class: "cfg-chave-texto" },
       h("div", { class: "cfg-chave-nome" },
         h("label", { for: id, text: label(x.label) }),
         changed ? h("span", { class: "selo", text: t("changed") }) : null),
       h("p", { class: "cfg-apoio", id: helpId, text: label(x.help) }),
-      lock ? h("p", { class: "cfg-chave-trava", text: t("locked", { why: label(lock.why) }) }) : null,
-      same ? h("p", { class: "cfg-chave-trava", text: t("noeffect") }) : null),
+      lock ? h("p", { class: "cfg-chave-trava", id: lockId, text: t("locked", { why: label(lock.why) }) }) : null,
+      same ? h("p", { class: "cfg-chave-trava", id: sameId, text: t("noeffect") }) : null),
     h("div", { class: "cfg-chave-lado" },
-      priceText && !same ? h("span", { class: "cfg-chave-custo", title: priceTitle, text: priceText }) : null,
+      priceText && !same ? priceTags(priceId, priceText, priceTitle) : null,
       h("input", { type: "checkbox", role: "switch", class: "cfg-interruptor", id,
-                   "aria-describedby": helpId, checked: config[x.id] === true,
+                   "aria-describedby": priceText && !same ? `${described} ${priceId}` : described, checked: config[x.id] === true,
                    disabled: Boolean(lock) || same,
                    onchange: (e) => flip(x.id, e.target.checked) })));
 }
@@ -520,6 +665,7 @@ function renderNet(config) {
     m.net.options.map((o) => {
       const id = `n-${o.id}`;
       const lock = L.netLockOf(m, config, o.id, state.productId);
+      const priceId = `${id}-preco`;
       const price = L.priceNet(m, state.productId, o.id);
       let priceText = null, priceTitle = null;
       if (price && !lock) {
@@ -528,17 +674,66 @@ function renderNet(config) {
           : t(price.flash >= 0 ? "price.net.more" : "price.net.less", { n: num(Math.abs(price.flash)) });
       }
       const helpId = `${id}-ajuda`, lockId = `${id}-trava`;
+      // What a screen reader says about the option: the help, then the reason it is locked or the sentence of its price (a
+      // priced option is never locked).
+      const described = [helpId, lock ? lockId : null, priceText ? priceId : null].filter(Boolean).join(" ");
       return h("label", { class: "cfg-chave cfg-rede-opcao", for: id },
         h("span", { class: "cfg-chave-texto" },
           h("span", { class: "cfg-chave-nome", id: `${id}-nome`, text: label(o.label) }),
           h("span", { class: "cfg-apoio", id: helpId, text: label(o.help) }),
           lock ? h("span", { class: "cfg-chave-trava", id: lockId, text: t("locked", { why: label(lock.why) }) }) : null),
         h("span", { class: "cfg-chave-lado" },
-          priceText ? h("span", { class: "cfg-chave-custo", title: priceTitle, text: priceText }) : null,
+          priceText ? priceTags(priceId, priceText, priceTitle) : null,
           h("input", { type: "radio", class: "cfg-radio", name: "rede", id, value: o.id,
-                       "aria-labelledby": `${id}-nome`, "aria-describedby": lock ? `${helpId} ${lockId}` : helpId,
+                       "aria-labelledby": `${id}-nome`, "aria-describedby": described,
                        checked: config.net === o.id, disabled: Boolean(lock),
                        onchange: () => chooseNet(o.id) })));
+    }));
+}
+
+/* The look of the touch display: one radio per [ui.*] of the model, as rows of the
+ * group the model names, the way the network drivers are (renderNet), and for the
+ * same reason: native radios in one fieldset, the arrow keys move between them. An
+ * option a rule refuses for this choice is disabled with the rule's reason on the
+ * row (L.uiLockOf, which asks the same question lockOf does): the Ângulo on the
+ * Pico W with Wi-Fi, without the touch display, and without the panel chart. A free
+ * option that is not the product's own shows the price the cost matrix measured for
+ * choosing it ("ui=<id>", L.priceUi), the way a driver's row does (renderNet). With
+ * no entry in the matrix it shows none, and choosing the Ângulo adds "no measurement"
+ * to the warnings (est.missing) and nothing to the sum: how the page says that a
+ * cost has not been measured yet. */
+function renderUi(config) {
+  const m = state.model;
+  const changed = "ui" in state.set;
+  return h("fieldset", { class: "cfg-rede" },
+    h("legend", { class: "cfg-rede-titulo" }, label(m.ui.label),
+      changed ? [" ", h("span", { class: "selo", text: t("changed") })] : null),
+    m.ui.options.map((o) => {
+      const id = `u-${o.id}`;
+      const lock = L.uiLockOf(m, config, o.id, state.productId);
+      const helpId = `${id}-ajuda`, lockId = `${id}-trava`;
+      const priceId = `${id}-preco`;
+      const price = L.priceUi(m, state.productId, o.id);
+      let priceText = null, priceTitle = null;
+      if (price && !lock) {
+        priceText = kb(price.flash);
+        priceTitle = price.overflow ? t("price.ui.over")
+          : t(price.flash >= 0 ? "price.ui.more" : "price.ui.less", { n: num(Math.abs(price.flash)) });
+      }
+      // What a screen reader says about the option: the help, then the reason it is locked or the sentence of its price (a
+      // priced option is never locked).
+      const described = [helpId, lock ? lockId : null, priceText ? priceId : null].filter(Boolean).join(" ");
+      return h("label", { class: "cfg-chave cfg-rede-opcao", for: id },
+        h("span", { class: "cfg-chave-texto" },
+          h("span", { class: "cfg-chave-nome", id: `${id}-nome`, text: label(o.label) }),
+          h("span", { class: "cfg-apoio", id: helpId, text: label(o.help) }),
+          lock ? h("span", { class: "cfg-chave-trava", id: lockId, text: t("locked", { why: label(lock.why) }) }) : null),
+        h("span", { class: "cfg-chave-lado" },
+          priceText ? priceTags(priceId, priceText, priceTitle) : null,
+          h("input", { type: "radio", class: "cfg-radio", name: "visual", id, value: o.id,
+                       "aria-labelledby": `${id}-nome`, "aria-describedby": described,
+                       checked: config.ui === o.id, disabled: Boolean(lock),
+                       onchange: () => chooseUi(o.id) })));
     }));
 }
 
@@ -627,12 +822,16 @@ function renderResult() {
 }
 
 /* What a change with no measurement is called: a switch by its label, the
- * network by the driver that was chosen (`net` is not one of the switches). */
+ * network and the look by what was chosen (`net` and `ui` are not switches). */
 function missingName(id) {
   const m = state.model;
   if (id === "net") {
     const o = m.net.options.find((x) => x.id === state.set.net);
     return label(o ? o.label : m.net.label);
+  }
+  if (id === "ui") {
+    const o = m.ui.options.find((x) => x.id === state.set.ui);
+    return label(o ? o.label : m.ui.label);
   }
   const sw = m.toggles.find((x) => x.id === id);
   return label(sw.label);
@@ -656,7 +855,7 @@ function noteText() {
 function formatDate(iso) {
   const d = new Date(`${iso}T12:00:00Z`);
   if (Number.isNaN(d.getTime())) return iso;
-  return new Intl.DateTimeFormat(state.lang === "pt" ? "pt-BR" : "en", { dateStyle: "long", timeZone: "UTC" }).format(d);
+  return new Intl.DateTimeFormat(LOCALES[state.lang], { dateStyle: "long", timeZone: "UTC" }).format(d);
 }
 
 function renderLocal() {
@@ -686,8 +885,8 @@ async function onCopy() {
   }
 }
 
-/* The changes, one line each: a switch by its state, the connection by the
- * driver chosen. English, because the issue is. */
+/* The changes, one line each: a switch by its state, the connection and the look
+ * by what was chosen. English, because the issue is. */
 function changeLines() {
   const m = state.model;
   return Object.entries(state.set).map(([id, v]) => {
@@ -695,9 +894,21 @@ function changeLines() {
       const o = m.net.options.find((y) => y.id === v);
       return `- ${m.net.label.en}: ${o ? o.label.en : v}`;
     }
+    if (id === "ui") {
+      const o = m.ui.options.find((y) => y.id === v);
+      return `- ${m.ui.label.en}: ${o ? o.label.en : v}`;
+    }
     const x = m.toggles.find((y) => y.id === id);
     return `- ${x.label.en}: ${v ? "on" : "off"}`;
   });
+}
+
+/* Where to tell us that a Spanish text does not read well: a new issue of the repository, in English like the build requests
+ * (issueUrl), with the page's address in it so that the text can be found. */
+function reviewUrl() {
+  const page = `https://angelointj.github.io/simut/configurador/${L.formatHash(state.productId, state.set)}`;
+  const body = ["The Spanish text of the build configurator that does not read well:", "", "", `Configurator: ${page}`].join("\n");
+  return `https://github.com/${REPO}/issues/new?title=${encodeURIComponent("Build configurator: Spanish translation")}&body=${encodeURIComponent(body)}`;
 }
 
 /* The issue is in English whatever the page's language: the repository's

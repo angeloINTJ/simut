@@ -51,6 +51,16 @@ jobs:
       - name: Check authorization matrix
         run: python3 tools/check_authz.py
 
+      # The gate above reads src/ui/ only for the extensions of its DRIVER_EXTS, and
+      # the pre-commit hook fires on a pattern of its own. For a while both knew ".cpp"
+      # and ".h" and nothing else, so a route registered from a .hpp or an .inl was
+      # never audited, and the exit 0 looked like a clean file (found 2026-10-15).
+      # This moves the real route, ungated, into a file of each extension and requires
+      # one finding, holds the hook's pattern to the gate's list, and bites itself with
+      # 11 mutants (tools/test_check_authz_drivers.py).
+      - name: Authorization gate tests (UI drivers)
+        run: python3 tools/test_check_authz_drivers.py
+
       # A gate that finds nothing on a clean tree is proved on mutated copies of
       # it: each rule gives exactly its findings (tools/test_check_authz.py).
       - name: Test the authorization gate
@@ -121,7 +131,7 @@ jobs:
         run: python3 tools/check_air_consistency.py
 
       # The feature model (docs/analysis/MODELO_DE_RECURSOS.md, P1): tools/
-      # features.toml is the single source, gen_features.py derives the seven
+      # features.toml is the single source, gen_features.py derives the eleven
       # firmware environments into tools/generated/profiles.ini, and
       # platformio.ini includes that file via extra_configs (it no longer
       # defines [env:pico_w_*]). --check keeps the generated files in sync with
@@ -160,6 +170,15 @@ jobs:
       - name: Network driver and class
         run: python3 tools/test_net_caps.py
 
+      # The touch panel's UI driver is an identity of the image too: the original, the
+      # default, or the Ângulo (-DSIMUT_UI_ANGULO=1, pico2_w_release's panel since 2026-10-30),
+      # with what it can do (SIMUT_UI_CUSTOM_THEMES) derived from it in src/ui/UiCaps.h and
+      # never passed with -D. The preprocessor answers for each assembly; a derived macro
+      # passed, an Ângulo that is not 0 or 1, and the Ângulo on an image without the TFT stop
+      # at an #error; and every #error is taken out in turn to see exactly its cases fail.
+      - name: Touch panel UI driver
+        run: python3 tools/test_ui_caps.py
+
       # The wired build (the ENC28J60 driver, the SIMUT Wire: a plain Pico with the
       # network on an ENC28J60 module) is held, by the preprocessor, to the pins
       # it may use, the radio it does not have and the name it takes in the OTA.
@@ -180,6 +199,17 @@ jobs:
       - name: Web pages per network
         run: python3 tools/test_web_omit_network.py
 
+      # The Angulo's fonts and icons are on the /license page of the images that
+      # carry them and of no other: [ui.original] has web_omit = "ui_angulo".
+      - name: Web pages per UI
+        run: python3 tools/test_web_omit_ui.py
+
+      # The third-party notices follow the images: every image is named, the
+      # Angulo rows name the Angulo images and nothing else, and the Angulo's
+      # License screen reads as the rows do.
+      - name: Notices per image
+        run: python3 tools/test_gen_notices.py
+
       # Whether a combination fits in the PIO blocks, and which GPIO two owners
       # claim, before anything compiles: the firmware finds out only at boot,
       # when it logs "pio0 full" and drops a sensor.
@@ -193,6 +223,9 @@ jobs:
       # lowers the mark. Same idea as the flash budget, for entanglement.
       - name: Feature entanglement watermark
         run: python3 tools/check_feature_sprawl.py
+      # What the watermark counts (S10c, the Wi-Fi status bar): the `#if` lines and, since 2026-10-30, an `if constexpr ( SIMUT_X )`, each macro of a condition once, the code and not its comment (a character literal opens no string); its eleven mutants must fail it.
+      - name: Feature entanglement watermark counts (test_feature_sprawl.py)
+        run: python3 tools/test_feature_sprawl.py
 
       # The network is one driver per image, and the rest of src/ must not know which:
       # outside src/net/ no identity macro (SIMUT_NET_CYW43, SIMUT_NET_ENC28J60, the
@@ -208,6 +241,146 @@ jobs:
         run: |
           python3 tools/test_net_boundary.py
           python3 tools/check_net_boundary.py
+
+      # The touch panel's look is one UI driver per image, and each driver stays in its
+      # walls. Outside src/ui/ and src/simut_config.h no identity macro (SIMUT_UI_ANGULO,
+      # SIMUT_UI_ORIGINAL) and, anywhere, no #ifdef, #ifndef or defined( ) on a SIMUT_UI_*
+      # macro: after src/ui/UiCaps.h SIMUT_UI_ANGULO is always defined (0 on the original),
+      # so `#ifdef SIMUT_UI_ANGULO` is true on every image. A file that tests one includes
+      # simut_config.h or ui/UiCaps.h itself. No Angulo unit includes a header only the
+      # original uses (Themes.h, UiWidgets.h, ...), no unit outside src/ui/angulo/ includes
+      # one of the Angulo's, and no hook name of the Angulo (UA_CONTROLE, uaSujo, ...) is
+      # used outside it. What still breaks a rule is the transitional shape of the Angulo
+      # driver, listed in tools/ui_boundary.json with the stage that ends it, and the
+      # counts only go down. The test puts one violation of each rule into a clean tree,
+      # and into a copy of the real one, and requires exactly one finding.
+      - name: UI boundary (each driver stays in its walls)
+        run: |
+          python3 tools/test_ui_boundary.py
+          python3 tools/check_ui_boundary.py
+
+      # The Angulo's strip fill and hash run from SRAM (P12a): on the board the chart screens ran
+      # with 6 to 8% XIP cache misses against 1 to 1.6% on the dashboard, and these two tight loops
+      # with them. tools/check_ui_ram.py reads the ELF after every build (a post-build script, as
+      # the flash-probe guard); this runs its cases, with the negative controls.
+      - name: Angulo RAM-resident functions (the guard and its controls)
+        run: python3 tools/test_check_ui_ram.py
+
+      # The Angulo link set's gate, on synthetic nm text and table rows: the table path, the patterns, the allowances and their negative controls, and a read of the real
+      # function table (no ELF, no toolchain).
+      - name: Angulo link set (the gate and its controls)
+        run: python3 tools/check_ui_link.py --selftest
+
+      # The gates that hold an Ângulo image follow the profile's `ui`, not the ending of the environment's name (S10c C3): tools/env_ui.py, the workflow's link-gate step
+      # and the list of tools/ui_ram_budget.json against the manifest, each with its mutants.
+      - name: Angulo gates follow the profile's ui (the question, the workflow and the RAM budget's list)
+        run: python3 tools/test_env_ui.py
+
+      # The Angulo driver's colour tokens: src/ui/angulo/kit/angulo_tokens.h is generated
+      # from tools/tft_ui/tokens_tft.json (the guide's palette and the panel's deviations)
+      # and never edited by hand, so the header must be what the JSON generates; and the
+      # pairs the panel depends on must stay at their contrast targets (grey text 7:1,
+      # coloured text and tags 4.5:1, component edges 3:1, on the RGB565 colours the panel
+      # shows), so that a palette change cannot quietly bring back the faint edges of
+      # 2026-10-15.
+      - name: Angulo panel tokens (generated header in sync, contrast targets)
+        run: python3 tools/tft_ui/gen_tokens.py --check --report
+
+      # The accent palette of the same JSON (S10c, A'1): the list `acentos`, what gen_tokens.py derives from it and the words the
+      # header carries. The test reads the header as the firmware compiles it, with colour arithmetic of its own, and holds the
+      # golden table of contrasts, every floor, the 17 distinct roles, the hue rule, both derivations and entry 0 to the guide; it
+      # then runs the generator on specs with one violation each, which must exit 1, name the pair and leave the header alone.
+      # Standard library only.
+      - name: Angulo accent palette (golden table, floors, rules, controls)
+        run: python3 tools/tft_ui/test_acentos.py
+
+      # The Angulo's text lookup (S10c, B2a). UA_TXT( "English" ) gives the language pack's text for that English, found in the pack's @ANGULO
+      # section by a binary search over FNV-1a hashes, or the English itself; ua::textosCarregar( ) builds the table from the section's body and
+      # publishes it through one pointer. Nothing in the firmware calls it yet (B2b wires the boot), so no image can show whether it works: this
+      # builds it with g++ under the address and undefined-behaviour sanitizers and runs it (a hit, a miss, no section, an empty one, 15 shapes
+      # of malformed line, a repeated hash, a section over the bound, UTF-8, 500 entries, 40,000 random sections), compares its hash with the
+      # device's own function cut out of the source and with the gate's, holds the shape of the publication (the host cannot see the order
+      # across cores), and bites itself: 28 mutants of the lookup and the loader, 6 of the publication's shape and 6 of the style rules must each fail it. The standard library only: no Adafruit GFX, so it is here and not behind the fetch below.
+      - name: Angulo text lookup (UA_TXT, the @ANGULO loader, its sanitizers and mutants)
+        run: python3 tools/tft_ui/test_textos.py
+
+      # The language-pack gate's own controls (tools/check_lang_packs.py runs in every firmware build; its cases did not run in any job until
+      # S10c, B2a added the @ANGULO section to it): the ceilings and the order, and for @ANGULO a literal without its entry, an orphan, a hash
+      # shared by two literals, the section after @WEBDICT, over the bound and every malformed line, each beside the case that passes.
+      - name: Language-pack gate (positive controls, the @ANGULO section)
+        run: python3 tools/test_lang_gate.py
+
+      # The Angulo's texts outside UA_TXT( ) (S10c, B6). Every text the Angulo draws is UA_TXT( "<English>" ), looked up in the pack's @ANGULO
+      # section (the two steps above). A literal with a letter outside it, which tools/ui_texts_allow.json does not name with its reason, draws
+      # the same words in every language. B1 wrote the gate in report mode and B3 to B5b converted the screens: 523 texts outside UA_TXT( ) in
+      # 33 files on 2026-10-22, 0 on 2026-10-23. From here it blocks. Its selftest runs 92 cases in temporary trees (in a copy of the real tree,
+      # a planted literal adds exactly one finding), then 10 controls, each a part of the gate turned off, and each must make a case fail. The
+      # first control, the lexer turned off, runs again as a process: its exit status and its RESULT line must both say that cases failed, or
+      # a selftest that cannot fail would pass here. Standard library only: 4 s on 2026-10-23.
+      - name: Angulo texts outside UA_TXT( ) (the gate, its cases and controls)
+        run: |
+          python3 tools/check_ui_texts.py --selftest
+          if out=$(python3 tools/check_ui_texts.py --selftest --no-strip); then
+            echo "check_ui_texts.py --selftest --no-strip exited 0: its cases pass with the lexer turned off" >&2
+            exit 1
+          fi
+          grep -qE '^RESULT: [0-9]+ cases, [1-9][0-9]* failed' <<< "$out" ||
+            { echo "check_ui_texts.py --selftest --no-strip printed no RESULT line with failed cases" >&2; exit 1; }
+          python3 tools/check_ui_texts.py
+
+      # The Angulo's host tests (S10c, A'2c). They build the kit, and the glue's theme and paint path, with g++ against Adafruit GFX and
+      # run them. No workflow ran them until now, because the gates job had no GFX; three reviews in a row (A'2, A'3, A'2b) then found
+      # mutants of the glue that a local run would have caught. The library is fetched at the version platformio.ini pins for the firmware
+      # jobs, read from it here and not copied; the tools read it from .pio/libdeps and refuse any version but 1.12.6 (tools/tft_ui/
+      # host_ui.py, find_gfx( )), so a new pin makes the test steps exit 2 until the kit is checked against that version and find_gfx( )
+      # says so. `-l` with `-e` installs that library alone, not the platform: 5 s on 2026-10-22. host_telas.py's frames are not compared
+      # here, since no record of them is committed.
+      - name: Adafruit GFX for the Angulo's host tests (the version platformio.ini pins, the library alone)
+        run: |
+          lib=$(grep -m1 -o 'adafruit/Adafruit GFX Library@[0-9.]*' platformio.ini)
+          test -n "$lib"
+          pio pkg install -e pico_wiretft_angulo --library "$lib" --no-save
+      # Pillow, for the host tests that write frames as PNG: test_idiomas.py compares two runs' frames (host_telas.py --out, whose
+      # `from PIL import` runs only then), and manual_frames.py redraws the manual's figures. The first run of this job on GitHub (PR #304,
+      # 2026-10-30) failed test_idiomas.py 52 of 121 with "No module named 'PIL'": the runner has none, and a local run never showed it.
+      # Installed once here, before the first of them; unpinned, since no test compares PNG bytes across Pillow versions.
+      - name: Pillow for the Angulo's host tests (the ones that write PNG frames)
+        run: pip install pillow
+      # The mode and the accent through the kit and through the glue's own functions, run; the mutants of the kit and of the glue must fail it.
+      - name: Angulo theme and glue on the host (test_temas.py)
+        run: python3 tools/tft_ui/test_temas.py
+      - name: Angulo language screen on the host (test_idioma_pacote.py)
+        run: python3 tools/tft_ui/test_idioma_pacote.py
+      - name: Angulo corners on the host (test_cantos.py)
+        run: python3 tools/tft_ui/test_cantos.py
+      - name: Angulo touch targets on the host (test_alvos.py)
+        run: python3 tools/tft_ui/test_alvos.py
+      # Every group of screens in English, Portuguese and Spanish (S10c, B3; every group since B3-b, because the kit's texts reach them all): the shipped packs draw with no
+      # missing glyph, no text past its card or its button, and no fixed text cut but the cuts each language accepts. What a screen places by a translated text's width keeps
+      # its place in the three languages, each check with a floor: the back button's target, the pager's count, the footers' boxes, the identity bar's Cancel, the room a
+      # badge leaves a cut name, the decimal separator, the calendar's names and the placeholder of a missing value (S10c B3-c to B5b). Planted packs (an "ő", a label of 74
+      # characters, a text of 102 wider than its card, a text whose "í" the host recorder cuts in two) must fail exactly the samples whose frames they change. 121 checks;
+      # 19.6 s here on 2026-10-23, 4 min of CPU.
+      - name: Angulo screens in the device's three languages (test_idiomas.py)
+        run: python3 tools/tft_ui/test_idiomas.py
+      # The setup-network confirmation (S10c D7): the frame's texts fit in the three languages, and the glue's touch, cut out of
+      # DisplayManager_UiA.cpp and compiled with the real kit, sends Confirm to actStartAp( ) behind zone 0xC3 and every other target to
+      # showSettingsMain( ) behind 0xC2, once as a Wi-Fi image and once as the wired one (stubs that claim nothing). Its 14 mutants must
+      # fail it. 82 checks; 7.5 s here on 2026-10-28.
+      - name: Angulo setup-network confirmation on the host (test_confirma_ap.py)
+        run: python3 tools/tft_ui/test_confirma_ap.py
+      # The status bar's network glyph (S10c, the Wi-Fi fix): uaVmStatus( ), cut out of DisplayManager_UiA.cpp and compiled with the real kit, once as a Wi-Fi image and once as
+      # the cable's, for every level from -200 to +20 dBm against the ladder of the old top bar, which the test reads out of DisplayManager_Dashboard.cpp (no bar at -100 or
+      # less, one bar up to -75: the weak icon); the bar drawn from the glue's own answer, each network icon held to the expected Lucide icon and ink and no state in the danger colour; its 25 glue, 10 renderer and 2 registry
+      # mutants must fail it. 97 + 1,324 checks; 7.5 s here on 2026-10-30.
+      - name: Angulo status bar network glyph on the host (test_rede.py)
+        run: python3 tools/tft_ui/test_rede.py
+      # The figures of the manual's chapter 11A (S10c, C6 step 2): docs/images/manual/11a-*.png are frames that host_telas.py draws from the code at the commit (src/ui/angulo and the
+      # pt-BR pack), enlarged 2x. manual_frames.py --check draws them again and compares the PIXELS with the committed files, never the PNG bytes (those depend on Pillow's and zlib's
+      # versions): one line for each figure that differs, so a change to the panel's code or to the pack's @ANGULO that moves a pixel of a figure fails here until the figures are
+      # drawn again (manual_frames.py --write). Pillow comes from the step before the Angulo's host tests.
+      - name: Angulo manual figures (manual_frames.py --check)
+        run: python3 tools/tft_ui/manual_frames.py --check
 
       # patch.sh runs again and again: after every override that merges, and in the
       # firmware jobs on a warm ~/.platformio cache that already carries them (see
@@ -325,7 +498,8 @@ jobs:
       # ota_layout.h, the slot's linker script and the PlatformIO profile. A
       # number changed in one and not the others is a board that boots one
       # layout and reads another. What only a build can show is
-      # tools/check_rp2350_image.py's, after every pico2_w_release link.
+      # tools/check_rp2350_image.py's, after every link of a slot image (pico2_w_release,
+      # pico2_w_original).
       - name: RP2350 flash layout (one map in four places)
         run: python3 tools/test_rp2350_layout.py
 
@@ -427,7 +601,7 @@ jobs:
       - name: Run unit tests (OTA signature)
         run: pio test -e native_otasig
 
-      # The same ten suites again, under AddressSanitizer and UBSan, with
+      # The same eleven suites again, under AddressSanitizer and UBSan, with
       # undefined behaviour made fatal. The plain runs above are the contract;
       # this run sees what a passing assertion cannot - a read past a buffer, a
       # reference to a dead frame that still holds the right bytes. Its first
@@ -477,7 +651,11 @@ jobs:
           # The release on the Pico 2 W's RP2350 (2026-10-01, S0 of Phase 4 in
           # docs/analysis/PLANO_REVISAO_EXTERNA.md). Nothing runs it on a board
           # yet; building it here is what keeps the code from drifting back to
-          # RP2040-only addresses with nobody noticing.
+          # RP2040-only addresses with nobody noticing. Since 2026-10-30 (S10c C3) it
+          # is the image with the Ângulo (the manifest's `ui = "angulo"`, the maintainer's
+          # decision C-D1); the original panel it carried is pico2_w_original, last in
+          # this list. The name, the published assets (releasetwo) and this required
+          # check stay as they were. It is held to the Ângulo's link set and RAM budget.
           - pico2_w_release
           # The SIMUT Wire (2026-10-12): a plain Pico, without the radio, its
           # network on an ENC28J60 module (src/net/, net/NetworkManager_Wired.cpp).
@@ -488,6 +666,25 @@ jobs:
           # The SIMUT Wire with the TFT panel (2026-10-13): pico_wire with the
           # touch display, so the TFT side of a wired build compiles here too.
           - pico_wiretft
+          # The Ângulo UI driver's bench image (2026-10-14): pico_wiretft with the
+          # touch panel drawn by src/ui/angulo/ (-DSIMUT_UI_ANGULO=1, the manifest's
+          # `ui = "angulo"`) instead of the original's. Bench only (publish = false);
+          # since 2026-10-30 (S10c C3) the Ângulo is also pico2_w_release's panel. How
+          # the driver is built, what it links and what it costs is in
+          # docs/analysis/UI_DRIVERS.md; the study's shape of 2026-10-14, which moved
+          # touches onto the old layout, is gone. Building it here keeps the driver, and the hooks
+          # it has in the files every TFT image builds, compiling under -Werror, and
+          # holds its size to tools/flash_budget.json, whose budget is a high-water
+          # mark that moves with the driver's stages. Like pico_wire and
+          # pico_wiretft it is not a required check (CLAUDE.md says which nine are).
+          - pico_wiretft_angulo
+          # The original panel on the Pico 2 W (2026-10-30, S10c C3): what pico2_w_release was until the
+          # Ângulo became its panel, kept as the alternative the configurator offers
+          # (`ui = "original"`). Its SIMUT_ENV_NAME is the release's (releasetwo), so a device moves
+          # between the two over the air, both ways. Not published (publish = false) and not a
+          # required check (CLAUDE.md says which nine are). Held to its own budget in
+          # tools/flash_budget.json and to the checks of tools/check_rp2350_image.py after the link.
+          - pico2_w_original
     name: firmware (${{ matrix.env }})
     steps:
       - uses: actions/checkout@v7
@@ -548,12 +745,34 @@ jobs:
       - name: Check flash budget
         run: python3 tools/check_flash_budget.py ${{ matrix.env }} build.log
 
+      # The third-party notices against what this job just linked: every row of tools/third_party.toml that has a `symbols` probe says the image carries the component if and
+      # only if nm finds its symbols in the ELF (S10c C4 review: the /license page said the Angulo image carried the original panel's FreeSans Bold faces, and nothing read an image).
+      - name: Third-party notices agree with the ELF
+        run: python3 tools/gen_notices.py --check --elf .pio/build/${{ matrix.env }}/firmware.elf --env ${{ matrix.env }}
+
+      # Which touch look this image builds, from its profile in tools/features.toml (tools/env_ui.py), and not from the ending of its name: the Pico 2 W's release
+      # is an Ângulo image since 2026-10-30 (S10c C3) and its name says nothing of it. An assignment of its own, so that a failing question fails the step instead
+      # of writing an empty answer that would skip the gate below. tools/test_env_ui.py holds this step and the gate's condition, with mutants.
+      - name: Which touch look ${{ matrix.env }} builds
+        id: ui
+        run: |
+          ui=$(python3 tools/env_ui.py ${{ matrix.env }})
+          echo "ui=$ui" >> "$GITHUB_OUTPUT"
+
+      # The Ângulo images (the profiles with ui = angulo: pico2_w_release and pico_wiretft_angulo) link nothing the function table (docs/analysis/UI_DRIVERS_funcoes.tsv)
+      # calls original, bar the named allowances of tools/check_ui_link.py, and no draw, render or blit name or pixel primitive that the table does not know: S4 to S10b made
+      # that so, and nothing else in CI holds it (the flash budget counts bytes, not names). Reads the ELF this job just built. pico2_w_release is a required check, so this
+      # step is part of it; pico_wiretft_angulo is not (CLAUDE.md names the nine).
+      - name: Angulo link set (no original draws, no pixel primitives)
+        if: steps.ui.outputs.ui == 'angulo'
+        run: python3 tools/check_ui_link.py .pio/build/${{ matrix.env }}/firmware.elf
+
       # The sizes tools/pio_budget.py counts with, held to the programs' own
       # sources. The gates job has neither the libraries nor the framework and
       # skips that part of the test; after a build both are on disk, and
       # `require` makes a source that went missing a failure instead of a skip
       # nobody reads. Two images are enough: the libraries are pico_base's, the
-      # same in all nine, except the ENC28J60's, which only the wired images
+      # same in all eleven, except the ENC28J60's, which only the wired images
       # pull. pico_w_release is a required check and holds the other four;
       # pico_wire names the ENC28J60 header, and a named header is required.
       - name: PIO program sizes match their sources
@@ -576,7 +795,7 @@ jobs:
       # HTTPServer.cpp on the host against a client that records every write,
       # then takes each rule out of a copy and expects the scenario named for
       # it to fail. `require` makes a missing framework a failure, not a skip.
-      # One image is enough: the WebServer library is the same in all nine.
+      # One image is enough: the WebServer library is the same in all eleven.
       - name: WebServer write buffer (override 2n), on the host
         if: matrix.env == 'pico_w_release'
         env:

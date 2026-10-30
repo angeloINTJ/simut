@@ -27,7 +27,7 @@ Desde a v2.9.0, cada arquivo publicado também tem um atestado de procedência, 
 
 O `.uf2` e o `.bin` de uma mesma imagem têm o mesmo firmware: o `.uf2` é o `.bin` embrulhado no formato que o Pico W aceita pelo USB. No Pico 2 W os dois arquivos diferem, embora o programa seja o mesmo. O `.uf2` traz também a tabela de partições, que um Pico 2 W virgem não tem. O `.bin` traz a marca que faz a imagem nova subir em teste: se ela não se confirmar em cinco minutos, o aparelho volta sozinho para a imagem anterior. Não troque um pelo outro: a página **Arquivos** recusa o `.uf2` ([capítulo 17](#cap-17-ota-conferencias)), e a unidade do BOOTSEL ignora o `.bin`.
 
-Os pacotes de idioma não vão dentro do firmware. Eles ficam no sistema de arquivos do aparelho e entram por outro caminho ([O pacote de idioma](#cap-03-idioma)). Os 11 temas do painel (arquivos `.thm`) não vêm na página da versão: estão na pasta `data/themes` do código-fonte, e são opcionais ([capítulo 11](#cap-11-temas)).
+Os pacotes de idioma não vão dentro do firmware. Eles ficam no sistema de arquivos do aparelho e entram por outro caminho ([O pacote de idioma](#cap-03-idioma)). Os 11 temas do painel (arquivos `.thm`) não vêm na página da versão: estão na pasta `data/themes` do código-fonte, e são opcionais ([capítulo 11](#cap-11-temas); no Pico 2 W, veja o [capítulo 11A](#cap-11a-temas)).
 
 ::: {.figura #fig-03-arquivos tipo="diagrama" arquivo="03-arquivos.png" captura="os doze arquivos de uma versão e para onde vai cada um: .uf2 → cabo USB com BOOTSEL (aparelho novo ou recuperação); .bin → página Arquivos, atualização pela rede; language_pt-BR.lng → página Arquivos, pasta /lang; manifest.json → gestor de frota; SHA256SUMS → conferência do download; quatro colunas coloridas por imagem (release, alpha, air, releasetwo)"}
 Os arquivos de uma versão e o caminho de cada um até o aparelho.
@@ -139,6 +139,8 @@ O [configurador de build](https://angelointj.github.io/simut/configurador/) mont
 4. Toque em **Compilar esta build**. A integração contínua do projeto compila a imagem e entrega o `.uf2`, para o USB, e o `.bin`, para a página **Arquivos** ([capítulo 17](#cap-17-ota)). No Pico 2 W são as duas imagens que a release publica para ele: o `.uf2` de fábrica, com a tabela de partições, e o `.bin`, uma atualização que vai para o outro slot e roda em teste.
 
 **Compilar esta build** exige um token do GitHub com acesso de escrita ao repositório. Sem ele, **Pedir esta build** abre um pedido no GitHub com a configuração preenchida.
+
+**O visual da tela touch.** Em **Interface**, a opção **Visual da tela touch** (*Touch display look*) escolhe o desenho do painel: **Visual original** ou **Visual Ângulo**. [main]{.img} A release do Pico 2 W traz o **Visual Ângulo** ([capítulo 11A](#cap-11a)), e a do Pico W traz o original ([capítulo 11](#cap-11)). O **Visual Ângulo** exige a tela touch e a chave **Gráfico e calendário na tela touch** ligada, e o configurador não o oferece no Pico W com Wi-Fi: nesses casos a opção aparece **Bloqueada**, com o motivo.
 
 - **A soma é uma estimativa.** Contra oito builds reais de mudanças combinadas, ela errou por até 4.392 B de flash e 8.192 B de `.bin`. Por isso a página diz **No limite** perto de um teto; a build dá o número exato.
 - **A imagem sai da `main`** e informa a versão da `main`, que pode estar à frente da última versão publicada. Sem mudanças, a página aponta a última versão publicada, porque compilar gera a `main` de hoje.

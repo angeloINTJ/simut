@@ -7459,7 +7459,7 @@ repository, published with every release: https://github.com/angeloINTJ/simut
                   bitmaps and cut down to the glyphs SIMUT draws.
    Holder:        GNU FreeFont contributors
    License:       GPL-3.0-or-later with the font exception
-   Images:        the five images with the touch panel
+   Images:        pico_w_release, pico_w_test, pico_w_test_https, pico_w_asserts
    URL:           https://www.gnu.org/software/freefont/
 
 ================================================================================
@@ -7482,9 +7482,7 @@ repository, published with every release: https://github.com/angeloINTJ/simut
    Images:        all images
    URL:           https://github.com/geraintluff/sha256
 
-================================================================================
-
-END OF THIRD-PARTY NOTICES/* @ENDIF */
+/* @ENDIF */
 /* @IF !wifi */
 ================================================================================
 SIMUT — Sistema Integrado de Monitoramento Universal e Telemetria
@@ -7711,10 +7709,60 @@ repository, published with every release: https://github.com/angeloINTJ/simut
    Images:        all images
    URL:           https://github.com/geraintluff/sha256
 
+/* @ENDIF */
+/* @IF ui_angulo */
+================================================================================
+Angulo touch panel: fonts and icons
+================================================================================
+The images with the Angulo touch panel (pico_wiretft_angulo, pico2_w_release)
+draw with the fonts and icons below, besides the software listed above. The
+licence text of each one is reproduced in full in THIRD_PARTY_NOTICES.md and the
+LICENSES directory of the source repository: https://github.com/angeloINTJ/simut
+
+================================================================================
+A. Bricolage Grotesque
+================================================================================
+   Description:   The display face (weight 600) of the Angulo touch panel,
+                  converted to bitmaps at 9, 12, 18, 24 and 32 pt and cut down
+                  to the glyphs SIMUT draws.
+   Holder:        The Bricolage Grotesque Project Authors
+   License:       SIL Open Font License 1.1
+   Images:        pico_wiretft_angulo, pico2_w_release
+   URL:           https://github.com/ateliertriay/bricolage
+
+================================================================================
+B. GNU FreeFont (FreeSans, FreeMono Bold)
+================================================================================
+   Description:   The FreeSans and FreeSans Bold faces at 9 pt and the FreeMono
+                  Bold face at 9 and 12 pt of the Angulo touch panel, converted
+                  to bitmaps and cut down to the glyphs SIMUT draws.
+   Holder:        GNU FreeFont contributors
+   License:       GPL-3.0-or-later with the font exception
+   Images:        pico_wiretft_angulo, pico2_w_release
+   URL:           https://www.gnu.org/software/freefont/
+   Note:          The Angulo images cut this typeface at the sizes above and
+                  keep none of the 9, 12 and 24 pt faces of &quot;GNU FreeFont
+                  (FreeSans Bold)&quot;, which belong to the original panel (nm of
+                  the eleven images, 2026-10-30).
+
+================================================================================
+C. Lucide
+================================================================================
+   Description:   The icons of the Angulo touch panel (status bar, buttons,
+                  result and update screens), rasterized to 1-bit bitmaps at 16,
+                  20 and 24 px from Lucide 0.468.0.
+   Holder:        Lucide Contributors (portions: Cole Bemis, as part of Feather)
+   License:       ISC
+   Images:        pico_wiretft_angulo, pico2_w_release
+   URL:           https://lucide.dev
+   Note:          Its LICENSE says portions are held by Cole Bemis 2013-2022 as
+                  part of Feather (MIT). The file is reproduced as the
+                  lucide-static 0.468.0 package ships it.
+
+/* @ENDIF */
 ================================================================================
 
-END OF THIRD-PARTY NOTICES/* @ENDIF */
-</pre>
+END OF THIRD-PARTY NOTICES</pre>
         </div>
     </div>
     <script>
@@ -8705,8 +8753,9 @@ static const char LANG_JS[] PROGMEM = R"raw(
        lang.js is paid for in every image.
 
        The cap is 64 KiB: the largest text the firmware keeps is a language
-       pack, held under LANG_FILE_MAX (48 KiB), and the viewer draws one
-       element per row, so a bigger file is downloaded instead. */
+       pack, held under LANG_FILE_MAX (64 KiB since 2026-10-22, at most this
+       cap: tools/check_lang_packs.py), and the viewer draws one element per
+       row, so a bigger file is downloaded instead. */
     const TV_CAP = 65536, TV_EXT = ' json jsonl ndjson txt csv tsv lng thm log cfg conf ini pem crt md xml yml yaml ';
     function tvExt(n) { let i = n.lastIndexOf('.'); return i < 0 ? '' : n.slice(i + 1).toLowerCase(); }
     function tvViewable(n, s) { return s <= TV_CAP && TV_EXT.indexOf(' ' + tvExt(n) + ' ') >= 0; }

@@ -77,7 +77,12 @@ repos:
         entry: python3 tools/check_authz.py
         language: system
         pass_filenames: false
-        files: ^src/WebManager.*\.cpp$
+        # src/ui/**: a UI driver's routes (the Angulo's GET /api/ui), in any file under
+        # src/ui/ at any depth, audited apart from the totals. The extensions are the
+        # gate's DRIVER_EXTS (tools/check_authz.py): tools/test_check_authz_drivers.py reads this
+        # pattern and fails when the two differ, so a route in a .hpp or an .inl is not
+        # one the hook lets through.
+        files: ^src/(WebManager.*\.cpp|ui/.*\.(c|cc|cpp|cxx|h|hh|hpp|hxx|inl|ipp|tpp))$
 
       - id: simut-fsguard
         name: /config filesystem guard intact

@@ -12,7 +12,7 @@ substance lives there, not here.
 |---|---|
 | Firmware source | `src/` — ~56k lines, C++17, RP2040 / arduino-pico |
 | Web UI source | `WebUI.h` at the repository root, written in English. The other language comes from the device: `GET /api/lang` serves the `@WEBDICT` of the active `.lng` pack (`data/lang/` has pt-BR and es-ES), and a key the pack lacks shows the English text. `tools/build_webui_gz.py` compresses it into `src/WebUI_GZ.h` on every build — never edit the generated header |
-| Tools | `tools/` — [`tools/README.md`](tools/README.md) says which of the 146 scripts are live |
+| Tools | `tools/` — [`tools/README.md`](tools/README.md) says which of the 211 scripts are live |
 | Documentation | `docs/` — [`docs/README.md`](docs/README.md) marks each document **Living** or **Snapshot** |
 | Interface standard | [`ANGULO.md`](ANGULO.md) — the Ângulo guide for anything with a screen or a reader: web UI, site, README, docs, brand. [`AGENTS.md`](AGENTS.md) §7 says how it applies here and what `tools/check_angulo.py` enforces in CI |
 | Tests | `test/` — eleven native environments, `pio test -e native…` |
@@ -26,13 +26,14 @@ pio run -e pico_w_air          # the hibernating build; least flash headroom
 pio test -e native_logpolicy   # one suite; eleven exist
 ```
 
-**Nine** firmware environments and eleven native suites, all of them built and
+**Eleven** firmware environments and eleven native suites, all of them built and
 run by CI — `pico_w_asserts` is the one that is easy to forget, because it is
 not in the table above and nothing local reminds you of it. This line said
 "five" until 2026-09-20, and a change that raised the other five budgets went
 to CI with that one over its own. The seventh, since 2026-10-01, is
-`pico2_w_release`: the release compiled for the Pico 2 W's RP2350, which CI
-builds and nothing runs on a board yet. **`pio run` with no `-e` builds only
+`pico2_w_release`: the release compiled for the Pico 2 W's RP2350, published as
+`releasetwo` since v2.11.0 (2026-10-04) and run on the bench's Pico 2 W (the v2.12.0
+candidate, 2026-10-29: `docs/VERIFICATION.md`). **`pio run` with no `-e` builds only
 `pico_w_release`** — `default_envs` in `platformio.ini` says so, and this line
 claimed the opposite until 2026-09-22. The eighth, since 2026-10-12, is
 `pico_wire`: the SIMUT Wire, a plain Pico without the radio, its network on an
@@ -40,7 +41,22 @@ ENC28J60 module (the driver: `src/net/`, `src/net/NetworkManager_Wired.cpp`; on 
 bench since 2026-10-12). The ninth, since 2026-10-13, is `pico_wiretft`: the same
 Wire with the TFT panel and touch in place of the 16x2 LCD (the module's INT is
 GP11 with either display); CI builds it, and a build of the same switches
-(`build_custom.py`) ran on the bench on 2026-10-12. Name the nine.
+(`build_custom.py`) ran on the bench on 2026-10-12. The tenth, since 2026-10-14
+on the `feat/ui-drivers` branch, is `pico_wiretft_angulo`: the Ângulo UI
+driver's bench image, `pico_wiretft` with the touch panel drawn by
+`src/ui/angulo/` (`ui = "angulo"` in the manifest). It is not published; CI
+builds it and holds it to its own flash budget, and it is not a required check.
+The eleventh, since 2026-10-21 on
+the same branch, was `pico2_w_angulo`: the Ângulo on the Pico 2 W. Since 2026-10-30 (S10c C3, the
+maintainer's decision C-D1) the Pico 2 W's release **is** that image: `pico2_w_release` has
+`ui = "angulo"` in the manifest, and keeps its name, its required check and its published
+assets (`releasetwo`). **That holds on this branch from the next version on:** the published v2.12.0 still ships the original panel on the Pico 2 W. The eleventh is now `pico2_w_original`, the original panel it carried
+until then: not published and not a required check; CI builds it and holds it to its own flash
+budget. The Ângulo images (`pico_wiretft_angulo` and `pico2_w_release`) are held to the link-set
+and static-RAM gates, picked by the profile's `ui` (`tools/env_ui.py`) and not by the name. Both
+Pico 2 W images are `releasetwo` for the OTA, so a device moves between them over the air, both
+ways (the retention gate on the board is C5's; the Pico 2 W on the bench ran the S10b and S10c
+tips' images, section 2.16 of `docs/analysis/UI_DRIVERS.md`). Name the eleven.
 There is no debug environment — see the note in `platformio.ini` for why.
 
 ## What will fail your build before CI does
@@ -72,6 +88,15 @@ locally. When one fires, it is usually right:
   text shows in English on the device, with or without its entry. The device
   translates the panel from `@DICT`, the web page from `@WEBDICT` and the CLI's
   help from `@HELP`.
+- **The Ângulo's texts** — a text the Ângulo draws (`src/ui/angulo/`) is
+  `UA_TXT( "<English>" )`, and each one needs a line in the `@ANGULO` section
+  of both packs, keyed by the FNV-1a of the English (the language-pack gate
+  prints the hash it wants). A literal with a letter outside `UA_TXT( )`
+  fails `tools/check_ui_texts.py` unless `tools/ui_texts_allow.json` names
+  it with a reason. Like the flash budget, that gate runs in CI and not in
+  a local `pio run`: run `python3 tools/check_ui_texts.py` yourself.
+  Section 2.17 of `docs/analysis/UI_DRIVERS.md` says why, and what each
+  rule holds.
 - **Authorization matrix** — every new HTTP route needs a gate or an
   allowlist entry with a reason, and every new panel `UiEvent` a row in
   `tools/check_authz.py`'s panel table: the bit Core 0 checks, or why none
@@ -90,8 +115,8 @@ locally. When one fires, it is usually right:
 
 - `main` is protected. Every change goes through a pull request, and the nine
   required checks must pass: every CI job except the `pico_w_test_https`,
-  `pico_wire` and `pico_wiretft` images (`firmware (pico2_w_release)` joined on
-  2026-10-01).
+  `pico_wire`, `pico_wiretft`, `pico_wiretft_angulo` and `pico2_w_original` images
+  (`firmware (pico2_w_release)` joined on 2026-10-01).
 - Commit messages and pull requests are written in English; conversation with
   the maintainer is in Portuguese.
 - Measure before claiming. If a change is described as saving bytes, making

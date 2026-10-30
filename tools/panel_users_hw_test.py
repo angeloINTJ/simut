@@ -18,7 +18,7 @@ accounts over the CLI; `cleanup` deletes them and restores the telemetry
 fields it changed. Between the two the device's config is saved by the panel
 actions themselves, which is why cleanup restores and saves too.
 
-Coordinates are the firmware's (DisplayManager_Users.cpp, PinPad namespace
+Coordinates are the firmware's (DisplayManager_UsersUi.cpp, PinPad namespace
 and the 4-row list geometry every menu shares) — none is guessed.
 """
 import argparse
@@ -363,7 +363,7 @@ class Rig:
 
         The panel's failure ladder lives in RAM and the top rung is cleared
         ONLY by a boot: PinKb::PANEL_FAIL_CEILING failures set
-        _permanentLockout (DisplayManager_Users.cpp:190) and every visit to
+        _permanentLockout (DisplayManager_Users.cpp:253) and every visit to
         Settings then repaints "Tentativas Excedidas" instead of opening the
         picker. One full suite spends ~3 deliberate wrong PINs, so it never
         reached 20 — but partial re-runs accumulate, and on 2026-09-20 they
@@ -595,7 +595,7 @@ class Rig:
         19/09 as its mirror image, 15% of honest logins refused because two
         accounts fell inside the same tap sequence."""
         # The arrow steps one row while the list fits two pages and one PAGE
-        # (4 rows) beyond that — DisplayManager_Users.cpp, same rule for both
+        # (4 rows) beyond that — DisplayManager_UsersUi.cpp, same rule for both
         # lists. So: walk the arrow to the right PAGE, then tap the row. The
         # count decides the step, and it is asked for rather than assumed,
         # because guessing it wrong lands the tap on the wrong account and
@@ -609,7 +609,7 @@ class Rig:
         else:
             idx = who
         # The arrow steps one ROW while the list fits two pages and one PAGE
-        # (4 rows) beyond that — DisplayManager_Users.cpp, same rule for both
+        # (4 rows) beyond that — DisplayManager_UsersUi.cpp, same rule for both
         # lists. So the arrow gets us to the right page and the row tap picks
         # inside it.
         step = 4 if len(listed) > 8 else 1
@@ -930,10 +930,10 @@ def step_prep(rig, col, results, state):
     al = rig.get('/api/alarms').json()
     sensors = al.get('sensors', al) if isinstance(al, dict) else al
     # The list IS the panel's list, so element k is row k: /api/alarms emits the
-    # CONFIGURED sensors in index order (WebManager_Api.cpp:368) and so does
-    # _activeSensorsMap (DisplayManager_Settings.cpp:86). Do NOT filter on
+    # CONFIGURED sensors in index order (WebManager::handleApiAlarms( )) and so does
+    # _activeSensorsMap (showSettingsAlarms( ), DisplayManager_SettingsCore.cpp). Do NOT filter on
     # "active" here — in this JSON that key is alarmsActive, the alarm ENABLE
-    # bit (WebManager_Api.cpp:393), not "the sensor exists". On 2026-09-20 the
+    # bit (handleApiAlarms( ) again), not "the sensor exists". On 2026-09-20 the
     # filter left only sensor 4 (the one rig sensor with alarms on) while the
     # run tapped row 0, which is sensor 0, and the firmware's correct ctx=500
     # was read as a row-vs-index defect.
