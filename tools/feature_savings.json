@@ -76,7 +76,7 @@
   },
   "tft_graph": {
     "base": "pico_w_release",
-    "flash_saved": 20433,
+    "flash_saved": 20365,
     "ram_saved": 2232
   }
 }
