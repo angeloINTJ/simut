@@ -24,7 +24,7 @@
 [![Contributions welcome](https://img.shields.io/badge/Contributions-welcome-1f6355?style=flat-square&labelColor=5f5b54)](CONTRIBUTING.md)
 
 <p align="center">
-  <img src="docs/images/tft-tour.gif" alt="SIMUT TFT tour — dashboard, history graphs, calendar and settings" width="400">
+  <img src="docs/images/tft-tour.gif" alt="SIMUT TFT tour (Pico W) — dashboard, history graphs, calendar and settings" width="400">
 </p>
 
 ## Overview
@@ -119,11 +119,11 @@ They share one core:
 
 ## Screenshots
 
-| TFT dashboard | TFT history graph | Web dashboard | Early alpha |
+| TFT dashboard (Pico W) | TFT history graph (Pico W) | Web dashboard | Early alpha |
 |:---:|:---:|:---:|:---:|
 | ![TFT dashboard](docs/images/screens/dashboard.png) | ![TFT graph](docs/images/screens/graph.png) | ![Web dashboard](docs/images/web-dashboard.png) | [![Alpha video](https://img.youtube.com/vi/wLjghqId8nE/hqdefault.jpg)](https://youtu.be/wLjghqId8nE) |
 
-> Every display screen, captured off the real panel framebuffer: [docs/images/screens/screens.md](docs/images/screens/screens.md).
+> Every screen of the Pico W's original panel, captured off the real panel framebuffer: [docs/images/screens/screens.md](docs/images/screens/screens.md).
 >
 > The **early alpha** video shows the first TFT + touch prototype — the UI has been redesigned since.
 
@@ -132,7 +132,7 @@ They share one core:
 | Component | Specification |
 |-----------|---------------|
 | MCU | Raspberry Pi Pico W (RP2040, dual-core) |
-| Display | `release`: ILI9341 320×240 TFT (SPI, DMA-driven) · `alpha`: HD44780 16×2 character LCD (4-bit) · `air`: none |
+| Display | `release`: ILI9341 320×240 TFT (SPI, DMA-driven), in the Ângulo look on the Pico 2 W and the original look on the Pico W · `alpha`: HD44780 16×2 character LCD (4-bit) · `air`: none |
 | Touch | XPT2046 resistive touchscreen (`release`) |
 | Sensors | **16 universal slots on GP0–GP15** — any mix of DS18B20 (1-Wire), DHT22 and BMP280/BME280. A BMx280 is I²C and takes two pins; two of them can share a pair (0x76/0x77) |
 | Buzzer | Passive piezo (PIO-driven) — not on the Air |
@@ -145,7 +145,7 @@ See the **[wiring guide](docs/WIRING.md)** for the complete pinout and connectio
 ## Features
 
 - **Sensing and alarms** — 16 universal sensor slots (DS18B20, DHT22, BMP280/BME280) assigned at runtime, calibration curves, per-channel limits, a fault alarm and maintenance windows.
-- **Touch panel** (`release`) — dashboard, history graphs and calendar, and identity at the glass: an account, then its PIN.
+- **Touch panel** (`release`) — dashboard, history graphs and calendar, and identity at the glass: an account, then its PIN. The Pico 2 W release draws it in the Ângulo look; the Pico W release keeps the original panel.
 - **Character LCD** (`alpha`) — every slot in turn, the setup access point and a Bluetooth console.
 - **Web interface** — 11 pages, a live panel mirror, history graphs and CSV export in the browser.
 - **HTTP API** — 62 routes. Each one is either gated by a permission or public by design, and CI checks it.
@@ -248,7 +248,7 @@ simut/
 | `pico_w_test` | Bench image: the full console for the test suites; no HTTPS, no mDNS | — |
 | `pico_w_test_https` | `pico_w_test` plus the HTTPS server, for TLS validation; three of its pages are served from LittleFS to fit | — |
 | `pico_w_asserts` | Release + concurrency assertions | — |
-| `pico2_w_release` | The release for the Pico 2 W (RP2350): it boots from slot A or B of a partition table and updates over the air into the other, on trial ([OTA_AB_RP2350.md](docs/analysis/OTA_AB_RP2350.md)). Its `.uf2` is a factory image, with the partition table | `…_releasetwo` |
+| `pico2_w_release` | The release for the Pico 2 W (RP2350): it boots from slot A or B of a partition table and updates over the air into the other, on trial ([OTA_AB_RP2350.md](docs/analysis/OTA_AB_RP2350.md)). Its `.uf2` is a factory image, with the partition table. It draws the touch panel in the Ângulo look | `…_releasetwo` |
 | eight `native*` envs | Host-side unit tests — see [Testing](#testing) | — |
 
 > **Security note for `pico_w_alpha` and `pico_w_air`:** both compile the
@@ -343,7 +343,7 @@ Behaviour is checked on a bench: a Pico 2 W with the TFT panel and touch, and a 
 |----------|-------------|
 | [User manual](docs/MANUAL.md) | Hardware setup, display/web/console guide, OTA, API reference, troubleshooting — kept current |
 | [Manual do usuário (pt-BR)](docs/MANUAL.pt-BR.md) | The same manual, in Portuguese |
-| [Complete manual (pt-BR)](docs/MANUAL.pt-BR.html) | The full product manual in Portuguese, updated for v2.12.0: 31 chapters on installation, configuration, daily use and server integration. Screenshots are being recaptured; each missing one is marked where it belongs |
+| [Complete manual (pt-BR)](docs/MANUAL.pt-BR.html) | The full product manual in Portuguese, updated for v2.12.0: installation, configuration, daily use and server integration. Screenshots are being recaptured; each missing one is marked where it belongs |
 | [Wiring guide](docs/WIRING.md) | Complete pinout and connection diagrams |
 | [Over-the-air updates](docs/OTA_USAGE.md) | Updating from the web page, and what survives it |
 | [Recovery guide](docs/RECOVERY.md) | Brick recovery — BOOTSEL, picotool, 1200 bps reset |

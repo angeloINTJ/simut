@@ -22,7 +22,7 @@
 [![Contribuições bem-vindas](https://img.shields.io/badge/Contribuições-bem--vindas-1f6355?style=flat-square&labelColor=5f5b54)](CONTRIBUTING.pt-BR.md)
 
 <p align="center">
-  <img src="docs/images/tft-tour.gif" alt="Tour do TFT do SIMUT — dashboard, gráficos de histórico, calendário e configurações" width="400">
+  <img src="docs/images/tft-tour.gif" alt="Tour do TFT do SIMUT (Pico W) — dashboard, gráficos de histórico, calendário e configurações" width="400">
 </p>
 
 ## Visão geral
@@ -117,11 +117,11 @@ Os três compartilham o mesmo núcleo:
 
 ## Telas
 
-| Dashboard TFT | Gráfico de histórico no TFT | Dashboard web | Alpha inicial |
+| Dashboard TFT (Pico W) | Gráfico de histórico no TFT (Pico W) | Dashboard web | Alpha inicial |
 |:---:|:---:|:---:|:---:|
 | ![Dashboard TFT](docs/images/screens/dashboard.png) | ![Gráfico TFT](docs/images/screens/graph.png) | ![Dashboard web](docs/images/web-dashboard.png) | [![Vídeo do alpha](https://img.youtube.com/vi/wLjghqId8nE/hqdefault.jpg)](https://youtu.be/wLjghqId8nE) |
 
-> Todas as telas do display, capturadas do framebuffer do painel real: [docs/images/screens/screens.md](docs/images/screens/screens.md).
+> Todas as telas do painel original do Pico W, capturadas do framebuffer do painel real: [docs/images/screens/screens.md](docs/images/screens/screens.md).
 >
 > O vídeo do **alpha inicial** mostra o primeiro protótipo TFT + touch — a interface foi redesenhada desde então.
 
@@ -130,7 +130,7 @@ Os três compartilham o mesmo núcleo:
 | Componente | Especificação |
 |-----------|---------------|
 | MCU | Raspberry Pi Pico W (RP2040, dual-core) |
-| Display | `release`: TFT ILI9341 320×240 (SPI, com DMA) · `alpha`: LCD de caracteres HD44780 16×2 (4 bits) · `air`: nenhum |
+| Display | `release`: TFT ILI9341 320×240 (SPI, com DMA), no visual Ângulo no Pico 2 W e no visual original no Pico W · `alpha`: LCD de caracteres HD44780 16×2 (4 bits) · `air`: nenhum |
 | Touch | Touchscreen resistivo XPT2046 (`release`) |
 | Sensores | **16 slots universais em GP0–GP15** — qualquer mistura de DS18B20 (1-Wire), DHT22 e BMP280/BME280. O BMx280 é I²C e ocupa dois pinos; dois deles podem dividir um par (0x76/0x77) |
 | Buzzer | Piezo passivo (via PIO) — não existe no Air |
@@ -143,7 +143,7 @@ Veja o **[guia de fiação](docs/WIRING.md)** para a pinagem completa e os diagr
 ## Recursos
 
 - **Sensores e alarmes** — 16 slots universais de sensor (DS18B20, DHT22, BMP280/BME280) definidos em tempo de execução, curvas de calibração, limites por canal, alarme de falha e janelas de manutenção.
-- **Painel touch** (`release`) — tela inicial, gráficos do histórico e calendário, e identidade no vidro: a conta, depois o PIN dela.
+- **Painel touch** (`release`) — tela inicial, gráficos do histórico e calendário, e identidade no vidro: a conta, depois o PIN dela. A release do Pico 2 W o desenha no visual Ângulo; a do Pico W mantém o painel original.
 - **LCD de caracteres** (`alpha`) — cada slot por vez, o ponto de acesso de configuração e um console Bluetooth.
 - **Interface web** — 11 páginas, o espelho do painel ao vivo, gráficos do histórico e exportação CSV no navegador.
 - **API HTTP** — 62 rotas. Cada uma é protegida por uma permissão ou pública por projeto, e o CI confere isso.
@@ -246,7 +246,7 @@ simut/
 | `pico_w_test` | Imagem de bancada: o console completo para as suítes de teste; sem HTTPS, sem mDNS | — |
 | `pico_w_test_https` | `pico_w_test` mais o servidor HTTPS, para validar TLS; três das páginas vêm da LittleFS para caber | — |
 | `pico_w_asserts` | Release + asserções de concorrência | — |
-| `pico2_w_release` | A release do Pico 2 W (RP2350): sobe do slot A ou B de uma tabela de partições e atualiza pelo ar no outro, em teste ([OTA_AB_RP2350.md](docs/analysis/OTA_AB_RP2350.md)). O `.uf2` dela é uma imagem de fábrica, com a tabela de partições | `…_releasetwo` |
+| `pico2_w_release` | A release do Pico 2 W (RP2350): sobe do slot A ou B de uma tabela de partições e atualiza pelo ar no outro, em teste ([OTA_AB_RP2350.md](docs/analysis/OTA_AB_RP2350.md)). O `.uf2` dela é uma imagem de fábrica, com a tabela de partições. Ela desenha o painel touch no visual Ângulo | `…_releasetwo` |
 | oito ambientes `native*` | Testes unitários no host — ver [Testes](#testes) | — |
 
 > **Nota de segurança para `pico_w_alpha` e `pico_w_air`:** as duas compilam o
@@ -341,7 +341,7 @@ O comportamento é conferido numa bancada: um Pico 2 W com o painel TFT e o touc
 |----------|-------------|
 | [Manual do usuário](docs/MANUAL.pt-BR.md) | Montagem, display/web/console, OTA, referência da API, solução de problemas — mantido atualizado |
 | [User Manual (EN)](docs/MANUAL.md) | O mesmo manual, em inglês |
-| [Manual completo](docs/MANUAL.pt-BR.html) | O manual do produto, atualizado para a v2.12.0: 31 capítulos sobre instalação, configuração, uso no dia a dia e integração com servidores. As telas estão sendo recapturadas; cada uma que falta está marcada no lugar dela |
+| [Manual completo](docs/MANUAL.pt-BR.html) | O manual do produto, atualizado para a v2.12.0: instalação, configuração, uso no dia a dia e integração com servidores. As telas estão sendo recapturadas; cada uma que falta está marcada no lugar dela |
 | [Guia de fiação](docs/WIRING.md) | Pinagem completa e diagramas de ligação |
 | [Atualização pelo ar](docs/OTA_USAGE.md) | Atualizar pela página web, e o que sobrevive |
 | [Guia de recuperação](docs/RECOVERY.md) | Recuperação de brick — BOOTSEL, picotool, reset 1200 bps |
