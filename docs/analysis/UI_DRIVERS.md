@@ -255,8 +255,8 @@ items 8 to 12 are what the audit found in the draw bodies **(S0)**.
   (`:1772-1948`); the geometry `CARD_*` (`DisplayManager.h:1095-1098`), `ALARM_EDIT_*`
   (`:235-255`), `CLOCK_*` (`:267-272`), `GRAPH_PBTN_*` (`:285-287`); `buildDashLayout`,
   the 3 s graph header name, `Themes.cpp`, `DisplayManager_Fonts.*` and the font data
-  it includes (`FreeSansBold9pt8b_latin1.h`, `FreeSansBold12pt8b_latin1.h`,
-  `FreeSansBold24pt7b_subset.h`), `UiWidgets.*`,
+  it includes (`ui/original/FreeSansBold9pt8b_latin1.h`, `ui/original/FreeSansBold12pt8b_latin1.h`,
+  `ui/original/FreeSansBold24pt7b_subset.h`: they moved there in S11 A2), `UiWidgets.*`,
   `PasswordKeyboard.h` and `sensors/SensorDrawing.h`.
 - **Not the original's, though only display units include them.** `DisplayManager_FmtFloat.h`, `OtaScreen.h`,
   `TextWrap.h`, `display/{ClockEntry,CountInText,DisplayDriver,SettingsMenu}.h` and
