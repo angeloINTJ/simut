@@ -340,6 +340,12 @@ jobs:
           lib=$(grep -m1 -o 'adafruit/Adafruit GFX Library@[0-9.]*' platformio.ini)
           test -n "$lib"
           pio pkg install -e pico_wiretft_angulo --library "$lib" --no-save
+      # Pillow, for the host tests that write frames as PNG: test_idiomas.py compares two runs' frames (host_telas.py --out, whose
+      # `from PIL import` runs only then), and manual_frames.py redraws the manual's figures. The first run of this job on GitHub (PR #304,
+      # 2026-10-30) failed test_idiomas.py 52 of 121 with "No module named 'PIL'": the runner has none, and a local run never showed it.
+      # Installed once here, before the first of them; unpinned, since no test compares PNG bytes across Pillow versions.
+      - name: Pillow for the Angulo's host tests (the ones that write PNG frames)
+        run: pip install pillow
       # The mode and the accent through the kit and through the glue's own functions, run; the mutants of the kit and of the glue must fail it.
       - name: Angulo theme and glue on the host (test_temas.py)
         run: python3 tools/tft_ui/test_temas.py
@@ -372,11 +378,9 @@ jobs:
       # The figures of the manual's chapter 11A (S10c, C6 step 2): docs/images/manual/11a-*.png are frames that host_telas.py draws from the code at the commit (src/ui/angulo and the
       # pt-BR pack), enlarged 2x. manual_frames.py --check draws them again and compares the PIXELS with the committed files, never the PNG bytes (those depend on Pillow's and zlib's
       # versions): one line for each figure that differs, so a change to the panel's code or to the pack's @ANGULO that moves a pixel of a figure fails here until the figures are
-      # drawn again (manual_frames.py --write). The gates job installs no Pillow, so the step does.
+      # drawn again (manual_frames.py --write). Pillow comes from the step before the Angulo's host tests.
       - name: Angulo manual figures (manual_frames.py --check)
-        run: |
-          pip install pillow
-          python3 tools/tft_ui/manual_frames.py --check
+        run: python3 tools/tft_ui/manual_frames.py --check
 
       # patch.sh runs again and again: after every override that merges, and in the
       # firmware jobs on a warm ~/.platformio cache that already carries them (see
