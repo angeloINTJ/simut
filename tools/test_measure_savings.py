@@ -25,11 +25,13 @@ its switch removes grew 8 B. So:
     4,096 B step the Air's tel_tls saving made does not move the number.
 
 Each case of the floor's side carries an id ([a1], [d2] ...) that the mutations of #302 (remove the fill subtraction,
-remove the tolerance, drop the self-check ...) are matched to. The 21 cases of the configurator's matrix side (the
+remove the tolerance, drop the self-check ...) are matched to. The 22 cases of the configurator's matrix side (the
 `ui=` and `net=` flips, the Angulo's static-RAM budget in the temporary env, the checks of `--checks`) carry none.
 The cases of `--matrix --only` ([i0]-[i3]: the rebuilt bases are compared with the file before a flip is built) carry
 ids too, matched to the mutants of S11 B2 (2026-10-30: a mutant that dropped `used` from that comparison passed the
-whole suite, because no case ran the function).
+whole suite, because no case ran the function). So do the two of S11 B3: [j1], the pio_run cases run to the end whatever
+SIMUT_SAVINGS_PIO the caller has (with a path that does not exist the suite used to die with SystemExit after 31 of 70 cases), and
+[j2], the tool's refusal of such a path says what to do.
 """
 import contextlib
 import hashlib
@@ -63,6 +65,25 @@ def case(name, fn):
     except Exception as e:                           # noqa: BLE001
         ok, detail = False, f"raised {type(e).__name__}: {e}"
     check(name, ok, detail)
+
+
+def aside(fn):
+    """Runs a group of cases on the side, so one case can ask how another group behaves under some other condition: (what
+    escaped it, the names that ran, the names that failed). Its lines are not printed and its cases do not count in this
+    suite. A SystemExit is caught here: it is what ended the whole suite on 2026-10-30 (S11 B3, see caller_env_cases( ))."""
+    global RAN, FAILS
+    outer = RAN, FAILS
+    RAN, FAILS = [], []
+    escaped = None
+    try:
+        with contextlib.redirect_stdout(io.StringIO()):
+            fn()
+    except (Exception, SystemExit) as e:             # noqa: BLE001
+        escaped = e
+    finally:
+        ran, failed = RAN, FAILS
+        RAN, FAILS = outer
+    return escaped, ran, failed
 
 
 # ---- a linker map, from entries ---------------------------------------------------------------------------------
@@ -386,6 +407,10 @@ def pio_run_cases():
         return types.SimpleNamespace(returncode=0, stdout="", stderr="")
 
     saved_run, saved_flags = ms.subprocess.run, os.environ.get("PLATFORMIO_BUILD_FLAGS")
+    # The caller's own SIMUT_SAVINGS_PIO is out of these cases, a real path or a typo: the two bare pio_run( ) calls below do not
+    # expect it, and a path that does not exist made the tool exit and the suite die with them (S11 B3, 2026-10-30; see
+    # caller_env_cases( )). The cases that need the variable set it themselves.
+    caller_pio = os.environ.pop("SIMUT_SAVINGS_PIO", None)
     try:
         ms.subprocess.run = fake_run
         os.environ["PLATFORMIO_BUILD_FLAGS"] = "-DX=1"
@@ -414,6 +439,8 @@ def pio_run_cases():
                 said = str(e)
             check("a SIMUT_SAVINGS_PIO that does not exist stops with its name, not a raw FileNotFoundError",
                   said is not None and "SIMUT_SAVINGS_PIO" in said and "/nonexistent/pio" in said, said)
+            check("[j2] ... and says what to do about it: unset the variable or point it at a pio that exists (ANGULO.md 7)",
+                  said is not None and "unset SIMUT_SAVINGS_PIO" in said, said)
             os.environ.pop("SIMUT_SAVINGS_PIO")
             ms.pio_run("pico_w_alpha")
             penv = os.path.expanduser("~/.platformio/penv/bin/pio")
@@ -430,6 +457,37 @@ def pio_run_cases():
             os.environ.pop("PLATFORMIO_BUILD_FLAGS", None)
         else:
             os.environ["PLATFORMIO_BUILD_FLAGS"] = saved_flags
+        if caller_pio is not None:
+            os.environ["SIMUT_SAVINGS_PIO"] = caller_pio
+
+
+def caller_env_cases():
+    """S11 B3 (2026-10-30). The suite tests the tool, not the pio of whoever runs it. With SIMUT_SAVINGS_PIO=/nonexistent in the
+    caller's environment, the first bare pio_run( ) of pio_run_cases( ) did sys.exit( ) and the suite died there: rc 1, 31 of 70
+    cases run, no [FAIL] line, no summary, the tool's one line on stderr and nothing to say that 39 cases never ran. The cases that
+    do not expect the variable now run without it, and each one that does sets it. Here the pio_run cases run twice on the side,
+    for a caller with no variable and for one with a path that does not exist, and the two must come out the same: a case that
+    fails in both is that case's own finding, reported where it runs for real, and not a second one here."""
+    mine = "/nonexistent/caller/pio"
+    saved = os.environ.get("SIMUT_SAVINGS_PIO")
+    try:
+        os.environ.pop("SIMUT_SAVINGS_PIO", None)
+        clean = aside(pio_run_cases)
+        os.environ["SIMUT_SAVINGS_PIO"] = mine
+        hostile = aside(pio_run_cases)
+        back = os.environ.get("SIMUT_SAVINGS_PIO")
+    finally:
+        if saved is None:
+            os.environ.pop("SIMUT_SAVINGS_PIO", None)
+        else:
+            os.environ["SIMUT_SAVINGS_PIO"] = saved
+
+    def outcome(r):                                  # what escaped the group, the cases that ran, the ones that failed
+        return repr(r[0]), r[1], r[2]
+    check("[j1] the pio_run cases come out the same whatever SIMUT_SAVINGS_PIO the caller has, even a path that does not exist, "
+          "and leave it as they found it",
+          clean[0] is None and bool(clean[1]) and outcome(hostile) == outcome(clean) and back == mine,
+          (outcome(clean), outcome(hostile), back))
 
 
 def update_cases():
@@ -741,6 +799,7 @@ def main():
     gate_cases()
     pio_build_cases()
     pio_run_cases()
+    caller_env_cases()
     update_cases()
     matrix_cases()
     matrix_partial_cases()

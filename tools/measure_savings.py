@@ -282,11 +282,12 @@ def pio_run(env, linker_map=False):
     pio que roda, na frente do penv: nesta maquina o penv quebrou com o python 3.14 em 2026-10-24
     ("No module named 'platformio'") e a matriz de 2026-10-29 morreu na primeira base por causa
     dele; o CI nao define a variavel e segue no penv. Nao "SIMUT_PIO": o build.yml tem um
-    SIMUT_PIO_SOURCES que e outra coisa. Um caminho que nao existe para aqui, com o nome."""
+    SIMUT_PIO_SOURCES que e outra coisa. Um caminho que nao existe para aqui, com o nome e o que fazer."""
     pio = os.environ.get("SIMUT_SAVINGS_PIO")
     if pio:
         if not os.path.exists(pio):
-            sys.exit(f"measure_savings: SIMUT_SAVINGS_PIO={pio} nao existe")
+            sys.exit(f"measure_savings: SIMUT_SAVINGS_PIO={pio} nao existe. Aponte-a para um pio que exista "
+                     "ou tire-a do ambiente (unset SIMUT_SAVINGS_PIO) para usar o do penv.")
     else:
         pio = os.path.expanduser("~/.platformio/penv/bin/pio")
         if not os.path.exists(pio):
