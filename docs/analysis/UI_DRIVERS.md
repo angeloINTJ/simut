@@ -2268,7 +2268,7 @@ numbers come from CI.
   - B4b's PIN-policy keypad, whose touch zone starts 4 px lower;
   - the frames in the three languages.
 
-  Nothing in stage B ran on a board.
+  Nothing in stage B had run on a board when this list was written. B7 ran on 2026-10-24 (section 2.17): its walks drew the frames in the three languages (pt-BR and es-ES with 0 FAIL, English 32 ok and the one expected FAIL) and recorded the heap (`heap_f` medians 288,620 B in pt-BR, 288,212 B in es-ES and 300,108 B in English, its record `stages/s10c_b7/resultado.txt`). The other three items are not in that record.
 - **The stack frames grew, and Core 1's stack was not measured.** The draw functions run on Core 1, whose stack is 8,192 B (`s_core1Stack`, `src/DisplayManager.cpp:200`). B4b's frames grew the most: `desenharAlinhar( )` went from 288 to 392 B on the Wire (+104 B), and the rest by up to 64 B. B5b's grew by 0 to 24 B. The figures are read from the code, 4 B per pushed register plus the prologue's `sub sp`. No step measured the stack under load.
 - **The gate is lexical.** What it cannot see is in its docstring (KNOWN LIMITS):
   - a text a program builds at run time;
