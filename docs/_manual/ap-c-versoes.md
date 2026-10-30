@@ -6,7 +6,7 @@ O que cada versão da linha 2.x trouxe para quem usa o aparelho, da mais nova pa
 
 | Versão | Data | O que trouxe |
 |---|---|---|
-| v2.12.0 | 28/10/2026 | O barramento do painel do Pico W passa a ser ajustado a 66,5 MHz, onde rodava a 24 MHz. Um rádio que para de responder não é mais associado às cegas: o aparelho reinicia pelo caminho planejado, e o log registra `SYS_WIFI_CONNECT` com contexto 4 ([capítulo 9](#cap-09-mudo)). Um ponto de acesso que some enquanto o aparelho espera a hora é notado. Uma resposta da web não chega mais com pedaços faltando, e uma aba `http://` esquecida na porta HTTPS não reinicia o aparelho. Depois de um boot em inglês, a tela **Idioma** lista o pacote de `/lang` ([capítulo 11](#cap-11-menu)), e a página **Arquivos** diz o motivo de um arquivo recusado ([capítulo 17](#cap-17-enviar)). A página web mostra os nomes dos temas no idioma do aparelho. |
+| v2.12.0 | 29/10/2026 | O barramento do painel do Pico W passa a ser ajustado a 66,5 MHz, onde rodava a 24 MHz. Um rádio que para de responder não é mais associado às cegas: o aparelho reinicia pelo caminho planejado, e o log registra `SYS_WIFI_CONNECT` com contexto 4 ([capítulo 9](#cap-09-mudo)). Um ponto de acesso que some enquanto o aparelho espera a hora é notado. Uma resposta da web não chega mais com pedaços faltando, e uma aba `http://` esquecida na porta HTTPS não reinicia o aparelho. Depois de um boot em inglês, a tela **Idioma** lista o pacote de `/lang` ([capítulo 11](#cap-11-menu)), e a página **Arquivos** diz o motivo de um arquivo recusado ([capítulo 17](#cap-17-enviar)). A página web mostra os nomes dos temas no idioma do aparelho. |
 
 ## Linha 2.11 — estável
 

@@ -4,7 +4,7 @@
 
 Todas as mudanças notáveis do firmware SIMUT.
 
-## v2.12.0 (2026-10-28)
+## v2.12.0 (2026-10-29)
 
 **O SPI do painel é ajustado a 66,5 MHz no Pico W; na imagem medida antes da mudança (arduino-pico 5.6.1, 15/10/2026)
 rodava a 24 MHz, fosse qual fosse o `SIMUT_TFT_SPI_HZ`. Um rádio que para de responder não é mais associado às cegas,
@@ -21,8 +21,8 @@ dele, e a release não as publica.**
 
 O `CONFIG_VERSION` continua 26, e o nível de segurança continua 1. O `keys/` e o `src/ota/ota_layout.h` são os da
 v2.11.1 (`git diff v2.11.1 HEAD -- keys src/ota/ota_layout.h` vazio, 28/10/2026), então a v2.11.1 lê a configuração e
-confere a assinatura desta release, e a atualização pode ir pelo ar nos dois sentidos; a ida e volta do portão fica
-registrada em *A bancada* depois que ele rodar. Os 35 pull requests mergeados desde a v2.11.1 estão, cada um, sob o
+confere a assinatura desta release, e a atualização pode ir pelo ar nos dois sentidos; o portão rodou a ida e volta
+no Pico W (*A bancada*). Os 35 pull requests mergeados desde a v2.11.1 estão, cada um, sob o
 título a que pertencem.
 
 ### O barramento do painel (#278)
@@ -152,8 +152,9 @@ título a que pertencem.
   `simut_web_aborts_total{cause="short_write"}`, e o `show net status` põe a escrita curta entre os abortos de envio
   que lista. Na bancada, 4 respostas cortadas em 5.000 foram contadas exatamente, uma a uma.
 - **O conserto são dois overrides do framework** (`webserver_short_write.patch`, o 2m, e
-  `webserver_fewer_writes.patch`, o 2n) que o `patch.sh` aplica a toda imagem. Foi medido num Pico W; o Pico 2 W, que
-  perdeu 4 de 119 leituras no portão da v2.11.1, não foi medido com eles. Isso fecha o item do #189 do *Conhecido* da
+  `webserver_fewer_writes.patch`, o 2n) que o `patch.sh` aplica a toda imagem. Foi medido num Pico W. No Pico 2 W, que
+  perdeu 4 de 119 leituras no portão da v2.11.1, o soak do portão desta release, em 29/10/2026, não perdeu nenhuma de
+  120 (*A bancada*): dois soaks de 30 minutos, não uma taxa. Isso fecha o item do #189 do *Conhecido* da
   v2.11.1.
 
 ### Um cliente simples na porta TLS (#274, #277)
@@ -207,7 +208,8 @@ título a que pertencem.
   fica para a troca que uma pessoa faz no painel ou na CLI.
 - **O despertar do SIMUT Air** silencia o registro do pacote no boot onde silenciava o 441, e o despertar continua
   gravando um registro em vez de oito. A troca de idioma saiu dessa lista e é gravada mesmo durante um boot. Testado
-  no host; não medido de novo num Air.
+  no host. O teste de despertar do portão, num Air, rodou sem pacote em `/lang`, então não viu esse registro
+  silenciado (*A bancada*).
 - **Uma tag que a tabela não tem não compila mais.** As macros `LOG_` conferem, na compilação, que cada tag é o nome
   do id em que ela cai (`logTagIsKnown( )`). Aplicada sozinha ao `main`, a checagem acha exatamente os cinco registros
   acima: os quatro do pacote de idioma e o `"AIR"` do Air, que era gravado como `APP` e agora diz `APP`. O
@@ -237,8 +239,8 @@ título a que pertencem.
 - **O manual** dizia que o console e o syslog falam o idioma do pacote. Eles falam inglês em toda imagem, e os
   capítulos 14, 16 e 25 dizem isso; as linhas de exemplo deles são agora o texto que o aparelho manda (`Login failed`,
   `Show IP`).
-- Conferido nas imagens, ainda não na bancada: os dois lookups do Alpha devolviam o endereço de uma string vazia e
-  agora devolvem 0. As sete imagens que não compilam esse código saem idênticas, byte a byte.
+- Conferido nas imagens, e visto no console de uma alpha no portão, em 29/10/2026 (*A bancada*): os dois lookups do
+  Alpha devolviam o endereço de uma string vazia e agora devolvem 0. As sete imagens que não compilam esse código saem idênticas, byte a byte.
 
 ### O inglês tem volta no painel (#294)
 
@@ -410,31 +412,134 @@ idioma crescem de 39.068 B (pt-BR) e 40.700 B (es-ES) na v2.11.1 para 42.517 B e
 
 ### A bancada
 
-O portão da release (`AGENTS.md` §2) ainda não rodou na candidata desta release. Esta seção é preenchida pela mudança
-de documentação do portão, a partir da candidata que o CI assina na `main`. Até lá, cada número acima diz a build e a
-data em que foi medido. Não rodaram numa imagem assinada: a atualização a partir da v2.11.1, o painel a 66,5 MHz no
-vidro do Pico W, o registro único por despertar do Air e os nomes de evento da alpha em português.
+O portão da release (`AGENTS.md` §2) rodou na candidata que o CI assinou no `main` 229d5d59 (`release-ota.yml`,
+execução 40798427593, com a aprovação do `sign` pelo mantenedor), nas duas placas: o Pico W de 28/10/2026, 22h19, a
+29/10/2026, 08h44, o Pico 2 W em 29/10/2026, das 17h36 às 18h32. O `ci_check.py` terminou em ALL GOOD: as quatro
+assinaturas conferem (`v` 0) com a raiz de release, a parte de imagem de cada uma é a da build local, a atualização do
+Pico 2 W está marcada para teste, uma cópia com um byte trocado dá `v` 9, e a imagem assinada pela chave de bancada dá
+`v` 12.
+
+**No Pico 2 W,** a placa da bancada (um RP2350 A2) com três sensores, a partir da v2.11.1 publicada no slot A. A placa
+rodava uma imagem de desenvolvimento: a flash inteira foi copiada antes, em duas leituras iguais, e regravada no fim. O
+`.uf2` de fábrica da v2.11.1 foi copiado para a unidade do BOOTSEL dela, alcançada pelo toque de 1200 bps na serial USB
+da própria placa, e o pacote em português da v2.11.1 substituiu o da imagem de desenvolvimento em `/lang`.
+- **A atualização, pelo ar:** envio 200 em 16,8 s, a placa de volta 42,4 s depois, do slot B e em teste, e confirmada
+  47,8 s depois disso. Os 527 valores de configuração que a API web informa, iguais (555 no portão da v2.11.1, com
+  cinco sensores).
+- **Recusadas,** com a placa rodando no slot e na versão dela e o uptime ainda crescendo: a candidata com um byte
+  trocado (9) e uma imagem assinada pela chave de bancada (12), as duas com 422.
+- **A candidata sobre ela mesma,** do slot B para o A (envio 17,8 s, de volta 77,9 s depois, confirmada 44,8 s depois
+  disso) e do slot A para o B (16,8 s, 30,8 s, 56,7 s), a configuração igual nas duas vezes.
+- **O `.uf2` de fábrica da candidata,** copiado para a unidade do BOOTSEL: de pé na 2.12.0 do slot A, fora de teste, a
+  configuração igual. **Um desvio, e o controle dele.** A primeira cópia não provou nada: o `.uf2` de fábrica da v2.11.1
+  tinha posto a placa no slot A (o portão da v2.11.1 começou no B), então a atualização sobre ela mesma terminou no A, e
+  uma cópia que a ROM ignorasse mostraria o mesmo. A atualização sobre ela mesma foi refeita, do A para o B; depois o
+  BOOTSEL pelo toque de 1200 bps sem gravar nada, e um reinício, deixou a placa no B; a cópia a levou então para o A.
+- **30 minutos** sem reinício: 120 leituras e nenhum erro, nenhuma com o enquadramento chunked
+  perdido (4 de 119 no portão da v2.11.1), os três sensores com valor em todas as amostras, heap livre de 302.868 a
+  302.972 B. **A suíte web na candidata,** como o admin da bancada: 67 aprovados, 0 falhas, 1 pulado.
+- **O barramento do painel:** `sys.clk_peri` 150 MHz e `tft_hz` 37,50 MHz, onde a primeira seção diz que ele fica.
+- **A volta:** o dump da imagem de desenvolvimento regravado com `picotool load --ignore-partitions` e relido, byte a
+  byte; a configuração e os alarmes iguais aos de antes do portão.
+
+**No Pico W,** a placa da bancada com o painel de toque, a partir da v2.11.1 publicada com a configuração da bancada,
+uma conta de administrador descartável e a web na porta 8080. Esse começo foi feito como o portão da v2.11.1 fez o dele:
+o começo daquele portão (a v2.11.0 com a configuração da bancada) gravado pelo USB e relido, atualizado pelo ar para a
+v2.11.1, com o `.bkp` de volta. A flash da placa foi copiada antes, em duas leituras iguais, e regravada no fim. Dois
+dos cinco slots de sensor (um DS18B20 no GP1 e um BMP280 no GP4) foram desligados pela palavra do mantenedor, porque
+esses sensores estão na protoboard do Pico 2 W, então a API web informa aqui 539 valores de configuração contra os 567
+do portão da v2.11.1 (530 contra 558 na alpha e no Air). O servidor de telemetria dessa configuração, um celular, estava
+fora da rede naquela noite, então foi apontado para um receptor no PC da bancada; os envios abaixo são os que esse
+receptor viu.
+- **A atualização a partir da v2.11.1,** completa, pelo ar, na release: backup 200 (76 arquivos), envio 200 (`v` 0) em
+  35,4 s, a placa de volta 46,2 s depois da aplicação, `2.12.0`, os três sensores lendo, todos os 539 valores de
+  configuração iguais, e iguais de novo depois que o `.bkp` voltou (validate e apply 200); o `system.bin` idêntico byte
+  a byte, o slot do programa igual à imagem assinada com a assinatura depois dela, e 73 dos 76 arquivos idênticos. Os
+  outros três são o log, o bloco aberto do histórico e o arquivo de histórico do dia, que mudam enquanto o aparelho
+  roda. Refeito com a telemetria no receptor: 35,5 s e 47,4 s, e 72 de 76 (o cursor da telemetria também anda).
+- **O mesmo na alpha e no Air** (530 valores, e 73 de 76 arquivos em cada): o slot é igual à imagem exceto o setor de 4
+  KiB do banco de flash do BTstack (`0xee000` na alpha, `0xf9000` no Air), e a opção própria do Air, `air idle`, que uma
+  atualização apaga (777 virou 300), voltou com o `.bkp` (777).
+- **A candidata sobre ela mesma,** nas três, com a candidata conferindo a assinatura (`v` 0; a serial da release mostrou
+  `image verified, 1036133 B`): o mesmo.
+- **De volta à v2.11.1 e de novo para cima,** pelo ar, na release, as duas no nível de segurança 1: aceitas (`v` 0) nos
+  dois sentidos (envio 35,3 s e a placa de volta 46,1 s depois; depois 35,5 s e 50,0 s), os 539 valores iguais. Refeito
+  uma segunda vez com o receptor ligado: a v2.11.1 e a candidata mandaram, cada uma, um lote de 10 registros, 570 s e
+  568 s depois do boot, a fila refeita a partir do cursor, e os registros do receptor não tinham duplicata nem buraco,
+  fora os minutos das próprias atualizações.
+- **Recusadas** com 422, a versão ainda 2.12.0, o uptime ainda crescendo, a configuração igual antes e depois de um
+  reinício: uma imagem sem assinatura (8), a imagem do Air assinada (7), a atualização assinada do Pico 2 W (6) e a
+  candidata com um byte trocado (9).
+- **Um envio cortado aos 400 kB, seguido de um reinício,** e o mesmo com o sistema de arquivos cheio até os últimos 8 KB
+  e esvaziado entre o corte e o reinício: os 539 valores iguais, e o boot não caiu para os padrões de fábrica.
+- **30 minutos** sem reinício, com o fio do RESET no RUN: 120 leituras, nenhuma falha, os três sensores com
+  valor em todas as amostras, heap livre de 54.908 a 55.300 B. O receptor recebeu a telemetria durante todo o soak, um
+  registro por minuto, sem buraco. **A suíte web na candidata,** com uma conta de administrador: 67 aprovados, 0 falhas,
+  1 pulado.
+- **O painel a 66,5 MHz,** no vidro do Pico W: `sys.clk_peri` 133.000.000 Hz e `tft_hz` 66,50 MHz depois da atualização
+  e de novo durante o soak. O mantenedor olhou o vidro enquanto o soak rodava: sem pixels soltos nas regiões chapadas, e
+  o toque respondeu. Uma captura (`/api/screenshot`, 1,4 s) mostra os dois cartões dos slots desligados como "Empty /
+  Inactive", o conserto do #262. A alpha e o Air não têm nenhum dos dois campos.
+- **O despertar do Air e os nomes da alpha** (#283, #286). No Air, onze despertares vistos, um por minuto (08h18 a
+  08h29): a candidata gravou três registros em cada despertar que ficou fora da rede (545 `TEL_CERT_MISSING`, 544
+  `TEL_CERT_READ_ERR`, 567 `STO_H5_WIP`), e a v2.11.1 cinco, na mesma placa, no segundo e no terceiro de três despertares
+  (esses três, outro 567 e um registro de código 0 com contexto 156, o aviso do pacote antigo gravado como "OK"). **Isso
+  não é um teste do #283:** o Air da candidata não tinha pacote em `/lang` (a última atualização dele reformatou o
+  sistema de arquivos, o `.bkp` não foi posto de volta, e o log dele não tem registro de pacote em nenhum boot), o da
+  v2.11.1 tinha, então o registro do pacote silenciado num despertar segue testado só no host. O décimo despertar subiu a
+  rede (endereço 8 s depois, a hora aos 9 s) e o receptor recebeu um lote de 10 registros. Na alpha, com `debug on`: a
+  v2.11.1 imprimiu os logins como `[SEC] : wtest (4)`, nada antes dos dois-pontos; a candidata imprime `[SEC] Login
+  success: Login OK: wtest (4)`, o nome e o detalhe em inglês.
+- **Os temas e os pacotes.** Com os onze `.thm` de fábrica enviados, o `/api/themes` lista nove linhas nas duas placas, o
+  `simut_def` e oito (veja *Conhecido*). O pacote pt-BR da candidata sozinho em `/lang` tem 539 chaves e nomeia oito dos
+  nove em português; o `simut_def` é compilado, não tem chave, e a página mostra "Simut Default". O pacote es-ES nomeia
+  os mesmos oito em espanhol. No Pico 2 W, o pacote da v2.11.1 tinha 519 chaves e nenhuma de tema. Com os dois pacotes
+  em `/lang`, o Pico W carregou o es-ES (veja *Atualizando*).
+- **A volta:** o dump de chegada (a placa como veio, rodando a imagem do SIMUT Wire com painel) regravado pelo USB e
+  relido, byte a byte; a placa responde de novo pelo cabo.
+
+**O fio do RESET da PicoHand ficou no pino RUN durante a parte do Pico W no portão,** pela palavra do mantenedor de
+28/10/2026: os reinícios que os portões da v2.11.0 e da v2.11.1 atribuíram a ele (04/10/2026, três em duas horas;
+05/10/2026, quatro em seis horas) vinham da montagem da equipotencialização dos terras das placas na bancada, já
+consertada. Essa parte levou cerca de 10 horas de bancada com o fio no RUN (22h19 às 08h44), mas a placa ficou em
+BOOTSEL, rodando só a ROM, das 23h25 às 23h40 e das 00h40 às 06h00: o firmware rodou cerca de 4,8 horas delas (66, 60 e
+164 minutos), o soak incluído, sem nenhum reinício que não fosse nosso nessas horas. O USB do Pico W caiu três vezes no
+meio de gravações de flash (23h25, 00h40, 05h59) e a serial da PicoHand ficou muda duas vezes: o USB do host, não
+reinícios do firmware. Cada gravação foi refeita e relida byte a byte antes de o portão seguir. No Pico 2 W ninguém
+conferiu onde o fio estava depois da troca das placas, e nenhum passo usou a mão: os números do soak dele valem sem
+uma afirmação sobre o fio.
+
+Não rodaram nesta candidata: a volta à v2.11.1 no Pico 2 W e o despertar do Air com um pacote de idioma em `/lang`.
 
 ### Atualizando
 
 - **A partir da v2.11.1, num Pico W (release, alpha ou Air):** pelo ar, na página Arquivos, com o `.bin` desta release
   e sem outra página do aparelho aberta. Baixe antes o `.bkp` que a página oferece. A aplicação reformata o sistema de
-  arquivos e guarda só o `/config/system.bin`: o `/lang` some, então o aparelho mostra inglês até os pacotes voltarem
-  e ele reiniciar, e o histórico, os temas de `/themes` e as opções próprias do Air voltam só com o `.bkp`. Restaure o
-  `.bkp` (ele traz os pacotes antigos de volta), envie os dois pacotes de idioma anexados a esta release e reinicie;
-  um pacote é lido no boot.
+  arquivos e guarda só o `/config/system.bin`: o `/lang` some, então o aparelho mostra inglês até o pacote voltar e ele
+  reiniciar, e o histórico, os temas de `/themes` e as opções próprias do Air voltam só com o `.bkp`. Restaure o `.bkp`
+  (ele traz o pacote antigo de volta), envie **o pacote do idioma do aparelho** anexado a esta release, por cima do
+  antigo, e reinicie; um pacote é lido no boot.
 - **A partir da v2.11.1, num Pico 2 W:** pelo ar, com o `.bin` desta release: a atualização vai para o outro slot, não
-  mexe no sistema de arquivos e sobe em teste, como desde a v2.11.0. Os pacotes de `/lang` ficam, então os textos
-  novos desta release saem em inglês até os dois pacotes novos os substituírem.
-- **De volta à v2.11.1:** pelo ar, com o `.bin` assinado dela (as duas têm o nível de segurança 1 e a série 1), ou
-  pelo USB. A ida e volta fica registrada em *A bancada* depois que o portão a rodar.
+  mexe no sistema de arquivos e sobe em teste, como desde a v2.11.0. O pacote de `/lang` fica, então os textos novos
+  desta release saem em inglês até o pacote novo do idioma do aparelho o substituir.
+- **De volta à v2.11.1:** pelo ar, com o `.bin` assinado dela (as duas têm o nível de segurança 1 e a série 1), ou pelo
+  USB. O portão rodou isso no Pico W: a candidata para a v2.11.1 e de novo para cima, duas vezes, a configuração igual e
+  a fila da telemetria refeita a partir do cursor a cada boot. Não rodou no Pico 2 W.
 - **A partir de uma versão mais antiga, ou a primeira instalação de um Pico 2 W:** como na v2.11.0, na entrada dela,
   abaixo.
-- **Pacotes de idioma:** um pacote da v2.11.1 deve continuar carregando, já que uma chave que o pacote não tem aparece
-  no texto em inglês; os nomes dos temas na página web e a mensagem de envio recusado saem então em inglês. Depois de
-  um boot em inglês, a tela Idioma do painel lista o pacote colocado em `/lang` (#294).
+- **Pacotes de idioma: envie só o do idioma do aparelho.** Com mais de um `language_*.lng` em `/lang`, o aparelho
+  carrega o primeiro em ordem alfabética (toda imagem faz isso, pelo código; todas menos a alpha também gravam o 622,
+  `I18N_PACK_MULTIPLE`), e o `language_es-ES.lng` vem antes do `language_pt-BR.lng`: um aparelho em português com os dois
+  vira espanhol (medido na imagem release do Pico W, 29/10/2026: com os dois, o `/api/lang` nomeou os temas em
+  espanhol; com o es-ES apagado e um reinício, em português). O texto de Atualizando da
+  v2.11.1 e das releases antes dela manda enviar os dois; não envie. Um aparelho que já tem os dois volta ao idioma dele
+  apagando o outro pacote de `/lang` pela página Arquivos e reiniciando. Um pacote da v2.11.1 deve continuar carregando,
+  já que uma chave que o pacote não tem aparece no texto em inglês; os nomes dos temas na página web e a mensagem de
+  envio recusado saem então em inglês. Depois de um boot em inglês, a tela Idioma do painel lista o pacote colocado em
+  `/lang` (#294).
 - **Temas:** um `.thm` restaurado de um `.bkp` mantém o nome com que foi instalado, em português para os temas de
-  fábrica de uma instalação mais antiga; a página web traduz os códigos deles (#298).
+  fábrica de uma instalação mais antiga; a página web traduz os códigos deles (#298). O aparelho carrega oito `.thm`
+  (veja *Conhecido*).
 - **O simut-rx** ainda não conhece o `releasetwo`, então não oferece atualização a um Pico 2 W (o pull request #14
   dele segue aberto em 28/10/2026).
 
@@ -477,9 +582,24 @@ vidro do Pico W, o registro único por despertar do Air e os nomes de evento da 
 - **Depois de um boot, uma sonda que não é a do slot pode ter a primeira leitura gravada.** O caminho de leitura
   confere a ROM a cada cinco leituras, a partir da quinta. Na bancada, com outra sonda no GPIO do slot, a leitura de
   20 s depois do boot entrou no histórico como a do slot, e a quarentena começou no minuto seguinte.
+- **Um Air com telemetria por TLS e sem `/cert.pem` grava dois registros em todo despertar:** o 545
+  (`TEL_CERT_MISSING`, "Sem cert.pem, modo inseguro") e o 544 (`TEL_CERT_READ_ERR`, contexto 1: TLS ligado sem validar o
+  certificado). O `TelemetryManager::begin( )` os grava em toda partida, e a lista de preâmbulo do boot do
+  `LogPolicy.cpp`, que silencia os outros registros de partida de um despertar, não os tem. Não é novo: no mesmo Air, a
+  v2.11.1 os gravou em cada um de três despertares e a candidata em cada um de onze (29/10/2026).
+- **A alpha e o Air gravam um erro depois de cada atualização:** `Config changed: image CRC mismatch over 990720 B, want
+  4f5041ca` na alpha, `over 1035776 B, want 299abf18` no Air (`AppManager_Boot.cpp`; 29/10/2026, e o mesmo nos dois no
+  portão da v2.11.1, 05/10/2026). O slot é igual à imagem assinada exceto o setor de 4 KiB do banco de flash do BTstack,
+  que fica dentro da faixa que a conferência soma: a causa provável. A atualização instala e sobe, e a versão e a
+  configuração são as novas; a imagem release grava `image verified` no lugar.
+- **Só oito dos onze temas de fábrica carregam.** O `MAX_CUSTOM_THEMES` é 8 (`src/Themes.cpp`, desde a v1.0.0) e o
+  diretório é lido em ordem, então com os onze `.thm` enviados o `ubuntu`, o `unimed_claro` e o `unimed_escuro`, os
+  últimos nessa ordem, ficam de fora: o `GET /api/themes` lista nove linhas, o `simut_def` e oito, nas duas placas
+  (29/10/2026). Os pacotes trazem os onze nomes (#298); o R-R14 do `docs/analysis/MODELO_DE_RECURSOS.md` tem o limite.
 - **Fechados desde a lista da v2.11.1**, cada um sob o título dele acima: o configurador de builds para o Pico 2 W
-  (#260), a resposta chunked que perdia o enquadramento (#189, consertada pelo #272 e pelo #273 e medida só num Pico
-  W) e os nomes de evento vazios da alpha (#286, conferido nas imagens e ainda não visto no console de uma alpha).
+  (#260), a resposta chunked que perdia o enquadramento (#189, consertada pelo #272 e pelo #273, medida num Pico W, e o
+  soak do portão no Pico 2 W não perdeu nenhuma de 120 leituras) e os nomes de evento vazios da alpha (#286, visto no
+  console de uma alpha no portão, 29/10/2026).
 
 ## v2.11.1 (2026-10-12)
 

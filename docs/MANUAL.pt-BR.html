@@ -370,7 +370,7 @@ figcaption b{color:var(--tinta);font-weight:600}
 <p>O mapa completo do sistema de arquivos está no <a href="#cap-17-conteudo">capítulo 17</a>.</p>
 <figure id="fig-01-arquitetura" class="fig fig-diagrama"><div class="pendente pendente-diagrama" role="img" aria-label="Imagem a capturar: O aparelho em blocos: os sensores entram pelo Core 0, a tela fica com o Core 1, e a flash se divide entre o programa e o sistema de arquivos."><span class="selo selo-alerta"><i></i>Imagem a capturar</span><span class="pend-tipo">Diagrama · <code>01-arquitetura.png</code></span><span class="pend-como">diagrama de blocos do aparelho: à esquerda, os sensores (DS18B20, DHT22, BME280/BMP280) ligados a GP0–GP15; no centro, o RP2040 com dois blocos, Core 0 (sensores, alarmes, histórico, rede, web, console, telemetria) e Core 1 (painel TFT e toque na release; LCD na alpha; sem uso no Air); abaixo, a flash de 2 MB em duas faixas, &#x27;programa 1 MB&#x27; e &#x27;LittleFS 1 MB&#x27; com as pastas /config, /history, /lang, /themes e o log de eventos; à direita, as saídas: navegador (interface web), servidor de telemetria (HTTP/MQTT), linha de alarmes, Home Assistant, Prometheus e syslog; embaixo à direita, o cabo USB e o Bluetooth levando ao console</span></div><figcaption><b>Figura 1.</b> O aparelho em blocos: os sensores entram pelo Core 0, a tela fica com o Core 1, e a flash se divide entre o programa e o sistema de arquivos.</figcaption></figure>
 <h3 id="cap-01-versoes">Versões</h3>
-<p>Este manual descreve a <strong>v2.12.0</strong>, de 28/10/2026, a versão publicada mais recente. A linha 2.7 saiu do beta com a v2.7.0.</p>
+<p>Este manual descreve a <strong>v2.12.0</strong>, de 29/10/2026, a versão publicada mais recente. A linha 2.7 saiu do beta com a v2.7.0.</p>
 <p>O que a v2.12.0 mudou para quem usa o aparelho:</p>
 <ul>
 <li>no Pico W, o barramento do painel passa a ser ajustado a 66,5 MHz, onde rodava a 24 MHz (lido na bancada em 15/10/2026);</li>
@@ -25597,7 +25597,7 @@ O formato de arquivo que a placa aceita no modo BOOTSEL (<a href="#cap-03">capí
 <tbody>
 <tr class="odd">
 <td>v2.12.0</td>
-<td>28/10/2026</td>
+<td>29/10/2026</td>
 <td>O barramento do painel do Pico W passa a ser ajustado a 66,5 MHz, onde rodava a 24 MHz. Um rádio que para de responder não é mais associado às cegas: o aparelho reinicia pelo caminho planejado, e o log registra <code>SYS_WIFI_CONNECT</code> com contexto 4 (<a href="#cap-09-mudo">capítulo 9</a>). Um ponto de acesso que some enquanto o aparelho espera a hora é notado. Uma resposta da web não chega mais com pedaços faltando, e uma aba <code>http://</code> esquecida na porta HTTPS não reinicia o aparelho. Depois de um boot em inglês, a tela <strong>Idioma</strong> lista o pacote de <code>/lang</code> (<a href="#cap-11-menu">capítulo 11</a>), e a página <strong>Arquivos</strong> diz o motivo de um arquivo recusado (<a href="#cap-17-enviar">capítulo 17</a>). A página web mostra os nomes dos temas no idioma do aparelho.</td>
 </tr>
 </tbody>
@@ -25964,7 +25964,7 @@ O formato de arquivo que a placa aceita no modo BOOTSEL (<a href="#cap-03">capí
 </section>
 </main>
 <footer class="colofao">
-<p>Manual do SIMUT, gerado em 28/10/2026 por <code>tools/build_manual.py</code> a partir de <code>docs/_manual/</code>. Licença MIT, como o firmware.</p>
+<p>Manual do SIMUT, gerado em 29/10/2026 por <code>tools/build_manual.py</code> a partir de <code>docs/_manual/</code>. Licença MIT, como o firmware.</p>
 <p>Visual no padrão Ângulo. Fonte de títulos: Ângulo Display, recorte da Bricolage Grotesque SemiBold, SIL Open Font License 1.1.</p>
 </footer>
 </div>
