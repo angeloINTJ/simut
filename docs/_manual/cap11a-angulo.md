@@ -4,7 +4,7 @@
 
 ## O painel Ângulo em resumo {#cap-11a-visao}
 
-O painel é uma tela de 320 × 240 pixels com toque resistivo, como a do painel original. Muda o desenho: os cartões, as cores, os ícones e as telas. Não muda o que um toque faz: as ações são as mesmas funções do núcleo, e quem decide é o núcleo 0. Cada toque que altera algo vira um pedido, e o núcleo 0 confere a permissão da conta antes de gravar, com quatro exceções registradas ([O menu de configurações](#cap-11a-menu)). As leituras, os alarmes, as contas e as permissões vêm do núcleo 0, como no painel original: as regras estão no [capítulo 7](#cap-07) (alarmes) e no [capítulo 8](#cap-08) (contas e PIN), e valem para os dois painéis.
+O painel é uma tela de 320 × 240 pixels com toque resistivo, como a do painel original. Muda o desenho: os cartões, as cores, os ícones e as telas. Não muda o que um toque faz: as ações são as mesmas funções do núcleo, e quem decide é o núcleo 0. Cada toque que grava na configuração vira um pedido, e o núcleo 0 confere a permissão da conta antes de gravar, com quatro exceções registradas ([O menu de configurações](#cap-11a-menu)). Silenciar um alarme é outra coisa e não pede permissão, de propósito: quem está diante do painel pode parar o som, e a linha de alarmes registra o silêncio ([A tela de alarme](#cap-11a-alarme)). As leituras, os alarmes, as contas e as permissões vêm do núcleo 0, como no painel original: as regras estão no [capítulo 7](#cap-07) (alarmes) e no [capítulo 8](#cap-08) (contas e PIN), e valem para os dois painéis.
 
 Três regras valem para todas as telas:
 
@@ -28,7 +28,7 @@ A tela inicial tem quatro faixas, de cima para baixo:
 | Faixa | O que mostra |
 |---|---|
 | Barra de cima | `SIMUT`, a hora, o que a telemetria ainda tem a enviar e a rede |
-| Cartão de cima | Um sensor; com um alfinete ao lado do nome quando o cartão está fixado nele |
+| Cartão de cima | Um sensor: o fixado, com um alfinete ao lado do nome, ou, sem fixação, o selecionado |
 | Cartão de baixo | O sensor selecionado na barra de botões |
 | Barra de botões | Um botão por sensor, a engrenagem das configurações e, se preciso, o botão de página |
 
@@ -95,7 +95,7 @@ O número grande do cartão de baixo tem a cor da situação. Sem leitura, o car
 
 Um cartão sem sensor diz **Nenhum sensor ativo** (*No active sensor*) e **Ative um sensor pela web.** (*Activate a sensor on the web.*). Sem sensor em nenhum dos dois cartões, a mensagem ocupa a área dos dois.
 
-**Fixado.** O cartão de cima pode ficar fixado num sensor: o ícone de um alfinete aparece ao lado do nome, e o sensor fixado não ganha botão na barra de botões. Segurar o dedo no cartão por 3 s fixa o sensor selecionado ou desfaz a fixação ([Gestos e navegação](#cap-11a-gestos)).
+**Fixado.** O cartão de cima pode ficar fixado num sensor: o ícone de um alfinete aparece ao lado do nome, e o sensor fixado não ganha botão na barra de botões. Segurar o dedo no cartão por 3 s fixa o sensor selecionado ou desfaz a fixação ([Gestos e navegação](#cap-11a-gestos)). Sem fixação, o cartão de cima mostra o sensor selecionado, o mesmo do cartão de baixo; ao fixar o sensor que está selecionado, o cartão de baixo passa para o primeiro outro sensor ativo, se houver.
 
 ### Mínimo e máximo {#cap-11a-minmax}
 
@@ -133,7 +133,7 @@ Tocar no cartão que pisca abre a [tela de alarme](#cap-11a-alarme) do sensor, e
 
 ### O aviso de web ocupada {#cap-11a-web-ocupada}
 
-Enquanto a web grava no aparelho, um cartão cobre a parte de baixo da tela inicial com o nome da conta e a frase **está gravando pela web.** (*is saving through the web.*), e embaixo **Aguarde para tocar na tela.** (*Wait before touching the screen.*). O texto segue o idioma do painel. Os controles continuam desenhados, mas não respondem: o painel recusa os toques na tela inicial até a web terminar. O nome da conta é cortado com `…` quando a frase não cabe.
+Algumas operações da interface web leem a memória por vários segundos: os gráficos do histórico, a exportação do histórico em CSV, a leitura e a exportação do log de eventos. Enquanto uma delas corre, um cartão de 52 px cobre o pé do cartão de baixo, com o nome da conta e a frase **está lendo os registros pela web.**, e embaixo **Aguarde para tocar na tela.** (*Wait before touching the screen.*). O nome do sensor e o selo de situação, acima dele, e a barra de botões continuam à vista. Nada é gravado: o cartão só aparece enquanto a web lê. O texto segue o idioma do painel. Os controles continuam desenhados, mas não respondem: o painel recusa os toques na tela inicial até a web terminar. O nome da conta é cortado com `…` quando a frase não cabe.
 
 ### Claro e escuro {#cap-11a-modo}
 
@@ -199,14 +199,14 @@ Os números do painel usam o separador decimal do idioma, que o pacote de idioma
 ### A tela do gráfico {#cap-11a-grafico-tela}
 
 ::: {.figura #fig-11a-grafico tipo="tft" arquivo="11a-grafico.png" captura="desenhada pelo código do painel (tools/tft_ui), amostra grafico_24h do grupo graficos, modo claro, pacote pt-BR, ampliada 2x; refazer com python3 tools/tft_ui/manual_frames.py --write"}
-O gráfico da janela de 24 h de um sensor de temperatura, em valores de exemplo: o título, as estatísticas, a curva, o eixo de tempo e, no rodapé, as setas e os cinco períodos, com **24 h** aceso.
+O gráfico da janela de 24 h de um sensor de temperatura, em valores de exemplo: o título, as estatísticas, a curva com a linha tracejada cinza da média (4,4), o eixo de tempo e, no rodapé, as setas e os cinco períodos, com **24 h** aceso.
 :::
 
 De cima para baixo:
 
 - **O título** traz o nome do sensor e a janela. À direita ficam **Dia** e **Voltar**. O título é só leitura: tocar nele não faz nada.
 - **As estatísticas** são da temperatura e da janela inteira: **máx** (*max*) e **mín** (*min*), cada um com a hora em que ocorreu (`dd/mm` na janela de 7 d), **média** (*avg*), **σ** (o desvio), **Δ** (a variação) e **agora** (*now*). Quando a janela termina no passado, **agora** vira **fim** (*end*).
-- **A curva** usa até 200 intervalos de tempo, e nunca menos de 40. Linhas tracejadas marcam os limites de alarme do sensor, quando caem dentro da escala; elas nunca esticam a escala.
+- **A curva** usa até 200 intervalos de tempo, e nunca menos de 40. Duas linhas tracejadas podem aparecer: os limites de alarme do sensor, em vermelho, só quando caem dentro da escala (eles nunca esticam a escala), e a média da janela, em cinza.
 - **O eixo de tempo** tem três marcas: começo, meio e fim da janela, em `hh:mm` até 24 h e em `dd/mm` na janela de 7 d. A data aparece também na primeira marca quando a janela cruza a meia-noite ou está no passado.
 - **O rodapé** tem a seta de recuar, os cinco períodos e a seta de avançar.
 
@@ -228,7 +228,7 @@ O detalhe tem uma página para cada grandeza que o sensor tem, nesta ordem: **Te
 
 ### O calendário {#cap-11a-calendario}
 
-O botão **Dia** abre o calendário do sensor. O título traz o mês e o ano, como `Out 2026`, e a semana começa no domingo. Os dias com histórico têm um ponto, e só eles respondem ao toque. O dia de hoje fica marcado na cor de destaque. Embaixo, **Ponto = dia com histórico.** (*Dot = day with history.*) explica o ponto; num mês sem nenhum dia com histórico, o texto é **Nenhum dia com histórico.** (*No days with history.*).
+O botão **Dia** abre o calendário do sensor. O título traz o mês e o ano, como `Out 2026`, e a semana começa no domingo. Os dias com histórico têm um ponto, e só eles respondem ao toque. O dia de hoje fica marcado na cor de destaque e nunca leva o ponto: com histórico, ele responde ao toque do mesmo jeito. Embaixo, **Ponto = dia com histórico.** (*Dot = day with history.*) explica o ponto; num mês sem nenhum dia com histórico, o texto é **Nenhum dia com histórico.** (*No days with history.*).
 
 ::: {.figura #fig-11a-calendario tipo="tft" arquivo="11a-calendario.png" captura="desenhada pelo código do painel (tools/tft_ui), amostra calendario_outubro do grupo graficos, modo claro, pacote pt-BR, ampliada 2x; refazer com python3 tools/tft_ui/manual_frames.py --write"}
 O calendário de outubro de 2026, em valores de exemplo: os dias com histórico com um ponto, o dia de hoje marcado e o botão **Hoje** no canto.
@@ -333,7 +333,7 @@ A tela **Manutenção** abre pelo menu do sensor, com o nome do sensor no títul
 Uma manutenção em andamento, em valores de exemplo: o tempo restante e o botão **Encerrar manutenção**.
 :::
 
-Embaixo, a nota **Os alarmes ficam suspensos até o fim.** Sem a permissão **Manut. (painel)**, a tela diz **Sua conta não pode abrir manutenção.** ou **Sua conta não pode encerrar.**, e o painel não envia o pedido. O núcleo 0 recebe os segundos (zero fecha a janela), confere a permissão de novo, grava, registra e reavalia os alarmes.
+Embaixo, a nota **Os alarmes ficam suspensos até o fim.** aparece quando a conta tem a permissão **Manut. (painel)** ou a janela está aberta. Sem a permissão, a tela diz **Sua conta não pode abrir manutenção.**, sozinha, quando não há janela aberta, ou **Sua conta não pode encerrar.**, sob a nota dos alarmes, quando há; e o painel não envia o pedido. O núcleo 0 recebe os segundos (zero fecha a janela), confere a permissão de novo, grava, registra e reavalia os alarmes.
 
 ### Sons {#cap-11a-sons}
 
@@ -368,8 +368,8 @@ A tela **Status** (*Status*) é só de leitura: mostra o estado do aparelho em q
 | Página | Linhas |
 |---|---|
 | **Sistema** (*System*) | **Aparelho** (*Device*; **Sem nome** se não tem nome), **Firmware**, **Tempo ligado** (*Uptime*), **Memória livre**, **Flash** (usado e total) e **Placa** (a temperatura da placa e o fuso horário) |
-| **Rede** (*Network*) | **Wi-Fi** (o nome da rede, ou **Conectado** ou **Desconectado**), **Sinal**, **NTP** (**Sincronizado** ou **Não sincronizado**), **Endereço IP**, **MAC** e **Servidor NTP**. Numa imagem com cabo, **Cabo** (**Conectado** ou **Sem cabo**) e nenhuma linha de sinal |
-| **Sensores** (*Sensors*) | **Ativos**, a quantidade de sensores ativos, e uma linha por sensor com a situação: **Na faixa**, **Em alarme**, **Erro**, **Manutenção** ou **Sem alarme** (alarmes desligados). Até 5 sensores; os outros viram a linha `e mais N sensores` |
+| **Rede** (*Network*) | **Wi-Fi** (o nome da rede, ou **Conectado** ou **Desconectado**), **Sinal** (só com o Wi-Fi conectado), **Endereço IP**, **MAC**, **NTP** (**Sincronizado** ou **Não sincronizado**) e **Servidor NTP**. Numa imagem com cabo, **Cabo** (**Conectado** ou **Sem cabo**) e nenhuma linha de sinal |
+| **Sensores** (*Sensors*) | **Ativos**, como `3 de 16` (os sensores ativos e o total de slots), e uma linha por sensor com a situação: **Na faixa**, **Em alarme**, **Erro**, **Manutenção** ou **Sem alarme** (alarmes desligados). Até 5 sensores; os outros viram a linha `e mais N sensores` |
 | **Telemetria** (*Telemetry*) | **Transporte** (**MQTT** ou **HTTP**), **Servidor**, **Pendentes** e **Lote mínimo**; com MQTT, uma linha **MQTT** diz **Conectado** ou **Desconectado** |
 
 ::: {.figura #fig-11a-status tipo="tft" arquivo="11a-status.png" captura="desenhada pelo código do painel (tools/tft_ui), amostra status_sistema do grupo menus, modo claro, pacote pt-BR, ampliada 2x; refazer com python3 tools/tft_ui/manual_frames.py --write; página Sistema; os valores, a versão do firmware (2.11.1) entre eles, são dados da amostra"}
@@ -392,7 +392,7 @@ A tela Data e hora, em valores de exemplo: dia, mês e ano à esquerda, hora e m
 
 ### A rede de configuração {#cap-11a-ap}
 
-A linha **Modo de configuração** (*Setup mode*) do menu abre a pergunta **Abrir a rede de configuração?** A tela avisa que o aparelho sai da rede Wi-Fi, abre a própria rede de configuração e que a telemetria para até ele voltar, 15 minutos depois. O prazo é o `AP_MODE_TIMEOUT_MS`, de 900.000 ms.
+A linha **Modo de configuração** (*Setup mode*) do menu abre a pergunta **Abrir a rede de configuração?** A tela avisa que o aparelho sai da rede Wi-Fi, abre a própria rede de configuração e que a telemetria para até ele voltar, 15 minutos depois. O prazo é o `AP_MODE_TIMEOUT_MS`, de 900.000 ms, e só vale com uma rede Wi-Fi configurada: é a ela que o aparelho volta, reiniciando. Sem rede configurada, o aparelho não reinicia no fim do prazo, e a frase da tela não vale.
 
 ::: {.figura #fig-11a-ap-confirmar tipo="tft" arquivo="11a-ap-confirmar.png" captura="desenhada pelo código do painel (tools/tft_ui), amostra dialogo_ap do grupo base, modo claro, pacote pt-BR, ampliada 2x; refazer com python3 tools/tft_ui/manual_frames.py --write; confirmação para abrir a rede de configuração"}
 A pergunta que abre a rede de configuração, com os botões **Cancelar** e **Abrir rede**.
@@ -434,7 +434,7 @@ Para entrar no menu, o painel pergunta quem está na frente dele e pede o PIN da
 
 ### A escolha da conta {#cap-11a-quem}
 
-A engrenagem da tela inicial abre **Quem está no painel?** (*Who is at the panel?*): uma lista com o nome das contas, quatro por página, e **Voltar**. As setas de página param nas pontas e repetem a cada 300 ms. Um toque numa conta abre o teclado do PIN dela; uma conta bloqueada só toca o som de erro. **Voltar** leva à tela inicial. Se nenhuma conta tem PIN, a tela diz **Nenhuma conta tem PIN.** e **Defina um PIN pela web.**.
+A engrenagem da tela inicial abre **Quem está no painel?** (*Who is at the panel?*): uma lista com o nome das contas, quatro por página, e **Voltar**. As setas de página param nas pontas e repetem a cada 300 ms. Um toque numa conta abre o teclado do PIN dela. A linha de uma conta bloqueada mostra o selo **Bloqueada** (*Locked*), em vermelho, com o nome apagado e sem a seta; um toque nela só toca o som de erro. **Voltar** leva à tela inicial. Se nenhuma conta tem PIN, a tela diz **Nenhuma conta tem PIN.** e **Defina um PIN pela web.**.
 
 ::: {.figura #fig-11a-quem tipo="tft" arquivo="11a-quem.png" captura="desenhada pelo código do painel (tools/tft_ui), amostra quem_3_contas do grupo identidade, modo claro, pacote pt-BR, ampliada 2x; refazer com python3 tools/tft_ui/manual_frames.py --write"}
 A escolha da conta, em valores de exemplo: três contas.
@@ -455,7 +455,7 @@ O teclado de cartões da conta maria, em valores de exemplo: seis cartões, nenh
 Para definir um PIN, o painel usa o teclado numérico ordenado, em duas fases: **Novo PIN** (*New PIN*), com a dica `Escolha de 6 a 8 dígitos.` e o botão **Seguir** (*Continue*), e **Confirme o novo PIN**, com **Digite o mesmo PIN de novo.** e o botão **Salvar PIN** (*Save PIN*). Um PIN curto diz `PIN curto: use 6 dígitos ou mais.`, e dois PINs diferentes dizem **Os PINs não batem. Comece de novo.**, e a tela pede para recomeçar. Para o PIN de outra conta, a dica leva o nome dela, como `joao.silva: digite o mesmo PIN.`.
 
 ::: {.figura #fig-11a-pin-novo tipo="tft" arquivo="11a-pin-novo.png" captura="desenhada pelo código do painel (tools/tft_ui), amostra pin_definir_fase1 do grupo identidade, modo claro, pacote pt-BR, ampliada 2x; refazer com python3 tools/tft_ui/manual_frames.py --write; primeira fase da troca de PIN"}
-A primeira fase de um PIN novo, em valores de exemplo: seis lugares, cinco dígitos, o teclado numérico e **Seguir**.
+A primeira fase de um PIN novo, em valores de exemplo: seis lugares, quatro deles preenchidos, o teclado numérico, com a tecla **5** apertada, e **Seguir**.
 :::
 
 Quem escolhe o próprio PIN usa **Alterar meu PIN**, no menu. Outro caminho é a troca obrigatória: o núcleo 0 leva a conta a esta tela, sem escolha, quando o PIN dela não cumpre mais a política (curto demais, ou com caracteres que o alfabeto novo não tem), quando é um PIN que a web definiu e é mais curto que a política, e no PIN de fábrica do administrador. Se a pessoa toca em **Cancelar** nessa tela, o painel volta à tela inicial, e a engrenagem pede o PIN de novo e leva a conta de volta à troca, para o menu não abrir com o PIN antigo. Na troca do próprio PIN pelo menu, **Cancelar** volta ao menu; na de outra conta, volta ao editor dela. O núcleo 0 grava o PIN: o de outra conta pede **Usuários** [PERM_USER_MGR]{.perm}, e o próprio pede só a sessão ([O próprio PIN](#cap-08-proprio-pin)).
@@ -472,7 +472,7 @@ A política de PIN, em valores de exemplo: tamanho mínimo 6, teclado de 6 cart�
 
 ### Usuários {#cap-11a-usuarios}
 
-A tela **Usuários** (*Users*) lista as contas e tem, no alto, o botão **Nova conta** (*Add account*). Cada linha mostra o nome e as permissões de painel da conta: **Limites**, **Alarmes** e **Manut.**, ou **Só leitura** (*Read only*), e os selos **Sem PIN** (*No PIN*) e **Bloqueada** (*Locked*). Sem outras contas, a tela diz **Só o admin existe.** e **Toque em Nova conta para criar outra.**; sem a permissão, **Sua conta não pode criar contas.**.
+A tela **Usuários** (*Users*) lista as contas e tem, no alto, o botão **Nova conta** (*Add account*). Cada linha mostra o nome e as permissões de painel da conta: **Limites**, **Alarmes** e **Manut.**, ou **Só leitura** (*Read only*), e o selo **Sem PIN** (*No PIN*), na conta que não tem PIN. O selo **Bloqueada** não aparece aqui, só na [escolha da conta](#cap-11a-quem). Sem outras contas, a tela diz **Só o admin existe.** e **Toque em Nova conta para criar outra.**; sem a permissão, **Sua conta não pode criar contas.**.
 
 ::: {.figura #fig-11a-usuarios tipo="tft" arquivo="11a-usuarios.png" captura="desenhada pelo código do painel (tools/tft_ui), amostra usuarios_3_contas do grupo identidade, modo claro, pacote pt-BR, ampliada 2x; refazer com python3 tools/tft_ui/manual_frames.py --write"}
 A lista de usuários, em valores de exemplo: três contas, com as permissões de painel de cada uma e o selo **Sem PIN** na terceira.
@@ -504,19 +504,19 @@ A faixa vermelha diz o que aconteceu: o nome do sensor e a causa, **em alarme**,
 
 | Botão | O que faz | Permissão |
 |---|---|---|
-| **Silenciar por** e os segundos, como `Silenciar por 120 s` (*Silence for*) | Silencia o alarme do sensor por 120 s | Nenhuma: qualquer pessoa no painel pode parar o som, e a linha de alarmes registra |
+| **Silenciar por** e os segundos, como `Silenciar por 120 s` (*Silence for*) | Silencia o painel inteiro por 120 s, não só o sensor desta tela, e volta à tela inicial | Nenhuma: qualquer pessoa no painel pode parar o som, e a linha de alarmes registra |
 | **Ver mínimo e máximo** (*View minimum and maximum*) | Volta à tela inicial com um cartão em mínimo e máximo | Nenhuma |
 | **Desativar os alarmes (pede o PIN)** (*Deactivate alarms (asks for PIN)*) | Abre o teclado do PIN; com o PIN, o núcleo 0 desativa os alarmes do sensor | **Bloqueio (painel)** [PERM_ALARM_BLOCK]{.perm}, conferida depois do PIN |
 
 **Ver mínimo e máximo** põe sempre o cartão de baixo em mínimo e máximo, mesmo quando a tela foi aberta pelo cartão de cima: é um defeito do painel original, mantido.
 
-**O silêncio** dura 120 s. Enquanto dura, os cartões param de piscar e ficam com a borda vermelha, o toque neles volta ao normal, e a barra de cima mostra **Silenciado** e os segundos que faltam, como `Silenciado · 87 s`. O núcleo 0 para o som do alarme e registra o silêncio na linha de alarmes.
+**O silêncio** dura 120 s e vale para o painel inteiro, não para um sensor só: é uma marca única, que todos os cartões leem. Enquanto dura, os cartões param de piscar e ficam com a borda vermelha, o toque neles volta ao normal, e a barra de cima mostra **Silenciado** e os segundos que faltam, como `Silenciado · 87 s`. O núcleo 0 para o som do alarme e registra o silêncio na linha de alarmes.
 
 ::: {.figura #fig-11a-silenciado tipo="tft" arquivo="11a-silenciado.png" captura="desenhada pelo código do painel (tools/tft_ui), amostra painel_silenciado do grupo painel, modo claro, pacote pt-BR, ampliada 2x; refazer com python3 tools/tft_ui/manual_frames.py --write"}
 A tela inicial durante o silêncio, em valores de exemplo: o selo `Silenciado · 87 s` no lugar da hora, o cartão do sensor em alarme com borda vermelha e o ponto vermelho no botão S1.
 :::
 
-**A rotação.** Com dois ou mais sensores em alarme e sem silêncio, o cartão de baixo passa de um sensor em alarme para o seguinte a cada 3 s, e a barra de botões vai para a página dele. A rotação percorre os slots de 0 a 9 e pula o sensor fixado no cartão de cima, que já está à vista. A tela de alarme em si não gira: ela mostra o sensor em que você tocou. Os alarmes estão no [capítulo 7](#cap-07-tela-alarme).
+**A rotação.** Com dois ou mais sensores em alarme e sem silêncio, o cartão de baixo passa de um sensor em alarme para o seguinte a cada 3 s, e a barra de botões vai para a página dele. A rotação só olha os slots de 0 a 9 e não conta o sensor fixado no cartão de cima, que já está à vista: com dois sensores em alarme, um deles fixado, o cartão de baixo não gira. A tela de alarme em si não gira: ela mostra o sensor em que você tocou. Os alarmes estão no [capítulo 7](#cap-07-tela-alarme).
 
 ## Temas: a cor de destaque e o modo {#cap-11a-temas}
 
@@ -669,13 +669,13 @@ O gesto do ponto de acesso é do núcleo 0: ele abre uma janela de 3,5 s e pede 
 
 ## A volta à tela inicial {#cap-11a-ocioso}
 
-Depois de 30 s sem nenhum toque, o painel volta à tela inicial, a partir de qualquer tela, menos três: a própria tela inicial, a de atualização do firmware e o boot. A volta só troca a tela; nada é gravado. Os cartões em mínimo e máximo também voltam ao valor atual depois de 30 s sem toque. O comando `screen` do console zera essa contagem, para a tela aberta por ele durar 30 s ([A referência das telas](#cap-11a-referencia)).
+Depois de 30 s sem nenhum toque, o painel volta à tela inicial, a partir de qualquer tela, menos três: a própria tela inicial, a de atualização do firmware e o boot. A volta só troca a tela; nada é gravado. Os cartões em mínimo e máximo também voltam ao valor atual depois de 30 s sem toque.
 
-**O que uma escolha ainda não aplicada perde.** Ela se perde. O painel só grava quando você toca no botão que salva ou aplica, e até lá o que está na tela é uma cópia: **Salvar limites**, **Salvar sons**, **Salvar hora**, **Salvar** na política de PIN e no alinhamento, **Aplicar tema**, **Iniciar manutenção** e a escolha de uma linha em **Idioma**. A prévia do tema só é desenhada na tela Tema, e a tela inicial usa sempre o tema gravado. O alinhamento é o caso a ter em mente: a prévia move a imagem na hora, antes de salvar, e **Voltar** devolve o alinhamento gravado.
+**O que uma escolha ainda não aplicada perde.** Ela se perde. O painel só grava quando você toca no botão que salva ou aplica, e até lá o que está na tela é uma cópia: **Salvar limites**, **Salvar sons**, **Salvar hora**, **Salvar** na política de PIN e no alinhamento, **Aplicar tema**, **Iniciar manutenção** e a escolha de uma linha em **Idioma**. A prévia do tema só é desenhada na tela Tema, e a tela inicial usa sempre o tema gravado. O alinhamento é o caso a ter em mente: a prévia move a imagem na hora, antes de salvar, e **Voltar** devolve o alinhamento gravado. A volta por inatividade não devolve: ela só troca a tela, e a imagem fica deslocada, sem ter sido salva. Se você entra de novo no alinhamento e toca em **Voltar**, o deslocamento fica; uma reinicialização aplica de novo o alinhamento gravado.
 
 ## Referência das telas {#cap-11a-referencia}
 
-O painel Ângulo tem 31 modos de tela, os mesmos do painel original. Dois deles têm mais de uma tela: `MODE_DASHBOARD`, que também desenha o boot, e `MODE_SETTINGS_SOUNDS`, que também desenha a escolha da melodia. A tabela traz o modo interno, o título em português, como chegar, a etiqueta do comando `screen` do console ([O painel pelo console](#cap-14-painel)) e a seção.
+O painel Ângulo tem 31 modos de tela, os mesmos do painel original. Desenha todos, menos `MODE_CONFIRM_AP` na imagem com cabo: sem rádio, essa imagem não tem a linha do menu nem a pergunta. Dois deles têm mais de uma tela: `MODE_DASHBOARD`, que também desenha o boot, e `MODE_SETTINGS_SOUNDS`, que também desenha a escolha da melodia. A tabela traz o modo interno, o título em português, como chegar, a etiqueta do comando `screen` do console ([O painel pelo console](#cap-14-painel)) e a seção.
 
 | Modo | Título na tela | Como chegar | Etiqueta | Seção |
 |---|---|---|---|---|
@@ -713,6 +713,6 @@ O painel Ângulo tem 31 modos de tela, os mesmos do painel original. Dois deles 
 
 As etiquetas `gra` e `pin` só existem nas imagens que têm o gráfico e o PIN no painel. As da atualização mostram a etapa sem atualizar nada.
 
-**O comando `screen`.** `screen <etiqueta>`, no console, abre a tela direto, sem passar pelo toque. Ele chama as mesmas funções do núcleo que mudam o modo, e o Ângulo tem um desenho para cada modo, então o comando vale aqui do mesmo jeito. Fora `dash`, `gra` e `pin`, ele entra como administrador, sem sessão de verdade, para o menu aparecer inteiro, e zera a contagem dos 30 s.
+**O comando `screen`.** `screen <etiqueta>`, no console, abre a tela direto, sem passar pelo toque, e a coluna **Etiqueta** diz qual etiqueta abre qual modo. O comando só existe no console completo, e nenhuma imagem com o painel Ângulo o tem: a `pico2_w_release` e a de bancada `pico_wiretft_angulo` levam o console de emergência. Das imagens com painel, só as de teste, `pico_w_test` e `pico_w_test_https`, têm o comando, e o painel delas é o original ([O painel pelo console](#cap-14-painel)). Fora `dash`, `gra` e `pin`, o comando entra como administrador, sem sessão de verdade, para o menu aparecer inteiro, e zera a contagem dos 30 s.
 
 **O espelho do painel na web** ([O Painel de Controle](#cap-13-painel-de-controle)) e a captura valem para o Ângulo: leem o vidro, não o desenho ([O que a captura e o espelho mostram](#cap-11a-captura)).

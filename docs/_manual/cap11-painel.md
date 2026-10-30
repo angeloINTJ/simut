@@ -55,10 +55,10 @@ A telemetria está no [capítulo 21](#cap-21).
 | Barras acesas | RSSI |
 |---|---|
 | 4 | acima de −55 dBm |
-| 3 | de −65 a −55 dBm |
-| 2 | de −75 a −65 dBm |
-| 1 | abaixo de −75 dBm |
-| Nenhuma | Sem conexão, ou leitura de sinal impossível |
+| 3 | de −64 a −55 dBm |
+| 2 | de −74 a −65 dBm |
+| 1 | de −99 a −75 dBm |
+| Nenhuma | −100 dBm ou menos; também sem conexão, ou com leitura de sinal impossível |
 
 **O que substitui a data e a hora.** Dois avisos ocupam o lugar do relógio enquanto duram:
 

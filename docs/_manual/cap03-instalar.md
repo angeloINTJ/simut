@@ -140,6 +140,8 @@ O [configurador de build](https://angelointj.github.io/simut/configurador/) mont
 
 **Compilar esta build** exige um token do GitHub com acesso de escrita ao repositório. Sem ele, **Pedir esta build** abre um pedido no GitHub com a configuração preenchida.
 
+**O visual da tela touch.** Em **Interface**, a opção **Visual da tela touch** (*Touch display look*) escolhe o desenho do painel: **Visual original** ou **Visual Ângulo**. [main]{.img} A release do Pico 2 W traz o **Visual Ângulo** ([capítulo 11A](#cap-11a)), e a do Pico W traz o original ([capítulo 11](#cap-11)). O **Visual Ângulo** exige a tela touch e a chave **Gráfico e calendário na tela touch** ligada, e o configurador não o oferece no Pico W com Wi-Fi: nesses casos a opção aparece **Bloqueada**, com o motivo.
+
 - **A soma é uma estimativa.** Contra oito builds reais de mudanças combinadas, ela errou por até 4.392 B de flash e 8.192 B de `.bin`. Por isso a página diz **No limite** perto de um teto; a build dá o número exato.
 - **A imagem sai da `main`** e informa a versão da `main`, que pode estar à frente da última versão publicada. Sem mudanças, a página aponta a última versão publicada, porque compilar gera a `main` de hoje.
 - **A imagem continua do mesmo tipo.** O configurador não troca a tela de um produto, então a página **Arquivos** aceita o `.bin` num aparelho do mesmo produto ([capítulo 17](#cap-17-ota-conferencias)).
