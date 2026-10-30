@@ -140,7 +140,7 @@ figcaption b{color:var(--tinta);font-weight:600}
 <header class="capa">
 <div class="capa-topo"><span class="marca">SIMUT</span><button class="botao" id="tema" type="button">Usar tema escuro</button></div>
 <h1>Manual do SIMUT</h1>
-<p class="sub">Instalação, configuração, uso no dia a dia e integração com servidores, para as três imagens publicadas: o painel (release), o LCD (alpha) e o registrador a bateria (Air).</p>
+<p class="sub">Instalação, configuração, uso no dia a dia e integração com servidores, para as quatro imagens publicadas: o painel (release, no Pico W e no Pico 2 W), o LCD (alpha) e o registrador a bateria (Air).</p>
 <ul class="fatos">
 <li><span class="selo">Firmware v2.12.0</span></li>
 <li><span class="selo">31 capítulos e 3 apêndices</span></li>
@@ -202,9 +202,9 @@ figcaption b{color:var(--tinta);font-weight:600}
 <li><strong>Não depende de nuvem.</strong> A interface web sai do próprio aparelho e funciona numa rede local sem internet. As medições só saem para um servidor que você configurar: de fábrica, a telemetria e a linha de alarmes estão desligadas. O que o aparelho procura na rede de fábrica é a hora certa, por NTP (<a href="#cap-10-ntp">capítulo 10</a>).</li>
 </ul>
 <h3 id="cap-01-aparelhos">Os três aparelhos</h3>
-<p>O mesmo código gera três imagens de firmware publicadas, uma para cada montagem de hardware:</p>
+<p>O mesmo código gera quatro imagens de firmware publicadas, para três montagens de hardware:</p>
 <ul>
-<li><strong>release:</strong> o monitor com painel de toque colorido de 320×240;</li>
+<li><strong>release:</strong> o monitor com painel de toque colorido de 320×240, no Pico W (imagem <code>release</code>) ou no Pico 2 W (imagem <code>releasetwo</code>);</li>
 <li><strong>alpha:</strong> o monitor com LCD de 16×2 caracteres e console pelo Bluetooth;</li>
 <li><strong>Air (SIMUT Air):</strong> o registrador a bateria, sem tela, que hiberna entre as leituras. É experimental.</li>
 </ul>
@@ -322,12 +322,12 @@ figcaption b{color:var(--tinta);font-weight:600}
 </tr>
 </tbody>
 </table></div>
-<p>Os 16 slots de sensor, os quatro tipos de sensor, o histórico, os alarmes, as contas e as permissões são iguais nas três imagens. As diferenças de cada recurso estão no capítulo dele: o ponto de acesso no <a href="#cap-09-ap">capítulo 9</a>, o console no <a href="#cap-14-perfis">capítulo 14</a>, o PIN no <a href="#cap-08-imagens">capítulo 8</a>, o Air no <a href="#cap-19">capítulo 19</a>.</p>
+<p>Os 16 slots de sensor, os quatro tipos de sensor, o histórico, os alarmes, as contas e as permissões são iguais em todas as imagens. As diferenças de cada recurso estão no capítulo dele: o ponto de acesso no <a href="#cap-09-ap">capítulo 9</a>, o console no <a href="#cap-14-perfis">capítulo 14</a>, o PIN no <a href="#cap-08-imagens">capítulo 8</a>, o Air no <a href="#cap-19">capítulo 19</a>.</p>
 <aside class="faixa faixa-atencao"><span class="selo selo-alerta"><i></i>Atenção</span>
 <p><strong>Cada imagem serve a um hardware.</strong> Uma imagem gravada no hardware errado não encontra a tela dela. Na atualização pela web, o aparelho recusa uma imagem feita para outro hardware; na gravação pelo USB, ele aceita qualquer uma. A escolha da imagem está no <a href="#cap-03-escolher">capítulo 3</a>.</p>
 </aside>
 <h4 id="cap-01-bancada">As imagens de bancada</h4>
-<p>O código gera também três imagens para testes automáticos: <code>pico_w_test</code>, <code>pico_w_test_https</code> e <code>pico_w_asserts</code>. Elas não são publicadas e não servem para uso: as duas primeiras trazem o console completo e comandos de teste, e a terceira existe para detectar erros de concorrência. Use sempre uma das três imagens publicadas.</p>
+<p>O código gera também três imagens para testes automáticos: <code>pico_w_test</code>, <code>pico_w_test_https</code> e <code>pico_w_asserts</code>. Elas não são publicadas e não servem para uso: as duas primeiras trazem o console completo e comandos de teste, e a terceira existe para detectar erros de concorrência. Use sempre uma das quatro imagens publicadas.</p>
 <h3 id="cap-01-dentro">Como ele funciona por dentro</h3>
 <p>O RP2040, o processador do Pico W, tem dois núcleos:</p>
 <ul>
@@ -425,7 +425,7 @@ figcaption b{color:var(--tinta);font-weight:600}
 </tr>
 </tbody>
 </table></div>
-<p>Uma seção sem selo vale para as três imagens.</p>
+<p>Uma seção sem selo vale para todas as imagens.</p>
 <h4>Selos de permissão</h4>
 <p>Uma ação que exige permissão mostra o nome técnico da permissão num selo, como <span class="selo selo-perm">PERM_NET_CONFIG</span>, e o nome que a página <strong>Usuários</strong> usa no texto, como <strong>Rede</strong>. As 13 permissões estão no <a href="#cap-08-permissoes">capítulo 8</a>.</p>
 <h4>Faixas</h4>
@@ -527,7 +527,7 @@ figcaption b{color:var(--tinta);font-weight:600}
 </ul>
 <p>Os GPIOs 23, 24, 25 e 29 não saem na borda da placa: o Pico W os usa internamente para falar com o chip de rádio.</p>
 <h3 id="cap-02-mapa">O mapa de pinos</h3>
-<p>Cada imagem usa os pinos de GP16 em diante para a tela, o toque, a cigarra e, no Air, para o controle de energia. Os pinos de GP0 a GP15 ficam para os sensores nas três imagens.</p>
+<p>Cada imagem usa os pinos de GP16 em diante para a tela, o toque, a cigarra e, no Air, para o controle de energia. Os pinos de GP0 a GP15 ficam para os sensores em todas as imagens.</p>
 <div class="tw"><table>
 <colgroup>
 <col style="width: 20%" />
@@ -852,7 +852,7 @@ figcaption b{color:var(--tinta);font-weight:600}
 </aside>
 <figure id="fig-02-air-energia" class="fig fig-diagrama"><div class="pendente pendente-diagrama" role="img" aria-label="Imagem a capturar: O Air: o GP16 corta a energia dos sensores durante o sono, e o GP17 percebe o carregador."><span class="selo selo-alerta"><i></i>Imagem a capturar</span><span class="pend-tipo">Diagrama · <code>02-air-energia.png</code></span><span class="pend-como">GP16 acionando uma chave do lado positivo (MOSFET canal P com acionamento, ou pino EN de um regulador 3,3 V) que alimenta o barramento de 3,3 V dos sensores; à parte, o carregador de 5 V com um divisor resistivo levando ao GP17; legenda &#x27;GP16 alto = acordado&#x27;</span></div><figcaption><b>Figura 5.</b> O Air: o GP16 corta a energia dos sensores durante o sono, e o GP17 percebe o carregador.</figcaption></figure>
 <h3 id="cap-02-livres">Onde ligar os sensores</h3>
-<p>Nas três imagens, os sensores vão nos pinos GP0 a GP15, que são os 16 slots. A página <strong>Configurações</strong> e o console recusam qualquer pino de GP16 em diante. Um pino atende um só slot ativo: dois slots ativos no mesmo GPIO são recusados.</p>
+<p>Em todas as imagens, os sensores vão nos pinos GP0 a GP15, que são os 16 slots. A página <strong>Configurações</strong> e o console recusam qualquer pino de GP16 em diante. Um pino atende um só slot ativo: dois slots ativos no mesmo GPIO são recusados.</p>
 <div class="tw"><table>
 <colgroup>
 <col style="width: 33%" />
@@ -11342,7 +11342,7 @@ Prosseguir com a restauração?</code></pre>
 </aside>
 <p>Você precisa de:</p>
 <ul>
-<li><strong>o arquivo <code>.bin</code> da imagem certa.</strong> Cada versão publica três imagens: <code>simut_v&lt;versão&gt;_release.bin</code>, <code>simut_v&lt;versão&gt;_alpha.bin</code> e <code>simut_v&lt;versão&gt;_air.bin</code>. Use a mesma variante que está no aparelho. O <code>.uf2</code> com o mesmo nome é para a gravação pelo USB (<a href="#cap-03">capítulo 3</a>), não para esta página;</li>
+<li><strong>o arquivo <code>.bin</code> da imagem certa.</strong> Cada versão publica quatro imagens: <code>simut_v&lt;versão&gt;_release.bin</code>, <code>simut_v&lt;versão&gt;_alpha.bin</code>, <code>simut_v&lt;versão&gt;_air.bin</code> e <code>simut_v&lt;versão&gt;_releasetwo.bin</code>, a release do Pico 2 W. Use a mesma variante que está no aparelho. O <code>.uf2</code> com o mesmo nome é para a gravação pelo USB (<a href="#cap-03">capítulo 3</a>), não para esta página;</li>
 <li><strong>uma conta de administrador completo;</strong></li>
 <li><strong>o aparelho ligado numa fonte estável</strong> durante cerca de 1,5 min;</li>
 <li><strong>uma conexão estável</strong> entre o computador e o aparelho. Se envios longos pela porta 80 caem na sua rede, use uma porta alternativa do servidor web (<a href="#cap-09-servidor-web">capítulo 9</a>).</li>
@@ -15313,7 +15313,7 @@ mosquitto_pub -h coletor.exemplo.com.br -u coletor -P &#39;senha-do-coletor&#39;
 <li>O Home Assistant lê essas mensagens e cria o dispositivo e as entidades.</li>
 <li>Daí em diante, cada mensagem de telemetria atualiza os valores, e a mensagem de estado do aparelho diz se ele está disponível.</li>
 </ol>
-<p>A descoberta não é um canal novo: ela usa a mesma conexão, o mesmo servidor, a mesma conta e o mesmo TLS da telemetria. O recurso existe nas três imagens: release, alpha e Air. No Air, veja as ressalvas em <a href="#cap-23-air">No SIMUT Air</a>.</p>
+<p>A descoberta não é um canal novo: ela usa a mesma conexão, o mesmo servidor, a mesma conta e o mesmo TLS da telemetria. O recurso existe nas três montagens: release, alpha e Air. No Air, veja as ressalvas em <a href="#cap-23-air">No SIMUT Air</a>.</p>
 <figure id="fig-23-fluxo" class="fig fig-diagrama"><div class="pendente pendente-diagrama" role="img" aria-label="Imagem a capturar: Legenda: o caminho das mensagens. O aparelho só publica; o Home Assistant só assina. Tudo passa pelo broker."><span class="selo selo-alerta"><i></i>Imagem a capturar</span><span class="pend-tipo">Diagrama · <code>23-fluxo.png</code></span><span class="pend-como">Três caixas da esquerda para a direita: &#x27;SIMUT (simut_0a1b2c)&#x27;, &#x27;Broker MQTT (broker.exemplo.com.br:1883)&#x27; e &#x27;Home Assistant&#x27;. Setas do SIMUT para o broker, numeradas: 1 &#x27;ao conectar: homeassistant/sensor/simut_0a1b2c/&lt;objeto&gt;/config (retida, uma por medição)&#x27;; 2 &#x27;simut/status {status: online} (retida)&#x27;; 3 &#x27;simut/data {ts, tSTM0001, ...} a cada envio&#x27;. Seta tracejada do broker para o próprio broker: &#x27;se o aparelho some: simut/status {status: offline} (última vontade)&#x27;. Setas do broker para o Home Assistant: &#x27;assina homeassistant/# e cria dispositivo e entidades&#x27;; &#x27;lê os valores em simut/data&#x27;; &#x27;lê a disponibilidade em simut/status&#x27;. Nota no rodapé: &#x27;o Home Assistant não manda nada ao aparelho&#x27;.</span></div><figcaption><b>Figura 192.</b> Legenda: o caminho das mensagens. O aparelho só publica; o Home Assistant só assina. Tudo passa pelo broker.</figcaption></figure>
 <h3 id="cap-23-o-que-aparece">O que aparece no Home Assistant</h3>
 <h4 id="cap-23-dispositivo">O dispositivo</h4>
@@ -15834,7 +15834,7 @@ simut/data {&quot;ts&quot;:1790168400,&quot;tSTM0001&quot;:4.25,&quot;tBME28001&
 <ul>
 <li><strong>É uma foto do agora.</strong> O aparelho responde com os valores do momento e não guarda nada para depois. Se o Prometheus não consultar, aquele instante se perde; o aparelho não reenvia nada.</li>
 <li><strong>Não precisa de configuração no aparelho.</strong> Não há opção para ligar ou desligar a rota. Basta uma conta com a permissão certa.</li>
-<li><strong>Existe nas três imagens.</strong> Na imagem release, a rota segue o protocolo da interface web: HTTP, ou só HTTPS com certificado instalado. Nas imagens alpha e Air, só HTTP. No Air, só com o aparelho acordado (<a href="#cap-24-air">No SIMUT Air</a>).</li>
+<li><strong>Existe em todas as imagens.</strong> Na imagem release, a rota segue o protocolo da interface web: HTTP, ou só HTTPS com certificado instalado. Nas imagens alpha e Air, só HTTP. No Air, só com o aparelho acordado (<a href="#cap-24-air">No SIMUT Air</a>).</li>
 </ul>
 <p>Para guardar as medições com a hora exata de cada registro, sem buracos, use a telemetria (<a href="#cap-21">capítulo 21</a>). O Prometheus serve para painéis, tendências e alertas.</p>
 <figure id="fig-24-coleta" class="fig fig-diagrama"><div class="pendente pendente-diagrama" role="img" aria-label="Imagem a capturar: Legenda: uma leitura do Prometheus. O aparelho confere a senha a cada pedido, e as senhas erradas alimentam o mesmo bloqueio da página de entrada."><span class="selo selo-alerta"><i></i>Imagem a capturar</span><span class="pend-tipo">Diagrama · <code>24-coleta.png</code></span><span class="pend-como">À esquerda, &#x27;Prometheus (a cada 60 s)&#x27;; à direita, &#x27;SIMUT 192.0.2.10&#x27;. Seta do Prometheus para o aparelho: &#x27;GET /metrics, Authorization: Basic metricas:…&#x27;. Dentro do aparelho, uma caixa &#x27;confere a senha (5.000 rodadas, cerca de 0,7 s)&#x27; e uma caixa &#x27;endereço bloqueado?&#x27;. Quatro setas de volta: &#x27;200 texto do Prometheus&#x27;, &#x27;401 senha errada&#x27;, &#x27;403 conta sem Painel&#x27;, &#x27;429 endereço bloqueado&#x27;. Embaixo, uma escada de bloqueio: &#x27;1º erro 2 s, 2º 4 s, 3º 8 s … 9º em diante 300 s&#x27;, com a nota &#x27;mesmo bloqueio da página de entrada&#x27;.</span></div><figcaption><b>Figura 195.</b> Legenda: uma leitura do Prometheus. O aparelho confere a senha a cada pedido, e as senhas erradas alimentam o mesmo bloqueio da página de entrada.</figcaption></figure>
@@ -16686,7 +16686,7 @@ simut_pressure_hpa{slot=&quot;1&quot;,hwid=&quot;BME28001&quot;,name=&quot;Sala&
 <li><strong>Não é telemetria.</strong> O syslog leva eventos, como uma entrada, uma falha de rede ou uma mudança de configuração. As medições saem pela telemetria (<a href="#cap-21">capítulo 21</a>).</li>
 <li><strong>Não passa pelo filtro de rotina.</strong> O log de eventos só grava um evento de rotina quando o estado muda (<a href="#cap-16-transicao">capítulo 16</a>). O syslog manda todas as ocorrências: com o nível <strong>Info</strong>, cada envio de telemetria vira uma linha.</li>
 <li><strong>Leva o texto do evento.</strong> O registro na flash guarda só o código e o contexto. A linha do syslog traz também a descrição e o detalhe, como o nome da conta numa falha de entrada.</li>
-<li><strong>Existe nas três imagens.</strong> No Air, só com o aparelho acordado (<a href="#cap-25-air">No SIMUT Air</a>).</li>
+<li><strong>Existe em todas as imagens.</strong> No Air, só com o aparelho acordado (<a href="#cap-25-air">No SIMUT Air</a>).</li>
 </ul>
 <figure id="fig-25-caminho" class="fig fig-diagrama"><div class="pendente pendente-diagrama" role="img" aria-label="Imagem a capturar: Legenda: o caminho de uma linha de syslog e os pontos onde ela pode se perder. O log de eventos local segue por outro caminho e não depende do syslog."><span class="selo selo-alerta"><i></i>Imagem a capturar</span><span class="pend-tipo">Diagrama · <code>25-caminho.png</code></span><span class="pend-como">Da esquerda para a direita: &#x27;evento (qualquer núcleo)&#x27; → &#x27;nível ≥ Nível Mínimo?&#x27; → &#x27;fila de 8 linhas na RAM (a mais antiga sai quando enche)&#x27; → &#x27;laço principal, núcleo 0: até 8 linhas por passada, só com Wi-Fi conectado e fora do AP&#x27; → &#x27;UDP para 192.0.2.10:514&#x27; → &#x27;coletor (rsyslog, syslog-ng)&#x27;. Marcas vermelhas de perda: &#x27;antes do encaminhamento subir, no boot&#x27;, &#x27;fila cheia&#x27;, &#x27;envio falhou&#x27;, &#x27;datagrama perdido na rede&#x27;, &#x27;travamento ou falta de energia&#x27;. Uma seta lateral: &#x27;reinício pedido (quase todos): esvazia a fila antes de reiniciar&#x27;. Embaixo, em paralelo, &#x27;log de eventos na flash (filtro de rotina, só código e contexto)&#x27;.</span></div><figcaption><b>Figura 197.</b> Legenda: o caminho de uma linha de syslog e os pontos onde ela pode se perder. O log de eventos local segue por outro caminho e não depende do syslog.</figcaption></figure>
 <h3 id="cap-25-formato">O formato da linha</h3>
@@ -25964,7 +25964,7 @@ O formato de arquivo que a placa aceita no modo BOOTSEL (<a href="#cap-03">capí
 </section>
 </main>
 <footer class="colofao">
-<p>Manual do SIMUT, gerado em 29/10/2026 por <code>tools/build_manual.py</code> a partir de <code>docs/_manual/</code>. Licença MIT, como o firmware.</p>
+<p>Manual do SIMUT, gerado em 30/10/2026 por <code>tools/build_manual.py</code> a partir de <code>docs/_manual/</code>. Licença MIT, como o firmware.</p>
 <p>Visual no padrão Ângulo. Fonte de títulos: Ângulo Display, recorte da Bricolage Grotesque SemiBold, SIL Open Font License 1.1.</p>
 </footer>
 </div>

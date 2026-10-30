@@ -490,7 +490,7 @@ def main():
 <header class="capa">
 <div class="capa-topo"><span class="marca">SIMUT</span><button class="botao" id="tema" type="button">Usar tema escuro</button></div>
 <h1>Manual do SIMUT</h1>
-<p class="sub">Instalação, configuração, uso no dia a dia e integração com servidores, para as três imagens publicadas: o painel (release), o LCD (alpha) e o registrador a bateria (Air).</p>
+<p class="sub">Instalação, configuração, uso no dia a dia e integração com servidores, para as quatro imagens publicadas: o painel (release, no Pico W e no Pico 2 W), o LCD (alpha) e o registrador a bateria (Air).</p>
 <ul class="fatos">
 <li><span class="selo">Firmware {VERSION}</span></li>
 <li><span class="selo">{len(toc)} capítulos e 3 apêndices</span></li>

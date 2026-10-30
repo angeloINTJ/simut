@@ -36,9 +36,9 @@ Um mesmo profissional pode acumular mais de uma dessas funções. O [roteiro de 
 
 ## Os três aparelhos {#cap-01-aparelhos}
 
-O mesmo código gera três imagens de firmware publicadas, uma para cada montagem de hardware:
+O mesmo código gera quatro imagens de firmware publicadas, para três montagens de hardware:
 
-- **release:** o monitor com painel de toque colorido de 320×240;
+- **release:** o monitor com painel de toque colorido de 320×240, no Pico W (imagem `release`) ou no Pico 2 W (imagem `releasetwo`);
 - **alpha:** o monitor com LCD de 16×2 caracteres e console pelo Bluetooth;
 - **Air (SIMUT Air):** o registrador a bateria, sem tela, que hiberna entre as leituras. É experimental.
 
@@ -61,7 +61,7 @@ O mesmo código gera três imagens de firmware publicadas, uma para cada montage
 | Atualização pela web | Sim | Sim | Só acordado |
 | Situação | Estável | Publicada; a saída do LCD não foi testada em bancada | Experimental |
 
-Os 16 slots de sensor, os quatro tipos de sensor, o histórico, os alarmes, as contas e as permissões são iguais nas três imagens. As diferenças de cada recurso estão no capítulo dele: o ponto de acesso no [capítulo 9](#cap-09-ap), o console no [capítulo 14](#cap-14-perfis), o PIN no [capítulo 8](#cap-08-imagens), o Air no [capítulo 19](#cap-19).
+Os 16 slots de sensor, os quatro tipos de sensor, o histórico, os alarmes, as contas e as permissões são iguais em todas as imagens. As diferenças de cada recurso estão no capítulo dele: o ponto de acesso no [capítulo 9](#cap-09-ap), o console no [capítulo 14](#cap-14-perfis), o PIN no [capítulo 8](#cap-08-imagens), o Air no [capítulo 19](#cap-19).
 
 ::: atencao
 **Cada imagem serve a um hardware.** Uma imagem gravada no hardware errado não encontra a tela dela. Na atualização pela web, o aparelho recusa uma imagem feita para outro hardware; na gravação pelo USB, ele aceita qualquer uma. A escolha da imagem está no [capítulo 3](#cap-03-escolher).
@@ -69,7 +69,7 @@ Os 16 slots de sensor, os quatro tipos de sensor, o histórico, os alarmes, as c
 
 ### As imagens de bancada {#cap-01-bancada}
 
-O código gera também três imagens para testes automáticos: `pico_w_test`, `pico_w_test_https` e `pico_w_asserts`. Elas não são publicadas e não servem para uso: as duas primeiras trazem o console completo e comandos de teste, e a terceira existe para detectar erros de concorrência. Use sempre uma das três imagens publicadas.
+O código gera também três imagens para testes automáticos: `pico_w_test`, `pico_w_test_https` e `pico_w_asserts`. Elas não são publicadas e não servem para uso: as duas primeiras trazem o console completo e comandos de teste, e a terceira existe para detectar erros de concorrência. Use sempre uma das quatro imagens publicadas.
 
 ## Como ele funciona por dentro {#cap-01-dentro}
 
@@ -136,7 +136,7 @@ Uma seção que vale só para algumas imagens começa com selos:
 | [air]{.img} | Vale para o SIMUT Air |
 | [main]{.img} | Está no código-fonte, mas ainda não numa versão publicada |
 
-Uma seção sem selo vale para as três imagens.
+Uma seção sem selo vale para todas as imagens.
 
 ### Selos de permissão
 

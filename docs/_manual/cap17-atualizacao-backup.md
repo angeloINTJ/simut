@@ -209,7 +209,7 @@ Uma recusa aparece como **Validação falhou:** ou **Falha ao aplicar:**, seguid
 
 Você precisa de:
 
-- **o arquivo `.bin` da imagem certa.** Cada versão publica três imagens: `simut_v<versão>_release.bin`, `simut_v<versão>_alpha.bin` e `simut_v<versão>_air.bin`. Use a mesma variante que está no aparelho. O `.uf2` com o mesmo nome é para a gravação pelo USB ([capítulo 3](#cap-03)), não para esta página;
+- **o arquivo `.bin` da imagem certa.** Cada versão publica quatro imagens: `simut_v<versão>_release.bin`, `simut_v<versão>_alpha.bin`, `simut_v<versão>_air.bin` e `simut_v<versão>_releasetwo.bin`, a release do Pico 2 W. Use a mesma variante que está no aparelho. O `.uf2` com o mesmo nome é para a gravação pelo USB ([capítulo 3](#cap-03)), não para esta página;
 - **uma conta de administrador completo;**
 - **o aparelho ligado numa fonte estável** durante cerca de 1,5 min;
 - **uma conexão estável** entre o computador e o aparelho. Se envios longos pela porta 80 caem na sua rede, use uma porta alternativa do servidor web ([capítulo 9](#cap-09-servidor-web)).

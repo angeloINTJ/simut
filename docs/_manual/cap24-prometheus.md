@@ -8,7 +8,7 @@ O aparelho oferece a rota `GET /metrics`, na porta da interface web, no formato 
 
 - **É uma foto do agora.** O aparelho responde com os valores do momento e não guarda nada para depois. Se o Prometheus não consultar, aquele instante se perde; o aparelho não reenvia nada.
 - **Não precisa de configuração no aparelho.** Não há opção para ligar ou desligar a rota. Basta uma conta com a permissão certa.
-- **Existe nas três imagens.** Na imagem release, a rota segue o protocolo da interface web: HTTP, ou só HTTPS com certificado instalado. Nas imagens alpha e Air, só HTTP. No Air, só com o aparelho acordado ([No SIMUT Air](#cap-24-air)).
+- **Existe em todas as imagens.** Na imagem release, a rota segue o protocolo da interface web: HTTP, ou só HTTPS com certificado instalado. Nas imagens alpha e Air, só HTTP. No Air, só com o aparelho acordado ([No SIMUT Air](#cap-24-air)).
 
 Para guardar as medições com a hora exata de cada registro, sem buracos, use a telemetria ([capítulo 21](#cap-21)). O Prometheus serve para painéis, tendências e alertas.
 
