@@ -249,8 +249,9 @@ display, history, alarms, telemetry — sees the corrected value.
 
 Calibration requires the `CALIB` permission and needs NTP synced.
 
-> **`/calib.csv` does not survive a firmware update.** See
+> **On the Pico W, `/calib.csv` does not survive a firmware update.** See
 > [§12](#12-firmware-updates) for what an update preserves and what it does not.
+> On the Pico 2 W the update leaves the filesystem alone.
 
 ### Reading pipeline
 
@@ -945,13 +946,17 @@ then on.
 
 ### What an update destroys
 
-Staging shares the flash partition with the filesystem, so an update
+On the Pico W, staging shares the flash partition with the filesystem, so an update
 **reformats it**. A snapshot carries `/config/system.bin` across — Wi-Fi
 credentials, users and sensor slots survive automatically, and the device
 rejoins the network unattended.
 
 Nothing else does. **Language packs, `/calib.csv` and all stored history are
 lost.** Download a backup first.
+
+On the Pico 2 W the update goes into the other slot and leaves the filesystem alone: no snapshot,
+nothing to restore, and the language packs, `/calib.csv` and the history stay (see
+[Rollback](#rollback)).
 
 Since v2.8.0 the snapshot is written when the upload **starts** and is used
 once: the next boot restores it if it finds no `/config/system.bin`, and erases

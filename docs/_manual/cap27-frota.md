@@ -215,7 +215,7 @@ O que o navegador impõe:
 - **A origem precisa bater exatamente**: esquema, nome e porta. `https://gestor.exemplo.com.br` e `http://gestor.exemplo.com.br` são origens diferentes.
 - **Página em HTTPS não fala com aparelho em HTTP.** O navegador bloqueia o conteúdo misto. Uma página servida em HTTPS exige aparelhos em HTTPS, com certificados em que o navegador confie. O jeito prático é uma autoridade certificadora da própria empresa, instalada nos navegadores dos operadores, assinando o certificado de cada aparelho ([capítulo 9](#cap-09-https)).
 - **Cabeçalhos da resposta ficam invisíveis.** O aparelho não libera cabeçalhos extras para outras origens: a página lê status e corpo, mas não `Retry-After` nem os `X-Backup-*`.
-- **Uma atualização de firmware apaga a origem CORS**, junto com o certificado HTTPS. Depois de atualizar, a página perde o acesso ao aparelho até o backup ser restaurado. Faça atualizações e restaurações por um serviço no servidor, ou pela página **Arquivos** do próprio aparelho ([Atualização da frota](#cap-27-ota)).
+- **No Pico W, uma atualização de firmware apaga a origem CORS**, junto com o certificado HTTPS. Depois de atualizar, a página perde o acesso ao aparelho até o backup ser restaurado. Faça atualizações e restaurações por um serviço no servidor, ou pela página **Arquivos** do próprio aparelho ([Atualização da frota](#cap-27-ota)). No Pico 2 W o sistema de arquivos fica intocado, e a origem CORS fica com ele ([capítulo 26](#cap-26-ota)).
 
 ::: perigo
 **A página do gestor guarda as chaves da frota inteira.** Um script malicioso injetado nela lê os tokens de todos os aparelhos abertos. Guarde os tokens só na memória da página, nunca em `localStorage`; sirva a página de um servidor que só a sua equipe controla; e não carregue nela scripts de terceiros.
@@ -460,7 +460,7 @@ A sequência é a do [capítulo 26](#cap-26-ota), com dois passos a mais no fim:
 6. Envie os pacotes de idioma da release nova para `/lang` e reinicie, para que os textos novos apareçam traduzidos ([capítulo 13](#cap-13-idioma)).
 
 ::: atencao
-**Sem o passo 5, o aparelho fica sem histórico, sem certificado HTTPS e sem origem CORS.** A atualização reformata o sistema de arquivos e só a configuração principal sobrevive ([capítulo 26](#cap-26-ota)). O backup restaurado traz os pacotes de idioma antigos: por isso o passo 6 vem depois dele.
+**Sem o passo 5, no Pico W o aparelho fica sem histórico, sem certificado HTTPS e sem origem CORS.** A atualização reformata o sistema de arquivos e só a configuração principal sobrevive ([capítulo 26](#cap-26-ota)). No Pico 2 W o sistema de arquivos fica intocado ([capítulo 26](#cap-26-ota)). O backup restaurado traz os pacotes de idioma antigos: por isso o passo 6 vem depois dele.
 :::
 
 Uma imagem de 1 MB leva cerca de 30 s para chegar. Não desligue nem reinicie o aparelho entre os passos 2 e 4: no Pico W há um único espaço de firmware, e uma falha na gravação exige o cabo USB ([capítulo 18](#cap-18)); no Pico 2 W a imagem vai para o outro slot, e um reinício antes de ela se confirmar traz de volta a versão anterior ([capítulo 26](#cap-26-ota)).

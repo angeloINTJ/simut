@@ -73,7 +73,7 @@ A gravação pelo USB só escreve a área do programa. O sistema de arquivos fic
 - **num aparelho em uso**, a configuração, as contas, o histórico, a calibração e os pacotes de idioma continuam lá. O firmware novo converte a configuração antiga no boot, dentro dos limites de [Atualizar um aparelho antigo](#cap-03-antigo).
 
 ::: nota
-**Pelo USB, o histórico fica.** A atualização pela página **Arquivos** reformata o sistema de arquivos e depende do backup para devolver o histórico ([capítulo 17](#cap-17-sobrevive)). A gravação pelo USB não mexe nele. Para um aparelho ao alcance do cabo, é o caminho que preserva tudo sem backup. Troque depois o pacote de idioma pelo da versão nova ([O pacote de idioma](#cap-03-idioma)): um pacote antigo deixa em inglês os textos que a versão nova acrescentou.
+**Pelo USB, o histórico fica.** No Pico W, a atualização pela página **Arquivos** reformata o sistema de arquivos e depende do backup para devolver o histórico ([capítulo 17](#cap-17-sobrevive)); no Pico 2 W ela deixa o sistema de arquivos intocado ([capítulo 26](#cap-26-ota)). A gravação pelo USB não mexe nele. Para um aparelho ao alcance do cabo, é o caminho que preserva tudo sem backup. Troque depois o pacote de idioma pelo da versão nova ([O pacote de idioma](#cap-03-idioma)): um pacote antigo deixa em inglês os textos que a versão nova acrescentou.
 :::
 
 ### Com o picotool

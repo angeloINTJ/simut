@@ -1218,7 +1218,7 @@ A atualização exige o administrador completo e segue quatro passos. A interfac
 A atualização pela API. O único comprovante de sucesso é a versão nova informada pelo próprio aparelho.
 :::
 
-1. **Baixe o backup.** A atualização reformata o sistema de arquivos. Só a configuração principal, o arquivo `/config/system.bin`, sobrevive: Wi-Fi, contas, slots de sensor, limites, telemetria e os demais campos de configuração. O histórico, os pacotes de idioma, os temas personalizados, a calibração dos sensores (`/calib.csv`), a pasta `/web`, o log de eventos, o par de certificados HTTPS e a origem CORS se perdem até você restaurar o backup.
+1. **Baixe o backup.** No Pico W, a atualização reformata o sistema de arquivos. Só a configuração principal, o arquivo `/config/system.bin`, sobrevive: Wi-Fi, contas, slots de sensor, limites, telemetria e os demais campos de configuração. O histórico, os pacotes de idioma, os temas personalizados, a calibração dos sensores (`/calib.csv`), a pasta `/web`, o log de eventos, o par de certificados HTTPS e a origem CORS se perdem até você restaurar o backup. No Pico 2 W nada disso se perde: veja a nota depois do passo 4.
 
    ```bash
    curl -s -b jar -o antes.bkp "$H/api/backup"

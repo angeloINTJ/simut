@@ -490,5 +490,5 @@ Uma linha de DS18B20 sem pontos continua no arquivo: ela guarda a associação e
 Você pode enviar um `calib.csv` pela página **Arquivos**. O aparelho só o aceita se o número de `VERSION` for maior que o do arquivo atual; caso contrário, descarta o envio.
 
 ::: perigo
-**A atualização de firmware apaga o calib.csv.** A atualização pela web reformata o sistema de arquivos, e só a configuração é preservada. O arquivo de calibração se perde, e os sensores voltam a ler sem correção. O backup (`.bkp`), que a página de atualização baixa antes de começar, leva o arquivo: restaure-o depois da atualização ([capítulo 17](#cap-17)).
+**No Pico W, a atualização de firmware apaga o calib.csv.** A atualização pela web reformata o sistema de arquivos, e só a configuração é preservada. O arquivo de calibração se perde, e os sensores voltam a ler sem correção. O backup (`.bkp`), que a página de atualização baixa antes de começar, leva o arquivo: restaure-o depois da atualização ([capítulo 17](#cap-17)). No Pico 2 W o arquivo fica, porque o sistema de arquivos fica intocado ([capítulo 26](#cap-26-ota)).
 :::

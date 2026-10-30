@@ -368,9 +368,9 @@ O histórico é carimbado com a hora do aparelho, qualquer que seja a fonte dela
 
 ## O histórico e a atualização de firmware {#cap-15-ota}
 
-Uma atualização de firmware reformata o sistema de arquivos, e o histórico inteiro vai junto. Só a configuração principal atravessa a atualização ([capítulo 17](#cap-17)).
+No Pico W, uma atualização de firmware reformata o sistema de arquivos, e o histórico inteiro vai junto. Só a configuração principal atravessa a atualização ([capítulo 17](#cap-17)). No Pico 2 W o sistema de arquivos fica intocado, e o histórico continua lá ([capítulo 26](#cap-26-ota)).
 
-Para não perder o histórico:
+Para não perder o histórico no Pico W:
 
 1. Atualize pela página **Arquivos**. Ela baixa um backup `.bkp` para o seu computador antes de começar, com todos os arquivos do histórico e o bloco aberto.
 2. Depois da atualização, restaure esse backup logo, pela mesma página.

@@ -493,7 +493,7 @@ Depois de voltar para HTTP, o primeiro acesso pelo mesmo navegador pode voltar d
 
 ### O par e a atualização de firmware {#cap-09-https-ota}
 
-A atualização de firmware reformata o sistema de arquivos e só preserva a configuração principal (`/config/system.bin`). O par de certificados não é preservado pela atualização: depois dela, o aparelho volta a atender em HTTP.
+No Pico W, a atualização de firmware reformata o sistema de arquivos e só preserva a configuração principal (`/config/system.bin`). O par de certificados não é preservado pela atualização: depois dela, o aparelho volta a atender em HTTP. No Pico 2 W o sistema de arquivos fica intocado, e o par de certificados fica com ele ([capítulo 26](#cap-26-ota)).
 
 O backup `.bkp`, que a página **Arquivos** baixa antes de atualizar, contém todos os arquivos, inclusive o par. Para voltar ao HTTPS depois de atualizar, restaure esse backup ou instale o par de novo ([capítulo 17](#cap-17)).
 

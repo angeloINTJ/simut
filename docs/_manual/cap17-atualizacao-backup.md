@@ -1,6 +1,6 @@
 # Atualização, backup e restauração {#cap-17}
 
-Este capítulo explica como atualizar o firmware pela interface web, o que sobrevive a uma atualização, como fazer e restaurar um backup e como voltar o aparelho à configuração de fábrica. Descreve também a página **Arquivos**, onde tudo isso acontece. É para o administrador do aparelho.
+Este capítulo explica como atualizar o firmware pela interface web, o que sobrevive a uma atualização, como fazer e restaurar um backup e como voltar o aparelho à configuração de fábrica. Descreve também a página **Arquivos**, onde tudo isso acontece. É para o administrador do aparelho. A atualização descrita aqui é a do Pico W; a do Pico 2 W, que vai para o outro slot e deixa o sistema de arquivos intocado, está em [Atualização de firmware pela API](#cap-26-ota).
 
 ## A página Arquivos {#cap-17-arquivos}
 
@@ -218,7 +218,7 @@ A variante do aparelho aparece na resposta de `/api/status`, no campo `sys.env`,
 
 ### O que sobrevive e o que se perde {#cap-17-sobrevive}
 
-A área onde a imagem nova é recebida é a mesma partição da flash que guarda o sistema de arquivos. Por isso, **a atualização reformata o sistema de arquivos.** Antes de começar, o aparelho guarda uma cópia da configuração principal numa área separada e a devolve no primeiro boot da imagem nova.
+A área onde a imagem nova é recebida é a mesma partição da flash que guarda o sistema de arquivos. Por isso, **no Pico W a atualização reformata o sistema de arquivos.** Antes de começar, o aparelho guarda uma cópia da configuração principal numa área separada e a devolve no primeiro boot da imagem nova. No Pico 2 W a imagem nova vai para o outro slot e o sistema de arquivos fica intocado: não há cópia da configuração nem nada a restaurar ([capítulo 26](#cap-26-ota)).
 
 Desde a v2.8.0, essa cópia é gravada logo no início do envio. Se o envio é cortado no meio por uma queda da rede, ou recusado no fim, o aparelho grava a configuração de volta no sistema de arquivos em seguida; se a energia cai no meio do envio, o boot seguinte a devolve a partir da cópia. Nos dois casos se mantém o que a coluna **Sobrevive** da tabela abaixo lista, e o resto do sistema de arquivos se perde do mesmo jeito ([Falta de energia durante a atualização](#cap-17-energia)). A cópia serve uma vez: o boot seguinte ao envio a apaga, e um `system format` também. Até a v2.7.4, a cópia só era gravada no fim do envio e só era lida no boot que segue a aplicação, e um envio interrompido deixava o aparelho com a configuração de fábrica.
 
@@ -284,6 +284,8 @@ Um backup .bkp será baixado automaticamente — restaure depois para recuperar 
 Prosseguir?
 ```
 
+No Pico 2 W a página mostra outro aviso, que diz: "A imagem nova vai para o slot de onde o aparelho não subiu. Os arquivos do aparelho ficam como estão."
+
 A pergunta do passo 5:
 
 ```text
@@ -345,7 +347,7 @@ Uma recusa aparece como **Falha no envio (validação v=N). Cancelled.**, seguid
 O `.bin` do Pico 2 W (`simut_vX.Y.Z_releasetwo.bin`, desde a v2.11.0), mandado a um Pico W, é recusado com `v=6`: os primeiros 256 bytes dele não são um início de imagem do RP2040. A página diz **A imagem é de outro chip, ou está danificada. O Pico 2 W usa o .bin releasetwo, e o Pico W os outros.** Até a v2.11.0, ela não dava motivo para o `v=6`.
 
 ::: perigo
-**Uma recusa no envio também apaga o sistema de arquivos.** A imagem é gravada sobre o sistema de arquivos enquanto chega, e a conferência só acontece no fim. Quando o aparelho recusa a imagem, ele reformata o sistema de arquivos e continua funcionando com a configuração que está na RAM; desde a v2.8.0 ele grava a configuração de volta logo em seguida, e até a v2.7.4 o arquivo dela simplesmente deixava de existir. **Restaure o backup do passo 4**: ele devolve o histórico, os pacotes de idioma e os demais arquivos. Até a v2.7.4, um reinício antes disso voltava com a configuração de fábrica ([capítulo 18](#cap-18-fabrica)).
+**No Pico W, uma recusa no envio também apaga o sistema de arquivos.** A imagem é gravada sobre o sistema de arquivos enquanto chega, e a conferência só acontece no fim. Quando o aparelho recusa a imagem, ele reformata o sistema de arquivos e continua funcionando com a configuração que está na RAM; desde a v2.8.0 ele grava a configuração de volta logo em seguida, e até a v2.7.4 o arquivo dela simplesmente deixava de existir. **Restaure o backup do passo 4**: ele devolve o histórico, os pacotes de idioma e os demais arquivos. Até a v2.7.4, um reinício antes disso voltava com a configuração de fábrica ([capítulo 18](#cap-18-fabrica)). No Pico 2 W a imagem vai para o outro slot e o sistema de arquivos fica intocado ([capítulo 26](#cap-26-ota)).
 :::
 
 ### A assinatura {#cap-17-ota-assinatura}
@@ -404,7 +406,7 @@ Depois de um envio aceito, a página pede a aplicação. Se o aparelho recusar, 
 | 409, com `v` no motivo | A imagem gravada não confere mais com a assinatura: outro envio começou depois dela. O aparelho a descarta | Recomece a atualização |
 | 503 | O painel estava em uso naquele instante | Não reinicie o aparelho: a imagem gravada está esperando. Repita a aplicação pela API, com `POST /api/ota/apply` e a sessão do administrador ([capítulo 26](#cap-26-ota)) |
 
-Enquanto a imagem espera a aplicação, o sistema de arquivos está fora de uso. Um reinício nesse estado descarta a imagem e o sistema de arquivos. Desde a v2.8.0, o aparelho volta com a configuração guardada no início do envio; até a v2.7.4, voltava com a configuração de fábrica. Nos dois casos, os demais arquivos só voltam pelo backup. O log registra **Config alterada** (303), módulo `OTA`, nível `WRN`; no console, a linha traz o texto `Staged update discarded: device rebooted before apply`.
+No Pico W, enquanto a imagem espera a aplicação, o sistema de arquivos está fora de uso. Um reinício nesse estado descarta a imagem e o sistema de arquivos. Desde a v2.8.0, o aparelho volta com a configuração guardada no início do envio; até a v2.7.4, voltava com a configuração de fábrica. Nos dois casos, os demais arquivos só voltam pelo backup. O log registra **Config alterada** (303), módulo `OTA`, nível `WRN`; no console, a linha traz o texto `Staged update discarded: device rebooted before apply`. No Pico 2 W a imagem espera no outro slot e o sistema de arquivos não é tocado ([capítulo 26](#cap-26-ota)).
 
 ## Falta de energia durante a atualização {#cap-17-energia}
 
