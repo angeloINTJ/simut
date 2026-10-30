@@ -30,7 +30,7 @@ six rules over src/**/*.{c,cc,cpp,cxx,h,hh,hpp,hxx,inl,ipp,tpp}:
                   2. the header next to each unit that docs/analysis/UI_DRIVERS_funcoes.tsv, the S0
                      classification, gives at least one `original` or `mixed` row, and next to each
                      unit [ui.original] of the manifest lists in `units` or `include` (S10b fills
-                     them): Themes.h, UiWidgets.h, DisplayManager_Fonts.h, and a DisplayManager_AlarmUi.h
+                     them; a unit under src/ui/original/ counts for the header of its name in src/, until that header moves, S11): Themes.h, UiWidgets.h, DisplayManager_Fonts.h, and a DisplayManager_AlarmUi.h
                      or any other the day a unit is split, with no edit here. A unit with one original
                      row makes its header the original's until a split takes that row out (S10a split eight
                      units; UI_DRIVERS.md section 2.14 names the ones that stay whole). A unit that is itself a header derives
@@ -335,7 +335,7 @@ def ownership_headers(root: str, files):
 
 
 def manifest_unit_headers(manifest: dict, files):
-    """The headers next to the units [ui.original] lists in `units` or `include` (names or globs, from src/)."""
+    """The headers next to the units [ui.original] lists in `units` or `include` (names or globs, from src/); for a unit under src/ui/original/ also the header of its name in src/."""
     ui = manifest.get("ui", {})
     original = ui.get("original") if isinstance(ui, dict) else None
     out = set()
@@ -348,7 +348,13 @@ def manifest_unit_headers(manifest: dict, files):
                 continue
             for f in files:
                 if f.endswith(SOURCE_EXTS) and fnmatch.fnmatchcase(f, "src/" + pat):
-                    out |= header_candidates(posixpath.splitext(f)[0])
+                    stem = posixpath.splitext(f)[0]
+                    out |= header_candidates(stem)
+                    if f.startswith(ORIGINAL_DIR):
+                        # S11: the original's units sit in src/ui/original/ and their headers (Themes.h, UiWidgets.h, DisplayManager_Fonts.h) stay in
+                        # src/, so the header next to src/ui/original/X.cpp is src/X.h too, until it moves. Without this the route goes from 3 headers
+                        # to 0 on the moved tree and nothing fails, because the table and the ownership item still name the same eight.
+                        out |= header_candidates("src/" + posixpath.basename(stem))
     return out
 
 

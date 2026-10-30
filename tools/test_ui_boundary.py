@@ -543,6 +543,29 @@ def original_cases():
            {ANGULO_UNIT: angulo('#include "../../DisplayManager_Graph.h"'), "src/DisplayManager_Graph.cpp": "int unit;\n"},
            hit, manifest=with_glob)
 
+    # S11 moves the original's units to src/ui/original/ and leaves their headers in src/. A0 saw the manifest route go from 3 headers to 0 on the
+    # moved tree, silently, because the table and the ownership item still name the same eight. These cases leave the route nothing else to lean on
+    # (the toy table and the toy ownership item name no Graph unit), and the last one is the real manifest, the route alone.
+    moved = MANIFEST.replace("[ui.original]\n", '[ui.original]\nunits = ["ui/original/DisplayManager_Graph.cpp"]\n', 1)
+    moved_src = {"src/ui/original/DisplayManager_Graph.cpp": "int unit;\n"}
+    expect("cross-driver: a unit under src/ui/original/ makes the header next to it in src/ the original's (S11: the units moved, their headers did not)",
+           {ANGULO_UNIT: angulo('#include "../../DisplayManager_Graph.h"'), **moved_src}, hit, manifest=moved)
+    expect("cross-driver: ... and the header of a unit the manifest does not list is nobody's",
+           {ANGULO_UNIT: angulo('#include "../../DisplayManager_Calendar.h"'), **moved_src}, [], manifest=moved)
+    moved_glob = MANIFEST.replace("[ui.original]\n", '[ui.original]\ninclude = ["ui/original/*.cpp"]\n', 1)
+    expect("cross-driver: ... by the glob ui/original/*.cpp of `include` too",
+           {ANGULO_UNIT: angulo('#include "../../DisplayManager_Graph.h"'), **moved_src}, hit, manifest=moved_glob)
+    expect("cross-driver: ... and the same header is nobody's when the manifest lists the unit nowhere",
+           {ANGULO_UNIT: angulo('#include "../../DisplayManager_Graph.h"'), **moved_src}, [])
+    real_files = sorted(os.path.relpath(os.path.join(d, f), ROOT).replace(os.sep, "/")
+                        for d, _dirs, fs in os.walk(os.path.join(ROOT, "src")) for f in fs)
+    real_manifest = cub.read_manifest(ROOT)
+    real_stems = [os.path.splitext(os.path.basename(u))[0] for u in real_manifest["ui"]["original"]["units"]]
+    want_hdrs = {f"src/{s}.h" for s in real_stems if os.path.isfile(os.path.join(ROOT, "src", s + ".h"))}
+    got_hdrs = cub.manifest_unit_headers(real_manifest, real_files)
+    check("the manifest route alone, on the real manifest, gives the header in src/ next to every [ui.original] unit that has one",
+          bool(want_hdrs) and want_hdrs <= got_hdrs, f"want {sorted(want_hdrs)}; got {sorted(h for h in got_hdrs if h in real_files)}")
+
     keyboard = OWNERSHIP_ITEM.replace("`PasswordKeyboard.h`", "`PasswordKeyboard.h`, `Keyboard2.h`")
     expect("cross-driver: a header-only file the ownership item names is the original's without an edit of the gate",
            {ANGULO_UNIT: angulo('#include "../../Keyboard2.h"'), "src/Keyboard2.h": "#pragma once\n", DOC_PATH: doc(keyboard)}, hit)
