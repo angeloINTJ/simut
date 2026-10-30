@@ -1,6 +1,6 @@
 # SIMUT — User Manual
 
-**Firmware:** v2.12.0 · **Hardware:** Raspberry Pi Pico W (RP2040 + CYW43439) · **License:** MIT
+**Firmware:** v2.13.0 · **Hardware:** Raspberry Pi Pico W (RP2040 + CYW43439) · **License:** MIT
 **Repository:** https://github.com/angeloINTJ/simut
 
 > **This is not a certified metrological instrument.** It is tested on real

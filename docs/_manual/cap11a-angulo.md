@@ -1,6 +1,6 @@
 # O painel Ângulo (Pico 2 W) {#cap-11a}
 
-[release]{.img} [main]{.img} Este capítulo percorre o painel de toque da imagem `releasetwo`, a do Pico 2 W, que o desenha no padrão Ângulo: a tela inicial, os gestos, o gráfico e o menu de configurações. Esse painel está no código-fonte, mas ainda não numa versão publicada. O Pico W e um Pico 2 W montado com **Visual original** (*Original look*) usam o painel do [capítulo 11](#cap-11).
+[release]{.img} Este capítulo percorre o painel de toque da imagem `releasetwo`, a do Pico 2 W, que o desenha no padrão Ângulo: a tela inicial, os gestos, o gráfico e o menu de configurações. Esse painel é o da release do Pico 2 W desde a v2.13.0; a v2.12.0 e as anteriores desenhavam o painel original. O Pico W e um Pico 2 W montado com **Visual original** (*Original look*) usam o painel do [capítulo 11](#cap-11).
 
 ## O painel Ângulo em resumo {#cap-11a-visao}
 

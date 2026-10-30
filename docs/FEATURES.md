@@ -146,7 +146,7 @@ Everything the firmware does, in detail. The [README](../README.md) has the summ
 
 ## Core and switches
 
-Every image has what the table below does not list: the sensor slots, the alarms and the alarm line, the recorded history, the accounts and permissions, the web interface and the HTTP API over plain HTTP, telemetry over plain HTTP, the emergency console, the event log, backup and restore, and signed over-the-air updates. Two things are a choice rather than a switch: the display (touch panel, 16×2 LCD or none) and the chip (the Pico W's RP2040, or the Pico 2 W's RP2350, whose release draws the touch display in the Ângulo look from the next version on; v2.12.0 still ships the original panel there).
+Every image has what the table below does not list: the sensor slots, the alarms and the alarm line, the recorded history, the accounts and permissions, the web interface and the HTTP API over plain HTTP, telemetry over plain HTTP, the emergency console, the event log, backup and restore, and signed over-the-air updates. Two things are a choice rather than a switch: the display (touch panel, 16×2 LCD or none) and the chip (the Pico W's RP2040, or the Pico 2 W's RP2350, whose release draws the touch display in the Ângulo look since v2.13.0; v2.12.0 and earlier drew the original panel there).
 
 Everything else is a switch in [`tools/features.toml`](../tools/features.toml). This table is generated from that file by `tools/gen_features.py`, and CI fails when it falls behind. The [build configurator](https://angelointj.github.io/simut/configurador/) compiles an image with any combination the rules allow, for the Pico W or the Pico 2 W, and shows what each switch costs in flash, measured on each product.
 
@@ -163,7 +163,7 @@ Everything else is a switch in [`tools/features.toml`](../tools/features.toml). 
 |  | Prometheus metrics (/metrics) | A /metrics endpoint in the Prometheus text format, with Basic authentication for the scraper. | on | on | on | on |
 |  | Remote syslog (audit trail) | Forwards log events to a syslog collector (RFC 5424 over UDP), so the audit trail survives outside the device. | on | on | on | on |
 | Interface | Original look | The touch display as the Pico W release ships it, and the Pico 2 W release did up to v2.12.0, with its themes. It is the only choice on the 16x2 LCD and with no display. | on | on | on | off |
-|  | Ângulo look | The touch display drawn to the Ângulo standard: the look of the Pico 2 W release from the next version on (v2.12.0 still ships the original panel). It needs the touch display. | off | off | off | on |
+|  | Ângulo look | The touch display drawn to the Ângulo standard: the look of the Pico 2 W release since v2.13.0 (v2.12.0 and earlier drew the original panel there). It needs the touch display. | off | off | off | on |
 |  | History page in the web interface | The /history page: charts, calendar, CSV export in the browser and the event log viewer. The device records history either way, and the history files stay downloadable from the Files page. | on | on | on | on |
 |  | History export API | Routes that return several sensors' history in one call (/api/history_multi) and export the history and the log as .simx. No page uses them; bench tools and integrations do. | on | on | on | on |
 |  | Full command line | Every serial and Bluetooth command. Without it only the emergency console remains. | off | off | on | off |

@@ -435,9 +435,9 @@
           "es": "Aspecto Ángulo"
         },
         "help": {
-          "en": "The touch display drawn to the Ângulo standard: the look of the Pico 2 W release from the next version on (v2.12.0 still ships the original panel). It needs the touch display.",
-          "pt": "A tela touch desenhada no padrão Ângulo: o visual da release do Pico 2 W a partir da próxima versão (a v2.12.0 ainda traz o painel original). Exige a tela touch.",
-          "es": "La pantalla táctil dibujada según el estándar Ángulo: el aspecto de la versión de la Pico 2 W a partir de la próxima versión (la v2.12.0 aún trae el panel original). Requiere la pantalla táctil."
+          "en": "The touch display drawn to the Ângulo standard: the look of the Pico 2 W release since v2.13.0 (v2.12.0 and earlier drew the original panel there). It needs the touch display.",
+          "pt": "A tela touch desenhada no padrão Ângulo: o visual da release do Pico 2 W desde a v2.13.0 (a v2.12.0 e as anteriores desenhavam o painel original nele). Exige a tela touch.",
+          "es": "La pantalla táctil dibujada según el estándar Ángulo: el aspecto de la versión de la Pico 2 W desde la v2.13.0 (la v2.12.0 y las anteriores dibujaban el panel original en ella). Requiere la pantalla táctil."
         }
       }
     ]

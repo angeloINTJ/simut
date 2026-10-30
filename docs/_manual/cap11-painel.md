@@ -1,6 +1,6 @@
 # O painel original (Pico W) {#cap-11}
 
-[release]{.img} Este capítulo percorre o painel de toque original da imagem `release`, a do Pico W, tela por tela: a tela inicial, os gestos, o gráfico, o menu de configurações, as telas de boot e as mensagens. Ele vale também para um Pico 2 W montado com **Visual original** (*Original look*) no [configurador](#cap-03-sob-medida). A imagem `releasetwo`, a do Pico 2 W, desenha o painel Ângulo [main]{.img}, que está no [capítulo 11A](#cap-11a). É para quem opera o aparelho na bancada ou no laboratório.
+[release]{.img} Este capítulo percorre o painel de toque original da imagem `release`, a do Pico W, tela por tela: a tela inicial, os gestos, o gráfico, o menu de configurações, as telas de boot e as mensagens. Ele vale também para um Pico 2 W montado com **Visual original** (*Original look*) no [configurador](#cap-03-sob-medida). A imagem `releasetwo`, a do Pico 2 W, desenha o painel Ângulo, que está no [capítulo 11A](#cap-11a). É para quem opera o aparelho na bancada ou no laboratório.
 
 ## O painel em resumo {#cap-11-visao}
 

@@ -877,7 +877,7 @@ ficar na fila e executar vários inputs depois.
 `ANGULO.md`.** Não é gosto da ocasião: é o padrão de todos os sistemas do dono,
 e a casa dele é o repo `simut-rx` — lá fica a fonte da verdade dos valores, e o
 `ANGULO.md` daqui é cópia idêntica do de lá, com os anexos §11–§13. Vale para a
-UI web do aparelho, o painel de toque desenhado por `src/ui/angulo/` (o da release do Pico 2 W desde 2026-10-30; a v2.12.0 publicada ainda traz o painel original nele), o site e a landing em
+UI web do aparelho, o painel de toque desenhado por `src/ui/angulo/` (o da release do Pico 2 W desde a v2.13.0; a v2.12.0 e as anteriores desenhavam o painel original nele), o site e a landing em
 `docs/`, o manual, os três READMEs, os documentos Living, a marca e as
 mensagens que o usuário lê no console. Antes de escrever, leia o §2 (as oito
 regras), o §7 (microcopy) e o §8 (o checklist) do guia.
@@ -974,7 +974,7 @@ calado é.
   microcopy, a área segura e a grade de 4 px, todo estado desenhado — e emoji
   nem existe na fonte CP437. **Em 2026-10-28, no ramo `feat/ui-drivers`:** isso vale
   para a UI original, que mantém os temas. A UI Ângulo existe nas imagens
-  `pico2_w_release` e `pico_wiretft_angulo` (a `pico2_w_release` a leva desde 2026-10-30, S10c C3, mas a v2.12.0 publicada ainda traz o painel original no Pico 2 W; o painel original do Pico 2 W é a `pico2_w_original`), com o
+  `pico2_w_release` e `pico_wiretft_angulo` (a `pico2_w_release` a leva desde a v2.13.0 (S10c C3, 2026-10-30); a v2.12.0 e as anteriores desenhavam o painel original no Pico 2 W, que hoje é a `pico2_w_original`), com o
   tema dela (modo e acento) em `docs/analysis/UI_DRIVERS.md` §2.16 e os desvios
   registrados em §2.18 (a cor de perigo).
 - **LCD 16×2 do alpha:** vale a microcopy.
