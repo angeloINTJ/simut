@@ -205,7 +205,7 @@ td:first-child { color: var(--tinta); font-weight: 600; white-space: nowrap; }
       <div>
         <p class="release-line">
           <span class="selo selo-positivo" data-i18n="tag.stable">Stable</span>
-          <span class="selo">v2.11.1</span>
+          <span class="selo">v2.12.0</span>
           <span class="selo">MIT</span>
           <span class="selo">RP2040</span>
           <span class="selo">RP2350</span>
@@ -289,10 +289,28 @@ td:first-child { color: var(--tinta); font-weight: 600; white-space: nowrap; }
     </p>
     <div class="releases">
       <article class="release">
-        <div><div class="ver">v2.11.1</div><div class="date" data-i18n="new.d0">Oct 2026</div></div>
+        <div><div class="ver">v2.12.0</div><div class="date" data-i18n="new.d0">Oct 2026</div></div>
         <div>
-          <h3 data-i18n="new.t0">Four high-severity fixes, and no PIN locked out by its own policy</h3>
+          <h3 data-i18n="new.t0">A silent radio no longer trips the watchdog, and replies no longer lose their middle</h3>
           <p data-i18n="new.b0">
+            On the Pico W the panel's bus ran at <strong>24 MHz</strong> whatever the
+            firmware asked for, and now follows the system clock. A radio that stops
+            answering is no longer joined blind, which held Core 0 past the hardware
+            watchdog: the board restarts by the planned path. A reply to
+            <code>/api/status</code> no longer reaches the client with writes missing from
+            its middle: a write that stalls now ends the reply, and a second fix makes
+            stalls rare. On the bench, <strong>3 of 1,000</strong> replies were cut before
+            the second fix and <strong>0 of 1,000</strong> after it. The Files page no longer says "Upload
+            complete." for a file the device refused, and the web page names the stock
+            themes in the device's language.
+          </p>
+        </div>
+      </article>
+      <article class="release">
+        <div><div class="ver">v2.11.1</div><div class="date" data-i18n="new.d1">Oct 2026</div></div>
+        <div>
+          <h3 data-i18n="new.t1">Four high-severity fixes, and no PIN locked out by its own policy</h3>
+          <p data-i18n="new.b1">
             The panel's forced PIN change can no longer be skipped, and its account
             editor grants only what the account at it holds. A stricter PIN minimum no
             longer locks shorter PINs out: on the bench, a 4-digit PIN under a minimum of
@@ -306,10 +324,10 @@ td:first-child { color: var(--tinta); font-weight: 600; white-space: nowrap; }
         </div>
       </article>
       <article class="release">
-        <div><div class="ver">v2.11.0</div><div class="date" data-i18n="new.d1">Oct 2026</div></div>
+        <div><div class="ver">v2.11.0</div><div class="date" data-i18n="new.d2">Oct 2026</div></div>
         <div>
-          <h3 data-i18n="new.t1">The Pico 2 W joins, with an update that comes back by itself</h3>
-          <p data-i18n="new.b1">
+          <h3 data-i18n="new.t2">The Pico 2 W joins, with an update that comes back by itself</h3>
+          <p data-i18n="new.b2">
             The Pico 2 W (RP2350) gets published images: a factory <code>.uf2</code> with
             its partition table, and an update that goes into the slot the board did not
             boot from, leaving the file system alone. The update boots on trial and keeps
@@ -320,23 +338,6 @@ td:first-child { color: var(--tinta); font-weight: 600; white-space: nowrap; }
             the same upload ends. On the alpha, saving the configuration no longer
             restarts the device: <strong>0 of 30</strong> rounds reset it, where
             v2.10.0 reset in 6.
-          </p>
-        </div>
-      </article>
-      <article class="release">
-        <div><div class="ver">v2.10.0</div><div class="date" data-i18n="new.d2">Oct 2026</div></div>
-        <div>
-          <h3 data-i18n="new.t2">Telemetry that loses nothing when the clock goes back, and accounts without a restart</h3>
-          <p data-i18n="new.b2">
-            The telemetry cursor is now where a record was written, not its
-            timestamp: with the clock ahead and then put back, the code before sent
-            <strong>0 of 7</strong> records written after the change, and this release
-            sends all 7. Saving accounts no longer restarts the device, and a session
-            ends with its account. The configuration page's dry run no longer mutes the
-            device or changes its time zone, a restore cut off halfway keeps the files it
-            finished, and an alarm limit that is not a number is refused instead of
-            becoming 0. Text files open organized on the Files page, and the telemetry
-            previews are built from the device itself.
           </p>
         </div>
       </article>
@@ -585,7 +586,7 @@ td:first-child { color: var(--tinta); font-weight: 600; white-space: nowrap; }
       <a class="doc" href="RECOVERY.html"><h3 data-i18n="d4.t">Recovery</h3><p data-i18n="d4.b">Getting a board back after a failed update, and what BOOTSEL rescue involves.</p></a>
       <a class="doc" href="GLOSSARY.html"><h3 data-i18n="d5.t">Glossary</h3><p data-i18n="d5.b">The terms used across the interface and the documentation, defined once.</p></a>
       <a class="doc" href="https://github.com/angeloINTJ/simut/blob/main/SECURITY.md"><h3 data-i18n="d6.t">Security policy</h3><p data-i18n="d6.b">Threat model, how credentials are handled, and how to report a vulnerability.</p></a>
-      <a class="doc doc-larga" href="MANUAL.pt-BR.html"><h3 data-i18n="d7.t">Complete manual, in Portuguese</h3><p data-i18n="d7.b">Thirty-one chapters for v2.11.1: installation, configuration, daily use and server integration. Screenshots are being recaptured.</p></a>
+      <a class="doc doc-larga" href="MANUAL.pt-BR.html"><h3 data-i18n="d7.t">Complete manual, in Portuguese</h3><p data-i18n="d7.b">Thirty-one chapters for v2.12.0: installation, configuration, daily use and server integration. Screenshots are being recaptured.</p></a>
     </div>
   </div>
 </section>
@@ -613,7 +614,7 @@ td:first-child { color: var(--tinta); font-weight: 600; white-space: nowrap; }
   <div class="moldura">
     <div class="colophon" data-i18n="ft.colophon">
         SIMUT — Sistema Integrado de Monitoramento Universal e Telemetria<br />
-        MIT licensed · built for the Raspberry Pi Pico W and Pico 2 W · v2.11.1
+        MIT licensed · built for the Raspberry Pi Pico W and Pico 2 W · v2.12.0
       </div>
     <nav aria-label="Project">
         <a href="https://github.com/angeloINTJ/simut">GitHub</a>
@@ -656,12 +657,12 @@ td:first-child { color: var(--tinta); font-weight: 600; white-space: nowrap; }
     'new.d0': 'out 2026',
     'new.d1': 'out 2026',
     'new.d2': 'out 2026',
-    'new.t0': 'Quatro consertos de severidade alta, e nenhum PIN trancado pela própria política',
-    'new.b0': 'A troca obrigatória de PIN do painel não pode mais ser pulada, e o editor de contas do painel só concede o que a conta identificada tem. Um mínimo de PIN mais exigente não tranca mais PINs mais curtos: na bancada, um PIN de 4 dígitos com mínimo 5 agora identifica e vai direto para a troca. "Adotar a sonda" lê a sonda no GPIO do próprio slot e recarrega: depois de adotar uma sonda trocada, <strong>14 de 14</strong> leituras foram válidas nos 90 s seguintes, onde a v2.11.0 leu <strong>0 de 15</strong>. O AP de configuração do gesto no boot segue o prazo de 15 minutos, e a página Arquivos diz por que uma imagem do Pico 2 W é recusada num Pico W.',
-    'new.t1': 'O Pico 2 W chega, com uma atualização que volta sozinha',
-    'new.b1': 'O Pico 2 W (RP2350) ganha imagens publicadas: um <code>.uf2</code> de fábrica com a tabela de partições, e uma atualização que vai para o slot de onde a placa não subiu, sem tocar no sistema de arquivos. A atualização sobe em teste e se confirma depois de um minuto saudável. Na bancada, uma imagem que nunca ficou saudável estava de volta na versão anterior <strong>338 s</strong> depois da instalação, sem ninguém tocar na placa. Um envio longo não cai mais quando uma página do aparelho está aberta: a própria placa o cortava aos 12 a 15 s, e agora o mesmo envio termina. Na alpha, gravar a configuração não reinicia mais o aparelho: <strong>0 de 30</strong> rodadas o reiniciaram, onde a v2.10.0 reiniciava em 6.',
-    'new.t2': 'Telemetria que não perde nada quando o relógio volta, e contas sem reinício',
-    'new.b2': 'O cursor da telemetria agora é o lugar onde o registro foi gravado, não o carimbo de tempo dele: com o relógio adiantado e depois corrigido, o código anterior enviou <strong>0 de 7</strong> registros gravados depois da correção, e esta versão envia os 7. Gravar contas não reinicia mais o aparelho, e uma sessão termina com a conta dela. O ensaio da página de configuração não silencia mais o aparelho nem muda o fuso dele, uma restauração cortada no meio fica com os arquivos que terminou, e um limite de alarme que não é número é recusado em vez de virar 0. Arquivos de texto abrem organizados na página Arquivos, e as prévias da telemetria são montadas com os dados do próprio aparelho.',
+    'new.t0': 'Um rádio mudo não aciona mais o watchdog, e as respostas não perdem mais o meio',
+    'new.b0': 'No Pico W o barramento do painel rodava a <strong>24 MHz</strong> fosse qual fosse o pedido do firmware, e agora segue o clock do sistema. Um rádio que para de responder não é mais associado às cegas, o que segurava o Core 0 além do watchdog de hardware: a placa reinicia pelo caminho planejado. Uma resposta do <code>/api/status</code> não chega mais ao cliente com escritas faltando no meio: uma escrita que trava encerra a resposta, e um segundo conserto torna as travas raras. Na bancada, <strong>3 de 1.000</strong> respostas foram cortadas antes do segundo conserto e <strong>0 de 1.000</strong> depois. A página Arquivos não diz mais "Upload concluído." para um arquivo que o aparelho recusou, e a página web mostra os temas de fábrica no idioma do aparelho.',
+    'new.t1': 'Quatro consertos de severidade alta, e nenhum PIN trancado pela própria política',
+    'new.b1': 'A troca obrigatória de PIN do painel não pode mais ser pulada, e o editor de contas do painel só concede o que a conta identificada tem. Um mínimo de PIN mais exigente não tranca mais PINs mais curtos: na bancada, um PIN de 4 dígitos com mínimo 5 agora identifica e vai direto para a troca. "Adotar a sonda" lê a sonda no GPIO do próprio slot e recarrega: depois de adotar uma sonda trocada, <strong>14 de 14</strong> leituras foram válidas nos 90 s seguintes, onde a v2.11.0 leu <strong>0 de 15</strong>. O AP de configuração do gesto no boot segue o prazo de 15 minutos, e a página Arquivos diz por que uma imagem do Pico 2 W é recusada num Pico W.',
+    'new.t2': 'O Pico 2 W chega, com uma atualização que volta sozinha',
+    'new.b2': 'O Pico 2 W (RP2350) ganha imagens publicadas: um <code>.uf2</code> de fábrica com a tabela de partições, e uma atualização que vai para o slot de onde a placa não subiu, sem tocar no sistema de arquivos. A atualização sobe em teste e se confirma depois de um minuto saudável. Na bancada, uma imagem que nunca ficou saudável estava de volta na versão anterior <strong>338 s</strong> depois da instalação, sem ninguém tocar na placa. Um envio longo não cai mais quando uma página do aparelho está aberta: a própria placa o cortava aos 12 a 15 s, e agora o mesmo envio termina. Na alpha, gravar a configuração não reinicia mais o aparelho: <strong>0 de 30</strong> rodadas o reiniciaram, onde a v2.10.0 reiniciava em 6.',
     'new.changelog': 'Changelog completo',
     'cap.eyebrow': 'Recursos', 'cap.h2': 'O que o firmware faz',
     'cap.lede': 'Tudo abaixo roda no dispositivo. Nada liga para casa.',
@@ -752,12 +753,12 @@ td:first-child { color: var(--tinta); font-weight: 600; white-space: nowrap; }
     'd4.t': 'Recuperação', 'd4.b': 'Como trazer uma placa de volta depois de uma atualização falha, e o que envolve o resgate por BOOTSEL.',
     'd5.t': 'Glossário', 'd5.b': 'Os termos usados na interface e na documentação, definidos uma vez.',
     'd6.t': 'Política de segurança', 'd6.b': 'Modelo de ameaças, como as credenciais são tratadas e como relatar uma vulnerabilidade.',
-    'd7.t': 'Manual completo', 'd7.b': 'Trinta e um capítulos para a v2.11.1: instalação, configuração, uso no dia a dia e integração com servidores. As telas estão sendo recapturadas.',
+    'd7.t': 'Manual completo', 'd7.b': 'Trinta e um capítulos para a v2.12.0: instalação, configuração, uso no dia a dia e integração com servidores. As telas estão sendo recapturadas.',
     'co.eyebrow': 'Contribuir', 'co.h2': 'É código aberto',
     'co.lede': 'Relatos de bug vindos de instalações reais são a coisa mais útil que você pode mandar — especialmente os que vêm com log anexado.',
     'co.bug': 'Relatar um bug', 'co.feat': 'Pedir um recurso',
     'co.guide': 'Ler o guia de contribuição', 'co.vuln': 'Relatar vulnerabilidade',
-    'ft.colophon': 'SIMUT — Sistema Integrado de Monitoramento Universal e Telemetria<br />Licença MIT · feito para o Raspberry Pi Pico W e o Pico 2 W · v2.11.1',
+    'ft.colophon': 'SIMUT — Sistema Integrado de Monitoramento Universal e Telemetria<br />Licença MIT · feito para o Raspberry Pi Pico W e o Pico 2 W · v2.12.0',
     'ft.releases': 'Releases', 'ft.changelog': 'Changelog', 'ft.license': 'Licença',
     'ft.edit': 'Editar esta página'
   },
@@ -787,12 +788,12 @@ td:first-child { color: var(--tinta); font-weight: 600; white-space: nowrap; }
     'new.d0': 'oct 2026',
     'new.d1': 'oct 2026',
     'new.d2': 'oct 2026',
-    'new.t0': 'Cuatro arreglos de severidad alta, y ningún PIN bloqueado por su propia política',
-    'new.b0': 'El cambio obligatorio de PIN del panel ya no se puede saltar, y el editor de cuentas del panel solo concede lo que tiene la cuenta identificada. Un mínimo de PIN más exigente ya no bloquea los PIN más cortos: en el banco, un PIN de 4 dígitos con mínimo 5 ahora identifica y va directo al cambio. "Adoptar la sonda" lee la sonda en el GPIO del propio slot y recarga: tras adoptar una sonda cambiada, <strong>14 de 14</strong> lecturas fueron válidas en los 90 s siguientes, donde la v2.11.0 leyó <strong>0 de 15</strong>. El AP de configuración del gesto de arranque sigue el plazo de 15 minutos, y la página Archivos dice por qué una imagen de la Pico 2 W se rechaza en una Pico W.',
-    'new.t1': 'Llega la Pico 2 W, con una actualización que vuelve sola',
-    'new.b1': 'La Pico 2 W (RP2350) tiene imágenes publicadas: un <code>.uf2</code> de fábrica con su tabla de particiones, y una actualización que va al slot desde el que la placa no arrancó, sin tocar el sistema de archivos. La actualización arranca a prueba y se confirma tras un minuto sano. En el banco, una imagen que nunca quedó sana estaba de vuelta en la versión anterior <strong>338 s</strong> después de instalarla, sin que nadie tocara la placa. Un envío largo ya no se corta cuando hay una página del dispositivo abierta: la propia placa lo cortaba a los 12 a 15 s, y ahora el mismo envío termina. En el alpha, guardar la configuración ya no reinicia el dispositivo: <strong>0 de 30</strong> rondas lo reiniciaron, donde la v2.10.0 lo reiniciaba en 6.',
-    'new.t2': 'Telemetría que no pierde nada cuando el reloj vuelve atrás, y cuentas sin reinicio',
-    'new.b2': 'El cursor de la telemetría es ahora el lugar donde se escribió el registro, no su marca de tiempo: con el reloj adelantado y luego corregido, el código anterior envió <strong>0 de 7</strong> registros escritos después de la corrección, y esta versión envía los 7. Guardar cuentas ya no reinicia el dispositivo, y una sesión termina con su cuenta. El ensayo de la página de configuración ya no silencia el dispositivo ni cambia su zona horaria, una restauración cortada a mitad conserva los archivos que terminó, y un límite de alarma que no es un número se rechaza en lugar de convertirse en 0. Los archivos de texto se abren organizados en la página Archivos, y las vistas previas de la telemetría se construyen con los datos del propio dispositivo.',
+    'new.t0': 'Una radio muda ya no activa el watchdog, y las respuestas ya no pierden su parte central',
+    'new.b0': 'En la Pico W el bus del panel funcionaba a <strong>24 MHz</strong> pidiera lo que pidiera el firmware, y ahora sigue el reloj del sistema. Una radio que deja de responder ya no se asocia a ciegas, lo que retenía el Core 0 más allá del watchdog de hardware: la placa se reinicia por el camino planificado. Una respuesta de <code>/api/status</code> ya no llega al cliente con escrituras que faltan en el medio: una escritura que se atasca termina la respuesta, y un segundo arreglo hace raros los atascos. En el banco, <strong>3 de 1.000</strong> respuestas se cortaron antes del segundo arreglo y <strong>0 de 1.000</strong> después. La página Archivos ya no dice que la subida terminó cuando el dispositivo rechazó el archivo, y la página web muestra los temas de fábrica en el idioma del dispositivo.',
+    'new.t1': 'Cuatro arreglos de severidad alta, y ningún PIN bloqueado por su propia política',
+    'new.b1': 'El cambio obligatorio de PIN del panel ya no se puede saltar, y el editor de cuentas del panel solo concede lo que tiene la cuenta identificada. Un mínimo de PIN más exigente ya no bloquea los PIN más cortos: en el banco, un PIN de 4 dígitos con mínimo 5 ahora identifica y va directo al cambio. "Adoptar la sonda" lee la sonda en el GPIO del propio slot y recarga: tras adoptar una sonda cambiada, <strong>14 de 14</strong> lecturas fueron válidas en los 90 s siguientes, donde la v2.11.0 leyó <strong>0 de 15</strong>. El AP de configuración del gesto de arranque sigue el plazo de 15 minutos, y la página Archivos dice por qué una imagen de la Pico 2 W se rechaza en una Pico W.',
+    'new.t2': 'Llega la Pico 2 W, con una actualización que vuelve sola',
+    'new.b2': 'La Pico 2 W (RP2350) tiene imágenes publicadas: un <code>.uf2</code> de fábrica con su tabla de particiones, y una actualización que va al slot desde el que la placa no arrancó, sin tocar el sistema de archivos. La actualización arranca a prueba y se confirma tras un minuto sano. En el banco, una imagen que nunca quedó sana estaba de vuelta en la versión anterior <strong>338 s</strong> después de instalarla, sin que nadie tocara la placa. Un envío largo ya no se corta cuando hay una página del dispositivo abierta: la propia placa lo cortaba a los 12 a 15 s, y ahora el mismo envío termina. En el alpha, guardar la configuración ya no reinicia el dispositivo: <strong>0 de 30</strong> rondas lo reiniciaron, donde la v2.10.0 lo reiniciaba en 6.',
     'new.changelog': 'Changelog completo',
     'cap.eyebrow': 'Funciones', 'cap.h2': 'Qué hace el firmware',
     'cap.lede': 'Todo lo de abajo corre en el dispositivo. Nada llama a casa.',
@@ -883,12 +884,12 @@ td:first-child { color: var(--tinta); font-weight: 600; white-space: nowrap; }
     'd4.t': 'Recuperación', 'd4.b': 'Cómo recuperar una placa tras una actualización fallida, y qué implica el rescate por BOOTSEL.',
     'd5.t': 'Glosario', 'd5.b': 'Los términos usados en la interfaz y la documentación, definidos una vez.',
     'd6.t': 'Política de seguridad', 'd6.b': 'Modelo de amenazas, cómo se tratan las credenciales y cómo informar de una vulnerabilidad.',
-    'd7.t': 'Manual completo, en portugués', 'd7.b': 'Treinta y un capítulos para la v2.11.1: instalación, configuración, uso diario e integración con servidores. Las pantallas se están recapturando.',
+    'd7.t': 'Manual completo, en portugués', 'd7.b': 'Treinta y un capítulos para la v2.12.0: instalación, configuración, uso diario e integración con servidores. Las pantallas se están recapturando.',
     'co.eyebrow': 'Contribuir', 'co.h2': 'Es código abierto',
     'co.lede': 'Los informes de error de instalaciones reales son lo más útil que puedes enviar — sobre todo los que vienen con un log adjunto.',
     'co.bug': 'Informar de un error', 'co.feat': 'Pedir una función',
     'co.guide': 'Leer la guía de contribución', 'co.vuln': 'Informar de vulnerabilidad',
-    'ft.colophon': 'SIMUT — Sistema Integrado de Monitorización Universal y Telemetría<br />Licencia MIT · hecho para la Raspberry Pi Pico W y la Pico 2 W · v2.11.1',
+    'ft.colophon': 'SIMUT — Sistema Integrado de Monitorización Universal y Telemetría<br />Licencia MIT · hecho para la Raspberry Pi Pico W y la Pico 2 W · v2.12.0',
     'ft.releases': 'Releases', 'ft.changelog': 'Changelog', 'ft.license': 'Licencia',
     'ft.edit': 'Editar esta página'
   }

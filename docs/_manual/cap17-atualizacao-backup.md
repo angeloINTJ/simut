@@ -87,7 +87,7 @@ Feche a janela com o **X** ou com a tecla **Esc**.
 Um arquivo com o mesmo nome de outro da pasta o substitui. O aparelho recusa um nome de arquivo inválido, um envio maior que o espaço livre e qualquer destino dentro de `/config`.
 
 ::: atencao
-**Confira a lista depois de enviar.** A página mostra **Upload concluído.** mesmo quando o aparelho recusa o arquivo. Confirme que o arquivo aparece na pasta com o tamanho certo.
+**Confira a lista depois de enviar.** Se o aparelho recusar o envio, a página mostra o motivo em vermelho, por exemplo **Envio recusado (HTTP 400: Invalid upload).**, e pede para conferir o nome do arquivo, a pasta, o espaço livre e a permissão de envio; a lista não muda. Num envio com vários arquivos, só a recusa do último é informada: um arquivo recusado seguido de um aceito termina em **Upload concluído.** Envie um arquivo por vez quando algum puder ser recusado e confirme que o arquivo aparece na pasta com o tamanho certo.
 :::
 
 Alguns arquivos têm tratamento próprio:

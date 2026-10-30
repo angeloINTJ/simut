@@ -45,11 +45,12 @@ Depois das inversoes, compila as combinacoes de CHECKS de verdade: a pagina
 soma as diferencas, e e contra estas builds que ela mede o quanto a soma erra.
 
 Metrica: o `used` que o proprio PlatformIO reporta (ELF), nao o .bin — e o numero
-consistente entre base e variante, e o que importa aqui e a DIFERENCA. O flash e o
-numero travado (deterministico); a RAM entra com tolerancia (ruido de alinhamento
-do linker) — ver RAM_TOL. O piso (--check, --update) mede o flash SEM o enchimento
-que o linker poe antes do banco do BTstack, lido do mapa do linker — ver BANK_SECTION;
-a --matrix mede o `used` inteiro, porque ali o que importa e caber no slot.
+consistente entre base e variante, e o que importa aqui e a DIFERENCA. A RAM entra com
+tolerancia (ruido de alinhamento do linker) — ver RAM_TOL. O piso (--check, --update) mede
+o flash SEM o enchimento do linker, todo `*fill*` das secoes .boot2, .text, .rodata e .data do
+mapa — ver flash_fill( ) — e deixa passar uma queda de FLASH_TOL bytes, o que sobra de
+mudanca de verdade no codigo. A --matrix mede o `used` inteiro, porque ali o custo e o
+que a imagem ocupa, e o enchimento ocupa o slot (e tools/feature_costs.json guarda isso).
 
 @project SIMUT — Integrated Universal Monitoring and Telemetry System
 @license MIT License
@@ -74,79 +75,109 @@ COSTS_PATH = os.path.join(ROOT, "tools", "feature_costs.json")
 OVERFLOW_RE = re.compile(r"region `?FLASH'? overflowed by (\d+) bytes")
 
 # RAM estatica pode oscilar poucos bytes por alinhamento do linker mesmo quando a
-# RAM do recurso nao muda; o piso de RAM aceita essa folga. O flash nao tem folga.
+# RAM do recurso nao muda; o piso de RAM aceita essa folga. O flash tem a propria (FLASH_TOL).
 RAM_TOL = 64
 
-# O banco do BTstack: 8 KB de .rodata que o framework alinha a um setor de 4 KB
-# (__bluetooth_tlv, cores/rp2040/sdkoverride/btstack_flash_bank.cpp), em toda imagem
-# com Bluetooth — entre as bases, a pico_w_alpha e a pico_w_air. O linker enche ate
-# 4.095 B na frente dele, e o `used` do PlatformIO conta esse enchimento: o banco e a
-# ultima coisa da .rodata, entao a secao termina num setor. Medida com o enchimento, a
-# economia de um recurso nessas bases andava com cada byte de .rodata da imagem inteira:
-# em 2026-10-22 a do bluetooth tinha caido 2.912 B em tres semanas enquanto o codigo que
-# a chave tira crescia 8 B, e a do tel_tls tinha subido 4.096 B entre duas arvores com
-# os mesmos simbolos removidos (docs/analysis/ECONOMIA_DE_RECURSOS.md). O piso desconta
-# o enchimento: `used` menos o `*fill*` que termina no endereco do banco, no mapa.
-BANK_SECTION = ".rodata._ZL15__bluetooth_tlv"
+# O piso de flash deixa passar uma queda de FLASH_TOL bytes. Tirado todo o enchimento do linker, o
+# que sobra e mudanca de verdade no codigo que a chave guarda ou toca, e anda pouco. Medido em
+# 2026-10-29, em seis commits da main (6adf1023..229d5d59): oito dos nove recursos do #296 nao se
+# mexeram; o tft_graph perdeu 4 B (a chave tirava 104 B de AppManager::core0Yield( ), 100 B no #294,
+# 104 B de novo no #295). Os outros sete, em tres commits, andaram 12 B (cli_full, +12 no #294), 8 B
+# (sound_buzzer, -4 no #294 e +8 de la ate o #300) e 1 B (web_history): e esse residuo que 8 B cobrem. A
+# menor queda que o piso ja registrou foi de 24 B (sound_buzzer, #234, uma mudanca de codigo, medida em
+# 2026-10-22 com o enchimento ainda dentro: docs/analysis/ECONOMIA_DE_RECURSOS.md); o #234 sozinho tira 38 B
+# da economia do buzzer (4.999 -> 4.961 B, 2026-10-30, sem o enchimento), bem acima dos 8 B. Com o enchimento
+# dentro, a mesma conta andou 8-16 B por commit sem simbolo nenhum mudar de lugar, e ficou abaixo do piso em
+# nove de dezesseis recursos.
+FLASH_TOL = 8
+
+# O flash do piso e o `used` sem o enchimento do linker. Entre duas secoes de entrada o linker poe um
+# `*fill*` para alinhar a seguinte, e a imagem e empurrada ate secoes alinhadas a 8 (a `.fini.__stub` de
+# 688 B no .text, as tabelas `time_t[]` atras dos pools de strings no .rodata): o enchimento antes delas
+# anda 0-7 B com o tamanho de TUDO que vem antes, e a base e a variante, de cadeias diferentes, andam
+# diferente. Medido em 2026-10-29 (#296): a economia de nove recursos andou 8-16 B por commit com removed,
+# added e merged identicos, so os `*fill*` mexendo, e a troca de um caractere da versao ("2.12.0" por
+# "2.12.1", nenhum codigo) subiu seis delas 8 B. O maior desses enchimentos e o do banco do BTstack
+# (__bluetooth_tlv, 8 KB de .rodata que o framework alinha a um setor de 4 KB, em toda imagem com
+# Bluetooth: a pico_w_alpha e a pico_w_air): o linker enche ate 4.095 B na frente dele, e em 2026-10-22
+# (#285) a economia do bluetooth tinha caido 2.912 B em tres semanas enquanto o codigo que a chave tira
+# crescia 8 B, e a do tel_tls tinha subido 4.096 B entre duas arvores com os mesmos simbolos removidos
+# (docs/analysis/ECONOMIA_DE_RECURSOS.md). O piso desconta todos: o do banco e so o maior.
 # $BUILD_DIR e do SCons: o mapa sai ao lado do firmware.elf de cada ambiente. Muda o
 # checksum do projeto, como os ambientes temporarios ja mudam (AGENTS.md).
 MAP_FLAG = "-Wl,-Map,$BUILD_DIR/firmware.map"
-# O objeto que define o banco: numa imagem com Bluetooth ele aparece no mapa (as funcoes
-# pico_flash_bank_* e o banco); numa sem Bluetooth, em parte nenhuma (conferido 2026-10-22).
-BANK_OBJECT = "btstack_flash_bank.cpp.o"
-_MAP_ENTRY_RE = re.compile(r"^ (\S+)(?:\s+0x([0-9a-fA-F]+)\s+0x([0-9a-fA-F]+)(?:\s+(\S.*))?)?")
-_MAP_ADDR_RE = re.compile(r"^\s+0x([0-9a-fA-F]+)\s+0x([0-9a-fA-F]+)\s+(\S.*)")
+# As secoes de saida que o PlatformIO soma no `used` do flash: .boot2 + .text + .rodata + .data do
+# `size -A` do ELF, sem .ota nem .partition (ficam entre elas no flash e o `used` nao os conta).
+# Conferido em 2026-10-29 na pico_w_release de 229d5d59: 1.023.860 B = 256 + 601.520 + 414.408 + 7.676.
+# Outro chip soma outras secoes, e flash_fill( ) recusa em vez de ler um enchimento que nao e o do `used`.
+FLASH_SECTIONS = (".boot2", ".text", ".rodata", ".data")
+_MAP_HEADER_RE = re.compile(r"^(\.\S+)(?:\s+0x([0-9a-fA-F]+)\s+0x([0-9a-fA-F]+))?")
+_MAP_FILL_RE = re.compile(r"^ \*fill\*\s+0x([0-9a-fA-F]+)\s+0x([0-9a-fA-F]+)")
+_MAP_ADDR_RE = re.compile(r"^\s+0x([0-9a-fA-F]+)\s+0x([0-9a-fA-F]+)")
 
 
-def bank_pad(map_text):
-    """Bytes de enchimento que o linker poe logo antes do banco do BTstack; 0 sem banco.
+def flash_fill(map_text, used):
+    """Bytes de `*fill*` que o linker poe dentro das secoes que o `used` soma (FLASH_SECTIONS), lidos do
+    mapa. ValueError, nunca 0, se o mapa nao fecha com o `used`.
 
-    So conta a parte "Linker script and memory map": numa imagem sem Bluetooth o banco
-    pode aparecer em "Discarded input sections", que nao ocupa flash. O enchimento e o
-    `*fill*` imediatamente anterior a entrada do banco (pulando as entradas de tamanho
-    zero, que o mapa tambem lista), e tem de terminar no endereco dele: um que nao
-    termina e mapa que este leitor nao entende, e vira erro, nao zero. Tambem vira erro
-    o mapa que tem o objeto do banco (BANK_OBJECT) e nao tem o banco com esse nome: um
-    framework que o renomeie faria a Alpha e o Air voltarem a contar o enchimento, calados.
-    As strings mescladas (.str1.1) dividem enderecos, entao o "fim da entrada anterior"
-    nao serve para calcular."""
+    So conta a parte "Linker script and memory map": o que vem antes ("Discarded input sections") nao
+    ocupa flash. Uma linha sem recuo e o cabecalho de uma secao de saida e os `*fill*` de baixo dela sao
+    dela; os de uma secao fora do `used` (.ota, .partition, .bss ...) nao entram. As strings mescladas
+    (.str1.1) dividem enderecos e a soma das entradas da .rodata passa do cabecalho, entao o fecho que se
+    confere e o dos cabecalhos com o `used`, nao o das entradas. Recusa: o texto que nao e um mapa; o
+    mapa sem uma das quatro secoes ou com uma duas vezes; os cabecalhos que nao somam o `used` (outro
+    chip, outra conta do PlatformIO: o enchimento lido nao seria o do `used`); um `*fill*` fora de
+    qualquer secao, com uma linha que este leitor nao entende, maior que a propria secao ou fora dela.
+    Um enchimento que ninguem leu nao e um enchimento de zero."""
     start = map_text.find("Linker script and memory map")
     if start < 0:
         raise ValueError("mapa do linker sem 'Linker script and memory map'")
     lines = map_text[start:].splitlines()
-    seen = []                     # (nome, endereco, tamanho) das entradas ate aqui
-    bank_object = False           # alguma entrada veio do objeto do banco
-    i = 0
-    while i < len(lines):
-        m = _MAP_ENTRY_RE.match(lines[i])     # uma entrada: um espaco e o nome
-        if not m:
-            i += 1
-            continue
-        name, addr, size, obj = m.group(1), m.group(2), m.group(3), m.group(4)
-        if addr is None and i + 1 < len(lines):
-            m2 = _MAP_ADDR_RE.match(lines[i + 1])
-            if m2:
-                addr, size, obj = m2.group(1), m2.group(2), m2.group(3)
-                i += 1
-        if obj and BANK_OBJECT in obj:
-            bank_object = True
-        if addr is not None:
-            if name == BANK_SECTION:
-                bank = int(addr, 16)
-                before = [e for e in seen if e[2] != 0]
-                if not before or before[-1][0] != "*fill*":
-                    return 0
-                fill = before[-1]
-                if fill[1] + fill[2] != bank:
-                    raise ValueError(f"*fill* em {fill[1]:#x}+{fill[2]:#x} nao termina "
-                                     f"no banco do BTstack ({bank:#x})")
-                return fill[2]
-            seen.append((name, int(addr, 16), int(size, 16)))
-        i += 1
-    if bank_object:
-        raise ValueError(f"o mapa tem o {BANK_OBJECT} e nao tem {BANK_SECTION}: "
-                         "o banco do BTstack mudou de nome?")
-    return 0
+    sections = {}                      # secao do `used` -> (endereco, tamanho) do cabecalho
+    fills = {name: [] for name in FLASH_SECTIONS}      # (endereco, tamanho) de cada *fill* dela
+    cur = None                         # a secao de saida de que as linhas de baixo fazem parte
+    seen = read = 0                    # linhas `*fill*` do mapa / as que este leitor entendeu
+    for i, ln in enumerate(lines):
+        if ln and not ln[0].isspace():
+            m = _MAP_HEADER_RE.match(ln)
+            cur = m.group(1) if m else None
+            if cur in FLASH_SECTIONS:
+                addr, size = m.group(2), m.group(3)
+                if addr is None and i + 1 < len(lines):   # nome longo: os numeros vem na linha de baixo
+                    m2 = _MAP_ADDR_RE.match(lines[i + 1])
+                    if m2:
+                        addr, size = m2.group(1), m2.group(2)
+                if addr is None:
+                    raise ValueError(f"a secao {cur} do mapa sem endereco e tamanho")
+                if cur in sections:
+                    raise ValueError(f"a secao {cur} aparece duas vezes no mapa")
+                sections[cur] = (int(addr, 16), int(size, 16))
+        elif ln.lstrip().startswith("*fill*"):
+            seen += 1
+            m = _MAP_FILL_RE.match(ln)
+            if m:
+                read += 1
+                if cur is None:
+                    raise ValueError("um `*fill*` fora de qualquer secao de saida")
+                if cur in FLASH_SECTIONS:
+                    fills[cur].append((int(m.group(1), 16), int(m.group(2), 16)))
+    if seen != read:
+        raise ValueError(f"{seen - read} linha(s) `*fill*` que este leitor nao entende")
+    missing = [name for name in FLASH_SECTIONS if name not in sections]
+    if missing:
+        raise ValueError(f"o mapa nao tem a secao {', '.join(missing)}")
+    total = sum(size for _, size in sections.values())
+    if total != used:
+        raise ValueError(f"as secoes {' + '.join(FLASH_SECTIONS)} do mapa somam {total} B e o `used` e {used} B")
+    out = 0
+    for name in FLASH_SECTIONS:
+        lo, size = sections[name]
+        for addr, sz in fills[name]:
+            if addr < lo or addr + sz > lo + size:
+                raise ValueError(f"um `*fill*` de {sz} B em {addr:#x} fora da secao {name} ({lo:#x} + {size:#x})")
+            out += sz
+    return out
+
 
 # Interruptores do manifesto: (recurso, perfil-base onde esta LIGADO). Desligar =
 # virar a chave no dicionario do perfil e recompor — compose() cuida de flag,
@@ -278,6 +309,9 @@ NO_ZOPFLI = "WARN zopfli not installed"
 def pio_build_full(env, echo=False):
     """Constroi e devolve {'used','bin','ram','sha256'}; se o linker estoura o
     flash, {'overflow': N} (o excesso que ELE mede); senao {'error': a 1a linha}.
+    O `used` e o inteiro, com o enchimento do linker: e o que a --matrix grava em
+    tools/feature_costs.json, porque o custo de uma chave e o que a imagem ocupa no slot.
+    O piso mede outra coisa, de proposito (pio_build, gate_flash: sem o enchimento).
     O sha256 do .bin e o que prova que uma chave nao muda nada num produto.
     `echo` repassa a saida inteira do PlatformIO: no CI e o log da build."""
     r = pio_run(env)
@@ -305,10 +339,11 @@ def pio_build_full(env, echo=False):
 
 
 def pio_build(env):
-    """Constroi um env com o mapa do linker e devolve {'flash':N,'ram':M,'pad':P},
-    ou None se falhou. P e o enchimento antes do banco do BTstack (bank_pad).
-    Recusa, como a pio_build_full, a build sem zopfli; e recusa a build sem mapa,
-    porque um enchimento que nao foi lido nao e um enchimento zero."""
+    """Constroi um env com o mapa do linker e devolve {'flash':N,'ram':M,'fill':F},
+    ou None se falhou. F e o enchimento do linker nas secoes do `used` (flash_fill).
+    Recusa, como a pio_build_full, a build sem zopfli; e recusa a build sem mapa e a
+    de mapa que nao fecha com o `used`, porque um enchimento que nao foi lido nao e
+    um enchimento zero."""
     r = pio_run(env, linker_map=True)
     sizes = parse_sizes(r.stdout)
     if r.returncode != 0 or sizes is None:
@@ -325,7 +360,7 @@ def pio_build(env):
         return None
     with open(map_path, encoding="utf-8", errors="replace") as fh:
         try:
-            sizes["pad"] = bank_pad(fh.read())
+            sizes["fill"] = flash_fill(fh.read(), sizes["flash"])
         except ValueError as e:
             sys.stderr.write(f"[{env}: {e}: medida recusada]\n")
             return None
@@ -333,8 +368,10 @@ def pio_build(env):
 
 
 def gate_flash(sizes):
-    """O flash que o piso compara: o `used` sem o enchimento do banco do BTstack."""
-    return sizes["flash"] - sizes["pad"]
+    """O flash que o piso compara: o `used` sem o enchimento do linker (flash_fill). A --matrix nao
+    passa por aqui: mede o `used` inteiro (pio_build_full), porque o custo de uma chave e o que a imagem
+    ocupa no slot, enchimento incluido."""
+    return sizes["flash"] - sizes["fill"]
 
 
 class TempEnvs:
@@ -381,8 +418,8 @@ def measure(features):
                 "ram_saved":   bs["ram"] - vs["ram"],
                 "flash_base":  bs["flash"],
                 "flash_off":   vs["flash"],
-                "pad_base":    bs["pad"],
-                "pad_off":     vs["pad"],
+                "fill_base":   bs["fill"],
+                "fill_off":    vs["fill"],
             }
     return results
 
@@ -401,9 +438,9 @@ def print_table(results):
         if r.get("error"):
             print(f"{f:<20} {r['base']:<16} {'ERRO':>10} {'':>8}  {note}")
             continue
-        if r.get("pad_base") or r.get("pad_off"):
+        if r.get("fill_base") or r.get("fill_off"):
             note = (note + "; " if note else "") + \
-                f"sem o enchimento do banco BT (base {r['pad_base']} B, off {r['pad_off']} B)"
+                f"sem o enchimento do linker (base {r['fill_base']} B, off {r['fill_off']} B)"
         print(f"{f:<20} {r['base']:<16} {r['flash_saved']:>10} "
               f"{r['ram_saved']:>8}  {note}")
     skipped = [f for f in COUPLED if f not in results]
@@ -454,9 +491,9 @@ def cmd_check(results, targets):
         if not r or r.get("error"):
             bad.append(f"{f}: nao medido (build falhou)")
             continue
-        if r["flash_saved"] < floor["flash_saved"]:
+        if r["flash_saved"] < floor["flash_saved"] - FLASH_TOL:
             bad.append(f"{f}: flash economiza {r['flash_saved']} B < piso "
-                       f"{floor['flash_saved']} B (o recurso vazou p/ o sempre-ligado)")
+                       f"{floor['flash_saved']} B, tolerancia {FLASH_TOL} B (o recurso vazou p/ o sempre-ligado)")
         if r["ram_saved"] < floor["ram_saved"] - RAM_TOL:
             bad.append(f"{f}: RAM economiza {r['ram_saved']} B < piso "
                        f"{floor['ram_saved']} B (tol {RAM_TOL})")

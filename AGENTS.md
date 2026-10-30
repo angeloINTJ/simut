@@ -22,11 +22,22 @@ e três sensores: DS18B20 no GP0, DHT22 no GP3 e no GP10) e um Pico comum (a
 **PicoHand**, ou "mão") que aciona as linhas RESET (GP0) e BOOTSEL (GP1) do alvo
 por comando serial, mede a sonda e finge o carregador. De 12/10 a 22/10 a
 bancada foi outra: o alvo era um Pico W (o SIMUT Wire, com a rede no módulo
-ENC28J60) e a mão era este Pico 2 W. O Pico W saiu do USB. O alvo está em
-`192.168.3.33`, com a web na porta 8080, pelo Wi-Fi.
+ENC28J60) e a mão era este Pico 2 W. O Pico W saiu do USB; ele voltou para o
+portão da v2.12.0 (28/10 e 29/10/2026) e saiu de novo, com a flash devolvida
+byte a byte à imagem do Wire com painel com que chegou (web pelo cabo, em
+`192.168.3.40:8080`). O alvo está em `192.168.3.33`, com a web na porta 8080,
+pelo Wi-Fi.
+
+**Em 29/10/2026 o alvo roda a imagem Ângulo do ramo `feat/ui-drivers`, não a da
+`main`.** O `GET /api/ui` sem sessão dá 401 nela e 302 numa imagem da `main`
+(a v2.11.1 deu 302). O portão da v2.12.0 gravou a v2.11.1 e a candidata por
+cima e devolveu a flash inteira, byte a byte, do dump de chegada. Quem gravar o
+alvo de novo guarda a flash inteira antes, em duas leituras iguais, e a devolve
+no fim (o item sobre a flash inteira, em *O Pico 2 W*, mais abaixo).
 
 **Identifique as portas pelo serial, nunca pela ordem de enumeração** (lidos
-do udev em 22/10/2026):
+do udev em 22/10/2026; o alvo em 3-3.1 e a mão em 3-3.2, conferidos de novo em
+29/10/2026):
 
 | Placa | USB | Porta | Serial (udev) |
 |---|---|---|---|
@@ -35,7 +46,9 @@ do udev em 22/10/2026):
 | O Pico W do Wire, fora do USB | `2e8a:f00a`, `ID_MODEL=Pico_W` | | `ID_SERIAL_SHORT=E6642815E34C1824` |
 
 Compare o `ID_MODEL` pela linha inteira: `Pico` é o começo de `Pico_2W`, e uma
-comparação por prefixo chama o alvo de mão (o manual da mão, §2).
+comparação por prefixo chama o alvo de mão (o manual da mão, §2). O Pico W com a
+imagem do Wire, que é de Pico comum, enumera como `2e8a:000a`, `Pico`: o ID da
+mão, e só o serial os distingue (28/10/2026, ele em 3-3.1 e a mão em 3-3.2).
 
 **Os roteiros de `tools/` ainda conhecem a bancada de antes.** Dez deles
 procuram o alvo como Pico W, pelo serial `E6642815E34C1824` ou pelo glob
@@ -57,25 +70,32 @@ acordado/dormindo, não como power-gating; o GP3 da mão vai ao GP17 do alvo e
 **finge o carregador** (3,3 V direto, sem o divisor da placa real). Detalhes,
 comandos e o analisador lógico: `tools/PicoHand/MANUAL_CLAUDE_CODE.pt-BR.md`.
 
-**Num soak, solte do RUN do alvo o fio RESET da mão.** O RUN é uma entrada de
-alta impedância, segura só pelo pull-up fraco do alvo e pelo `INPUT_PULLUP` da
-mão. Em 04/10/2026, depois de uma troca de placas, o Pico W reiniciou sozinho
-três vezes em duas horas, de 4 a 16 minutos depois de um boot, sem autópsia no
-log e sem nada na serial. Uma imagem de diagnóstico que grava no boot o motivo
-de reset do chip (`CHIP_RESET`) pegou o seguinte como o pino RUN (`HAD_RUN`), e
-com o fio solto foram 60 minutos sem reinício. Religue o fio depois: gravar e o
-RESET dos roteiros precisam dele. O `hand VERIFY` não acusa um pulso que já
-passou, porque só imprime a contagem enquanto a falha está ativa.
+**O fio RESET da mão fica no RUN do alvo, também num soak.** Os reinícios de 04/10
+(três em duas horas) e de 05/10/2026 (quatro em seis horas), que este manual
+atribuía ao fio, vinham da montagem da equipotencialização dos terras das placas,
+que estava errada e foi consertada (palavra do mantenedor, 28/10/2026). Medido
+com o fio no RUN, no Pico W, no portão da v2.12.0 (28 e 29/10/2026): cerca de 10 h
+de bancada, das quais o firmware rodou cerca de 4,8 h (66 + 60 + 164 min); a
+placa passou o resto em BOOTSEL, só com a ROM. Nessas 4,8 h, o soak de 30 min
+incluído, não houve reinício que não fosse nosso. No Pico 2 W ninguém conferiu
+onde o fio estava durante o soak dele, e nenhum passo usou a mão: os números
+daquele soak não dizem nada sobre o fio. Os dois dias de 04 e 05/10, o
+diagnóstico que pegou o pino RUN (`HAD_RUN`) e os números do portão estão nas
+seções *A bancada* do `CHANGELOG.md` (v2.11.0, v2.11.1 e v2.12.0). Se os
+reinícios voltarem com o fio no RUN, confira primeiro o terra entre as placas. O
+`hand VERIFY` não acusa um pulso que já passou, porque só imprime a contagem
+enquanto a falha está ativa.
 
-**Não é só no soak.** Em 05/10/2026, no portão da v2.11.1, com o fio ligado, o
-Pico W reiniciou sozinho quatro vezes em seis horas, de 7 minutos a 2,5 horas
-depois de um boot. Uma delas cortou uma atualização pelo ar aos 33,8 s do
-envio: a placa voltou na versão de antes, com a configuração idêntica byte a
-byte, como o passo do corte espera, e o mesmo envio passou na tentativa
-seguinte. Um passo que falha sem a linha `WATCHDOG_REBOOT detected` na serial e
-sem `SYS_BOOT` no log foi reiniciado por fora: repita-o antes de culpar o
-firmware. Com o fio solto, o BOOTSEL vem pelo toque de 1200 bps na serial do
-alvo, e o `picotool reboot` o tira de lá.
+**Um passo que falha sem a linha `WATCHDOG_REBOOT detected` na serial e sem
+`SYS_BOOT` no log foi reiniciado por fora:** repita-o antes de culpar o
+firmware. Sem a mão, o BOOTSEL vem pelo toque de 1200 bps na serial do alvo, e o
+`picotool reboot` o tira de lá. **Uma mão que enumera mas não responde ao `PING`
+com `PONG`** (a serial dela travada) se recupera assim: um reset da porta USB dela
+(`USBDEVFS_RESET` em `/dev/bus/usb/<bus>/<dev>`), sem desligar o cabo e sem
+reiniciar o chip, e `PING` de novo. Em 29/10/2026 isso a trouxe de volta, com as
+linhas dela soltas o tempo todo (`STATUS`: BOOTSEL e RESET soltos); em 28/10/2026
+o mesmo mutismo só passou quando o mantenedor religou o cabo. Peça o cabo se o
+reset da porta não resolver.
 
 **O alvo tem um painel TFT ligado** (ILI9341 + XPT2046, pinagem do
 `simut_config.h`), o que esta lista não dizia até 22/09/2026 — `/api/screenshot`
@@ -139,6 +159,16 @@ picotool load -x <firmware.uf2> || {       # caminho normal: o alvo ainda atende
 hand_release_all
 ```
 
+- **Uma gravação da flash inteira se prova relendo a flash e comparando com o
+  arquivo, byte a byte,** nunca pelo retorno do `picotool load`. Desmonte antes o
+  drive do BOOTSEL (`udisksctl unmount -b <dispositivo>`): em 28 e 29/10/2026 o
+  host zerou o USB da placa três vezes no meio de um `picotool load` (em duas
+  delas, 20 e 31 s depois de o udisks montar o drive; na terceira o intervalo não
+  foi medido), e uma gravação seguinte deixou um byte deslocado dentro de um
+  pacote de 64 B, no setor `0x88000`. Com o drive desmontado e o `automount-open`
+  do GNOME desligado as gravações seguintes passaram, mas a do byte deslocado já
+  tinha as duas medidas: a causa não foi medida. A história da noite está em
+  *A bancada* do `CHANGELOG.md` da v2.12.0.
 - Prefira o toque de 1200 bps (`pio run -t upload`) a `picotool -f`: com dois
   RP2040 no barramento o picotool pega o primeiro que acha — a mão, que não tem
   interface de reset — e `--ser` não salva, porque em BOOTSEL a placa enumera com
@@ -189,6 +219,16 @@ assim:
   pacotes ficam. Em 22/10/2026 a bancada gravou o Pico 2 W assim, e cada imagem
   se provou por um efeito que só ela tinha (o número de temas em
   `/api/themes`), não pelo retorno do `cp`.
+- **A flash inteira do Pico 2 W (4 MiB) se guarda e se devolve pelo mesmo toque
+  de 1200 bps,** sem a mão. O RP2350 em BOOTSEL enumera como `2e8a:000f` (o do
+  RP2040 é `2e8a:0003`), com o serial do chip. Antes de gravar:
+  `picotool save -a <arquivo> --ser <serial>` duas vezes, as duas leituras
+  iguais (4.194.304 B). De volta: `picotool load --ignore-partitions -v <arquivo>
+  -t bin -o 0x10000000 --ser <serial>`, que grava no espaço absoluto da flash,
+  depois da tabela de partições que o próprio dump traz, e uma releitura
+  (`save -a`) comparada por sha256 com o arquivo. Em 29/10/2026 foi assim que o
+  alvo voltou à imagem Ângulo: o dump de chegada, a volta e a releitura iguais,
+  byte a byte.
 - **Pelo ar (passo 4),** a página Arquivos grava a imagem no slot de onde a placa
   não subiu e reinicia nele. Do A para o B a ROM apaga o primeiro setor do A
   quando a imagem nova sobe; do B para o A não apaga nada, e o B guarda a
@@ -419,15 +459,19 @@ python3 tools/test_flash_budget.py                   # as duas regras que mantê
   piso — um ratchet ao contrário do orçamento (a economia só sobe). O portão
   `measure_savings.py --check` reprova se um recurso vazou para o caminho
   sempre-ligado e deixou de sumir. O flash que ele compara é o `used` sem o
-  enchimento que o linker põe antes do banco do BTstack (lido do mapa do linker):
-  contado, o enchimento mexia o piso de toda chave do Alpha e do Air a cada byte
-  de `.rodata` da imagem. Constrói 21 imagens, então NÃO está no job `gates`:
+  enchimento do linker, todo `*fill*` de `.boot2`, `.text`, `.rodata` e `.data` lido do mapa
+  (o do banco do BTstack é só o maior deles): contado, o enchimento mexia a economia
+  8 a 16 B por commit sem símbolo nenhum mudar de lugar (nove de dezesseis recursos
+  abaixo do piso em 29/10, #296) e a de toda chave do Alpha e do Air até 4 096 B.
+  Uma queda de até 8 B (`FLASH_TOL`) passa: é o que sobra de mudança de verdade.
+  Constrói 21 imagens, então NÃO está no job `gates`:
   roda em `.github/workflows/savings.yml` (noturno/manual), e **nenhum PR vê o
   vermelho dele** — confira com `gh run list --workflow "SIMUT savings
   watermark"`. Ao mexer no que um recurso guarda, confira barato com `--check
   --only <recurso>`; uma queda intencional pede `--update` e a causa no
   commit. A tabela e os achados (bluetooth = 137 kB no Alpha sem o
-  enchimento, 22/10; o buzzer, com chave própria desde 26/09) estão em
+  enchimento, 22/10; o enchimento de alinhamento, 30/10; o buzzer, com chave
+  própria desde 26/09) estão em
   [docs/analysis/ECONOMIA_DE_RECURSOS.md](docs/analysis/ECONOMIA_DE_RECURSOS.md).
 - **Build sob medida** (o configurador, P7 de `MODELO_DE_RECURSOS.md`):
   `tools/build_custom.py --profile '{"v":1,"base":"pico_w_air","set":{"bluetooth":false}}'`
@@ -501,7 +545,18 @@ Antes de publicar, no rig, com os números no PR:
    - o `.uf2` de fábrica da candidata arrastado para a unidade do BOOTSEL dessa
      placa, que é A2 e tem tabela, pelo mantenedor (errata RP2350-E10). O
      artefato não traz o `.uf2`; ele sai do artefato com
-     `python3 tools/release_manifest.py --build-dir <artefato> --out <pasta>`.
+     `python3 tools/release_manifest.py --build-dir <artefato> --out <pasta>`;
+   - **A cópia do `.uf2` de fábrica (o arrasto) só prova que gravou se a candidata
+     estiver no slot B antes dela.** Depois da cópia, a placa subindo do slot A é o sinal de
+     que o `.uf2` gravou; com a placa já no A antes, uma cópia que a ROM ignorou dá
+     a mesma leitura. O `.uf2` de fábrica da versão anterior deixa a placa no A, e
+     a atualização da candidata sobre ela mesma troca de slot a cada vez, então o
+     slot em que a placa chega à cópia depende de quantas atualizações vieram
+     antes: em 29/10/2026 ela chegou no A, e ler o slot depois da cópia não provou
+     nada. Antes de copiar, leia o slot (`sys.slot` no `/api/status`); se não for o
+     B, repita a atualização da candidata sobre ela mesma até ser. Faça o controle
+     negativo (BOOTSEL pelo toque de 1200 bps sem gravar nada, e `picotool reboot`:
+     a placa tem de ficar no B), copie, e o slot lido depois tem de ser o A.
 
    O passo 3 não se aplica do mesmo jeito: no Pico 2 W a imagem vai para o slot
    inativo, e o LittleFS fica intocado.

@@ -6381,9 +6381,23 @@ static const char FILE_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
 
         function fmToggleAll(src) { document.querySelectorAll('.item-chk').forEach(c => c.checked = src.checked); }
         function fmUploadClick() { document.getElementById('uploadFile').click(); }
+        /* fetchSafe( ) throws only for a status of 500 or more (503 excepted), so a refusal the device answers with
+           a 4xx reaches this function as a response, not as an exception: 400 {"error":"Invalid upload"} (a name, a
+           folder or a size it will not take) or 403 in plain text. Read it: until 2026-10-28 the page refreshed the
+           listing and said "Upload complete." for a file that never arrived. tools/test_webui_upload_result.py runs
+           this function with the page's own fetchSafe( ). */
         async function doUpload() {
             let fData = new FormData(document.getElementById('upForm'));
-            try { await fetchSafe('/api/upload', { method: 'POST', body: fData, timeout: 60000 }); fmNavigate(currentDir); showToast(window.t('fil_uploaded','Upload complete.'), 'ok'); } catch(e) { showToast(window.t('fil_up_err','Upload error'), 'err'); }
+            try {
+                const r = await fetchSafe('/api/upload', { method: 'POST', body: fData, timeout: 60000 });
+                if (!r.ok) {
+                    let why = '';
+                    try { const j = await r.json(); if (j && typeof j.error === 'string') why = j.error; } catch(e2) {}
+                    showToast(window.t('fil_up_refused', 'Upload refused (HTTP {s}). Check the file name, the folder, the free space and your permission to upload, then try again.').replace('{s}', () => r.status + (why ? ': ' + why : '')), 'err');
+                    return;
+                }
+                fmNavigate(currentDir); showToast(window.t('fil_uploaded','Upload complete.'), 'ok');
+            } catch(e) { showToast(window.t('fil_up_err','Upload error'), 'err'); }
         }
         async function fmDelete() {
             let sel = document.querySelectorAll('.item-chk:checked'); if (sel.length === 0) { showToast(window.t('fil_sel_del', 'Select files to delete.'), 'warn'); return; }

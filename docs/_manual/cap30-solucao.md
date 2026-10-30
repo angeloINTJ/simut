@@ -36,7 +36,7 @@ Detalhes nos capítulos [2](#cap-02), [3](#cap-03) e [4](#cap-04).
 |---|---|---|
 | O aparelho reinicia sozinho, sem causa no log de eventos | Queda de tensão no cabo USB ou na fonte | Troque por um cabo de pelo menos 22 AWG e uma fonte firme ([capítulo 2](#cap-02-pico)) |
 | O painel fica branco ou sem imagem | Fiação do SPI, do CS, do DC ou do RESET trocada ou solta | Confira a tabela do TFT pino a pino ([capítulo 2](#cap-02-tft)) |
-| Pontos soltos em áreas lisas do painel ou do espelho da web | Fios longos ou ruins para os 66,5 MHz do TFT | Encurte a fiação; se não resolver, compile com frequência menor ([capítulo 3](#cap-03-fonte)) |
+| Pontos soltos em áreas lisas do painel ou do espelho da web | Fios longos ou ruins para o barramento do TFT ajustado a 66,5 MHz | Encurte a fiação; se não resolver, compile com frequência menor ([capítulo 3](#cap-03-fonte)) |
 | O toque não responde | T_CS fora do GP17 ou T_IRQ fora do GP20 | Confira as ligações do toque ([capítulo 2](#cap-02-tft)) |
 | O LCD mostra blocos cheios ou fica em branco | Contraste desajustado, ou LCD no 3V3 | Ajuste o potenciômetro do VO; alimente o LCD pelo 5 V ([capítulo 2](#cap-02-lcd)) |
 | DS18B20 com **Erro de CRC** (103) ou falha ao ler a ROM (999) | Falta o resistor de 4,7 kΩ, ou há duas sondas no mesmo GPIO | Ponha o resistor entre o dado e o 3V3 e deixe uma sonda por GPIO ([capítulo 2](#cap-02-ds18b20)) |
@@ -348,10 +348,14 @@ Detalhes no [capítulo 17](#cap-17).
 | A restauração trouxe de volta uma senha antiga do administrador | A restauração devolve a configuração da data do backup | Troque a senha depois de restaurar |
 | Faltam as medições entre a atualização e a restauração | A restauração substituiu o arquivo do dia pela cópia do backup | Restaure logo depois de atualizar ([capítulo 15](#cap-15-ota)) |
 | **Falha ao aplicar: I/O error** | Falha de gravação (até a v2.9.0, também um backup com mais de 200 arquivos) | Não reinicie; repita a restauração: os arquivos já gravados ficam, e ela completa o resto |
-| A página diz **Upload concluído.**, mas o arquivo não aparece | O aparelho recusou o envio (nome inválido, sem espaço ou destino proibido) | Confira o nome, o espaço livre e a pasta |
+| A página diz **Envio recusado (HTTP 400: Invalid upload).** | O aparelho recusou o envio (nome inválido, sem espaço ou destino proibido); com HTTP 403, a conta não tem a permissão de envio | Confira o nome do arquivo, o espaço livre e a pasta; com HTTP 403, entre com uma conta que possa enviar arquivos |
 | Um pacote de idioma enviado não fez efeito | O pacote só é lido no boot | Reinicie o aparelho |
 | [air]{.img} A página do Air parou de responder durante a atualização | O Air hibernou | Ligue o carregador durante a atualização, ou ponha o Air em M0 com `air stop` |
 | O reset de fábrica deixou o aparelho sem uma senha conhecida | A senha aleatória desse reset não é mostrada | Rode `system admin reset confirm` pelo console USB |
+
+::: atencao
+**Vários arquivos num envio.** O aparelho só informa a recusa do último arquivo: se um arquivo recusado vier antes de um aceito, a página diz **Upload concluído.** e o arquivo recusado não aparece. Envie um arquivo por vez quando algum puder ser recusado, e confira a lista.
+:::
 
 ## Recuperação {#cap-30-recuperacao}
 
