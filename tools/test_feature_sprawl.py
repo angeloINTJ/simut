@@ -7,11 +7,12 @@ the network class. The gate counts that line as well now, and this holds how (th
 
   1. What counts, on temporary trees: the four preprocessor lines (the control), and `if constexpr ( SIMUT_X )` (with and without spaces, after `} else`, after `else`), each macro of a condition once; an `#if` and
      an `if constexpr` on one macro are two sites.
-  2. What does not: an `if constexpr` that tests no SIMUT_ macro, a comment line, the files the gate skips, a file that is not source.
+  2. What does not: an `if constexpr` that tests no SIMUT_ macro, a comment line, the text of an end-of-line comment (`// SIMUT_A only`, `/* ... */`: the code is read and not the comment; a `//` inside a string is
+     no comment), the files the gate skips, a file that is not source. And what the gate does not see, pinned (the cases marked NOT SEEN): a plain `if ( SIMUT_X )`, a ternary, a `static_assert`, a condition split over lines.
   3. The verdict: a tree with one site more than its watermark exits 1 and names the file; with the watermark raised, 0.
   4. The real tree: the glue's `if constexpr ( SIMUT_NET_WIFI )` is seen by the real gate.
-  5. The mutants: the gate's source edited one rule at a time (the `if constexpr` rule not used, `else` not accepted, `} else` not accepted, the line anchor dropped so that a comment counts, every macro of a
-     line counted and not each once); each must fail a case, and an edit whose anchor is not found exactly once fails this script.
+  5. The mutants: the gate's source edited one rule at a time (the `if constexpr` rule not used, `else` not accepted, `} else` not accepted, the line anchor dropped so that a comment line counts, every macro of a
+     line counted and not each once, the comment not stripped, a `//` in a string taken for a comment, a block comment not stripped); each must fail a case, and an edit whose anchor is not found exactly once fails this script.
 
 Usage: python3 tools/test_feature_sprawl.py   exit 0 when all hold, 1 when not.
 """
@@ -96,6 +97,17 @@ CASOS = [
     ('a comment line counts nothing', {'a.cpp': '// if constexpr ( SIMUT_A )\n/* if constexpr ( SIMUT_A )\n * if constexpr ( SIMUT_A )\n */\n'}, {}),
     ('the files the gate skips count nothing', {'NetCaps.h': '  if constexpr ( SIMUT_A )\n'}, {}),
     ('a file that is not source counts nothing', {'a.txt': '  if constexpr ( SIMUT_A )\n'}, {}),
+    # The code and not the comment: a macro named in an end-of-line comment is no site (2026-10-30, the reviewer's false positive).
+    ('an if constexpr whose comment names a macro counts nothing', {'a.cpp': '  if constexpr ( kX )   // SIMUT_A only\n    g();\n'}, {}),
+    ('an #if whose comment names a macro counts nothing', {'a.cpp': '#if FOO   // SIMUT_A only\n#endif\n'}, {}),
+    ('the macro before a /* */ or // comment counts, the one in the comment does not', {'a.cpp': '#if SIMUT_A   /* not SIMUT_B */\n#endif\n  if constexpr ( SIMUT_C )   // and SIMUT_D\n    g();\n'},
+     {'SIMUT_A': {'a.cpp': 1}, 'SIMUT_C': {'a.cpp': 1}}),
+    ('a // inside a string is no comment: the macro after it counts', {'a.cpp': '  if constexpr ( sizeof( "//" ) == 3 && SIMUT_A )\n    g();\n'}, {'SIMUT_A': {'a.cpp': 1}}),
+    # What the gate does not see, pinned (the docstring of the gate says so): if a case here starts to count, the gate was taught more and its docstring and message are to say it.
+    ('NOT SEEN: a plain if on a macro', {'a.cpp': '  if ( SIMUT_A )\n    g();\n'}, {}),
+    ('NOT SEEN: a ternary on a macro', {'a.cpp': '  int x = SIMUT_A ? 1 : 2;\n'}, {}),
+    ('NOT SEEN: a static_assert on a macro', {'a.cpp': '  static_assert( SIMUT_A, "x" );\n'}, {}),
+    ('NOT SEEN: an if constexpr whose condition is split over lines', {'a.cpp': '  if constexpr (\n      SIMUT_A )\n    g();\n'}, {}),
 ]
 
 ARV = {'a.cpp': '#if SIMUT_A\n#endif\nvoid f() {\n  if constexpr ( SIMUT_A )\n    g();\n}\n', 'x.cpp': '#if SIMUT_X\n#endif\n'}
@@ -131,11 +143,14 @@ def arvore_real(mod):
 
 # (name, the gate's statement, what replaces it)
 MUTANTES = [
-    ('the if constexpr rule not used (the gate of 032341e1)', 'm = COND.match(line) or CONSTEXPR.match(line)', 'm = COND.match(line)'),
+    ('the if constexpr rule not used (the gate of 032341e1)', 'm = COND.match(linha) or CONSTEXPR.match(linha)', 'm = COND.match(linha)'),
     ('`else` not accepted before an if constexpr', r'(?:else\s+)?', ''),
     ('`} else` not accepted before an if constexpr', r'(?:\}\s*)?', ''),
     ('the line anchor dropped: a comment line counts', r'^\s*(?:\}\s*)?(?:else\s+)?if\s+constexpr', r'^.*?\bif\s+constexpr'),
     ('every macro of a line counted, not each once', 'for mac in set(MACRO.findall(m.group(1))):', 'for mac in MACRO.findall(m.group(1)):'),
+    ('the comment not stripped before the match', 'linha = tira_comentario(line)', 'linha = line'),
+    ('a // inside a string taken for a comment', "if c == '\"':", 'if False:'),
+    ('a /* */ comment not stripped', 'elif c == "/" and d == "*":', 'elif False:'),
 ]
 
 

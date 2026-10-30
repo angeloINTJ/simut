@@ -223,7 +223,7 @@ jobs:
       # lowers the mark. Same idea as the flash budget, for entanglement.
       - name: Feature entanglement watermark
         run: python3 tools/check_feature_sprawl.py
-      # What the watermark counts (S10c, the Wi-Fi status bar): the `#if` lines and, since 2026-10-30, an `if constexpr ( SIMUT_X )`, each macro of a condition once; its five mutants must fail it.
+      # What the watermark counts (S10c, the Wi-Fi status bar): the `#if` lines and, since 2026-10-30, an `if constexpr ( SIMUT_X )`, each macro of a condition once, the code and not its comment; its eight mutants must fail it.
       - name: Feature entanglement watermark counts (test_feature_sprawl.py)
         run: python3 tools/test_feature_sprawl.py
 

@@ -266,7 +266,7 @@ web_omit = "ui_angulo"
 # novas, a uaMontarBase (241 -> 242 instrucoes) e a uaToqueBase (97 -> 98) mudadas e onze funcoes de biblioteca cuja primeira diferenca e uma palavra de texto no fim da funcao.
 # O DisplayManager_UiA.cpp ganhou em 2026-10-30 (S10c, o glifo de rede da barra de status) o seu segundo desvio da rede: a uaVmStatus( ) escolhe o estado do icone de rede (o cabo, ou os quatro niveis do Wi-Fi e o sem
 # sinal, como a barra do painel original) por `if constexpr ( SIMUT_NET_WIFI )`, no corpo da funcao e nao por um #if, para que uma macro nao definida seja erro de compilacao e nao um 0 calado. O portao nao enxergava
-# essa linha (so contava `#if`): a tools/check_feature_sprawl.py passou a contar `if constexpr ( SIMUT_X )` como sitio, com o primeiro teste do portao (tools/test_feature_sprawl.py: vermelho antes, cinco mutantes
+# essa linha (so contava `#if`): a tools/check_feature_sprawl.py passou a contar `if constexpr ( SIMUT_X )` como sitio, com o primeiro teste do portao (tools/test_feature_sprawl.py: vermelho antes, oito mutantes
 # dele) e o emaranhamento subiu 1 (368 -> 369: SIMUT_NET_WIFI no DisplayManager_UiA.cpp, de 1 para 2), um desvio registrado como o do D7, pedido pela sessao principal em 2026-10-30 (a revisao do fix do Wi-Fi) e a
 # confirmar pelo mantenedor no merge: a [net_class.wifi] segue sem lista `units` por onde o codigo saisse da imagem cabeada, e as duas imagens do Angulo tem a uaVmStatus( ).
 # O .bin do Angulo cabeado difere do do C8 em 579 bytes de 826736, e o veneer_proof.py (exit 0) os prova so da ordem dos veneers do ligador e dos operandos dos desvios que os chamam.
