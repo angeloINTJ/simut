@@ -4,7 +4,7 @@
 Conta, por macro de recurso e por arquivo, os sitios em src/ que testam uma macro
 SIMUT_, e os prende a uma marca d'agua em tools/feature_sprawl.json. Um sitio e UMA
 LINHA, lida sem o comentario (um `//` ate o fim da linha e um `/* ... */` nao contam,
-nem a macro que citam; um `//` dentro de uma string nao e comentario), de um destes
+nem a macro que citam; um `//` dentro de uma string nao e comentario; um literal de caractere como `'"'` nao abre string), de um destes
 dois jeitos:
   - uma linha que comeca com `#` e `if`, `ifdef`, `ifndef` ou `elif`;
   - um `if constexpr` que ABRE a linha (depois de um `}` e de um `else`, se houver)
@@ -70,20 +70,26 @@ EXTS = (".cpp", ".c", ".h", ".hpp", ".ino")
 COND = re.compile(r"^\s*#\s*(?:if|ifdef|ifndef|elif)\b(.*)$")
 # An `if constexpr ( SIMUT_X )` is a site as well (2026-10-30, S10c, o glifo de rede da barra de status): o mesmo desvio por um recurso, sem a linha de pre-processador que o mostrava; um arquivo
 # ficava em um `#if` so porque o segundo desvio era escrito assim. Le-se, como o COND, so a linha que COMECA com ele (depois de um `else`, ou de um `}` e um `else`): uma linha de comentario
-# comeca com `*` ou `//`, nao com `if`. tools/test_feature_sprawl.py segura a regra e os oito mutantes do portao.
+# comeca com `*` ou `//`, nao com `if`. tools/test_feature_sprawl.py segura a regra e os onze mutantes do portao.
 CONSTEXPR = re.compile(r"^\s*(?:\}\s*)?(?:else\s+)?if\s+constexpr\b(.*)$")
 MACRO = re.compile(r"\bSIMUT_[A-Z0-9_]+\b")
 
 
 def tira_comentario(linha: str) -> str:
-    """A linha sem os comentarios: um `/* ... */` e um `//` que vai ate o fim; o texto de uma string fica
-    como esta (um `//` dentro dela nao e comentario). Um `/*` sem `*/` na linha corta o resto dela."""
+    """A linha sem os comentarios: um `/* ... */` e um `//` que vai ate o fim; o texto de uma string ou de um literal de caractere fica como esta (um `//` dentro de uma string nao e comentario, e a aspa de um `'"'` nao abre string). Um `/*` sem `*/` na linha corta o resto dela."""
     saida, i, n = [], 0, len(linha)
     while i < n:
         c, d = linha[i], linha[i + 1] if i + 1 < n else ""
         if c == '"':
             j = i + 1
             while j < n and linha[j] != '"':
+                j += 2 if linha[j] == "\\" else 1
+            saida.append(linha[i:j + 1])
+            i = j + 1
+        elif c == "'" and not (i and linha[i - 1].isalnum() and d.isalnum()):
+            # um literal de caractere ('"', '\'', '\\') passa inteiro, para que a aspa dele nao abra uma string; um ' entre dois alfanumericos e separador de digitos (1'000), a regra do apaga( ) de tft_ui/test_rede.py
+            j = i + 1
+            while j < n and linha[j] != "'":
                 j += 2 if linha[j] == "\\" else 1
             saida.append(linha[i:j + 1])
             i = j + 1

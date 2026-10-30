@@ -369,16 +369,59 @@ static void quadros( const char *pasta ) {
 #endif
 }
 
-// The lit pixels of each network icon at 16 px, for the record: what the bar weighs on the glass.
+// The pieces a mask is made of: its 8-connected components (the dot and each bar of a Lucide signal icon are one piece each).
+static int pecas( const Pontos &pts ) {
+  bool m[16][16] = { };
+  for ( const auto &q : pts ) m[q.second][q.first] = true;
+  int n = 0;
+  for ( int y = 0; y < 16; y++ )
+    for ( int x = 0; x < 16; x++ ) {
+      if ( !m[y][x] ) continue;
+      n++;
+      std::vector<std::pair<int, int>> pilha = { { x, y } };
+      m[y][x] = false;
+      while ( !pilha.empty( ) ) {
+        const auto [cx, cy] = pilha.back( );
+        pilha.pop_back( );
+        for ( int dy = -1; dy <= 1; dy++ )
+          for ( int dx = -1; dx <= 1; dx++ ) {
+            const int nx = cx + dx, ny = cy + dy;
+            if ( nx >= 0 && nx < 16 && ny >= 0 && ny < 16 && m[ny][nx] ) {
+              m[ny][nx] = false;
+              pilha.emplace_back( nx, ny );
+            }
+          }
+      }
+    }
+  return n;
+}
+
+// The lit pixels and the pieces of each network icon at 16 px: what the bar weighs on the glass, for the record, and, for the signal icons, the registry's CONTENT. The frames cannot see it (they compare the
+// bar with the kit's own drawing of the same icon, which goes through the same registry: two rows with each other's bitmap draw alike), so the four signal icons are held here to what they are: the lit pixels grow with
+// the level, and each is made of as many pieces as Lucide 0.468.0's svg has elements, 2, 3, 4 and 5 (the dot and one bar more at each level; counted in the svg files on 2026-10-30).
 static void contagens( ) {
   const ua::Tema &T0 = ua::tema( true, 0 );
+  struct Linha { const char *nome; ua::IconeNome ic; };
 #if SIMUT_NET_WIFI
-  const struct { const char *nome; ua::IconeNome ic; } v[] = { { "signal-low", ua::IconeNome::SIGNAL_LOW }, { "signal-medium", ua::IconeNome::SIGNAL_MEDIUM }, { "signal-high", ua::IconeNome::SIGNAL_HIGH },
-                                                                  { "signal", ua::IconeNome::SIGNAL }, { "wifi-off", ua::IconeNome::WIFI_OFF } };
+  const Linha v[] = { { "signal-low", ua::IconeNome::SIGNAL_LOW }, { "signal-medium", ua::IconeNome::SIGNAL_MEDIUM }, { "signal-high", ua::IconeNome::SIGNAL_HIGH },
+                      { "signal", ua::IconeNome::SIGNAL }, { "wifi-off", ua::IconeNome::WIFI_OFF } };
 #else
-  const struct { const char *nome; ua::IconeNome ic; } v[] = { { "ethernet-port", ua::IconeNome::ETHERNET_PORT }, { "unplug", ua::IconeNome::UNPLUG } };
+  const Linha v[] = { { "ethernet-port", ua::IconeNome::ETHERNET_PORT }, { "unplug", ua::IconeNome::UNPLUG } };
 #endif
-  for ( const auto &e : v ) printf( "icon %-14s %3zu lit px at 16 px\n", e.nome, tintaDoIcone( e.ic, T0 ).size( ) );
+  size_t px[8] = { };
+  int pc[8] = { };
+  int k = 0;
+  for ( const Linha &e : v ) {
+    const Pontos p = tintaDoIcone( e.ic, T0 );
+    px[k] = p.size( );
+    pc[k] = pecas( p );
+    printf( "icon %-14s %3zu lit px at 16 px, %d piece(s)\n", e.nome, px[k], pc[k] );
+    k++;
+  }
+#if SIMUT_NET_WIFI
+  CONFERE( px[0] < px[1] && px[1] < px[2] && px[2] < px[3], "the lit pixels of signal-low, -medium, -high and signal (%zu, %zu, %zu, %zu) do not grow with the level: a registry row has another icon's bitmap", px[0], px[1], px[2], px[3] );
+  for ( int i = 0; i < 4; i++ ) CONFERE( pc[i] == i + 2, "%s is made of %d piece(s), the Lucide svg has %d elements", v[i].nome, pc[i], i + 2 );
+#endif
 }
 
 int main( int argc, char **argv ) {

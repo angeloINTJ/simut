@@ -223,7 +223,7 @@ jobs:
       # lowers the mark. Same idea as the flash budget, for entanglement.
       - name: Feature entanglement watermark
         run: python3 tools/check_feature_sprawl.py
-      # What the watermark counts (S10c, the Wi-Fi status bar): the `#if` lines and, since 2026-10-30, an `if constexpr ( SIMUT_X )`, each macro of a condition once, the code and not its comment; its eight mutants must fail it.
+      # What the watermark counts (S10c, the Wi-Fi status bar): the `#if` lines and, since 2026-10-30, an `if constexpr ( SIMUT_X )`, each macro of a condition once, the code and not its comment (a character literal opens no string); its eleven mutants must fail it.
       - name: Feature entanglement watermark counts (test_feature_sprawl.py)
         run: python3 tools/test_feature_sprawl.py
 
@@ -365,8 +365,8 @@ jobs:
         run: python3 tools/tft_ui/test_confirma_ap.py
       # The status bar's network glyph (S10c, the Wi-Fi fix): uaVmStatus( ), cut out of DisplayManager_UiA.cpp and compiled with the real kit, once as a Wi-Fi image and once as
       # the cable's, for every level from -200 to +20 dBm against the ladder of the old top bar, which the test reads out of DisplayManager_Dashboard.cpp (no bar at -100 or
-      # less, one bar up to -75: the weak icon); the bar drawn from the glue's own answer, each network icon held to the expected Lucide icon and ink and no state in the danger colour; its 25 glue and 10
-      # renderer mutants must fail it. 89 + 1,319 checks; 6.0 s here on 2026-10-30.
+      # less, one bar up to -75: the weak icon); the bar drawn from the glue's own answer, each network icon held to the expected Lucide icon and ink and no state in the danger colour; its 25 glue, 10 renderer and 2 registry
+      # mutants must fail it. 97 + 1,324 checks; 7.5 s here on 2026-10-30.
       - name: Angulo status bar network glyph on the host (test_rede.py)
         run: python3 tools/tft_ui/test_rede.py
 

@@ -7,12 +7,11 @@ the network class. The gate counts that line as well now, and this holds how (th
 
   1. What counts, on temporary trees: the four preprocessor lines (the control), and `if constexpr ( SIMUT_X )` (with and without spaces, after `} else`, after `else`), each macro of a condition once; an `#if` and
      an `if constexpr` on one macro are two sites.
-  2. What does not: an `if constexpr` that tests no SIMUT_ macro, a comment line, the text of an end-of-line comment (`// SIMUT_A only`, `/* ... */`: the code is read and not the comment; a `//` inside a string is
-     no comment), the files the gate skips, a file that is not source. And what the gate does not see, pinned (the cases marked NOT SEEN): a plain `if ( SIMUT_X )`, a ternary, a `static_assert`, a condition split over lines.
+  2. What does not: an `if constexpr` that tests no SIMUT_ macro, a comment line, the text of an end-of-line comment (`// SIMUT_A only`, `/* ... */`: the code is read and not the comment; a `//` inside a string is no comment, and a `'"'` literal opens no string), the files the gate skips, a file that is not source. And what the gate does not see, pinned (the cases marked NOT SEEN): a plain `if ( SIMUT_X )`, a ternary, a `static_assert`, a condition split over lines.
   3. The verdict: a tree with one site more than its watermark exits 1 and names the file; with the watermark raised, 0.
   4. The real tree: the glue's `if constexpr ( SIMUT_NET_WIFI )` is seen by the real gate.
   5. The mutants: the gate's source edited one rule at a time (the `if constexpr` rule not used, `else` not accepted, `} else` not accepted, the line anchor dropped so that a comment line counts, every macro of a
-     line counted and not each once, the comment not stripped, a `//` in a string taken for a comment, a block comment not stripped); each must fail a case, and an edit whose anchor is not found exactly once fails this script.
+     line counted and not each once, the comment not stripped, a `//` in a string taken for a comment, a block comment not stripped, a character literal not skipped, the digit separator taken for one, an escape in one not skipped); each must fail a case, and an edit whose anchor is not found exactly once fails this script.
 
 Usage: python3 tools/test_feature_sprawl.py   exit 0 when all hold, 1 when not.
 """
@@ -103,6 +102,11 @@ CASOS = [
     ('the macro before a /* */ or // comment counts, the one in the comment does not', {'a.cpp': '#if SIMUT_A   /* not SIMUT_B */\n#endif\n  if constexpr ( SIMUT_C )   // and SIMUT_D\n    g();\n'},
      {'SIMUT_A': {'a.cpp': 1}, 'SIMUT_C': {'a.cpp': 1}}),
     ('a // inside a string is no comment: the macro after it counts', {'a.cpp': '  if constexpr ( sizeof( "//" ) == 3 && SIMUT_A )\n    g();\n'}, {'SIMUT_A': {'a.cpp': 1}}),
+    # A character literal is no string and no comment (the final review, 2026-10-30): '"' opened a "string" that swallowed the end of the line, the comment included, and counted the macro in it.
+    ('a character literal holding a double quote is no string: the comment after it is still a comment', {'a.cpp': '  if constexpr ( c == \'"\' && SIMUT_A )   // SIMUT_B\n    g();\n'}, {'SIMUT_A': {'a.cpp': 1}}),
+    ('a double-quote literal and a string in one condition', {'a.cpp': '  if constexpr ( c == \'"\' && s == "x" && SIMUT_A )   // SIMUT_B\n    g();\n'}, {'SIMUT_A': {'a.cpp': 1}}),
+    ('an escaped quote and an escaped backslash in character literals do not end them early', {'a.cpp': "  if constexpr ( c == '\\'' && d == '\\\\' && SIMUT_A )   // SIMUT_B\n    g();\n"}, {'SIMUT_A': {'a.cpp': 1}}),
+    ('a digit separator is no character literal: the macro after it counts, the one in the comment does not', {'a.cpp': "  if constexpr ( n == 1'000 && SIMUT_A )   // SIMUT_B\n    g();\n"}, {'SIMUT_A': {'a.cpp': 1}}),
     # What the gate does not see, pinned (the docstring of the gate says so): if a case here starts to count, the gate was taught more and its docstring and message are to say it.
     ('NOT SEEN: a plain if on a macro', {'a.cpp': '  if ( SIMUT_A )\n    g();\n'}, {}),
     ('NOT SEEN: a ternary on a macro', {'a.cpp': '  int x = SIMUT_A ? 1 : 2;\n'}, {}),
@@ -151,6 +155,11 @@ MUTANTES = [
     ('the comment not stripped before the match', 'linha = tira_comentario(line)', 'linha = line'),
     ('a // inside a string taken for a comment', "if c == '\"':", 'if False:'),
     ('a /* */ comment not stripped', 'elif c == "/" and d == "*":', 'elif False:'),
+    ('a character literal not skipped', 'elif c == "\'" and not (i and linha[i - 1].isalnum() and d.isalnum()):', 'elif False:'),
+    ('the digit separator taken for a character literal', 'elif c == "\'" and not (i and linha[i - 1].isalnum() and d.isalnum()):', 'elif c == "\'":'),
+    ('an escape in a character literal not skipped', r'''while j < n and linha[j] != "'":
+                j += 2 if linha[j] == "\\" else 1''', '''while j < n and linha[j] != "'":
+                j += 1'''),
 ]
 
 

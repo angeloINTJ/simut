@@ -15,7 +15,7 @@ ua::Rede::CABO or CABO_SEM_LINK on every image, so the Pico 2 W's release (Wi-Fi
      (drawn alone by the kit), all in the expected ink; no icon missing; a different picture for each state.
   3. The mutants of the cut piece: the glue edited one statement at a time (the three-state ladder of the first version, every threshold one dB either side, inclusive for exclusive, a level drawn as another, no
      signal answering NENHUMA, the level not read, the old line back on a Wi-Fi image), each of which the model must fail. And the mutants of the kit: a copy of Telas.cpp with one change (no signal in the danger
-     colour or with the one-bar icon, one bar without the alert colour, a level with another level's icon, the cable without link back in the danger colour or back to ethernet-port), each of which the frames must fail. A mutant that does not
+     colour or with the one-bar icon, one bar without the alert colour, a level with another level's icon, the cable without link back in the danger colour or back to ethernet-port), each of which the frames must fail. And the mutants of the registry: a copy of Angulo.cpp built with AnguloIcones.h edited so that two signal icons have each other's bitmap (the frames compare the bar with the kit's own drawing of the same icon, so only the lit pixels and the pieces of each icon see a swap). A mutant that does not
      compile, or an anchor not found exactly once, fails this script: a mutant must be killed by a check and not by the compiler.
   4. One place decides the glyph: every assignment to a `.rede` under src/ui/angulo is in uaVmStatus( ).
 
@@ -27,6 +27,7 @@ import argparse
 import concurrent.futures
 import pathlib
 import re
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -85,6 +86,17 @@ KIT_MUTANTES = [
     ('the cable without link back in the danger colour', 'case Rede::CABO_SEM_LINK: rede = IconeNome::UNPLUG; break;', 'case Rede::CABO_SEM_LINK: rede = IconeNome::UNPLUG; corRede = T.perigo; break;', 0),
     ('the cable without link back to ethernet-port', 'case Rede::CABO_SEM_LINK: rede = IconeNome::UNPLUG; break;', 'case Rede::CABO_SEM_LINK: rede = IconeNome::ETHERNET_PORT; break;', 0),
     ('the cable drawn with the no-signal Wi-Fi icon', 'case Rede::CABO: rede = IconeNome::ETHERNET_PORT; break;', 'case Rede::CABO: rede = IconeNome::WIFI_OFF; break;', 0),
+]
+
+# (name, [(statement, replacement)], the build): the registry's rows (AnguloIcones.h, generated) with two bitmaps swapped. The frames compare the bar with the kit's own drawing of the same icon, which goes through the
+# same registry, so a swap is invisible to them (the final review of 2026-10-30 swapped signal-high and signal-medium and the test still passed); the model counts the lit pixels and the pieces of each signal icon.
+REG_MUTANTES = [
+    ('the bitmaps of signal-high and signal-medium swapped in the registry',
+     [('IconeNome::SIGNAL_HIGH, 16, EXTRA_SIGNAL_HIGH_16_bits', 'IconeNome::SIGNAL_HIGH, 16, EXTRA_SIGNAL_MEDIUM_16_bits'),
+      ('IconeNome::SIGNAL_MEDIUM, 16, EXTRA_SIGNAL_MEDIUM_16_bits', 'IconeNome::SIGNAL_MEDIUM, 16, EXTRA_SIGNAL_HIGH_16_bits')], 1),
+    ('the bitmaps of signal-low and signal swapped in the registry',
+     [('IconeNome::SIGNAL_LOW, 16, EXTRA_SIGNAL_LOW_16_bits', 'IconeNome::SIGNAL_LOW, 16, EXTRA_SIGNAL_16_bits'),
+      ('IconeNome::SIGNAL, 16, EXTRA_SIGNAL_16_bits', 'IconeNome::SIGNAL, 16, EXTRA_SIGNAL_LOW_16_bits')], 1),
 ]
 
 CONTA = [0]
@@ -294,10 +306,28 @@ def modelo_e_mutantes(tmp, pecas, objs, inc, quadros):
         if not confere(rc == 0, f'kit mutant "{nome}" does not compile: {err.strip().splitlines()[0][:160] if err.strip() else ""}'):
             continue
         trabalho.append((1000 + k, nome, pecas, wifi, [str(d / 'Telas.o') if o.endswith('telas_Telas.o') else o for o in objs]))
+    cabecalho = (UA / 'AnguloIcones.h').read_text(encoding='utf-8')
+    for k, (nome, trocas, wifi) in enumerate(REG_MUTANTES):
+        mut_h, achou = cabecalho, True
+        for antigo, novo in trocas:
+            if not confere(mut_h.count(antigo) == 1, f'registry mutant "{nome}": its anchor `{antigo}` is not in AnguloIcones.h exactly once'):
+                achou = False
+                break
+            mut_h = mut_h.replace(antigo, novo)
+        if not achou:
+            continue
+        d = tmp / f'regmut{k}'
+        d.mkdir()
+        (d / 'AnguloIcones.h').write_text(mut_h, encoding='utf-8')   # found first by Angulo.cpp's quoted include; every other header comes from -I{UA}
+        shutil.copy(UA / 'Angulo.cpp', d / 'Angulo.cpp')
+        rc, err = compila(d / 'Angulo.cpp', d / 'Angulo.o', inc, True)
+        if not confere(rc == 0, f'registry mutant "{nome}" does not compile: {err.strip().splitlines()[0][:160] if err.strip() else ""}'):
+            continue
+        trabalho.append((2000 + k, nome, pecas, wifi, [str(d / 'Angulo.o') if o.endswith('angulo_Angulo.o') else o for o in objs]))
     with concurrent.futures.ThreadPoolExecutor(max_workers=4) as ex:
         fs = [(k, nome, ex.submit(roda, tmp, f'mut{k}', mut, wifi, mobjs, inc)) for k, nome, mut, wifi, mobjs in trabalho]
         for k, nome, f in fs:
-            mata(nome, f, 'kit mutant' if k >= 1000 else 'mutant')
+            mata(nome, f, 'registry mutant' if k >= 2000 else ('kit mutant' if k >= 1000 else 'mutant'))
 
 
 # ---- the frames ----
