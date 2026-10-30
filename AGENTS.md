@@ -459,15 +459,19 @@ python3 tools/test_flash_budget.py                   # as duas regras que mantê
   piso — um ratchet ao contrário do orçamento (a economia só sobe). O portão
   `measure_savings.py --check` reprova se um recurso vazou para o caminho
   sempre-ligado e deixou de sumir. O flash que ele compara é o `used` sem o
-  enchimento que o linker põe antes do banco do BTstack (lido do mapa do linker):
-  contado, o enchimento mexia o piso de toda chave do Alpha e do Air a cada byte
-  de `.rodata` da imagem. Constrói 21 imagens, então NÃO está no job `gates`:
+  enchimento do linker, todo `*fill*` de `.boot2`, `.text`, `.rodata` e `.data` lido do mapa
+  (o do banco do BTstack é só o maior deles): contado, o enchimento mexia a economia
+  8 a 16 B por commit sem símbolo nenhum mudar de lugar (nove de dezesseis recursos
+  abaixo do piso em 29/10, #296) e a de toda chave do Alpha e do Air até 4 096 B.
+  Uma queda de até 8 B (`FLASH_TOL`) passa: é o que sobra de mudança de verdade.
+  Constrói 21 imagens, então NÃO está no job `gates`:
   roda em `.github/workflows/savings.yml` (noturno/manual), e **nenhum PR vê o
   vermelho dele** — confira com `gh run list --workflow "SIMUT savings
   watermark"`. Ao mexer no que um recurso guarda, confira barato com `--check
   --only <recurso>`; uma queda intencional pede `--update` e a causa no
   commit. A tabela e os achados (bluetooth = 137 kB no Alpha sem o
-  enchimento, 22/10; o buzzer, com chave própria desde 26/09) estão em
+  enchimento, 22/10; o enchimento de alinhamento, 30/10; o buzzer, com chave
+  própria desde 26/09) estão em
   [docs/analysis/ECONOMIA_DE_RECURSOS.md](docs/analysis/ECONOMIA_DE_RECURSOS.md).
 - **Build sob medida** (o configurador, P7 de `MODELO_DE_RECURSOS.md`):
   `tools/build_custom.py --profile '{"v":1,"base":"pico_w_air","set":{"bluetooth":false}}'`
