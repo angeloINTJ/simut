@@ -497,9 +497,13 @@ void desenharAvisoWeb( Pintor &p, const VmPainel &vm, const LayoutPainel &l ) {
   p.roundRect( c.x, c.y, c.w, c.h, RAIO_CARTAO, T.linhaForte );
   const int16_t xTexto = c.x + PAD + ICONE_M + ESP2;
   p.icone( IconeNome::USER, ICONE_M, c.x + PAD, c.y + rd2( c.h - ICONE_M ), T.tinta2 );
+  // The ending says what the web does while it holds the panel: it reads the records. setWebBusy( true ) is called only by the history and log reads and exports (WebManager_History.cpp:
+  // handleApiHistoryMulti, handleApiExportHistory, handleApiExportLogs, handleApiLogs; grep of 2026-10-30), and nothing it does there saves. The ending names the web because that is why the panel is busy.
+  // The ending is short on purpose: "is reading the records through the web." left no room for the name in pt-BR (the name cut to "…", the ink to x 311) and ran past the card in English and Spanish (to x 355 and 342; the safe
+  // area ends at 315), measured on the host renderer on 2026-10-30.
   // The account's name gives way so that the whole sentence fits.
   char frase[80];
-  painel::nomeComFim( frase, sizeof frase, vm.contaWeb, UA_TXT( "is saving through the web." ), tipo::corpo,
+  painel::nomeComFim( frase, sizeof frase, vm.contaWeb, UA_TXT( "reads records on the web." ), tipo::corpo,
                       c.x + c.w - PAD - xTexto );
   textoCentrado( p, frase, xTexto, c.y + ESP2, H_TEXTO, tipo::corpo, T.tinta, 'l' );
   textoCentrado( p, UA_TXT( "Wait before touching the screen." ), xTexto, c.y + ESP2 + H_TEXTO + ESP1, H_TEXTO, tipo::apoio, T.tinta2,

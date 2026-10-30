@@ -657,6 +657,7 @@ time <AAAA-MM-DD> <HH:MM:SS>
 42a7ed2b Mar
 42b2d7ab El nombre puede estar en uso o no ser válido. Una cuenta tampoco puede eliminarse a sí misma.
 42d976f9 Tiempo activo
+43fd4730 Elimine una cuenta para crear otra.
 44c12ebc Jul
 45570065 Oscuro
 4648dda7 En rango
@@ -700,7 +701,6 @@ time <AAAA-MM-DD> <HH:MM:SS>
 590033ed Guardar rehace la calibración táctil.
 59f8a2fc Cuenta
 5a7b4d74 Confirmación
-5ad24b8d está guardando vía web.
 5ad9dc20 Confirmar contraseña
 5b8e0593 Añadir
 5bf7fdc9 X
@@ -823,6 +823,7 @@ b1dd9521 Grave
 b46141ac Triunfo
 b647a2d5 Demasiados intentos. Espere
 bac7c481 El cambio de las alarmas es inmediato.
+bb20b196 lee registros por la web.
 bb4ba06a ¿Eliminar la cuenta
 bbfdee7c Cuenta bloqueada.
 bd2abdbe Fanfarria
@@ -911,7 +912,6 @@ f113cab4 Vuelva al panel y use la web para esta función.
 f318c3e6 Volumen del sistema
 f34f59c3 PIN inválido.
 f38d9cf1 Error
-f405fce3 El equipo admite hasta 31 cuentas. Elimine una para crear otra.
 f4b43dfa Elija otro período u otro día.
 f4c22d8b Escriba el mismo PIN de nuevo.
 f56bf788 Sin red: los registros usan esta hora.

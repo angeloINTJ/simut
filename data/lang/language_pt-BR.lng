@@ -658,6 +658,7 @@ time <AAAA-MM-DD> <HH:MM:SS>
 42a7ed2b Mar
 42b2d7ab O nome pode estar em uso ou ser inválido. Uma conta também não pode excluir a si mesma.
 42d976f9 Tempo ligado
+43fd4730 Exclua uma conta para criar outra.
 44c12ebc Jul
 45570065 Escuro
 4648dda7 Na faixa
@@ -701,7 +702,6 @@ time <AAAA-MM-DD> <HH:MM:SS>
 590033ed Salvar refaz a calibração do toque.
 59f8a2fc Conta
 5a7b4d74 Confirmação
-5ad24b8d está gravando pela web.
 5ad9dc20 Confirmar senha
 5b8e0593 Nova conta
 5bf7fdc9 Q
@@ -824,6 +824,7 @@ b1dd9521 Grave
 b46141ac Triunfo
 b647a2d5 Muitas tentativas. Aguarde
 bac7c481 Ligar ou desligar alarmes vale na hora.
+bb20b196 lê registros pela web.
 bb4ba06a Excluir a conta
 bbfdee7c Conta bloqueada.
 bd2abdbe Fanfarra
@@ -912,7 +913,6 @@ f113cab4 Volte ao painel e use a web para esta função.
 f318c3e6 Volume do sistema
 f34f59c3 PIN inválido.
 f38d9cf1 Erro
-f405fce3 O aparelho guarda até 31 contas. Exclua uma para criar outra.
 f4b43dfa Escolha outro período ou outro dia.
 f4c22d8b Digite o mesmo PIN de novo.
 f56bf788 Sem rede: os registros usam esta hora.

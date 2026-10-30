@@ -35,6 +35,12 @@ VmMensagem msgOk( ) { return mensagem( true, UA_TXT( "Change saved." ), "" ); }
 VmMensagem msgErro( ) {
   return mensagem( false, UA_TXT( "No permission." ), UA_TXT( "Ask whoever administers the device to allow this function on your account." ) );
 }
+// TR_USERS_FULL, which EVT_USER_ADD raises through showPanelMessage( false, TR_USERS_FULL, ... ) when it finds no free slot (AppManager_Panel.cpp): the glue's textoDaMensagem( ) answers it with
+// these two Englishes. No sample drew it until S10c C6b, which found that its second line named the wrong number of accounts.
+VmMensagem msgContasCheias( ) {
+  return mensagem( false, UA_TXT( "No room for another account." ),
+                   UA_TXT( "Delete an account to create another." ) );
+}
 VmMensagem msgLonga( ) { return mensagem( true, "Calibração concluída. O toque já usa os novos valores.", "" ); }
 
 // Core 0's "Reboot required" (AppManager_Events.cpp, EVT_APPLY_LANG), said when the Idioma screen's choice is a pack the unit has only found in /lang and has not loaded, which is an English boot
@@ -86,6 +92,7 @@ namespace amostra {
 const Amostra kAmostras[] = {
   { "mensagem_ok", []( Pintor &p ) { desenharMensagem( p, msgOk( ) ); }, []( Alvo *o ) { return alvosMensagem( msgOk( ), o ); } },
   { "mensagem_erro", []( Pintor &p ) { desenharMensagem( p, msgErro( ) ); }, []( Alvo *o ) { return alvosMensagem( msgErro( ), o ); } },
+  { "mensagem_contas_cheias", []( Pintor &p ) { desenharMensagem( p, msgContasCheias( ) ); }, []( Alvo *o ) { return alvosMensagem( msgContasCheias( ), o ); } },
   { "mensagem_longa", []( Pintor &p ) { desenharMensagem( p, msgLonga( ) ); }, []( Alvo *o ) { return alvosMensagem( msgLonga( ), o ); } },
   { "mensagem_reiniciar", []( Pintor &p ) { desenharMensagem( p, msgReiniciar( ) ); }, []( Alvo *o ) { return alvosMensagem( msgReiniciar( ), o ); } },
   { "dialogo_mudo", []( Pintor &p ) { desenharDialogo( p, mudo( ) ); }, []( Alvo *o ) { return alvosDialogo( mudo( ), o ); } },

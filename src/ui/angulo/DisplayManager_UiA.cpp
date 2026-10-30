@@ -118,7 +118,9 @@ bool textoDaMensagem( LangKey k, TextoMsg &t ) {
       t = { UA_TXT( "Change saved." ), "" };
       return true;
     case TR_USERS_FULL:
-      t = { UA_TXT( "No room for another account." ), UA_TXT( "The device holds up to 31 accounts. Delete one to create another." ) };
+      // The second line names no number: the device holds MAX_USERS (32) accounts, the admin in slot 0 and EVT_USER_ADD looking for a free slot from 1 to 31. It said 31 until
+      // S10c C6b (2026-10-30), and a number written in a text goes stale when the limit moves.
+      t = { UA_TXT( "No room for another account." ), UA_TXT( "Delete an account to create another." ) };
       return true;
     case TR_PIN_IN_USE:
       t = { UA_TXT( "This PIN belongs to another account." ), UA_TXT( "Choose another PIN." ) };

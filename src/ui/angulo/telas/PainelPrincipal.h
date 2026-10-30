@@ -51,12 +51,12 @@ struct VmPainel {
   VmStatus status;
   Sensor cima, baixo;
   Nav nav[5];
-  char contaWeb[24];       // webOcupada: the account that is saving through the web
+  char contaWeb[24];       // webOcupada: the account that is reading the records through the web
   uint8_t pagina, paginas; // the PAGINA button's label, "<pagina>/<paginas>" (1-based)
   bool cimaFixada;         // the upper card is pinned to its sensor (the pin icon)
   bool faseAcesa;          // the alarm flash's lit phase (the glue alternates it every 600 ms)
   bool silenciado;         // the 120 s silence: cards in alarm stop flashing and show a danger border
-  bool webOcupada;         // the web is saving: the floating notice, and no touch is a target
+  bool webOcupada;         // the web is reading the records: the floating notice, and no touch is a target
 };
 
 // Touch targets. CARTAO_* is the whole card; GRAFICO_* sits inside it, only in

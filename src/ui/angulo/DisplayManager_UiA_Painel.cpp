@@ -271,7 +271,7 @@ bool DisplayManager::uaMontarPainel( UaQuadro &q ) {
       vm.pagina = (uint8_t)( _currentPage + 1 );
       vm.paginas = (uint8_t)totalPages;
 
-      /* The web is saving: touch stays refused and the notice says who (the sticky flag, as
+      /* The web is reading the records: touch stays refused and the notice says who (the sticky flag, as
        * handleTouch( ) and tickDashboard( ) read it: the web-busy refusal in handleTouch( )). The name
        * is only meaningful while busy: setWebBusy( ) writes it, nothing clears it. */
       vm.webOcupada = _lastWebBusy;
