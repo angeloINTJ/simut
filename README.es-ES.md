@@ -148,7 +148,7 @@ Consulta la **[guía de cableado](docs/WIRING.md)** para el pinout completo y lo
 - **Panel táctil** (`release`) — panel principal, gráficos del histórico y calendario, e identidad en el panel: la cuenta y luego su PIN. La release de la Pico 2 W lo dibuja en el aspecto Ángulo; la de la Pico W conserva el panel original.
 - **LCD de caracteres** (`alpha`) — cada slot por turno, el punto de acceso de configuración y una consola Bluetooth.
 - **Interfaz web** — 11 páginas, el espejo del panel en vivo, gráficos del histórico y exportación CSV en el navegador.
-- **API HTTP** — 62 rutas. Cada una está protegida por un permiso o es pública por diseño, y el CI lo comprueba.
+- **API HTTP** — 62 rutas. Cada una está protegida por un permiso o es pública por diseño, y el CI lo comprueba. Las imágenes con el panel Ángulo añaden `GET /api/ui`, protegida.
 - **Telemetría** — HTTP, HTTPS, MQTT y MQTTS, en lotes por cantidad, y una segunda línea, con confirmación, para las alarmas; Home Assistant, Prometheus y syslog.
 - **Red y hora** — Wi-Fi que se reconecta solo, punto de acceso de configuración abierto a pedido, y NTP con un reloj provisional hasta sincronizar.
 - **Almacenamiento** — el histórico binario V5 (unos 116 días en 1 MB), la configuración con CRC32 y `.bak`, y un log de eventos con 170 códigos de evento.
@@ -294,6 +294,7 @@ La consola serie está disponible por USB (115200 baudios) y, en el alpha y el A
 ### API Web
 El dispositivo expone una API REST en `http://<ip-del-dispositivo>/api/`:
 - **62 rutas** — 52 protegidas por un permiso, 10 públicas por diseño, ninguna sin protección, comprobadas por `tools/check_authz.py` en el CI;
+- las imágenes con el panel Ángulo también sirven `GET /api/ui`, protegida por `PERM_SYS_CONFIG` y contada aparte, fuera de las 62;
 - la tabla de rutas está en el [manual de usuario](docs/MANUAL.md);
 - [docs/AUTHORIZATION.md](docs/AUTHORIZATION.md) asocia cada ruta con su permiso;
 - [docs/API_POST.md](docs/API_POST.md) documenta los cuerpos de los POST.

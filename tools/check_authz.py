@@ -43,9 +43,9 @@ What the gate does not do is add the route to the totals: those are the routes o
 tools/check_readme_numbers.py holds them against the three READMEs, and no
 published image carried a driver route when this was written (2026-10-14: the Angulo driver was a bench image,
 profile pico_wiretft_angulo, publish = false). Since 2026-10-30 (S10c C3) pico2_w_release builds with
-ui = "angulo", so a published image carries the route, and the totals have not moved yet. The route gets a line of its
-own; when the release that ships it is cut it moves into the totals and the READMEs
-change with it.
+ui = "angulo", so a published image serves the route. The totals still leave it out, and the three READMEs
+name it next to the total (the images with the Angulo panel also serve GET /api/ui, gated). The route gets a
+line of its own.
 
 Why a gate and not just a doc: the dangerous failure here is a NEW route added
 without a check — exactly the shape of the /api/restore?op=apply hole that once
@@ -772,7 +772,8 @@ def main(argv=None):
             print(f"AUTHZ GATE: UI drivers, src/ui/**: {len(driver_rows)} route{'s' if len(driver_rows) != 1 else ''}, "
                   f"{sum(1 for r in driver_rows if r[2]=='GATED')} gated, "
                   f"{sum(1 for r in driver_rows if r[2]=='PUBLIC')} public-by-design; "
-                  f"not in the totals above, no published image carries them")
+                  f"not in the totals above: they are the UI driver's, and only an image built with ui = \"angulo\" serves them "
+                  f"(the Pico 2 W release since 2026-10-30, S10c C3, and the bench image pico_wiretft_angulo)")
 
     try:
         findings, warnings, names = panel_half(root)

@@ -148,7 +148,7 @@ See the **[wiring guide](docs/WIRING.md)** for the complete pinout and connectio
 - **Touch panel** (`release`) — dashboard, history graphs and calendar, and identity at the glass: an account, then its PIN. The Pico 2 W release draws it in the Ângulo look; the Pico W release keeps the original panel.
 - **Character LCD** (`alpha`) — every slot in turn, the setup access point and a Bluetooth console.
 - **Web interface** — 11 pages, a live panel mirror, history graphs and CSV export in the browser.
-- **HTTP API** — 62 routes. Each one is either gated by a permission or public by design, and CI checks it.
+- **HTTP API** — 62 routes. Each one is either gated by a permission or public by design, and CI checks it. The images with the Ângulo panel add `GET /api/ui`, gated.
 - **Telemetry** — HTTP, HTTPS, MQTT and MQTTS, batched by quantity, and a second, acknowledged line for alarms; Home Assistant, Prometheus and syslog.
 - **Network and time** — Wi-Fi that reconnects itself, a setup access point opened on request, and NTP with a provisional clock until it syncs.
 - **Storage** — the V5 binary history (about 116 days in 1 MB), a configuration with CRC32 and a `.bak`, and an event log with 170 event codes.
@@ -292,6 +292,7 @@ A serial console is available over USB (115200 baud), and over Bluetooth SPP on 
 ### Web API
 The device exposes a REST API at `http://<device-ip>/api/`:
 - **62 routes** — 52 gated by a permission, 10 public by design, 0 ungated, checked by `tools/check_authz.py` in CI;
+- the images with the Ângulo panel also serve `GET /api/ui`, gated by `PERM_SYS_CONFIG` and counted apart, outside the 62;
 - the route table is in the [user manual](docs/MANUAL.md);
 - [docs/AUTHORIZATION.md](docs/AUTHORIZATION.md) maps each route to its permission;
 - [docs/API_POST.md](docs/API_POST.md) documents the POST bodies.

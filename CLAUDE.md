@@ -31,8 +31,9 @@ run by CI — `pico_w_asserts` is the one that is easy to forget, because it is
 not in the table above and nothing local reminds you of it. This line said
 "five" until 2026-09-20, and a change that raised the other five budgets went
 to CI with that one over its own. The seventh, since 2026-10-01, is
-`pico2_w_release`: the release compiled for the Pico 2 W's RP2350, which CI
-builds and nothing runs on a board yet. **`pio run` with no `-e` builds only
+`pico2_w_release`: the release compiled for the Pico 2 W's RP2350, published as
+`releasetwo` since v2.11.0 (2026-10-04) and run on the bench's Pico 2 W (the v2.12.0
+candidate, 2026-10-29: `docs/VERIFICATION.md`). **`pio run` with no `-e` builds only
 `pico_w_release`** — `default_envs` in `platformio.ini` says so, and this line
 claimed the opposite until 2026-09-22. The eighth, since 2026-10-12, is
 `pico_wire`: the SIMUT Wire, a plain Pico without the radio, its network on an
@@ -43,9 +44,9 @@ GP11 with either display); CI builds it, and a build of the same switches
 (`build_custom.py`) ran on the bench on 2026-10-12. The tenth, since 2026-10-14
 on the `feat/ui-drivers` branch, is `pico_wiretft_angulo`: the Ângulo UI
 driver's bench image, `pico_wiretft` with the touch panel drawn by
-`src/ui/angulo/` (`ui = "angulo"` in the manifest). It is transitional, not
-approved for products and not published; CI builds it and holds it to its own
-flash budget, and it is not a required check. The eleventh, since 2026-10-21 on
+`src/ui/angulo/` (`ui = "angulo"` in the manifest). It is not published; CI
+builds it and holds it to its own flash budget, and it is not a required check.
+The eleventh, since 2026-10-21 on
 the same branch, was `pico2_w_angulo`: the Ângulo on the Pico 2 W. Since 2026-10-30 (S10c C3, the
 maintainer's decision C-D1) the Pico 2 W's release **is** that image: `pico2_w_release` has
 `ui = "angulo"` in the manifest, and keeps its name, its required check and its published

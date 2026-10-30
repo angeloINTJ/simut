@@ -2,7 +2,7 @@
  "identity": {
   "src/AppManager_Events.cpp": {
    "count": 4,
-   "reason": "transitional: it ends when main takes the same functions without the `#if` (docs/analysis/UI_DRIVERS.md 4.5). Product defects of Core 0's history navigation, fixed for the Ângulo's bench image only (fix/ui-angulo-historico, 2026-10-15), so that the nine product images stay byte for byte as they are. The four `#if` in AppManager_Events.cpp: the live base, declared with core0Yield( )'s other statics; graphAnchorStep( ) in flushGraphNav( ); graphAnchorDay( ) in EVT_CALENDAR_DAY; graphAnchorOpen( ) in EVT_OPEN_GRAPH. No stage of the plan ends it: `ends in S12` is only the format that the gate's test (tools/test_ui_boundary.py) requires, not a date"
+   "reason": "transitional: it ends when main takes the same functions without the `#if` (docs/analysis/UI_DRIVERS.md 4.5). Product defects of Core 0's history navigation, fixed for the Ângulo's images only (fix/ui-angulo-historico, 2026-10-15; pico_wiretft_angulo then, and pico2_w_release since 2026-10-30, S10c C3), so that the images with the original panel stay byte for byte as they are. The four `#if` in AppManager_Events.cpp: the live base, declared with core0Yield( )'s other statics; graphAnchorStep( ) in flushGraphNav( ); graphAnchorDay( ) in EVT_CALENDAR_DAY; graphAnchorOpen( ) in EVT_OPEN_GRAPH. No stage of the plan ends it: `ends in S12` is only the format that the gate's test (tools/test_ui_boundary.py) requires, not a date"
   }
  },
  "driver-hook": {
