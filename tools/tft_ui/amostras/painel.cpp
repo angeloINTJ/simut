@@ -105,11 +105,13 @@ void montarNav( VmPainel &vm, uint16_t ativos, int fixado, int pagina, int selec
   vm.paginas = (uint8_t)paginas;
 }
 
+// The network every sample draws unless it says otherwise: a Wi-Fi image at four bars. The manual's chapter 11A documents the Pico 2 W release, which is Wi-Fi, and its figures are drawn from these samples. Until
+// S10c C6 the default was the Wire bench's linked cable; painel_cabo_link keeps that state, and painel_cabo_sem_link the cable without link, both explicit.
 VmStatus statusBase( ) {
   VmStatus s;
   memset( &s, 0, sizeof s );
   copiar( s.hora, "11:32", sizeof s.hora );
-  s.rede = Rede::CABO;
+  s.rede = Rede::WIFI_4;
   return s;
 }
 
@@ -280,7 +282,7 @@ constexpr char kConta31[] = "maria.aparecida.da.silva.santos";
 static_assert( sizeof kConta15 - 1 == 15 && sizeof kConta31 - 1 == 31, "the account names are 15 and 31 characters" );
 
 // "Web: <nome>" in the status bar, with `pendentes` records waiting and the given network.
-VmPainel avisoWeb( const char *nome, uint16_t pendentes, Rede rede = Rede::CABO ) {
+VmPainel avisoWeb( const char *nome, uint16_t pendentes, Rede rede = Rede::WIFI_4 ) {
   VmPainel vm = painel( bancada( 1 ) );
   vm.status.aviso = Aviso::WEB;
   copiar( vm.status.avisoNome, nome, sizeof vm.status.avisoNome );
@@ -434,6 +436,13 @@ VmPainel pendentes( uint16_t n, uint8_t envio ) {
 const VmPainel kPendentes12 = pendentes( 12, 0 );
 const VmPainel kPendentes1k2 = pendentes( 1200, 2 );
 
+// The linked cable, the state every sample drew until S10c C6 (the Wire bench's): the data of painel_dht22 with the network it had, so that the reference keeps the cable-with-link icon.
+const VmPainel kCaboLink = [] {
+  VmPainel vm = kDht22;
+  vm.status.rede = Rede::CABO;
+  return vm;
+}( );
+
 const VmPainel kCaboSemLink = [] {
   VmPainel vm = painel( bancada( 1 ) );
   vm.status.rede = Rede::CABO_SEM_LINK;
@@ -563,6 +572,7 @@ const Amostra kAmostras[] = {
   PAINEL( "painel_hora_provisoria", kHoraProvisoria ),
   PAINEL( "painel_pendentes_12", kPendentes12 ),
   PAINEL( "painel_pendentes_1k2_falha", kPendentes1k2 ),
+  PAINEL( "painel_cabo_link", kCaboLink ),
   PAINEL( "painel_cabo_sem_link", kCaboSemLink ),
   ACAO( "acao_acima", kAcaoAcima ),
   ACAO( "acao_abaixo", kAcaoAbaixo ),
