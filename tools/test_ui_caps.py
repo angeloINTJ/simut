@@ -5,8 +5,8 @@ pelo pre-processador do host e sem compilar firmware nenhum.
 Rodar: python3 tools/test_ui_caps.py
 
 O painel touch tem dois drivers de UI, escolhidos na build (`ui = "<id>"` em tools/features.toml): o original,
-o padrao, que e o painel de toda release, e o Angulo (-DSIMUT_UI_ANGULO=1), um estudo ainda nao aprovado para
-produtos. Como a rede (tools/test_net_caps.py), a IDENTIDADE e um macro por driver e exatamente um vale 1; o
+o padrao, que e o painel da release do Pico W, e o Angulo (-DSIMUT_UI_ANGULO=1), o painel da release do Pico 2 W desde
+2026-10-30 (S10c C3). Como a rede (tools/test_net_caps.py), a IDENTIDADE e um macro por driver e exatamente um vale 1; o
 que o driver sabe fazer (SIMUT_UI_CUSTOM_THEMES: o catalogo de temas e os .thm) sai dela num cabecalho puro,
 src/ui/UiCaps.h, e nunca vai por -D: o cabecalho recusa quem o passa.
 

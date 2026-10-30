@@ -41,9 +41,10 @@ on it, being no code. The pre-commit hook simut-authz fires on the same list (th
 route, ungated, into a file of each extension and holds the hook to DRIVER_EXTS.
 What the gate does not do is add the route to the totals: those are the routes of the published images,
 tools/check_readme_numbers.py holds them against the three READMEs, and no
-published image carries a driver route yet (the Angulo driver is a bench image,
-profile pico_wiretft_angulo, publish = false). The route gets a line of its
-own; when the driver ships in a product it moves into the totals and the READMEs
+published image carried a driver route when this was written (2026-10-14: the Angulo driver was a bench image,
+profile pico_wiretft_angulo, publish = false). Since 2026-10-30 (S10c C3) pico2_w_release builds with
+ui = "angulo", so a published image carries the route, and the totals have not moved yet. The route gets a line of its
+own; when the release that ships it is cut it moves into the totals and the READMEs
 change with it.
 
 Why a gate and not just a doc: the dangerous failure here is a NEW route added

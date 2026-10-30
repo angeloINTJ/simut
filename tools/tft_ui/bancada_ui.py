@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""The bench's hands on the Ângulo UI driver (transitional, bench image pico_wiretft_angulo).
+"""The bench's hands on the Ângulo UI driver (pico2_w_release since 2026-10-30, S10c C3, and the bench image pico_wiretft_angulo).
 
 As a command:
   bancada_ui.py --host ip:port estado                 the frame on the glass (GET /api/ui)

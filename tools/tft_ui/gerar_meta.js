@@ -1,7 +1,7 @@
 'use strict';
 /**
- * Generates src/ui/angulo/AnguloMeta.h for the Ângulo UI driver (transitional, bench image
- * pico_wiretft_angulo):
+ * Generates src/ui/angulo/AnguloMeta.h for the Ângulo UI driver (pico2_w_release since 2026-10-30,
+ * S10c C3, and the bench image pico_wiretft_angulo):
  *
  *   - the EXTRA table (the GFX code of every non-ASCII character the delivered
  *     fonts carry, from fontes.json), so UTF-8 text can be drawn;

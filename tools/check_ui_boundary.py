@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """check_ui_boundary.py — the touch panel's look is one UI driver per image, and each driver stays in its walls.
 
-An image has ONE UI driver: the original, the panel every release ships, or the Ângulo, the new one
+An image has ONE UI driver: the original, the panel of the Pico W release, or the Ângulo, the panel of the Pico 2 W release since 2026-10-30 (S10c C3)
 (`[ui.<id>]` in tools/features.toml; src/ui/UiCaps.h turns the driver into the macros the rest of the
 firmware reads, SIMUT_UI_ORIGINAL and SIMUT_UI_ANGULO for the identity, SIMUT_UI_CUSTOM_THEMES for what
 the original can do and the Ângulo cannot). Adding a driver must be one directory in src/ui/ and one
