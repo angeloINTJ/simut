@@ -171,7 +171,7 @@ jobs:
         run: python3 tools/test_net_caps.py
 
       # The touch panel's UI driver is an identity of the image too: the original, the
-      # default, or the Ângulo (-DSIMUT_UI_ANGULO=1, a study not approved for products),
+      # default, or the Ângulo (-DSIMUT_UI_ANGULO=1, pico2_w_release's panel since 2026-10-30),
       # with what it can do (SIMUT_UI_CUSTOM_THEMES) derived from it in src/ui/UiCaps.h and
       # never passed with -D. The preprocessor answers for each assembly; a derived macro
       # passed, an Ângulo that is not 0 or 1, and the Ângulo on an image without the TFT stop
@@ -664,15 +664,11 @@ jobs:
           - pico_wiretft
           # The Ângulo UI driver's bench image (2026-10-14): pico_wiretft with the
           # touch panel drawn by src/ui/angulo/ (-DSIMUT_UI_ANGULO=1, the manifest's
-          # `ui = "angulo"`) instead of the original's. Transitional, not approved
-          # for products, bench only (publish = false). What is transitional is the
-          # touch: its screens still hand most touches to the old layout's handler.
-          # The old drawing code is not in it: each old draw function returns at
-          # its top, so the compiler and --gc-sections drop the rest, and about
-          # 1.4 kB of the original's ~57 kB stay linked (UI_DRIVERS.md, measured
-          # 2026-10-14 on the study's image). Its .bin is 831,560 B against
-          # pico_wiretft's 785,736 (+45,824, measured 2026-10-14 on a PlatformIO
-          # core patched as CI's). Building it here keeps the driver, and the hooks
+          # `ui = "angulo"`) instead of the original's. Bench only (publish = false);
+          # since 2026-10-30 (S10c C3) the Ângulo is also pico2_w_release's panel. How
+          # the driver is built, what it links and what it costs is in
+          # docs/analysis/UI_DRIVERS.md; the study's shape of 2026-10-14, which moved
+          # touches onto the old layout, is gone. Building it here keeps the driver, and the hooks
           # it has in the files every TFT image builds, compiling under -Werror, and
           # holds its size to tools/flash_budget.json, whose budget is a high-water
           # mark that moves with the driver's stages. Like pico_wire and
