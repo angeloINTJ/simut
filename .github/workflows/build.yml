@@ -369,6 +369,14 @@ jobs:
       # mutants must fail it. 97 + 1,324 checks; 7.5 s here on 2026-10-30.
       - name: Angulo status bar network glyph on the host (test_rede.py)
         run: python3 tools/tft_ui/test_rede.py
+      # The figures of the manual's chapter 11A (S10c, C6 step 2): docs/images/manual/11a-*.png are frames that host_telas.py draws from the code at the commit (src/ui/angulo and the
+      # pt-BR pack), enlarged 2x. manual_frames.py --check draws them again and compares the PIXELS with the committed files, never the PNG bytes (those depend on Pillow's and zlib's
+      # versions): one line for each figure that differs, so a change to the panel's code or to the pack's @ANGULO that moves a pixel of a figure fails here until the figures are
+      # drawn again (manual_frames.py --write). The gates job installs no Pillow, so the step does.
+      - name: Angulo manual figures (manual_frames.py --check)
+        run: |
+          pip install pillow
+          python3 tools/tft_ui/manual_frames.py --check
 
       # patch.sh runs again and again: after every override that merges, and in the
       # firmware jobs on a warm ~/.platformio cache that already carries them (see
