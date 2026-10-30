@@ -1,82 +1,82 @@
 {
   "cli_full": {
     "base": "pico_w_test",
-    "flash_saved": 48152,
+    "flash_saved": 48157,
     "ram_saved": -2048
   },
   "web_https": {
     "base": "pico_w_release",
-    "flash_saved": 24568,
+    "flash_saved": 24546,
     "ram_saved": 16
   },
   "mdns": {
     "base": "pico_w_release",
-    "flash_saved": 16632,
+    "flash_saved": 16604,
     "ram_saved": 168
   },
   "concurrency_asserts": {
     "base": "pico_w_asserts",
-    "flash_saved": 2240,
+    "flash_saved": 2235,
     "ram_saved": 0
   },
   "bluetooth": {
     "base": "pico_w_alpha",
-    "flash_saved": 136808,
+    "flash_saved": 136706,
     "ram_saved": 19348
   },
   "sensor_ds18b20": {
     "base": "pico_w_release",
-    "flash_saved": 5520,
+    "flash_saved": 5508,
     "ram_saved": 64
   },
   "sensor_dht22": {
     "base": "pico_w_release",
-    "flash_saved": 3456,
+    "flash_saved": 3443,
     "ram_saved": 0
   },
   "sensor_bme280": {
     "base": "pico_w_release",
-    "flash_saved": 17804,
+    "flash_saved": 17776,
     "ram_saved": 220
   },
   "sound_buzzer": {
     "base": "pico_w_release",
-    "flash_saved": 4984,
+    "flash_saved": 4985,
     "ram_saved": 0
   },
   "tel_tls": {
     "base": "pico_w_air",
-    "flash_saved": 58080,
+    "flash_saved": 58025,
     "ram_saved": 16
   },
   "tel_mqtt": {
     "base": "pico_w_air",
-    "flash_saved": 9344,
+    "flash_saved": 9340,
     "ram_saved": 0
   },
   "web_history": {
     "base": "pico_w_air",
-    "flash_saved": 23872,
+    "flash_saved": 23871,
     "ram_saved": 0
   },
   "web_export_api": {
     "base": "pico_w_release",
-    "flash_saved": 12296,
+    "flash_saved": 12290,
     "ram_saved": 2052
   },
   "web_metrics": {
     "base": "pico_w_release",
-    "flash_saved": 4968,
+    "flash_saved": 4955,
     "ram_saved": 0
   },
   "syslog": {
     "base": "pico_w_release",
-    "flash_saved": 1768,
+    "flash_saved": 1760,
     "ram_saved": 0
   },
   "tft_graph": {
     "base": "pico_w_release",
-    "flash_saved": 20432,
+    "flash_saved": 20433,
     "ram_saved": 2232
   }
 }

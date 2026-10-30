@@ -141,12 +141,13 @@ jobs:
         run: python3 tools/test_feature_bits.py
       # The savings floor itself (measure_savings.py --check) builds 21 images,
       # so it runs nightly in savings.yml, where no pull request sees it. What
-      # it compares is tested here: the fill the linker puts in front of the
-      # BTstack flash bank, read from the map and taken off both sides. Counted,
-      # it moved the floor of every switch on the alpha and the Air with each
-      # byte of .rodata anywhere in the image: on 2026-10-22, after 21 red
-      # nights, it was all of bluetooth's drop and part of tel_tls's.
-      - name: Savings floor measures past the BTstack bank's fill
+      # it compares is tested here: `used` without the fill the linker writes
+      # between input sections (every *fill* of .boot2, .text, .rodata and .data in
+      # the map), a flash drop of up to 8 B passing. Counted, the fill moved a saving
+      # 8-16 B per commit with no symbol moved (nine of sixteen under their
+      # floor on 2026-10-29, #296), and the one in front of the BTstack bank, the
+      # biggest, a whole 4 KB step (2026-10-22, after 21 red nights).
+      - name: Savings floor measures past the linker's fill
         run: python3 tools/test_measure_savings.py
 
       # The network driver is the image's identity (SIMUT_NET_CYW43, the default,
