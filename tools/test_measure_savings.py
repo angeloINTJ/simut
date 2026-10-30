@@ -27,6 +27,9 @@ its switch removes grew 8 B. So:
 Each case of the floor's side carries an id ([a1], [d2] ...) that the mutations of #302 (remove the fill subtraction,
 remove the tolerance, drop the self-check ...) are matched to. The 21 cases of the configurator's matrix side (the
 `ui=` and `net=` flips, the Angulo's static-RAM budget in the temporary env, the checks of `--checks`) carry none.
+The cases of `--matrix --only` ([i0]-[i3]: the rebuilt bases are compared with the file before a flip is built) carry
+ids too, matched to the mutants of S11 B2 (2026-10-30: a mutant that dropped `used` from that comparison passed the
+whole suite, because no case ran the function).
 """
 import contextlib
 import hashlib
@@ -480,6 +483,80 @@ def matrix_cases():
     check("[h2] pio_build_full does not ask for the linker map", fake.calls == [("pico_w_alpha", False)], fake.calls)
 
 
+# ---- --matrix --only: the bases are rebuilt and compared with the file before a flip is built ------------------------
+PARTIAL_BASE = {"used": 1000000, "bin": 1010000, "ram": 100000}     # what the scratch feature_costs.json says of pico_w_release
+PARTIAL_FLIP = {"used": 990000, "bin": 1000000, "ram": 99000}       # the mdns flip, as the faked build returns it
+
+
+class NoTempEnvs:
+    """TempEnvs without the file: the environments are named and never written, because the builds are faked."""
+
+    def __init__(self, blocks):
+        pass
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        return False
+
+
+def partial_run(base_now):
+    """cmd_matrix_partial( ["mdns"] ) on a scratch feature_costs.json that holds PARTIAL_BASE for pico_w_release, with the
+    builds faked: the base builds as `base_now` and the flip as PARTIAL_FLIP. Returns (the exit message or None, the return
+    code, the file before, the file after, the environments built). ROOT is a temp dir, so nothing real is written."""
+    saved = ms.ROOT, ms.COSTS_PATH, ms.TempEnvs, ms.pio_build_full, ms._git
+    built = []
+
+    def fake_build(env, echo=False):
+        built.append(env)
+        base = env == "pico_w_release"
+        return dict(base_now if base else PARTIAL_FLIP, sha256="base" if base else "flip")
+
+    try:
+        with tempfile.TemporaryDirectory() as root:
+            ms.ROOT, ms.COSTS_PATH = root, os.path.join(root, "feature_costs.json")
+            ms.TempEnvs, ms.pio_build_full, ms._git = NoTempEnvs, fake_build, lambda *a: ""
+            with open(ms.COSTS_PATH, "w") as fh:
+                json.dump({"measured_at": {"date": "2026-10-30"},
+                           "products": {"pico_w_release": {"base": dict(PARTIAL_BASE), "flips": {}}}}, fh)
+            with open(ms.COSTS_PATH) as fh:
+                before = fh.read()
+            said = rc = None
+            try:
+                with contextlib.redirect_stdout(io.StringIO()):
+                    rc = ms.cmd_matrix_partial(["mdns"])
+            except SystemExit as e:
+                said = str(e)
+            with open(ms.COSTS_PATH) as fh:
+                after = fh.read()
+    finally:
+        ms.ROOT, ms.COSTS_PATH, ms.TempEnvs, ms.pio_build_full, ms._git = saved
+    return said, rc, before, after, built
+
+
+def matrix_partial_cases():
+    """`--matrix --only <key>` rebuilds each published base and compares it with the file BEFORE it builds a flip: the flips
+    it records are the file's only while the bases are still the file's images. The comparison is `used`, `bin` and `ram`.
+    S11 B2 (2026-10-30): a mutant that dropped `used` from it passed the whole suite, because no case ran the function. Each
+    refusal below differs from the control in ONE field, so a mutant that drops that field fails exactly that case."""
+    def control():
+        said, rc, before, after, built = partial_run(PARTIAL_BASE)
+        flips = json.loads(after)["products"]["pico_w_release"]["flips"]
+        return (said is None and rc == 0 and built == ["pico_w_release", "_cost_pico_w_release_mdns"]
+                and flips == {"mdns": PARTIAL_FLIP}), (said, rc, built, flips)
+    case("[i0] --matrix --only: a base that matches the file lets the flip through, builds it and records it", control)
+
+    for field, ident in (("used", "i1"), ("bin", "i2"), ("ram", "i3")):
+        def refused_alone(field=field):
+            now = dict(PARTIAL_BASE, **{field: PARTIAL_BASE[field] + 8})
+            said, rc, before, after, built = partial_run(now)
+            return (said is not None and "pico_w_release" in said and f"{field}={now[field]}" in said and "--matrix" in said
+                    and after == before and built == ["pico_w_release"]), (said, rc, after == before, built)
+        case(f"[{ident}] --matrix --only: a base whose `{field}` alone changed is refused with the product, the new number and what "
+             "to run; the file is not rewritten and no flip is built", refused_alone)
+
+
 def measure_cases():
     """measure( ) with the builds faked, and the temporary environments written to a scratch file."""
     saved = ms.PROFILES_INI, ms.pio_build
@@ -666,6 +743,7 @@ def main():
     pio_run_cases()
     update_cases()
     matrix_cases()
+    matrix_partial_cases()
     measure_cases()
     table_cases()
     flips_cases()
