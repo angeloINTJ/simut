@@ -58,6 +58,12 @@ for VARIANT in simut_tft simut_alpha; do
   # The UI driver's identity (src/ui, since 2026-10-14): ui/UiCaps.h, which
   # simut_config.h includes. Same reason as the net/ headers above.
   cp src/ui/*.h        "${DST}/" 2>/dev/null || true
+  # The original panel (src/ui/original, since S11: its 14 units, and the headers UiOriginal.h, UiTouchChain.h and PinKeypadLayout.h), flat like the rest. These
+  # zips are the original panel's bundle, the Pico W's. src/ui/angulo is left out on purpose: the Angulo is the Pico 2 W release's panel, built by PlatformIO
+  # (-DSIMUT_UI_ANGULO=1 and the manifest's `include` of its units), its units sit in subdirectories (kit/, telas/) that a flat sketch root cannot hold,
+  # and ui/UiCaps.h defaults SIMUT_UI_ANGULO to 0 (nothing in these zips sets it), so the selection headers copied above never reach it.
+  cp src/ui/original/*.h   "${DST}/" 2>/dev/null || true
+  cp src/ui/original/*.cpp "${DST}/" 2>/dev/null || true
 
   # Copy WebUI_GZ.h (both variants — Alpha still serves web pages)
   cp src/WebUI_GZ.h "${DST}/WebUI_GZ.h"
@@ -90,6 +96,9 @@ for VARIANT in simut_tft simut_alpha; do
     xargs sed -i 's|#include "sensors/|#include "|g' 2>/dev/null || true
   find "release/${VARIANT}" -maxdepth 1 -name '*.cpp' -o -name '*.h' -o -name '*.ino' | \
     xargs sed -i 's|#include "display/|#include "|g' 2>/dev/null || true
+  # src/ui/original/*.h reach src/ with "../../" (UiOriginal.h: "../../DisplayManager_Fonts.h"): take both levels off before the rule below takes one.
+  find "release/${VARIANT}" -maxdepth 1 -name '*.cpp' -o -name '*.h' -o -name '*.ino' | \
+    xargs sed -i 's|#include "../../|#include "|g' 2>/dev/null || true
   # Fix ../ relative includes
   find "release/${VARIANT}" -maxdepth 1 -name '*.cpp' -o -name '*.h' -o -name '*.ino' | \
     xargs sed -i 's|#include "../|#include "|g' 2>/dev/null || true
@@ -98,6 +107,11 @@ for VARIANT in simut_tft simut_alpha; do
   # which the line above turns into "net/xxx.h".
   find "release/${VARIANT}" -maxdepth 1 -name '*.cpp' -o -name '*.h' -o -name '*.ino' | \
     xargs sed -i 's|#include "net/|#include "|g' 2>/dev/null || true
+  # The original panel's files are flat in the sketch root too: "ui/original/xxx.h" (from src/) and "original/xxx.h" (from src/ui/) -> "xxx.h", before the ui/ rule.
+  find "release/${VARIANT}" -maxdepth 1 -name '*.cpp' -o -name '*.h' -o -name '*.ino' | \
+    xargs sed -i 's|#include "ui/original/|#include "|g' 2>/dev/null || true
+  find "release/${VARIANT}" -maxdepth 1 -name '*.cpp' -o -name '*.h' -o -name '*.ino' | \
+    xargs sed -i 's|#include "original/|#include "|g' 2>/dev/null || true
   # Rewrite #include "ui/xxx.h" -> #include "xxx.h" (simut_config.h says "ui/UiCaps.h").
   find "release/${VARIANT}" -maxdepth 1 -name '*.cpp' -o -name '*.h' -o -name '*.ino' | \
     xargs sed -i 's|#include "ui/|#include "|g' 2>/dev/null || true

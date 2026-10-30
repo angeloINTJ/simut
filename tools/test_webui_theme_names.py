@@ -42,7 +42,7 @@ REPO = Path(__file__).resolve().parent.parent
 WEBUI = REPO / "WebUI.h"
 BUILD_GZ = REPO / "tools" / "build_webui_gz.py"
 THEME_GEN = REPO / "tools" / "gen_theme_collection.py"
-THEMES_CPP = REPO / "src" / "Themes.cpp"
+THEMES_CPP = REPO / "src" / "ui" / "original" / "Themes.cpp"   # S11: the original's units live in src/ui/original/
 ANGULO_TEMAS = REPO / "src" / "ui" / "angulo" / "Temas.cpp"   # the Ângulo's catalogue: a file of the UI-drivers branch, absent on main
 THEMES_DIR = REPO / "data" / "themes"
 PACKS = [REPO / "data" / "lang" / "language_pt-BR.lng",
@@ -393,7 +393,7 @@ def thm_fields(blob: bytes):
 
 
 def compiled_themes():
-    """[(code, name)] of the themes src/Themes.cpp compiles: the entries outside every
+    """[(code, name)] of the themes src/ui/original/Themes.cpp compiles: the entries outside every
     #if, and those inside an #ifdef some build file defines."""
     cfg = "".join((REPO / f).read_text(encoding="utf-8", errors="replace")
                   for f in ("platformio.ini", "tools/features.toml", "tools/generated/profiles.ini"))
@@ -459,7 +459,7 @@ def data_checks() -> bool:
     # D2: data/themes carries the generator's names and codes, file for file. The files are NOT
     # the generator's output byte for byte, and have not been since 2137ea15 (2026-08-23): it
     # changed the limit-alarm trio (alarmBg, alarmText, alarmTextDim) in the eleven .thm and in
-    # src/Themes.cpp but not in the generator, whose contrast rules the new trio fails (36 pairs
+    # src/ui/original/Themes.cpp but not in the generator, whose contrast rules the new trio fails (36 pairs
     # on 2026-10-28), so a regeneration would turn every stock theme's alarm red again. Until
     # the generator is synced this holds what this feature depends on, the @NAME and the @CODE
     # of each file, and says out loud which colour fields differ.

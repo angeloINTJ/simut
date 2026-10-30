@@ -1,7 +1,7 @@
 /**
  * @file ThemeCatalog.h
  * @brief The theme catalogue's interface: the palette type and the six functions that count, name, load and scan themes. Core: every image calls
- *        them (the web list, the console, the boot, the saved choice) and every image links one definition. The original's is src/Themes.cpp, with its
+ *        them (the web list, the console, the boot, the saved choice) and every image links one definition. The original's is src/ui/original/Themes.cpp, with its
  *        palettes and the .thm files; the Ângulo's is src/ui/angulo/Temas.cpp, its three choices. Moved word for word out of src/Themes.h (S10b).
  */
 #pragma once

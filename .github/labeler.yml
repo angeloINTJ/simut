@@ -50,6 +50,7 @@ display:
     - 'src/DisplayManager*'
     - 'src/display/**'
     - 'src/Themes*'
+    - 'src/ui/original/**'
     - 'src/TftWithOffset.h'
     - 'data/themes/**'
 

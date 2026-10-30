@@ -70,11 +70,11 @@ exclude = ["DisplayManager_Alpha.cpp"]   # a implementacao alpha nao entra
 [display.alpha_paralelo]
 flags   = ["-DSIMUT_DISPLAY_TFT=0", "-DSIMUT_DISPLAY_ALPHA=1", "-DHD44780_MODE_PARALLEL=1"]
 exclude = [
-  "DisplayManager_Touch.cpp", "DisplayManager_Settings.cpp", "DisplayManager_SettingsCore.cpp", "DisplayManager_Graph.cpp", "DisplayManager_GraphCore.cpp",
-  "DisplayManager_Dashboard.cpp", "DisplayManager_Panel.cpp", "DisplayManager_Calibration.cpp", "DisplayManager_CalibrationCore.cpp", "DisplayManager_Auth.cpp",
-  "DisplayManager_Alarm.cpp", "DisplayManager_AlarmUi.cpp", "DisplayManager_LicenseUi.cpp", "DisplayManager_Calendar.cpp", "DisplayManager_CalendarCore.cpp", "DisplayManager_Fonts.cpp",
-  "DisplayManager_i18n.cpp", "DisplayManager_i18nUi.cpp", "DisplayManager_LangParser.cpp", "AppManager_Graph.cpp",
-  "DisplayManager_Ota.cpp", "DisplayManager_OtaCore.cpp", "DisplayManager_Render.cpp", "DisplayManager_UsersUi.cpp",
+  "DisplayManager_Touch.cpp", "ui/original/DisplayManager_Settings.cpp", "DisplayManager_SettingsCore.cpp", "ui/original/DisplayManager_Graph.cpp", "DisplayManager_GraphCore.cpp",
+  "ui/original/DisplayManager_Dashboard.cpp", "DisplayManager_Panel.cpp", "ui/original/DisplayManager_Calibration.cpp", "DisplayManager_CalibrationCore.cpp", "DisplayManager_Auth.cpp",
+  "DisplayManager_Alarm.cpp", "ui/original/DisplayManager_AlarmUi.cpp", "ui/original/DisplayManager_LicenseUi.cpp", "ui/original/DisplayManager_Calendar.cpp", "DisplayManager_CalendarCore.cpp", "ui/original/DisplayManager_Fonts.cpp",
+  "DisplayManager_i18n.cpp", "ui/original/DisplayManager_i18nUi.cpp", "DisplayManager_LangParser.cpp", "AppManager_Graph.cpp",
+  "ui/original/DisplayManager_Ota.cpp", "DisplayManager_OtaCore.cpp", "ui/original/DisplayManager_Render.cpp", "ui/original/DisplayManager_UsersUi.cpp",
 ]
 include             = ["DisplayManager_Alpha.cpp"]
 ignore_display_libs = true    # o LCD nao usa ILI9341/GFX/XPT2046
@@ -84,11 +84,11 @@ web_omit            = "tft"   # a pagina recorta o bloco @IF tft
 # O mostrador headless do Air. Mantem i18n e LangParser (web e CLI os usam).
 flags   = ["-DSIMUT_DISPLAY_TFT=0", "-DSIMUT_DISPLAY_ALPHA=0"]
 exclude = [
-  "DisplayManager_Touch.cpp", "DisplayManager_Settings.cpp", "DisplayManager_SettingsCore.cpp", "DisplayManager_Graph.cpp", "DisplayManager_GraphCore.cpp",
-  "DisplayManager_Dashboard.cpp", "DisplayManager_Panel.cpp", "DisplayManager_Calibration.cpp", "DisplayManager_CalibrationCore.cpp", "DisplayManager_Auth.cpp",
-  "DisplayManager_Alarm.cpp", "DisplayManager_AlarmUi.cpp", "DisplayManager_LicenseUi.cpp", "DisplayManager_Calendar.cpp", "DisplayManager_CalendarCore.cpp", "DisplayManager_Fonts.cpp",
-  "AppManager_Graph.cpp", "DisplayManager.cpp", "DisplayManager_Render.cpp", "DisplayManager_Alpha.cpp",
-  "DisplayManager_Ota.cpp", "DisplayManager_OtaCore.cpp", "DisplayManager_i18nUi.cpp", "DisplayManager_UsersUi.cpp",
+  "DisplayManager_Touch.cpp", "ui/original/DisplayManager_Settings.cpp", "DisplayManager_SettingsCore.cpp", "ui/original/DisplayManager_Graph.cpp", "DisplayManager_GraphCore.cpp",
+  "ui/original/DisplayManager_Dashboard.cpp", "DisplayManager_Panel.cpp", "ui/original/DisplayManager_Calibration.cpp", "DisplayManager_CalibrationCore.cpp", "DisplayManager_Auth.cpp",
+  "DisplayManager_Alarm.cpp", "ui/original/DisplayManager_AlarmUi.cpp", "ui/original/DisplayManager_LicenseUi.cpp", "ui/original/DisplayManager_Calendar.cpp", "DisplayManager_CalendarCore.cpp", "ui/original/DisplayManager_Fonts.cpp",
+  "AppManager_Graph.cpp", "DisplayManager.cpp", "ui/original/DisplayManager_Render.cpp", "DisplayManager_Alpha.cpp",
+  "ui/original/DisplayManager_Ota.cpp", "DisplayManager_OtaCore.cpp", "ui/original/DisplayManager_i18nUi.cpp", "ui/original/DisplayManager_UsersUi.cpp",
 ]
 include             = ["DisplayManager_None.cpp"]
 ignore_display_libs = true
@@ -292,28 +292,30 @@ web_omit = "ui_angulo"
 # Ainda NAO estao aqui, cada uma com o que a segura (tabela da P4; o S10b-2 as separa): Auth (fastRandom, readRect*, convert3to565 e readRow,
 # que o nucleo chama), Touch (loopCore1 chama handleTouch), Users, Alarm e DisplayManager.cpp (funcoes de estado e de show que o nucleo
 # e o Angulo chamam) e Panel.cpp (sem linha de original na tabela, nao sondada). Uma unidade entra aqui com a prova das duas imagens.
+# Desde o S11 (2026-10-30) as 14 unidades ficam em src/ui/original/ e esta lista as nomeia `ui/original/<unidade>`: o pico_base as compila (+<ui/original/*.cpp>), as duas listas de
+# exclusao do LCD e o off_exclude do tft_graph usam os mesmos nomes, e o -<ui/original/...> as tira das imagens do Angulo. Os cabecalhos delas continuam em src/.
 units = [
-    "Themes.cpp",
-    "DisplayManager_Calendar.cpp",
-    "DisplayManager_Fonts.cpp",
-    "DisplayManager_Graph.cpp",
-    "DisplayManager_Ota.cpp",
-    "DisplayManager_Render.cpp",
-    "DisplayManager_i18nUi.cpp",
-    "UiWidgets.cpp",
-    "DisplayManager_Dashboard.cpp",
-    "DisplayManager_AlarmUi.cpp",
-    "DisplayManager_Settings.cpp",
-    "DisplayManager_Calibration.cpp",
-    "DisplayManager_LicenseUi.cpp",
-    "DisplayManager_UsersUi.cpp",
+    "ui/original/Themes.cpp",
+    "ui/original/DisplayManager_Calendar.cpp",
+    "ui/original/DisplayManager_Fonts.cpp",
+    "ui/original/DisplayManager_Graph.cpp",
+    "ui/original/DisplayManager_Ota.cpp",
+    "ui/original/DisplayManager_Render.cpp",
+    "ui/original/DisplayManager_i18nUi.cpp",
+    "ui/original/UiWidgets.cpp",
+    "ui/original/DisplayManager_Dashboard.cpp",
+    "ui/original/DisplayManager_AlarmUi.cpp",
+    "ui/original/DisplayManager_Settings.cpp",
+    "ui/original/DisplayManager_Calibration.cpp",
+    "ui/original/DisplayManager_LicenseUi.cpp",
+    "ui/original/DisplayManager_UsersUi.cpp",
 ]
 
 [ui.angulo]
 flags = ["-DSIMUT_UI_ANGULO=1"]
 # As unidades do Angulo (src/ui/angulo/, 2026-10-14, passo S2a): a cola com o DisplayManager
 # (DisplayManager_UiA*.cpp), o kit (Angulo.cpp), a rota GET /api/ui e as telas (telas/*.cpp). O filtro do
-# pico_base nao alcanca subdiretorios, por isso entram como `include`. Sem `units`: nenhum outro perfil as
+# pico_base alcanca a raiz de src/, ota/, net/ e (desde o S11) ui/original/, mas nao ui/angulo/, por isso estas entram como `include`. Sem `units`: nenhum outro perfil as
 # compilaria (o filtro nao as ve), e um `-<unidade>` a mais mudaria o ambiente de cada perfil que escolhe o
 # `original`. Transitorio: o driver ainda compila o desenho do original, que a imagem ja nao linka (`nm -C`
 # nao lista nenhuma funcao de desenho antiga); os passos S4 a S10b o separam.
@@ -471,7 +473,7 @@ off_web_omit = "syslog"
 bit         = 17
 macro       = "SIMUT_TFT_GRAPH"
 emit        = "off_is_0"
-off_exclude = ["DisplayManager_Graph.cpp", "DisplayManager_GraphCore.cpp", "AppManager_Graph.cpp", "DisplayManager_Calendar.cpp", "DisplayManager_CalendarCore.cpp"]
+off_exclude = ["ui/original/DisplayManager_Graph.cpp", "DisplayManager_GraphCore.cpp", "AppManager_Graph.cpp", "ui/original/DisplayManager_Calendar.cpp", "DisplayManager_CalendarCore.cpp"]
 
 # Os três drivers de sensor (2026-09-26). O default do simut_config.h é 1, então
 # ligado não emite nada e o profiles.ini não muda; desligado emite -D<macro>=0,

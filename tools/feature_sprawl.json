@@ -59,7 +59,6 @@
   "DisplayManager_Users.cpp": 1,
   "DisplayManager_i18n.cpp": 2,
   "SystemDefs_Limits.h": 1,
-  "UiWidgets.cpp": 1,
   "UiWidgets.h": 1,
   "WebManager.h": 2,
   "WebManager_Api.cpp": 1,
@@ -69,7 +68,8 @@
   "sensors/BME280Driver.h": 2,
   "sensors/DHT22Driver.h": 2,
   "sensors/DS18B20Driver.h": 2,
-  "sensors/SensorDrawing.h": 2
+  "sensors/SensorDrawing.h": 2,
+  "ui/original/UiWidgets.cpp": 1
  },
  "SIMUT_LICENSE_STUB": {
   "HelpLicenseEN.h": 1
@@ -106,8 +106,6 @@
   "CommandManager.cpp": 2,
   "CommandParser.cpp": 2,
   "DisplayManager_Alpha.cpp": 4,
-  "DisplayManager_Dashboard.cpp": 1,
-  "DisplayManager_Settings.cpp": 1,
   "HelpLicenseEN.h": 4,
   "LangPackIndex.h": 1,
   "LogManager.cpp": 1,
@@ -120,7 +118,9 @@
   "net/WiredLink.cpp": 1,
   "net/WiredLink.h": 1,
   "ui/angulo/DisplayManager_UiA_Menus.cpp": 1,
-  "ui/angulo/DisplayManager_UiA_Painel.cpp": 1
+  "ui/angulo/DisplayManager_UiA_Painel.cpp": 1,
+  "ui/original/DisplayManager_Dashboard.cpp": 1,
+  "ui/original/DisplayManager_Settings.cpp": 1
  },
  "SIMUT_NET_WIFI": {
   "AppManager.h": 1,
@@ -131,7 +131,6 @@
   "CommandParser.cpp": 3,
   "DisplayManager.h": 2,
   "DisplayManager_Alpha.cpp": 2,
-  "DisplayManager_Settings.cpp": 1,
   "DisplayManager_SettingsCore.cpp": 1,
   "WebManager.h": 2,
   "WebManager_Api.cpp": 10,
@@ -139,6 +138,7 @@
   "WebManager_Core.cpp": 3,
   "WebManager_Metrics.cpp": 2,
   "ui/angulo/DisplayManager_UiA.cpp": 2,
+  "ui/original/DisplayManager_Settings.cpp": 1,
   "ui/original/UiOriginal.h": 1,
   "ui/original/UiTouchChain.h": 1
  },
@@ -213,25 +213,25 @@
   "ui/original/UiTouchChain.h": 1
  },
  "SIMUT_THEMES_HEALTH": {
-  "Themes.cpp": 1
+  "ui/original/Themes.cpp": 1
  },
  "SIMUT_THEMES_MEDICAL": {
-  "Themes.cpp": 1
+  "ui/original/Themes.cpp": 1
  },
  "SIMUT_THEMES_NATURE": {
-  "Themes.cpp": 1
+  "ui/original/Themes.cpp": 1
  },
  "SIMUT_THEMES_PRO": {
-  "Themes.cpp": 1
+  "ui/original/Themes.cpp": 1
  },
  "SIMUT_THEMES_RETRO": {
-  "Themes.cpp": 1
+  "ui/original/Themes.cpp": 1
  },
  "SIMUT_THEMES_SAFETY": {
-  "Themes.cpp": 1
+  "ui/original/Themes.cpp": 1
  },
  "SIMUT_THEMES_UTILITY": {
-  "Themes.cpp": 1
+  "ui/original/Themes.cpp": 1
  },
  "SIMUT_UI_ANGULO": {
   "AppManager_Events.cpp": 4,

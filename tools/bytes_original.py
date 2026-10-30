@@ -79,11 +79,12 @@ def linked_files(readelf, elf):
 
 
 def manifest_original_units(path):
-    """[ui.original].units of tools/features.toml: the units only the original compiles."""
+    """[ui.original].units of tools/features.toml: the units only the original compiles, as BASENAMES. Since S11 the manifest names them
+    ui/original/<unit>; the keys everywhere else (the table's `unit` column, the STT_FILE symbols of an ELF, check_ui_link's ALLOWED) are basenames."""
     text = open(path, encoding="utf-8").read()
     m = re.search(r"^\[ui\.original\]\s*$(.*?)(?=^\[|\Z)", text, re.M | re.S)
     u = re.search(r"^units\s*=\s*\[(.*?)\]", m.group(1), re.M | re.S) if m else None
-    return set(re.findall(r'"([^"]+)"', u.group(1))) if u else set()
+    return {os.path.basename(x) for x in re.findall(r'"([^"]+)"', u.group(1))} if u else set()
 
 
 def key_of(name):

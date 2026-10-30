@@ -2,7 +2,7 @@
  * @file Temas.cpp
  * @brief The Ângulo's theme catalogue: its 18 choices, the three modes (light, dark, automatic) each with one accent of the palette. They give cfg.themeIndex its names where the web (/api/themes) and the
  *        console list them, and index t keeps the meaning ua::escolhaDoIndice( t ) gives it (src/ui/angulo/Angulo.cpp): the mode is the remainder and the accent the quotient of a division by the number of
- *        modes. The first three are the stock accent and keep the ids they always had. Defines the six functions of src/ThemeCatalog.h; the original's definitions (src/Themes.cpp, the palettes and the .thm
+ *        modes. The first three are the stock accent and keep the ids they always had. Defines the six functions of src/ThemeCatalog.h; the original's definitions (src/ui/original/Themes.cpp, the palettes and the .thm
  *        files) are not linked into this image. The colours are the default's: nothing this build puts on the glass is drawn with them. A .thm uploaded to this build is stored and neither offered nor applied: scanCustomThemes( ) does
  *        nothing, and the upload and delete handlers do not call it here (SIMUT_UI_CUSTOM_THEMES is 0; S10c, A'4); only boot does.
  */

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """test_rede.py -- the network glyph of the Angulo's status bar (DisplayManager::uaVmStatus( )), on the host (S10c, the Wi-Fi status bar).
 
-The original panel decides the glyph of its top bar (DisplayManager::drawTopBar( ), src/DisplayManager_Dashboard.cpp) from the level NetworkManager::getRssi( ) gives: on a cable image the cable, green above -100 and
+The original panel decides the glyph of its top bar (DisplayManager::drawTopBar( ), src/ui/original/DisplayManager_Dashboard.cpp) from the level NetworkManager::getRssi( ) gives: on a cable image the cable, green above -100 and
 grey at or below; on a Wi-Fi image four bars, none at -100 or less, one up to -75, two up to -65, three up to -55, four above. The Angulo says the same with Lucide's own icons (the maintainer's decision "levels like the
 original", 2026-10-30): on a Wi-Fi image signal-low, signal-medium, signal-high and signal for one to four bars ("B, barras de sinal"; the one-bar icon in the alert colour: from -78 down the device holds telemetry, RSSI_MIN_THRESHOLD) and wifi-off in
 the bar's neutral grey for no signal (not an error, so not the danger colour); on a cable image ethernet-port with a link and unplug without, both in the same neutral grey ("icone proprio, em cinza": the shape carries the state, as on Wi-Fi; no network state draws in the danger colour). Until the fix of 2026-10-30 uaVmStatus( ) answered
@@ -40,7 +40,7 @@ from host_ui import find_gfx  # noqa: E402  (the GFX lookup the host tools share
 UA = ROOT / 'src' / 'ui' / 'angulo'
 GLUE = UA / 'DisplayManager_UiA.cpp'
 TELAS = UA / 'telas' / 'Telas.cpp'
-ORIGINAL = ROOT / 'src' / 'DisplayManager_Dashboard.cpp'
+ORIGINAL = ROOT / 'src' / 'ui' / 'original' / 'DisplayManager_Dashboard.cpp'   # S11: the original's units live in src/ui/original/
 MAIN = HERE / 'host' / 'test_rede_main.cpp'
 SHIM = HERE / 'host' / 'shim'
 PECA = 'uaVmStatus.inc'
@@ -173,7 +173,7 @@ def escada_do_original():
     """(no link, 4 bars, 3 bars, 2 bars) of DisplayManager::drawTopBar( ), as ints, or None when the code is not of the shape this reads."""
     t = apaga(ORIGINAL.read_text(encoding='utf-8'))
     corpo = corpo_da_funcao(t, r'void\s+DisplayManager::drawTopBar\s*\(')
-    if not confere(corpo is not None, 'DisplayManager::drawTopBar( ) is not in src/DisplayManager_Dashboard.cpp exactly once'):
+    if not confere(corpo is not None, 'DisplayManager::drawTopBar( ) is not in src/ui/original/DisplayManager_Dashboard.cpp exactly once'):
         return None
     cabo = re.findall(r'state\.wifiRssi\s*>\s*(-\d+)\s*\)\s*\?\s*C_TEMP_OK\s*:\s*C_BAR_BG', corpo)
     escada = re.findall(r'int\s+barras\s*=\s*0\s*;\s*if\s*\(\s*state\.wifiRssi\s*>\s*(-\d+)\s*\)\s*\{\s*'

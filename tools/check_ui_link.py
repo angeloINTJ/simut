@@ -261,6 +261,16 @@ def selftest():
         MIX = ['DisplayManager::handleTouch()', 'DisplayManager::loopCore1()']
         tb, cl = bo.build_table(rows)
         case('the real table: the two mixed-row functions that both Angulo images link are in ALLOWED, and each sits on a mixed row', all(k in ALLOWED and cl.get(bo.row_of(bo.key_of(k), tb)) == 'mixed' for k in MIX), '')
+        # S11: the manifest names the original's units ui/original/<unit>; the table's unit column, the STT_FILE symbols and ALLOWED's units are basenames
+        with tempfile.TemporaryDirectory() as md:
+            mf = os.path.join(md, 'features.toml')
+            with open(mf, 'w', encoding='utf-8') as fh:
+                fh.write('[ui.original]\nunits = [\n    "Themes.cpp",\n    "ui/original/UiWidgets.cpp",\n    "ui/original/DisplayManager_Fonts.cpp",\n]\n\n[ui.angulo]\nunits = ["x/Other.cpp"]\n')
+            got = bo.manifest_original_units(mf)
+        case('manifest_original_units: a unit named ui/original/<unit> is read as its basename and a bare name as it is (S11)',
+             got == {'Themes.cpp', 'UiWidgets.cpp', 'DisplayManager_Fonts.cpp'}, str(sorted(got)))
+        real_units = bo.manifest_original_units(MANIFEST)
+        case('the real manifest: the original\'s units come out as basenames, none with a directory', bool(real_units) and all('/' not in u for u in real_units), str(sorted(real_units)[:3]))
     except Refusal as e:
         case('the real table can be read', False, str(e))
     with tempfile.TemporaryDirectory() as d:
