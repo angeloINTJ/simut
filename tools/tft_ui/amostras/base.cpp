@@ -4,8 +4,8 @@
 // A sample builds its view model when it is drawn, not at start-up (S10c, B3): the texts that the device's glue (DisplayManager_UiA.cpp) asks of UA_TXT( )
 // come from the language pack that the harness loads in main( ) before the first sample draws, and a constant built earlier would hold the English for good.
 // Each English below is the glue's own, because the glue cannot be built on the host; tools/tft_ui/host_telas.py holds every UA_TXT( ) English of a sample file to an
-// English of src/ui/angulo. A text with no UA_TXT( ) is one the glue does not say: the long message is the calibration's (Ajustes, converted in B4) and "PIN salvo."
-// is no message of the glue any more; both stay in Portuguese, as their frames were drawn. "Reboot required" is the one text the glue does say without UA_TXT( ): Core 0 sends the key and the glue
+// English of src/ui/angulo. A text with no UA_TXT( ) is one the glue does not say: the long message is the calibration's (Ajustes, converted in B4) and stays in Portuguese, as its frame was drawn.
+// "Reboot required" is the one text the glue does say without UA_TXT( ): Core 0 sends the key and the glue
 // takes tr( ) of it, in English because the unit that shows it has loaded no pack (msgReiniciar( ) below).
 #include <stdio.h>
 #include <string.h>
@@ -29,7 +29,9 @@ VmMensagem mensagem( bool ok, const char *texto, const char *detalhe ) {
   return vm;
 }
 
-VmMensagem msgOk( ) { return mensagem( true, "PIN salvo.", "" ); }
+// The success text of the glue: textoDaMensagem( ), DisplayManager_UiA.cpp, answers TR_PIN_SAVED with UA_TXT( "Change saved." ), the neutral words because the same key also answers a saved PIN policy. It is
+// looked up in the pack as the glue looks it up: the manual's figure of a success message (S10c, C6) is drawn from this sample, and it used to say "PIN salvo.", which the device no longer says.
+VmMensagem msgOk( ) { return mensagem( true, UA_TXT( "Change saved." ), "" ); }
 VmMensagem msgErro( ) {
   return mensagem( false, UA_TXT( "No permission." ), UA_TXT( "Ask whoever administers the device to allow this function on your account." ) );
 }
