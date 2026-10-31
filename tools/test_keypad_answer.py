@@ -2,7 +2,7 @@
 """test_keypad_answer.py -- tests tools/keypad_answer.py, the one reader of GET /api/keypad for the two bench tools that drive the ORIGINAL panel
 (tools/panel_users_hw_test.py and tools/panel_fulltable_test.py).
 
-Run: python3 tools/test_keypad_answer.py
+Run: python3 tools/test_keypad_answer.py        (-v: one line per case and per control)
 
 WHY (S12, F4 of v2.13.0's Known list, option (c), 2026-10-31). On an image built with the Angulo the route sends `faces`, `up`, `kb` and
 `policy` plus `"targets":"/api/ui"`, and no `grid` and no `pop`: the original panel's geometry cannot describe the Angulo's keys, and a
@@ -161,10 +161,14 @@ def wiring(tool):
 
 def main():
     fails = []
+    verbose = "-v" in sys.argv[1:]
 
     failed = run_cases(keypad_answer)
     for name, why in failed.items():
         fails.append(f"case {name}: {why}")
+    if verbose:
+        for name, _ in CASES:
+            print(f"  case {name:9s} {'FAIL ' + failed[name] if name in failed else 'ok'}")
 
     with open(MODULE, encoding="utf-8") as f:
         src = f.read()
@@ -175,6 +179,8 @@ def main():
         except RuntimeError as e:
             fails.append(f"control «{label}»: {e}")
             continue
+        if verbose:
+            print(f"  control «{label}»: fails {sorted(got)}, the line serves {sorted(expected)}")
         if got == expected:
             bitten += 1
         else:

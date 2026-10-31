@@ -52,6 +52,7 @@ from panel_users_hw_test import (  # noqa: E402
     PIN_GRID_FALLBACK, PIN_OK, PIN_CANCEL,
     MAINT_ROW, MAINT_DEC, MAINT_INC, MAINT_MID,
 )
+import keypad_answer  # noqa: E402  (the reader of /api/keypad; it refuses an Ângulo's answer)
 
 PERM_LIM, PERM_BLK, PERM_MNT, PERM_USR = 0x0400, 0x0800, 0x1000, 0x0100
 MAX_USERS = 32                      # SystemDefs_Limits.h
@@ -373,8 +374,12 @@ def main():
         # The PIN policy the numbers below were measured under. v25 makes it
         # configurable, so "15% ambiguity at four digits" means nothing without
         # it, and a rig left on another policy silently measures something
-        # else. /api/keypad reports it as [minLen, maxLen, keypad, alphabet].
-        policy = rig.get('/api/keypad').json().get('policy')
+        # else. /api/keypad reports it as [minLen, maxLen, keypad, alphabet]. It is
+        # read through keypad_answer.parse( ), the one reader of the route, so that no
+        # read of it takes an Ângulo's answer for the original's (Rig stops the run at
+        # its start, before an account is made; this read is the second line).
+        kp = keypad_answer.parse(rig.get('/api/keypad').json())
+        policy = list(kp.policy.values()) if kp.policy else None
         print(f'  PIN policy [min,max,keypad,alphabet]: {policy}')
         print(f'  sensor slot under test: {slot}')
 

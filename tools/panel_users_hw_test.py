@@ -37,6 +37,9 @@ import requests
 import serial
 from PIL import Image
 
+import keypad_answer
+from keypad_answer import PIN_GRID_FALLBACK  # noqa: F401  (panel_fulltable_test.py takes it from here)
+
 TARGET_GLOB = '/dev/serial/by-id/usb-Raspberry_Pi_Pico_W_*-if00'
 BAUD = 115200
 
@@ -62,13 +65,14 @@ CFG_BTN = (286, 215)                       # dashboard footer, 5th slot
 # digit is — `show display keypad` is what tells it. One tap per digit.
 # v25: the card layout is a POLICY setting (PinKeypad.h::GRIDS) — four cards of
 # three glyphs is only one of five, and ALPHA_ALNUM puts twelve or eighteen on
-# the glass. These are the v24 numbers and they survive as the fallback for a
-# device that predates the geometry in /api/keypad; Rig.keypad_faces( ) reads
-# the live grid and Rig.pin( ) taps what it says. Hardcoding them was the trap
+# the glass. Rig.keypad_faces( ) reads the live grid and Rig.pin( ) taps what it
+# says. The v24 numbers survive as the fallback for a device that predates the
+# geometry in /api/keypad: PIN_GRID_FALLBACK, imported above from
+# tools/keypad_answer.py, which reads the route for this tool and for
+# panel_fulltable_test.py and refuses the Ângulo's answer (no grid, because the
+# original panel's cannot describe its keys). Hardcoding them was the trap
 # this file was about to walk into: the cards would have moved out from under
 # every tap with nothing failing in a way that pointed here.
-PIN_GRID_FALLBACK = dict(keys=4, slots=3, cols=2, rows=2,
-                         x=6, y=72, w=152, h=44, px=156, py=50)
 PIN_BACK = (70, 215)                       # backspace, FOOT_BACK_X + W/2
 PIN_CANCEL = (178, 215)                    # TR_BACK, FOOT_EXIT_X + W/2
 PIN_OK = (268, 215)                        # TR_ENTER, FOOT_OK_X + W/2
@@ -174,6 +178,26 @@ class Rig:
             raise SystemExit('device reports no IP')
         self.session = self._login()
         self.shots = []
+        self.refuse_angulo()
+
+    def refuse_angulo(self):
+        """Stop before the run changes anything when the device draws the Ângulo.
+        This tool and panel_fulltable_test.py tap the original panel by the
+        geometry of GET /api/keypad, which the Ângulo's answer does not carry
+        (tools/keypad_answer.py). The first keypad read would say so too, but
+        only after accounts were made and the telemetry re-pointed. Not being
+        able to read the route (an image without the panel, a web that does not
+        answer) is not the Ângulo: that is said, and the first real read
+        fails in its own words."""
+        try:
+            j = self.get_json('/api/keypad', timeout=10)
+        except Exception as e:
+            print(f'  (could not read /api/keypad to tell which panel is up: {e})')
+            return
+        try:
+            keypad_answer.parse(j)
+        except keypad_answer.AnguloAnswer as e:
+            raise SystemExit(str(e))
 
     def cmd(self, text, quiet_for=0.5, timeout=6.0):
         """⚠️ A device REBOOT reaches this as OSError/SerialException errno 5
@@ -461,30 +485,33 @@ class Rig:
             j = self.get_json('/api/keypad', timeout=10)
         except Exception as e:
             raise KeypadGone(f'/api/keypad failed: {e}')
+        # The answer is read by tools/keypad_answer.py, shared with the full-table
+        # test. An Ângulo's answer (it has "targets", no grid and no pop) stops the
+        # run here with the message that says where to tap instead. SystemExit and
+        # not KeypadGone: the caller reopens the keypad and types again on a
+        # KeypadGone, and the device would answer the same.
+        try:
+            k = keypad_answer.parse(j)
+        except keypad_answer.AnguloAnswer as e:
+            raise SystemExit(str(e))
         # NOT filtered for emptiness: a face is POSITIONAL, and the ordered
         # numeric pad has two blank cells (1..9, then 0 alone). Dropping them
         # used to be harmless because a dealt card is never empty; with the
         # ordered keyboards it would shift every key after the ninth.
-        faces = list(j.get('faces') or [])
+        faces = k.faces
         # Which keyboard is on the glass: "cards" (one tap per card, re-dealt
         # after every tap), "num" (ordered, one tap per key) or "groups"
         # (ordered, TWO taps — the group then the character in its popup).
-        self.kb = j.get('kb') or 'cards'
-        pop = j.get('pop')
-        if isinstance(pop, list) and len(pop) == 6:
-            self.pop = dict(zip(('w', 'h', 'gap', 'one_y', 'row0_y', 'row1_y'), pop))
-        # v25: grid = keys, slots, cols, rows, x, y, w, h, pitchX, pitchY
-        g = j.get('grid')
-        if isinstance(g, list) and len(g) == 10:
-            self.grid = dict(zip(('keys', 'slots', 'cols', 'rows',
-                                  'x', 'y', 'w', 'h', 'px', 'py'), g))
-        else:
-            self.grid = dict(PIN_GRID_FALLBACK)
+        self.kb = k.kb
+        if k.pop:
+            self.pop = k.pop
+        # v25: grid = keys, slots, cols, rows, x, y, w, h, pitchX, pitchY; the v24
+        # layout when the answer has none (a device older than v25)
+        self.grid = k.grid
         # policy = minLen, maxLen, keypad, alphabet
-        pol = j.get('policy')
-        if isinstance(pol, list) and len(pol) == 4:
-            self.policy = dict(zip(('min', 'max', 'keypad', 'alphabet'), pol))
-        if not j.get('up') or len(faces) != self.grid['keys']:
+        if k.policy:
+            self.policy = k.policy
+        if not k.up or len(faces) != self.grid['keys']:
             raise KeypadGone(f'keypad not on screen '
                              f'(got {len(faces)} faces, grid says {self.grid["keys"]})')
         return faces
