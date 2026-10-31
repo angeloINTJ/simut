@@ -93,11 +93,12 @@ struct Tft {
 
 struct Pintura { UiMode modo = MODE_DASHBOARD; int ox = 99, oy = 99; bool cheia = false; int n = 0; };
 struct Pedidos {
-  bool fs = false, rs = false, rg = false, rc = false, oa = false, sujo = false, cheio = false;
-  bool todos( ) const { return fs && rs && rg && rc && oa && sujo && cheio; }
+  bool fs = false, rs = false, rg = false, rc = false, rl = false, oa = false, sujo = false, cheio = false;
+  bool operator==( const Pedidos &o ) const { return fs == o.fs && rs == o.rs && rg == o.rg && rc == o.rc && rl == o.rl && oa == o.oa && sujo == o.sujo && cheio == o.cheio; }
+  bool nenhum( ) const { return !( fs || rs || rg || rc || rl || oa || sujo || cheio ); }
   std::string texto( ) const {
     std::string s;
-    s += fs ? "forceSettingsRedraw " : ""; s += rs ? "repaintSettings " : ""; s += rg ? "repaintGraph " : ""; s += rc ? "repaintCalendar " : "";
+    s += fs ? "forceSettingsRedraw " : ""; s += rs ? "repaintSettings " : ""; s += rg ? "repaintGraph " : ""; s += rc ? "repaintCalendar " : ""; s += rl ? "repaintLoading " : "";
     s += oa ? "otaRedrawAll " : ""; s += sujo ? "isDirty " : ""; s += cheio ? "forceFullRedraw" : "";
     return s.empty( ) ? "none" : s;
   }
@@ -280,6 +281,24 @@ static std::string g_detalhe;
 static void abre( const char *id ) { g_caso = id; g_ok = true; g_detalhe.clear( ); }
 static void fecha( ) { printf( "CASE %s %s %s %s\n", g_caso, g_ui == ORIGINAL ? "original" : "angulo", g_ok ? "PASS" : "FAIL", g_detalhe.c_str( ) ); }
 
+// What each screen takes of the repaint requests (the original's uiPass( ) and otaTick( ), which the python side reads from UiOriginal.h; the Angulo takes all of them): the set the tick must raise
+// for the screen that is up, and nothing else. A request nobody takes stays up, and repaintPending in loopCore1( ) stays true with it.
+static Pedidos esperado( UiMode m ) {
+  Pedidos p;
+  switch ( m ) {
+    case MODE_DASHBOARD: p.sujo = true; p.cheio = true; break;
+    case MODE_GRAPH_LOADING: p.rl = true; break;
+    case MODE_GRAPH_VIEW: case MODE_GRAPH_DETAIL: p.rg = true; break;
+    case MODE_CALENDAR: p.rc = true; break;
+    case MODE_OTA_UPDATE: p.oa = true; break;
+    default: p.fs = true; p.rs = true; break;
+  }
+  return p;
+}
+static Pedidos pedidosDe( const DisplayManager &d ) { return Pedidos{ d._forceSettingsRedraw, d._repaintSettings, d._repaintGraph, d._repaintCalendar, d._repaintLoading, d._otaRedrawAll, d._isDirty, d._forceFullRedraw }; }
+// The requests still standing after a pass. The Angulo never takes _forceFullRedraw (only the original's render( ) does) and it is in no pace test, so it is left out there.
+static Pedidos dePe( const DisplayManager &d ) { Pedidos p = pedidosDe( d ); if ( g_ui == ANGULO ) p.cheio = false; return p; }
+
 static void core1Pass( World &w ) {   // one pass of loopCore1( ): handleTouch( ), the tick, otaTick( ), the theme, the screen chain (the python side holds the real file to this order)
   const int antes = g_core;
   g_core = 1;
@@ -289,7 +308,7 @@ static void core1Pass( World &w ) {   // one pass of loopCore1( ): handleTouch( 
   d.tickDisplayOffset( );
   if ( w.tft.ox != ax || w.tft.oy != ay ) {
     w.houveTique = true;
-    w.pedidos = Pedidos{ d._forceSettingsRedraw, d._repaintSettings, d._repaintGraph, d._repaintCalendar, d._otaRedrawAll, d._isDirty, d._forceFullRedraw };
+    w.pedidos = pedidosDe( d );
   }
   d.otaTick( );
   if ( d._themeChanged ) { d.uiThemeChanged( ); d._themeChanged = false; }
@@ -346,8 +365,9 @@ static void c1( ) {
   passe( w );
   CK( w.dm._uiMode == MODE_DASHBOARD, "the idle return did not reach the dashboard (mode %d)", ( int )w.dm._uiMode );
   CK( vidro( w, 0, 0 ), "the idle return and one pass left the glass at %d,%d, wanted the saved 0,0", w.tft.ox, w.tft.oy );
-  CK( w.houveTique && w.pedidos.todos( ), "the pass that put the glass back did not ask for the full repaint (tick changed the glass: %d; standing: %s)", w.houveTique, w.pedidos.texto( ).c_str( ) );
+  CK( w.houveTique && w.pedidos == esperado( MODE_DASHBOARD ), "the pass that put the glass back raised [%s] (tick changed the glass: %d), wanted exactly the dashboard's [%s]", w.pedidos.texto( ).c_str( ), w.houveTique, esperado( MODE_DASHBOARD ).texto( ).c_str( ) );
   CK( repintado( w ), "the dashboard was not repainted in full at the glass's offset (%s)", pintura( w ).c_str( ) );
+  CK( dePe( w.dm ).nenhum( ), "requests of another screen left standing after the pass: [%s]", dePe( w.dm ).texto( ).c_str( ) );
   CK( w.tft.violacoes == 0, "Core 0 painted the margins" );
   fecha( );
 }
@@ -383,6 +403,7 @@ static void c3( ) {
     passe( w, 3 );
     CK( vidro( w, 0, 0 ), "%s: the glass reads %d,%d after the exit and three passes, wanted the saved 0,0", s, w.tft.ox, w.tft.oy );
     CK( repintado( w ), "%s: the screen was not repainted in full at the glass's offset (%s)", s, pintura( w ).c_str( ) );
+    CK( dePe( w.dm ).nenhum( ), "%s: requests left standing after the exit and three passes: [%s]", s, dePe( w.dm ).texto( ).c_str( ) );
     if ( !strcmp( s, "update" ) ) {
       CK( w.dm._uiMode == MODE_OTA_UPDATE, "update: the update screen is not up (mode %d)", ( int )w.dm._uiMode );
       w.dm._otaState = otaPack( 2, OTA_PH_NONE, OTA_WHY_NONE );
@@ -392,20 +413,23 @@ static void c3( ) {
     }
     CK( w.tft.violacoes == 0, "%s: Core 0 painted the margins", s );
   }
-  // a preview left on the glass, whatever the screen: every one repaints in full at the saved offset
-  const UiMode modos[] = { MODE_DASHBOARD, MODE_GRAPH_VIEW, MODE_GRAPH_DETAIL, MODE_CALENDAR, MODE_SETTINGS_MAIN, MODE_SETTINGS_THEMES, MODE_SETTINGS_TOUCH_CAL, MODE_SETTINGS_TOUCH_SENS, MODE_OTA_UPDATE };
+  // a preview left on the glass, whatever the screen: the tick alone raises exactly what that screen takes, the pass repaints it in full at the saved offset, and nothing is left standing
+  const UiMode modos[] = { MODE_DASHBOARD, MODE_GRAPH_LOADING, MODE_GRAPH_VIEW, MODE_GRAPH_DETAIL, MODE_CALENDAR, MODE_SETTINGS_MAIN, MODE_SETTINGS_THEMES, MODE_SETTINGS_TOUCH_CAL,
+                           MODE_SETTINGS_TOUCH_SENS, MODE_SETTINGS_DISPLAY_OFFSET, MODE_OTA_UPDATE };
   for ( UiMode m : modos ) {
     World w;
     carrega( w, 0, 0 );
     w.tft.ox = 1;
     w.dm._uiMode = m;
     if ( m == MODE_OTA_UPDATE ) w.dm._otaState = otaPack( 1, OTA_PH_RECEIVING, OTA_WHY_NONE );
+    g_core = 1;
+    w.dm.tickDisplayOffset( );
+    g_core = 0;
+    CK( vidro( w, 0, 0 ), "mode %d: a stale glass is at %d,%d after the tick, wanted 0,0", ( int )m, w.tft.ox, w.tft.oy );
+    CK( pedidosDe( w.dm ) == esperado( m ), "mode %d: the tick raised [%s], wanted exactly what the screen takes: [%s]", ( int )m, pedidosDe( w.dm ).texto( ).c_str( ), esperado( m ).texto( ).c_str( ) );
     passe( w, 2 );
-    CK( vidro( w, 0, 0 ), "mode %d: a stale glass is at %d,%d after two passes, wanted 0,0", ( int )m, w.tft.ox, w.tft.oy );
     CK( repintado( w ), "mode %d: not repainted in full at the glass's offset (%s)", ( int )m, pintura( w ).c_str( ) );
-    const bool preso = w.dm._repaintSettings || w.dm._repaintGraph || w.dm._repaintCalendar;
-    if ( preso && g_ui == ORIGINAL && g_ok ) printf( "NOTE original mode %d: after the repaint the standing requests are %s%s%s (the screen does not consume them)\n", ( int )m,
-        w.dm._repaintSettings ? "repaintSettings " : "", w.dm._repaintGraph ? "repaintGraph " : "", w.dm._repaintCalendar ? "repaintCalendar" : "" );
+    CK( dePe( w.dm ).nenhum( ), "mode %d: requests left standing after the repaint: [%s]", ( int )m, dePe( w.dm ).texto( ).c_str( ) );
   }
   fecha( );
 }

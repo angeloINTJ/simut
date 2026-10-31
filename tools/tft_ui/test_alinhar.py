@@ -13,8 +13,8 @@ new offset into that mirror (loadDisplayOffset( )) before the calibration's entr
      original panel and once for the Angulo. Seven cases for each:
        C1  saved 0,0, Right, the 30 s idle return, ONE pass: the glass is 0,0 and the full repaint was asked for; before that, a pass leaves the preview on the glass while the screen is shown
        C2  the next entry starts at 0,0
-       C3  Core 0's exits (`screen dash`, `screen set`, an update, a theme change), and a preview left in any mode (the dashboard, the chart, its detail, the calendar, the settings
-           screens, the update screen), leave the glass at the saved offset and the screen repainted in full at it
+       C3  Core 0's exits (`screen dash`, `screen set`, an update, a theme change), and a preview left in any mode (the dashboard, the chart, its loading screen and detail, the calendar, the settings
+           screens, the update screen), leave the glass at the saved offset and the screen repainted in full at it; the tick raises exactly the requests that screen takes, and none is left standing
        C4  `screen offset` while a preview is shown, then Voltar: the saved offset is back (the preview is not taken for the saved one)
        C5  Voltar, the control: the saved offset goes back at once and the tick has nothing left to correct
        C6  Salvar: the glass keeps the new offset through the whole Apply (Core 1 interleaved at each point the Apply passes), and the next entry starts at it
@@ -31,7 +31,7 @@ new offset into that mirror (loadDisplayOffset( )) before the calibration's entr
      alignment, and its update screen turns _otaRedrawAll into a full repaint.
   5. The mutants (the cut pieces edited one statement at a time, the loop's text reordered), each of which must fail the script: M1 the tick without its mode test, M2 the entry reading
      the glass, M3 the Apply without loadDisplayOffset( ) or with it after showTouchCalibration( ), M4 the tick out of order, M5 the tick without the repaint request, M6 the load storing
-     the glass before the saved value. A mutant that does not compile, or an anchor not found exactly once, fails this script: a mutant must be killed by a check and not by the compiler.
+     the glass before the saved value, M7 the tick raising every request whatever the screen is. A mutant that does not compile, or an anchor not found exactly once, fails this script: a mutant must be killed by a check and not by the compiler.
 
 Expected failures: XFAIL (below) lists what the defect still fails. The script exits 0 and lists them; an XPASS (an expected failure that passes) makes it exit 1, because the bug has
 closed and the mark must leave.
@@ -282,6 +282,14 @@ def cadeia_original():
         tabela.append((modo, quer))
         if quer not in texto:
             msgs.append(f'{modo} does not test {quer}')
+    defs = apaga((SRC / 'SystemDefs_Records.h').read_text(encoding='utf-8'))
+    e = re.search(r'enum\s+UiMode\s*\{(.*?)\}\s*;', defs, re.S)
+    if e:
+        sem_ramo = [m for m in re.findall(r'\b(MODE_\w+)\b', e.group(1)) if m not in {t[0] for t in tabela} and m != 'MODE_OTA_UPDATE']
+        if sem_ramo:
+            msgs.append('modes with no branch in uiPass( ), which tickDisplayOffset( ) would give the settings pair: ' + ', '.join(sem_ramo))
+    else:
+        msgs.append('enum UiMode not found in SystemDefs_Records.h')
     if len(ramos) < 15:
         msgs.append(f'only {len(ramos)} mode branches found in uiPass( ), wanted at least 15')
     ota = le(F_OTA)
@@ -337,13 +345,14 @@ def resultados(rc, out, p, laco, chamadas):
 
 # (name, the piece, the statement, what replaces it): each edit must make the model or the text checks fail. The statements are the tree's, as cut (comments removed).
 MUTANTES = [
-    ('M1 the tick without its mode test', 'tique.inc', '_uiMode == MODE_SETTINGS_DISPLAY_OFFSET', 'false'),
+    ('M1 the tick without its mode test', 'tique.inc', 'mode == MODE_SETTINGS_DISPLAY_OFFSET', 'false'),
     ('M2 the entry reading the glass', 'entrada.inc', '_offsetPreviewX = _offsetSavedX;',
      '_offsetSavedX = _driver.tft ? _driver.tft->getOffsetX( ) : 0; _offsetSavedY = _driver.tft ? _driver.tft->getOffsetY( ) : 0; _offsetPreviewX = _offsetSavedX;'),
     ('M3a the Apply without loadDisplayOffset( )', 'evento.inc', '_displayMgr->loadDisplayOffset(ofs);', '( void )0;'),
     ('M3b the Apply with loadDisplayOffset( ) after showTouchCalibration( )', 'evento.inc', None, None),
     ('M5 the tick without the repaint request', 'tique.inc', None, None),
     ('M6 the load storing the glass before the saved value', 'carga.inc', None, None),
+    ('M7 the tick raising every request, whatever the screen is', 'tique.inc', None, None),
 ]
 
 
@@ -369,6 +378,14 @@ def aplica(nome, p, laco):
             if len(achou) != 1:
                 return None
             q['tique.inc'] = ti[:achou[0].end(1)] + '\n}\n'
+        elif n.startswith('M7'):
+            ti = p['tique.inc']
+            sw = re.search(r'switch\s*\(\s*mode\s*\)\s*\{', ti)
+            fim = casa_chaves(ti, sw.end() - 1) if sw else -1
+            if fim < 0:
+                return None
+            q['tique.inc'] = (ti[:sw.start()] + '_forceSettingsRedraw = true; _repaintSettings = true; _repaintGraph = true; _repaintCalendar = true; _otaRedrawAll = true; '
+                              'mutex_enter_blocking(&_stateMutex); _isDirty = true; _forceFullRedraw = true; mutex_exit(&_stateMutex);' + ti[fim + 1:])
         elif n.startswith('M6'):
             cg = p['carga.inc']
             gl = list(re.finditer(r'[^\n;{}]*setDisplayOffset\s*\([^;]*\)\s*;', cg))
@@ -445,13 +462,10 @@ def main():
         if rc is None:
             print('cannot build the model:\n' + out)
             return 2
-        notas = [ln for ln in out.splitlines() if ln.startswith('NOTE')]
         res, modelo = resultados(rc, out, p, laco, chamadas)
         MODELO[0], MODELO[1] = modelo
         tabela = textos(p, laco, chamadas)[1]
         print(f'the original\'s screen chain, read from ui/original/UiOriginal.h ({len(tabela)} branches): ' + ', '.join(f'{m[5:].lower()} -> {q}' for m, q in tabela))
-        for n in notas:
-            print(n)
         print('the base:')
         xfail, xpass = julga(res)
         confere(modelo[0] > 0 and len(re.findall(r'^CASE ', out, re.M)) == len(CASOS), f'the model ran {len(re.findall(r"^CASE ", out, re.M))} of {len(CASOS)} cases')

@@ -210,10 +210,14 @@ void DisplayManager::showSettingsDisplayOffset( ) {
  * Before 2026-10-31 only BACK (actOffsetBack( )) put the saved offset back, so the exits that skip it left the
  * preview on the glass: the 30 s idle return, the CLI's `screen *`, a theme change by the web or the CLI, an update.
  * Whoever leaves the screen now does nothing; this sees that it is not shown and puts the saved offset back, the way the
- * preview was put on (with the margins: Core 1 owns the SPI bus). It then asks for a full repaint, because what is on the glass was
- * drawn at the other offset: every flag a screen answers with, since this does not know which screen is up
- * (the Angulo takes all of them and also notices the alignment in its frame's identity; the original's dashboard
- * takes _isDirty and _forceFullRedraw, its menus _repaintSettings, the chart _repaintGraph, the calendar _repaintCalendar and the update screen _otaRedrawAll).
+ * preview was put on (with the margins: Core 1 owns the SPI bus). It then asks for a full repaint of the screen that is up, and
+ * of that one only: what is on the glass was drawn at the other offset, and each screen takes its own request. The original's
+ * dashboard takes _isDirty and _forceFullRedraw (render( )), its chart _repaintGraph, its loading screen _repaintLoading, its calendar
+ * _repaintCalendar, its update screen _otaRedrawAll (otaTick( )) and every other screen _repaintSettings with _forceSettingsRedraw
+ * (uiPass( ) in ui/original/UiOriginal.h); the Angulo takes all of them in its uiPass( ) and also sees the alignment in its frame's
+ * identity. A request nobody takes stays up, and with it repaintPending in loopCore1( ): on the dashboard the pass would wait 1 ms and
+ * not 2 ms until a screen that takes it is shown. A mode that is not listed gets the settings pair: every other mode is a screen of the
+ * settings tree, and tools/tft_ui/test_alinhar.py checks that each of them has a branch in uiPass( ) that tests _repaintSettings.
  * Never inside _stateMutex (it takes it) and never on Core 0 (the glass is Core 1's); loopCore1( ) calls it after handleTouch( ).
  *
  * The glass is read first and the targets after it, with a fence between: loadDisplayOffset( ) writes the saved offset
@@ -224,18 +228,35 @@ void DisplayManager::tickDisplayOffset( ) {
  const int8_t glassX = _driver.tft->getOffsetX( );
  const int8_t glassY = _driver.tft->getOffsetY( );
  __atomic_signal_fence(__ATOMIC_ACQUIRE);
- const bool shown = _uiMode == MODE_SETTINGS_DISPLAY_OFFSET;
+ const UiMode mode = _uiMode;
+ const bool shown = mode == MODE_SETTINGS_DISPLAY_OFFSET;
  const int8_t targetX = shown ? _offsetPreviewX : _offsetSavedX;
  const int8_t targetY = shown ? _offsetPreviewY : _offsetSavedY;
  if (glassX == targetX && glassY == targetY) return;
  _driver.tft->setDisplayOffset(targetX, targetY);
- _forceSettingsRedraw = true;
- _repaintSettings = true;
- _repaintGraph = true;
- _repaintCalendar = true;
- _otaRedrawAll = true;
+ switch (mode) {
+ case MODE_DASHBOARD:
  mutex_enter_blocking(&_stateMutex);
  _isDirty = true;
  _forceFullRedraw = true;
  mutex_exit(&_stateMutex);
+ break;
+ case MODE_GRAPH_LOADING:
+ _repaintLoading = true;
+ break;
+ case MODE_GRAPH_VIEW:
+ case MODE_GRAPH_DETAIL:
+ _repaintGraph = true;
+ break;
+ case MODE_CALENDAR:
+ _repaintCalendar = true;
+ break;
+ case MODE_OTA_UPDATE:
+ _otaRedrawAll = true;
+ break;
+ default:
+ _forceSettingsRedraw = true;
+ _repaintSettings = true;
+ break;
+ }
 }
