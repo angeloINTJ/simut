@@ -196,9 +196,12 @@ void DisplayManager::showSettingsDisplayOffset( ) {
  mutex_enter_blocking(&_stateMutex);
  /* The preview BEFORE the mode (2026-10-31): Core 1 reads _uiMode without the mutex, and tickDisplayOffset( ) takes the preview for the glass's target as soon as
   * the mode says this screen is shown. With the mode first, a pass between the two stores finds the screen shown and the preview of the LAST visit (an idle return,
-  * `screen dash` or a theme change leaves it in the members), and puts that on the glass until the next pass. Written this way no pass sees the old preview. */
+  * `screen dash` or a theme change leaves it in the members), and puts that on the glass until the next pass. Written this way no pass sees the old preview. The release
+  * fence keeps it so for the compiler and for the Pico 2 W's Cortex-M33, which may publish the mode ahead of the preview; its pair is the acquire fence in the tick, between
+  * its read of the mode and its reads of the targets. */
  _offsetPreviewX = _offsetSavedX;
  _offsetPreviewY = _offsetSavedY;
+ __atomic_thread_fence(__ATOMIC_RELEASE);
  _uiMode = MODE_SETTINGS_DISPLAY_OFFSET;
  /* The original sets the sentinels that force the redraw of the numeric values (UiChange::DISPLAY_OFFSET_ENTER, UiOriginal.h). Raised inside the mutex: an answer must not take it. */
  uiChanged( UiChange::DISPLAY_OFFSET_ENTER, 0 );
@@ -227,16 +230,17 @@ void DisplayManager::showSettingsDisplayOffset( ) {
  * Core 1 resumes and this corrects it if it fails.
  * Never inside _stateMutex (it takes it) and never on Core 0 (the glass is Core 1's); loopCore1( ) calls it after handleTouch( ).
  *
- * The glass is read first and the targets after it, with an acquire fence between (the pair of the release fence in
- * loadDisplayOffset( ), which writes the saved offset before the glass): a pass that has read the new glass reads the
- * new saved offset too, and never puts the old one back.
+ * The glass and the mode are read first and the targets after them, with an acquire fence between: it is the pair of two release fences. loadDisplayOffset( )
+ * writes the saved offset before the glass, so a pass that has read the new glass reads the new saved offset too; showSettingsDisplayOffset( ) writes the preview
+ * before the mode, so a pass that has read the mode "shown" reads the new preview. One fence serves both, because it orders every load above it before every access
+ * below it; no pass puts an old value back.
  */
 void DisplayManager::tickDisplayOffset( ) {
  if (!_driver.tft) return;
  const int8_t glassX = _driver.tft->getOffsetX( );
  const int8_t glassY = _driver.tft->getOffsetY( );
- __atomic_thread_fence(__ATOMIC_ACQUIRE);
  const UiMode mode = _uiMode;
+ __atomic_thread_fence(__ATOMIC_ACQUIRE);
  const bool shown = mode == MODE_SETTINGS_DISPLAY_OFFSET;
  const int8_t targetX = shown ? _offsetPreviewX : _offsetSavedX;
  const int8_t targetY = shown ? _offsetPreviewY : _offsetSavedY;
