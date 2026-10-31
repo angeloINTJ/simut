@@ -4,6 +4,36 @@
 
 All notable changes to SIMUT firmware.
 
+## Unreleased
+
+**Salvar on the panel's alarm-limits editor now saves the limits that were on the screen at the tap, not what the editor holds when Core 0 gets to the event. This closes F3 of the v2.13.0 *Known* list.**
+
+### The alarm-limits save on the panel
+
+- **What was wrong.** Salvar only queues `EVT_SAVE_ALARMS`, and the editor stays live until Core 0 handles the event. `AppManager::panelSaveAlarmLimits( )` then read the editor's working copy (`_tempAlarmConfig`) by reference, with no copy and no lock, and the writers of that copy run on Core 1: the arrow steps, `repairAlarmLimits( )` and `showAlarmEdit( )`. Two sequences saved what nobody asked for. An arrow step that landed between the reads of a channel's MIN and MAX saved a crossed pair, MIN 10.0 and MAX 10.0, the state that arms an alarm that never clears. Salvar on sensor A, Voltar, and the editor opened on sensor B before Core 0 ran wrote B's limits into A.
+- **Found by reading the code, not seen on a board.** It was found on 2026-10-31, while closing v2.13.0. No bench run reproduces it, so nothing here is proved on the glass: the box is proved on the host (below) and the lock by reading.
+- **The fix.** At Salvar, Core 1 copies the working copy into a box of one entry (`src/display/AlarmLimitsSnap.h`, 68 B, a member of `DisplayManager`), and Core 0 takes the copy out under `_stateMutex`, for the sensor of the event. A take that finds the box empty, or holding another sensor's limits, returns before anything else: no sound, no save, no log, no screen change. `editedAlarmRecord( )`, which handed out the live copy, is gone, and the five comments that still said Core 0 diffs the live copy now say why it does not.
+- **The limit that stays.** The box holds one Salvar. If a second Salvar, on another sensor, comes before Core 0 has handled the first, it replaces the first, and the first save is dropped without a sound. Before this fix the same sequence wrote the second sensor's limits into the first.
+
+### Tests
+
+Five new cases in the `native` suite (`test_validators`): **366 to 371** cases there and **772 to 777** in the eleven suites, all passing on 2026-10-31. They pin the box: the copy keeps what was posted when the record changes afterwards (10.0 and 20.0 stay), a take for another sensor fails and leaves the box for its own, a second take of the same Salvar fails, a new box gives nothing for any slot, and all 8 channels of both arrays come through. They were red before the header existed (the suite did not build). Each of three mutations of the header fails exactly one case: a take that reads the live record, a take with no sensor check, a take that does not empty the box. The host's mutex does nothing, so the lock is checked by reading, not by a test.
+
+### Flash
+
+Against v2.13.0 (`3ca4976f`), `firmware.bin` built from zero on both sides on 2026-10-31, signed (the image plus its 241-byte signature). The eight images with the touch panel grow, because `DisplayManager` carries the box; the three with the LCD do not carry the editor and have the **same sha256** as at `3ca4976f`:
+- release 1,036,333 → 1,036,429 B (+96);
+- `pico_w_test` 1,037,117 → 1,037,213 B (+96);
+- `pico_w_asserts` 1,038,629 → 1,038,733 B (+104);
+- Pico 2 W (Ângulo) 1,038,345 → 1,038,385 B (+40);
+- `pico_wiretft` 788,009 → 788,153 B (+144);
+- `pico_wiretft_angulo` 829,113 → 829,217 B (+104);
+- `pico2_w_original` 1,000,297 → 1,000,417 B (+120);
+- `pico_w_test_https`, which has no OTA ceiling: 1,041,220 → 1,041,316 B unsigned (+96);
+- alpha 990,621 → 990,621 B, Air 1,035,581 → 1,035,581 B and `pico_wire` 604,665 → 604,665 B: the same.
+
+Slack under the 1,040,384 B over-the-air ceiling: release 3,955 (4,051 in v2.13.0), `pico_w_test` 3,171 (3,267), `pico_w_asserts` 1,651 (1,755). The gate warns for all three, as it did, because each is under one flash sector, and fails nothing. The Pico 2 W's slot is 1,568,768 B, with 530,383 B left on the Ângulo image (530,423) and 568,351 on the original (568,471).
+
 ## v2.13.0 (2026-10-31)
 
 **The Pico 2 W release draws a new panel, the Ângulo: its own screens, a theme that is a mode plus an accent colour,
