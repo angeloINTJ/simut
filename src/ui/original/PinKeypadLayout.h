@@ -13,8 +13,8 @@
  * POP_ROW0/1_Y and POP_ONE_Y on the original panel, and none of them on the Ângulo), the CLI or the Ângulo read stays in PinKeypad.h. tools/check_ui_boundary.py refuses
  * an include of anything under src/ui/original/ from an Ângulo unit, so a dependency of the Ângulo on this layout
  * is a finding at the gate and not bytes in its image. keyAt( ), the cards' hit test, is the original's too and
- * stays in PinKeypad.h all the same: S11's first try moved it with the thirteen and six of the eleven images
- * changed, and S12's A3 is kept only with every image byte for byte (docs/analysis/UI_DRIVERS.md section 4.7).
+ * stays in PinKeypad.h all the same: when S11's first try moved it with the thirteen, six of the eleven images
+ * changed (the cause is not decoded); S12's A3 is kept only with every image byte for byte (UI_DRIVERS.md 4.7).
  *
  * Who includes it: DisplayManager_UsersUi.cpp, which draws the keypad, maps a tap on it and is TFT-only (it is listed in
  * [ui.original].units of tools/features.toml), and the native suite test/test_validators, which holds the layout

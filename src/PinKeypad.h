@@ -317,12 +317,12 @@ inline int decoyCount(uint8_t alphabet, uint8_t keypad) {
 
 /* ── Hit tests ─────────────────────────────────────────────────────────── */
 
-/* keyAt( ) is read by the original's touch handler (handleTouchPanelV24( ), two call sites) and
+/* keyAt( ) is called by the original's touch handler (handleTouchPanelV24( ), two call sites) and
  * by the native suite only, like the popup's hit test that went to ui/original/PinKeypadLayout.h
- * in S12, A3 (2026-10-31), and it stays here all the same: S11's first try moved it with the
- * others and six of the eleven images changed (keyAt( ) and a lambda of handleTouchPanelV24( )
- * traded places in the object, docs/analysis/UI_DRIVERS.md section 4.7). Its row in the
- * function table stays the original's. */
+ * in S12, A3 (2026-10-31), and it stays here all the same: when S11's first try moved it with the
+ * others, six of the eleven images changed, keyAt( ) and a lambda of handleTouchPanelV24( )
+ * trading places in the object; why is not decoded (docs/analysis/UI_DRIVERS.md section 4.7).
+ * Its row in the function table stays the original's. */
 
 /** Index of the card containing (x, y) in this layout, or -1. */
 inline int keyAt(const Grid& g, int16_t x, int16_t y) {
