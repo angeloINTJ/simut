@@ -46,6 +46,23 @@ void DisplayManager::showAlarmEdit(int sensorIdx) {
  mutex_exit(&_stateMutex);
 }
 
+/* Salvar's copy, on Core 1 (actLimitsSave( )): the editor's limits go into the box under the lock showAlarmEdit( ) writes them under, and nothing else runs
+ * inside it. Every writer of _tempAlarmConfig is Core 1's, so the copy is what the screen shows at the Salvar (2026-10-31, F3 of the v2.13.0 Known list). */
+void DisplayManager::postSavedAlarmLimits( ) {
+ mutex_enter_blocking(&_stateMutex);
+ limitsSnapPost(_limitsSaved, _tempAlarmConfig, _editSensorIdx);
+ mutex_exit(&_stateMutex);
+}
+
+/* Core 0, on EVT_SAVE_ALARMS: the copy Salvar posted, once and only for `slot`. The lock covers the take and nothing else: the diff, the save, the
+ * log and the alarm_lim records stay outside it, in AppManager::panelSaveAlarmLimits( ). */
+bool DisplayManager::takeSavedAlarmLimits(int slot, AlarmLimitsSnap& out) {
+ mutex_enter_blocking(&_stateMutex);
+ const bool got = limitsSnapTake(_limitsSaved, slot, out);
+ mutex_exit(&_stateMutex);
+ return got;
+}
+
 void DisplayManager::showSettingsMain( ) {
  mutex_enter_blocking(&_stateMutex);
  _uiMode = MODE_SETTINGS_MAIN; _menuSelection = 0; _mainMenuPage = 0; _lastMainMenuPage = -1;

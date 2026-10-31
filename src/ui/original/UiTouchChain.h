@@ -333,9 +333,11 @@
  actLimitsBack( );
  }
  else {
- /* SAVE: the working copy stays here for Core 0 to diff against the
-  * config (editedAlarmRecord) — it decides, saves, logs and emits the
-  * alarm_lim record, then brings the sensor menu back. */
+ /* SAVE: a copy of the working copy goes to Core 0 (actLimitsSave( ) posts it);
+  * Core 0 diffs that copy against the config, decides, saves, logs and emits
+  * the alarm_lim record, then brings the sensor menu back. Not the live copy:
+  * this editor stays live until Core 0 gets to the event (2026-10-31, F3 of
+  * the v2.13.0 Known list). */
  if (!acceptTouch(13)) return;
  actLimitsSave( );
  }
