@@ -7,7 +7,7 @@ All notable changes to SIMUT firmware.
 ## Unreleased
 
 **Salvar on the panel's alarm-limits editor now saves the limits that were on the screen at the tap, not what the editor holds when Core 0 gets to the event. This closes F3 of the v2.13.0 *Known* list. A display-alignment preview that was not saved no longer outlives the alignment screen, on the original panel and on the Ângulo: whichever way the screen is left except during a firmware update, Core 1 puts the saved offset back
-and repaints, and the next entry starts from it. Both fixes were found by reading the code, and both were checked on the bench on 2026-10-31, on the Pico W (the original panel) and on the Pico 2 W (the Ângulo). A third change, not run on a board, closes F4: on the Ângulo, `GET /api/keypad` no longer describes the original panel's keypad. It sends the faces, the state and the policy, and names the route that lists the Ângulo's keys; the two Ângulo images get 208 and 216 B smaller and the other nine are byte for byte what they were.**
+and repaints, and the next entry starts from it. Both fixes were found by reading the code, and both were checked on the bench on 2026-10-31, on the Pico W (the original panel) and on the Pico 2 W (the Ângulo). A third change, not run on a board, closes F4: on the Ângulo, `GET /api/keypad` no longer describes the original panel's keypad. It sends the faces, the state and the policy, and names the route that lists the Ângulo's keys; the two Ângulo images get 208 and 216 B smaller and the other nine are byte for byte what they were. A last change, which moves thirteen names between two headers of the original panel's keypad, changes no image: all eleven are sha256-equal to `main`'s.**
 
 ### The alarm-limits save on the panel
 
@@ -99,6 +99,12 @@ Against `main` at `6981fd93` (the tree of the table above), `firmware.bin` signe
 | `pico2_w_original` | 1,000,617 | 1,000,617 | 0 | equal |
 
 The slack under the over-the-air ceiling moves only on the Ângulo's images: the Pico 2 W's slot has 530,383 B left (530,175 B), and `pico_wiretft_angulo` is 211,159 B under the ceiling (210,943 B). The three images the gate warns about (release 3,731 B, `pico_w_test` 2,947 B, `pico_w_asserts` 1,427 B) did not move.
+
+### The PIN keypad's hit-test names (S12, A3)
+
+- **What moved.** Thirteen names that only the original panel's paint and touch handler (and the native suite) read leave `src/PinKeypad.h` for `src/ui/original/PinKeypadLayout.h`, word for word and inside the same namespace: `popupRows`, `popupRowKeys`, `popupRowY`, `popupRowX0`, `popupKeyAt` and the eight `FOOT_*` constants. `keyAt( )`, the cards' hit test, stays in `PinKeypad.h`: S11's first try moved it too and six of the eleven images changed, and the maintainer chose on 2026-10-31 to keep this change only if all eleven stay equal.
+- **No image changes.** The eleven images built from zero on 2026-10-31 have the same `sha256` and size as `main` at `2bead926`, and the same `firmware.elf` bytes, so no flash budget moves and no behaviour changes. The negative control, `FOOT_OK_W` 93 to 94 in the layout header, changes `pico_w_release`. Not run on a board.
+- **The function table.** The nine `handleTouchPanelV24( )` rows go from `mixed` to `original`, and the self-test of `tools/check_ui_link.py` names the new class (87 cases; it fails with the table changed and the case as it was). `test_validators`: 371 of 371. The record is section 4.7 of `docs/analysis/UI_DRIVERS.md`.
 
 ## v2.13.0 (2026-10-31)
 

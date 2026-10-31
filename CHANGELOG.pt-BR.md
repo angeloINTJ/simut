@@ -7,7 +7,7 @@ Todas as mudanças notáveis do firmware SIMUT.
 ## Não lançado
 
 **O Salvar do editor de limites de alarme do painel passa a salvar os limites que estavam na tela no toque, e não o que o editor guarda quando o Core 0 chega ao evento. Isto fecha o F3 da lista *Conhecido* da v2.13.0. Uma prévia do alinhamento da tela que não foi salva não sobrevive mais à saída da tela, no painel original e no Ângulo: por onde quer que a tela seja deixada, menos durante uma atualização do firmware, o Core 1 devolve o deslocamento gravado
-e redesenha, e a entrada seguinte parte dele. As duas correções foram encontradas lendo o código, e as duas foram conferidas na bancada em 31/10/2026, no Pico W (o painel original) e no Pico 2 W (o Ângulo). Uma terceira mudança, que não rodou numa placa, fecha o F4: no Ângulo, o `GET /api/keypad` deixa de descrever o teclado do painel original. Ele manda as faces, o estado e a política, e nomeia a rota que lista as teclas do Ângulo; as duas imagens do Ângulo ficam 208 e 216 B menores e as outras nove são, byte a byte, o que eram.**
+e redesenha, e a entrada seguinte parte dele. As duas correções foram encontradas lendo o código, e as duas foram conferidas na bancada em 31/10/2026, no Pico W (o painel original) e no Pico 2 W (o Ângulo). Uma terceira mudança, que não rodou numa placa, fecha o F4: no Ângulo, o `GET /api/keypad` deixa de descrever o teclado do painel original. Ele manda as faces, o estado e a política, e nomeia a rota que lista as teclas do Ângulo; as duas imagens do Ângulo ficam 208 e 216 B menores e as outras nove são, byte a byte, o que eram. Uma última mudança, a de treze nomes entre dois cabeçalhos do teclado do painel original, não muda nenhuma imagem: as onze têm o mesmo sha256 da `main`.**
 
 ### O Salvar dos limites de alarme no painel
 
@@ -100,6 +100,12 @@ Contra a `main` em `6981fd93` (a árvore da tabela acima), `firmware.bin` assina
 | `pico2_w_original` | 1.000.617 | 1.000.617 | 0 | igual |
 
 A folga sob o teto da atualização pelo ar só se move nas imagens do Ângulo: o slot do Pico 2 W tem 530.383 B sobrando (530.175 B), e a `pico_wiretft_angulo` está 211.159 B sob o teto (210.943 B). As três imagens de que o portão avisa (release 3.731 B, `pico_w_test` 2.947 B, `pico_w_asserts` 1.427 B) não se moveram.
+
+### Os nomes de toque do teclado de PIN (S12, A3)
+
+- **O que mudou de lugar.** Treze nomes que só o desenho e o tratador de toque do painel original (e a suíte nativa) leem saem do `src/PinKeypad.h` para o `src/ui/original/PinKeypadLayout.h`, palavra por palavra e no mesmo namespace: `popupRows`, `popupRowKeys`, `popupRowY`, `popupRowX0`, `popupKeyAt` e as oito constantes `FOOT_*`. O `keyAt( )`, o teste de toque dos cartões, fica no `PinKeypad.h`: a primeira tentativa da S11 o levou também e seis das onze imagens mudaram, e o mantenedor escolheu em 31/10/2026 manter esta mudança só se as onze ficarem iguais.
+- **Nenhuma imagem muda.** As onze imagens compiladas do zero em 31/10/2026 têm o mesmo `sha256` e o mesmo tamanho que as da `main` em `2bead926`, e os mesmos bytes do `firmware.elf`; por isso nenhum orçamento de flash se move e nenhum comportamento muda. O controle negativo, `FOOT_OK_W` de 93 para 94 no cabeçalho do layout, muda a `pico_w_release`. Não rodou numa placa.
+- **A tabela de funções.** As nove linhas da `handleTouchPanelV24( )` passam de `mixed` para `original`, e o autoteste do `tools/check_ui_link.py` nomeia a classe nova (87 casos; ele falha com a tabela mudada e o caso como estava). `test_validators`: 371 de 371. O registro é a seção 4.7 do `docs/analysis/UI_DRIVERS.md`.
 
 ## v2.13.0 (2026-10-31)
 
