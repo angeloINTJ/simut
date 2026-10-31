@@ -65,9 +65,9 @@ F_AJ = SRC / 'ui' / 'angulo' / 'DisplayManager_UiA_Ajustes.cpp'
 F_UIA = SRC / 'ui' / 'angulo' / 'DisplayManager_UiA.cpp'
 F_ALVO = SRC / 'ui' / 'angulo' / 'telas' / 'AjustesTela.h'
 
-# The expected failures: C9, the entry that writes the mode before the preview (the review of 2026-10-31). A case that is marked here fails without failing the script, and one marked here that
-# passes (XPASS) fails it, so the mark has to leave with the fix.
-XFAIL = frozenset({'C9/original', 'C9/angulo'})
+# The expected failures: none. The defect is closed; a case that is marked here fails without failing the script, and one marked here that passes (XPASS) fails it,
+# so a known bug can be written down again with its mark and has to leave it when it is fixed.
+XFAIL = frozenset()
 
 NOMES = ('entrada.inc', 'carga.inc', 'tique.inc', 'acoes.inc', 'ocioso.inc', 'forca.inc', 'menu.inc', 'ota.inc', 'tema.inc', 'tema_ang.inc', 'evento.inc', 'toque_orig.inc', 'toque_ang.inc',
          'alinh.inc')

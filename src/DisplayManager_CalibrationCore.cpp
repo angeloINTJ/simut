@@ -194,9 +194,12 @@ void DisplayManager::showTouchCalibration( ) {
  */
 void DisplayManager::showSettingsDisplayOffset( ) {
  mutex_enter_blocking(&_stateMutex);
- _uiMode = MODE_SETTINGS_DISPLAY_OFFSET;
+ /* The preview BEFORE the mode (2026-10-31): Core 1 reads _uiMode without the mutex, and tickDisplayOffset( ) takes the preview for the glass's target as soon as
+  * the mode says this screen is shown. With the mode first, a pass between the two stores finds the screen shown and the preview of the LAST visit (an idle return,
+  * `screen dash` or a theme change leaves it in the members), and puts that on the glass until the next pass. Written this way no pass sees the old preview. */
  _offsetPreviewX = _offsetSavedX;
  _offsetPreviewY = _offsetSavedY;
+ _uiMode = MODE_SETTINGS_DISPLAY_OFFSET;
  /* The original sets the sentinels that force the redraw of the numeric values (UiChange::DISPLAY_OFFSET_ENTER, UiOriginal.h). Raised inside the mutex: an answer must not take it. */
  uiChanged( UiChange::DISPLAY_OFFSET_ENTER, 0 );
  _forceSettingsRedraw = true;
@@ -219,6 +222,9 @@ void DisplayManager::showSettingsDisplayOffset( ) {
  * identity. A request nobody takes stays up, and with it repaintPending in loopCore1( ): on the dashboard the pass would wait 1 ms and
  * not 2 ms until a screen that takes it is shown. A mode that is not listed gets the settings pair: every other mode is a screen of the
  * settings tree, and tools/tft_ui/test_alinhar.py checks that each of them has a branch in uiPass( ) that tests _repaintSettings.
+ * While a firmware update is staged Core 1 is parked from the first byte to the end, this does not run, and Core 0 paints the update screen on the glass as it is
+ * (showOta( ) in DisplayManager.cpp): a preview left on the glass stays on that screen, shifted by up to 4 px, until the restart if the update succeeds and until
+ * Core 1 resumes and this corrects it if it fails.
  * Never inside _stateMutex (it takes it) and never on Core 0 (the glass is Core 1's); loopCore1( ) calls it after handleTouch( ).
  *
  * The glass is read first and the targets after it, with an acquire fence between (the pair of the release fence in
