@@ -663,6 +663,7 @@ public:
 	/* Display alignment offset (+-4H / +-4V) */
 	void showSettingsDisplayOffset( );
 	void loadDisplayOffset(const DisplayOffsetData* data);
+	void tickDisplayOffset( );   /**< Core 1, once a pass (loopCore1( ), after handleTouch( )): the glass shows the preview while the alignment screen is up and the saved offset otherwise; a full repaint is asked for when it moves it. DisplayManager_CalibrationCore.cpp */
 	void fillDisplayOffsetData(DisplayOffsetData* data) const;
 	int8_t getDisplayOffsetX( ) const;
 	int8_t getDisplayOffsetY( ) const;

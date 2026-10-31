@@ -404,7 +404,9 @@ void DisplayManager::uiPaintOta( ) {
   if ( !uaMontarOta( q ) ) return;
   const ua::Tema &tema = uaTema( MODE_OTA_UPDATE );
   uint32_t h = fnv( q.vm, q.tam );
-  /* The update screen has never hashed the display alignment (it cannot change while the update is on): ox and oy are 0 here. */
+  /* The update screen does not hash the display alignment: ox and oy are 0 here. The glass's offset CAN change while the update is on: since 2026-10-31
+   * tickDisplayOffset( ) puts the saved offset back after a preview was left, and an update may take the panel before it does. That tick raises _otaRedrawAll,
+   * which sets _uaTudo below, so the repaint does not need the hash to see it. */
   const ua::IdentidadeDoQuadro id = ua::identidadeDoQuadro( (uint8_t)MODE_OTA_UPDATE, tema, 0, 0 );
   h = fnv( &id, sizeof id, h );
   if ( _otaRedrawAll ) _uaTudo = true;

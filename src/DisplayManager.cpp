@@ -1273,6 +1273,10 @@ __attribute__((optimize("no-reorder-blocks"))) void DisplayManager::loopCore1( )
 		/* Process touch BEFORE rendering for same-frame response */
 		C1_PHASE(C1P_TOUCH_HANDLE);
 		handleTouch( );
+		/* The glass is Core 1's, and so is the check that it shows what it should: the alignment preview must not outlive the alignment screen,
+		 * whichever way the screen was left (CalibrationCore.cpp, 2026-10-31). After handleTouch( ), so a Voltar or an idle return of this very pass is seen;
+		 * before otaTick( ) and the screen chain, so the repaint it asks for is answered in this pass. */
+		tickDisplayOffset( );
 		/* The injected touch ENDS here, on its own clock, once per pass and AFTER
 		 * handleTouch( ), on every screen. After, so the pass that first sees the flag
 		 * has processed the tap by then even when that pass comes later than the hold
