@@ -181,11 +181,15 @@ class Rig:
         self.refuse_angulo()
 
     def refuse_angulo(self):
-        """Stop before the run changes anything when the device draws the Ângulo.
+        """Stop before the run changes anything else when the device draws the Ângulo.
         This tool and panel_fulltable_test.py tap the original panel by the
         geometry of GET /api/keypad, which the Ângulo's answer does not carry
         (tools/keypad_answer.py). The first keypad read would say so too, but
-        only after accounts were made and the telemetry re-pointed. Not being
+        only after accounts were made and the telemetry re-pointed. The route
+        needs the web session, so this runs right after _login( ), and the
+        full-admin account that made is deleted before the stop: the SystemExit
+        skips the cleanup that would delete it (the review of F4 found a refused
+        run leaving `smap` on the device, 2026-10-31). Not being
         able to read the route (an image without the panel, a web that does not
         answer) is not the Ângulo: that is said, and the first real read
         fails in its own words."""
@@ -197,6 +201,7 @@ class Rig:
         try:
             keypad_answer.parse(j)
         except keypad_answer.AnguloAnswer as e:
+            self.cfg('user del smap')
             raise SystemExit(str(e))
 
     def cmd(self, text, quiet_for=0.5, timeout=6.0):
@@ -489,10 +494,14 @@ class Rig:
         # test. An Ângulo's answer (it has "targets", no grid and no pop) stops the
         # run here with the message that says where to tap instead. SystemExit and
         # not KeypadGone: the caller reopens the keypad and types again on a
-        # KeypadGone, and the device would answer the same.
+        # KeypadGone, and the device would answer the same. The web login's
+        # account goes first, as in refuse_angulo( ): this tool deletes it only in
+        # step_cleanup( ), a step that is skipped once an earlier one raises, and
+        # main( )'s finally does not (the full-table test's finally does).
         try:
             k = keypad_answer.parse(j)
         except keypad_answer.AnguloAnswer as e:
+            self.cfg('user del smap')
             raise SystemExit(str(e))
         # NOT filtered for emptiness: a face is POSITIONAL, and the ordered
         # numeric pad has two blank cells (1..9, then 0 alone). Dropping them

@@ -159,6 +159,34 @@ def wiring(tool):
     return parses, by_hand
 
 
+def refusals_delete_account(tool="panel_users_hw_test.py"):
+    """Every handler of AnguloAnswer in the tool deletes the run's full-admin account `smap` before it raises. The
+    web login makes it in Rig.__init__( ), and nothing in this tool deletes it once a SystemExit is under way: the
+    start-of-run refusal comes before main( )'s try, and that try's finally only writes the results and closes the
+    port (`user del smap` is step_cleanup( ), a step, skipped once an earlier one raises). The review of F4 found a
+    refused run leaving the account on the device (2026-10-31). The tool imports serial and requests, so it is read
+    from the source, as the wiring is. Returns (handlers found, handlers that raise without the delete)."""
+    with open(os.path.join(TOOLS, tool), encoding="utf-8") as f:
+        tree = ast.parse(f.read(), tool)
+    found, bare = 0, []
+    for h in ast.walk(tree):
+        if not (isinstance(h, ast.ExceptHandler) and isinstance(h.type, ast.Attribute)
+                and h.type.attr == "AnguloAnswer"):
+            continue
+        found += 1
+        deleted = False
+        for st in h.body:
+            if isinstance(st, ast.Raise):
+                break
+            for c in ast.walk(st):
+                if (isinstance(c, ast.Call) and isinstance(c.func, ast.Attribute) and c.func.attr == "cfg"
+                        and any(isinstance(a, ast.Constant) and a.value == "user del smap" for a in c.args)):
+                    deleted = True
+        if not deleted:
+            bare.append(f"line {h.lineno}")
+    return found, bare
+
+
 def main():
     fails = []
     verbose = "-v" in sys.argv[1:]
@@ -195,6 +223,13 @@ def main():
             fails.append(f"{tool} still takes the answer's keys by hand ({'; '.join(by_hand)}), which bypasses the refusal")
         else:
             wired += 1
+    found, bare = refusals_delete_account()
+    if found < 2:
+        fails.append(f"panel_users_hw_test.py: {found} handler(s) of AnguloAnswer, where the start-of-run check and the "
+                     f"keypad read make 2")
+    elif bare:
+        fails.append("panel_users_hw_test.py: a handler of AnguloAnswer stops without deleting the account _login( ) "
+                     f"made (`self.cfg('user del smap')` before the SystemExit): {', '.join(bare)}")
 
     if fails:
         print("test_keypad_answer: FAILED")
@@ -202,7 +237,8 @@ def main():
             print("  -", f)
         return 1
     print(f"test_keypad_answer: {len(CASES)} cases pass on tools/keypad_answer.py; {bitten} of {len(MUTANTS)} controls bite "
-          f"(the line taken out fails exactly the cases it serves); {wired} of 2 tools read the route through the parser.")
+          f"(the line taken out fails exactly the cases it serves); {wired} of 2 tools read the route through the parser; "
+          f"each refusal deletes the run's web account before it stops.")
     return 0
 
 
