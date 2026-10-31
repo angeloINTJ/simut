@@ -10,7 +10,7 @@ new offset into that mirror (loadDisplayOffset( )) before the calibration's entr
 
   1. The glass RUN (host/test_alinhar_main.cpp): the pieces below cut out of the sources verbatim, without comments, compiled with the real SettingsSteps.h and OtaScreen.h against a
      stand-in (a fake panel that records every value the glass was given and whether Core 0 painted the margins, the mutex, the touch gates and the event queue), once for the
-     original panel and once for the Angulo. Seven cases for each:
+     original panel and once for the Angulo. Eight cases for each (the numbering follows the review: there is no C8); C1 and C4 run the preview as Right, as Down and as both, and every move of the glass on Core 1 must paint the margins:
        C1  saved 0,0, Right, the 30 s idle return, ONE pass: the glass is 0,0 and the full repaint was asked for; before that, a pass leaves the preview on the glass while the screen is shown
        C2  the next entry starts at 0,0
        C3  Core 0's exits (`screen dash`, `screen set`, an update, a theme change), and a preview left in any mode (the dashboard, the chart, its loading screen and detail, the calendar, the settings
@@ -19,6 +19,7 @@ new offset into that mirror (loadDisplayOffset( )) before the calibration's entr
        C5  Voltar, the control: the saved offset goes back at once and the tick has nothing left to correct
        C6  Salvar: the glass keeps the new offset through the whole Apply (Core 1 interleaved at each point the Apply passes), and the next entry starts at it
        C7  the boot's load interleaved with Core 1 at each point: the glass converges to the loaded offset, never shows another value once it showed it, and Core 0 never paints margins
+       C9  `screen offset` over a stale preview left in the members, with a Core 1 pass after each store the entry makes: the glass never shows the old preview
      The pieces: showSettingsDisplayOffset( ), loadDisplayOffset( ), tickDisplayOffset( ) (CalibrationCore.cpp), actOffsetUp( ) .. actOffsetApply( ) (Actions.h), the idle block of
      handleTouch( ) (Touch.cpp), forceDashboard( ) and refreshTheme( ) (DisplayManager.cpp), showSettingsMain( ), otaTick( ), the Apply branch of the event handler (AppManager_Events.cpp),
      the original's touch branch (UiTouchChain.h) and the Angulo's case (DisplayManager_UiA_Ajustes.cpp), and the Angulo's uiThemeChanged( ). What the stand-in models, not cuts: the
@@ -31,7 +32,7 @@ new offset into that mirror (loadDisplayOffset( )) before the calibration's entr
      alignment, and its update screen turns _otaRedrawAll into a full repaint.
   5. The mutants (the cut pieces edited one statement at a time, the loop's text reordered), each of which must fail the script: M1 the tick without its mode test, M2 the entry reading
      the glass, M3 the Apply without loadDisplayOffset( ) or with it after showTouchCalibration( ), M4 the tick out of order, M5 the tick without the repaint request, M6 the load storing
-     the glass before the saved value, M7 the tick raising every request whatever the screen is, M8 the load without its release fence, M9 the tick without its acquire fence. A mutant that does not compile, or an anchor not found exactly once, fails this script: a mutant must be killed by a check and not by the compiler.
+     the glass before the saved value, M7 the tick raising every request whatever the screen is, M8 the load without its release fence, M9 the tick without its acquire fence, and the review's N7 the tick comparing the X axis only, N7b the tick taking the saved Y while the screen is shown, N4 the restore without the margins. A mutant that does not compile, or an anchor not found exactly once, fails this script: a mutant must be killed by a check and not by the compiler.
 
 Expected failures: XFAIL (below) lists what the defect still fails. The script exits 0 and lists them; an XPASS (an expected failure that passes) makes it exit 1, because the bug has
 closed and the mark must leave.
@@ -64,13 +65,13 @@ F_AJ = SRC / 'ui' / 'angulo' / 'DisplayManager_UiA_Ajustes.cpp'
 F_UIA = SRC / 'ui' / 'angulo' / 'DisplayManager_UiA.cpp'
 F_ALVO = SRC / 'ui' / 'angulo' / 'telas' / 'AjustesTela.h'
 
-# The expected failures: none. The defect is closed; a case that is marked here fails without failing the script, and one marked here that passes (XPASS) fails it,
-# so a known bug can be written down again with its mark and has to leave it when it is fixed.
-XFAIL = frozenset()
+# The expected failures: C9, the entry that writes the mode before the preview (the review of 2026-10-31). A case that is marked here fails without failing the script, and one marked here that
+# passes (XPASS) fails it, so the mark has to leave with the fix.
+XFAIL = frozenset({'C9/original', 'C9/angulo'})
 
 NOMES = ('entrada.inc', 'carga.inc', 'tique.inc', 'acoes.inc', 'ocioso.inc', 'forca.inc', 'menu.inc', 'ota.inc', 'tema.inc', 'tema_ang.inc', 'evento.inc', 'toque_orig.inc', 'toque_ang.inc',
          'alinh.inc')
-CASOS = [f'{c}/{ui}' for c in ('C1', 'C2', 'C3', 'C4', 'C5', 'C6', 'C7') for ui in ('original', 'angulo')]
+CASOS = [f'{c}/{ui}' for c in ('C1', 'C2', 'C3', 'C4', 'C5', 'C6', 'C7', 'C9') for ui in ('original', 'angulo')]
 TEXTOS = ['T1', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7']
 
 CONTA = [0]
@@ -371,6 +372,9 @@ MUTANTES = [
     ('M6 the load storing the glass before the saved value', 'carga.inc', None, None),
     ('M7 the tick raising every request, whatever the screen is', 'tique.inc', None, None),
     ('M8 the load without its release fence', 'carga.inc', None, None),
+    ('N7 the tick comparing the X axis only', 'tique.inc', 'if (glassX == targetX && glassY == targetY) return;', 'if (glassX == targetX) return;'),
+    ('N7b the tick taking the saved Y while the screen is shown', 'tique.inc', 'const int8_t targetY = shown ? _offsetPreviewY : _offsetSavedY;', 'const int8_t targetY = _offsetSavedY;'),
+    ('N4 the restore without the margins', 'tique.inc', '_driver.tft->setDisplayOffset(targetX, targetY);', '_driver.tft->setDisplayOffset(targetX, targetY, false);'),
     ('M9 the tick without its acquire fence', 'tique.inc', None, None),
 ]
 

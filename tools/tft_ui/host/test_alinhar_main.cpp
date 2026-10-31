@@ -74,14 +74,26 @@ static void ponto( const char *nome ) {   // Core 0 passes a point: the case may
   g_pontos++;
   if ( g_hook ) g_hook( nome );
 }
+// A member Core 0 stores to: each store is a point where a Core 1 pass may fall, after the store (the entry writes the preview and the mode one after the other). The constructor is explicit so that
+// `shown ? _offsetPreviewX : _offsetSavedX` has one conversion and not two.
+template <class T> struct Obs {
+  T v;
+  explicit Obs( T x ) : v( x ) { }
+  Obs &operator=( T x ) { v = x; ponto( "escrita" ); return *this; }
+  Obs &operator=( const Obs &o ) { v = o.v; ponto( "escrita" ); return *this; }
+  operator T &( ) { return v; }
+  operator const T &( ) const { return v; }
+};
 
 struct Tft {
   int8_t ox = 0, oy = 0;
   std::vector<std::pair<int, int>> trilha;   // every value the glass was given, in order
   int violacoes = 0;                         // Core 0 painted the margins: two cores on one SPI bus
+  int sets1 = 0, margens1 = 0;               // Core 1's moves of the glass, and how many of them painted the margins (a restore must: the old image's edge is still on the glass)
   void setDisplayOffset( int8_t x, int8_t y, bool pintaMargens = true ) {
     ponto( "tft:antes" );
     if ( g_core == 0 && pintaMargens ) violacoes++;
+    if ( g_core == 1 ) { sets1++; if ( pintaMargens ) margens1++; }
     ox = constrain( x, -4, 4 );
     oy = constrain( y, -4, 4 );
     trilha.push_back( { ox, oy } );
@@ -109,8 +121,9 @@ class DisplayManager {
   struct { Tft *tft = nullptr; } _driver;
   mutex_t _stateMutex;
   struct { bool isBooting = false; } _sharedState;
-  UiMode _uiMode = MODE_DASHBOARD;
-  int8_t _offsetPreviewX = 0, _offsetPreviewY = 0, _offsetSavedX = 0, _offsetSavedY = 0;
+  Obs<UiMode> _uiMode{ MODE_DASHBOARD };
+  Obs<int8_t> _offsetPreviewX{ 0 }, _offsetPreviewY{ 0 };
+  int8_t _offsetSavedX = 0, _offsetSavedY = 0;
   bool _isDirty = false, _forceFullRedraw = false, _forceSettingsRedraw = false, _repaintSettings = false, _repaintGraph = false, _repaintCalendar = false, _repaintLoading = false;
   bool _otaRedrawAll = false, _themeChanged = false, _uaTudo = false, _uaSujo = false;
   uint32_t _lastTouchTime = 0, _otaState = 0, _otaShownMs = 0;
@@ -317,20 +330,26 @@ static void core1Pass( World &w ) {   // one pass of loopCore1( ): handleTouch( 
 }
 static void passe( World &w, int n = 1 ) { while ( n-- > 0 ) core1Pass( w ); }
 static void carrega( World &w, int8_t x, int8_t y ) { const DisplayOffsetData d = { 0xD0, x, y, 0 }; w.dm.loadDisplayOffset( &d ); }
-static void toca( World &w, char qual ) {   // a touch on Right ('R'), Voltar ('V') or Salvar ('S'), on Core 1, in the UI's own handler
+static void toca( World &w, char qual ) {   // a touch on Right ('R'), Down ('D'), Voltar ('V') or Salvar ('S'), on Core 1, in the UI's own handler
   const int antes = g_core;
   g_core = 1;
   w.dm._lastTouchTime = g_now;
   if ( g_ui == ORIGINAL ) {
-    const int16_t x = qual == 'R' ? 210 : qual == 'V' ? 60 : 250, y = qual == 'R' ? 120 : 220;
+    int16_t x = 250, y = 220;   // Salvar
+    if ( qual == 'R' ) { x = 210; y = 120; } else if ( qual == 'D' ) { x = 160; y = 165; } else if ( qual == 'V' ) { x = 60; y = 220; }
     w.dm.handleTouchOriginal( x, y );
   } else {
-    const Alvo a = { ( uint8_t )( qual == 'R' ? ALINH_DIREITA : qual == 'V' ? ALINH_VOLTAR : ALINH_SALVAR ) };
+    const Alvo a = { ( uint8_t )( qual == 'R' ? ALINH_DIREITA : qual == 'D' ? ALINH_BAIXO : qual == 'V' ? ALINH_VOLTAR : ALINH_SALVAR ) };
     w.dm.handleTouchAngulo( &a );
   }
   g_core = antes;
 }
+// The gestures of the preview: Right (+1,0), Down (0,+1) and both (+1,+1), the diagonal. Down alone moves Y with X still: the tick has to compare both axes and keep both of the preview's.
+struct Gesto { const char *nome; const char *toques; int px, py; };
+static const Gesto GESTOS[] = { { "right", "R", 1, 0 }, { "down", "D", 0, 1 }, { "diagonal", "RD", 1, 1 } };
+static void faz( World &w, const Gesto &g ) { for ( const char *c = g.toques; *c; c++ ) toca( w, *c ); }
 static bool vidro( const World &w, int x, int y ) { return w.tft.ox == x && w.tft.oy == y; }
+static bool margensOk( const World &w ) { return w.tft.sets1 == w.tft.margens1; }   // every move of the glass on Core 1 painted the margins
 static bool repintado( const World &w ) {   // the screen on the glass was repainted in full at the glass's own offset (the update screen goes on painting its bar after that, in part)
   const Pintura &p = w.dm.ultimaCheia;
   return p.modo == w.dm._uiMode && p.ox == w.tft.ox && p.oy == w.tft.oy;
@@ -350,25 +369,29 @@ static void deixaPrevia( World &w ) {   // saved 0,0; the alignment screen; Righ
   passe( w );
 }
 
-// C1: Right, then the idle return, then ONE pass: the glass is at the saved offset and the repaint was asked for. Before that, the preview stays on the glass while the screen is shown.
+// C1: the preview (Right, Down, or both), then the idle return, then ONE pass: the glass is at the saved offset, the repaint was asked for and the restore painted the margins. Before that, the preview
+// stays on the glass while the screen is shown.
 static void c1( ) {
   abre( "C1" );
-  World w;
-  carrega( w, 0, 0 );
-  abreAlinhamento( w );
-  toca( w, 'R' );
-  CK( vidro( w, 1, 0 ), "Right: the glass reads %d,%d, wanted the preview 1,0 at once", w.tft.ox, w.tft.oy );
-  passe( w, 3 );
-  CK( vidro( w, 1, 0 ), "the screen is shown and a pass moved the glass to %d,%d: the preview must stay", w.tft.ox, w.tft.oy );
-  g_now += 31000;
-  w.zeraTique( );
-  passe( w );
-  CK( w.dm._uiMode == MODE_DASHBOARD, "the idle return did not reach the dashboard (mode %d)", ( int )w.dm._uiMode );
-  CK( vidro( w, 0, 0 ), "the idle return and one pass left the glass at %d,%d, wanted the saved 0,0", w.tft.ox, w.tft.oy );
-  CK( w.houveTique && w.pedidos == esperado( MODE_DASHBOARD ), "the pass that put the glass back raised [%s] (tick changed the glass: %d), wanted exactly the dashboard's [%s]", w.pedidos.texto( ).c_str( ), w.houveTique, esperado( MODE_DASHBOARD ).texto( ).c_str( ) );
-  CK( repintado( w ), "the dashboard was not repainted in full at the glass's offset (%s)", pintura( w ).c_str( ) );
-  CK( dePe( w.dm ).nenhum( ), "requests of another screen left standing after the pass: [%s]", dePe( w.dm ).texto( ).c_str( ) );
-  CK( w.tft.violacoes == 0, "Core 0 painted the margins" );
+  for ( const Gesto &g : GESTOS ) {
+    World w;
+    carrega( w, 0, 0 );
+    abreAlinhamento( w );
+    faz( w, g );
+    CK( vidro( w, g.px, g.py ), "%s: the glass reads %d,%d, wanted the preview %d,%d at once", g.nome, w.tft.ox, w.tft.oy, g.px, g.py );
+    passe( w, 3 );
+    CK( vidro( w, g.px, g.py ), "%s: the screen is shown and a pass moved the glass to %d,%d: the preview %d,%d must stay", g.nome, w.tft.ox, w.tft.oy, g.px, g.py );
+    g_now += 31000;
+    w.zeraTique( );
+    passe( w );
+    CK( w.dm._uiMode == MODE_DASHBOARD, "%s: the idle return did not reach the dashboard (mode %d)", g.nome, ( int )w.dm._uiMode );
+    CK( vidro( w, 0, 0 ), "%s: the idle return and one pass left the glass at %d,%d, wanted the saved 0,0", g.nome, w.tft.ox, w.tft.oy );
+    CK( w.houveTique && w.pedidos == esperado( MODE_DASHBOARD ), "%s: the pass that put the glass back raised [%s] (tick changed the glass: %d), wanted exactly the dashboard's [%s]", g.nome, w.pedidos.texto( ).c_str( ), w.houveTique, esperado( MODE_DASHBOARD ).texto( ).c_str( ) );
+    CK( repintado( w ), "%s: the dashboard was not repainted in full at the glass's offset (%s)", g.nome, pintura( w ).c_str( ) );
+    CK( dePe( w.dm ).nenhum( ), "%s: requests of another screen left standing after the pass: [%s]", g.nome, dePe( w.dm ).texto( ).c_str( ) );
+    CK( margensOk( w ), "%s: Core 1 moved the glass %d time(s) and painted the margins %d time(s): a restore without them leaves the old image's edge on the glass", g.nome, w.tft.sets1, w.tft.margens1 );
+    CK( w.tft.violacoes == 0, "%s: Core 0 painted the margins", g.nome );
+  }
   fecha( );
 }
 
@@ -378,7 +401,7 @@ static void c2( ) {
   World w;
   deixaPrevia( w );
   w.dm.showSettingsDisplayOffset( );
-  CK( w.dm._offsetPreviewX == 0 && w.dm._offsetPreviewY == 0, "the next entry starts at %d,%d, wanted 0,0", w.dm._offsetPreviewX, w.dm._offsetPreviewY );
+  CK( w.dm._offsetPreviewX == 0 && w.dm._offsetPreviewY == 0, "the next entry starts at %d,%d, wanted 0,0", ( int )w.dm._offsetPreviewX, ( int )w.dm._offsetPreviewY );
   CK( w.dm._offsetSavedX == 0 && w.dm._offsetSavedY == 0, "the next entry holds %d,%d as the saved offset, wanted 0,0", w.dm._offsetSavedX, w.dm._offsetSavedY );
   passe( w, 2 );
   CK( vidro( w, 0, 0 ), "the glass reads %d,%d after the next entry, wanted 0,0", w.tft.ox, w.tft.oy );
@@ -404,6 +427,7 @@ static void c3( ) {
     CK( vidro( w, 0, 0 ), "%s: the glass reads %d,%d after the exit and three passes, wanted the saved 0,0", s, w.tft.ox, w.tft.oy );
     CK( repintado( w ), "%s: the screen was not repainted in full at the glass's offset (%s)", s, pintura( w ).c_str( ) );
     CK( dePe( w.dm ).nenhum( ), "%s: requests left standing after the exit and three passes: [%s]", s, dePe( w.dm ).texto( ).c_str( ) );
+    CK( margensOk( w ), "%s: Core 1 moved the glass %d time(s) and painted the margins %d time(s)", s, w.tft.sets1, w.tft.margens1 );
     if ( !strcmp( s, "update" ) ) {
       CK( w.dm._uiMode == MODE_OTA_UPDATE, "update: the update screen is not up (mode %d)", ( int )w.dm._uiMode );
       w.dm._otaState = otaPack( 2, OTA_PH_NONE, OTA_WHY_NONE );
@@ -426,6 +450,7 @@ static void c3( ) {
     w.dm.tickDisplayOffset( );
     g_core = 0;
     CK( vidro( w, 0, 0 ), "mode %d: a stale glass is at %d,%d after the tick, wanted 0,0", ( int )m, w.tft.ox, w.tft.oy );
+    CK( w.tft.sets1 == 1 && w.tft.margens1 == 1, "mode %d: the tick moved the glass %d time(s) and painted the margins %d time(s), wanted once and with them", ( int )m, w.tft.sets1, w.tft.margens1 );
     CK( pedidosDe( w.dm ) == esperado( m ), "mode %d: the tick raised [%s], wanted exactly what the screen takes: [%s]", ( int )m, pedidosDe( w.dm ).texto( ).c_str( ), esperado( m ).texto( ).c_str( ) );
     passe( w, 2 );
     CK( repintado( w ), "mode %d: not repainted in full at the glass's offset (%s)", ( int )m, pintura( w ).c_str( ) );
@@ -434,22 +459,26 @@ static void c3( ) {
   fecha( );
 }
 
-// C4: `screen offset` while a preview is on the glass, then Voltar: the saved offset is back (the preview is not taken for the saved one).
+// C4: `screen offset` while a preview is on the glass (Right, Down, or both), then Voltar: the saved offset is back (the preview is not taken for the saved one).
 static void c4( ) {
   abre( "C4" );
-  World w;
-  carrega( w, 0, 0 );
-  abreAlinhamento( w );
-  toca( w, 'R' );
-  passe( w );
-  CK( vidro( w, 1, 0 ), "the preview is not on the glass (%d,%d)", w.tft.ox, w.tft.oy );
-  w.dm.showSettingsDisplayOffset( );   // Core 0, the CLI's `screen offset`
-  passe( w, 2 );
-  CK( w.dm._offsetSavedX == 0 && w.dm._offsetSavedY == 0, "the entry took the glass's preview for the saved offset: saved %d,%d", w.dm._offsetSavedX, w.dm._offsetSavedY );
-  toca( w, 'V' );
-  passe( w, 2 );
-  CK( w.dm._uiMode == MODE_SETTINGS_MAIN, "Voltar did not reach the menu (mode %d)", ( int )w.dm._uiMode );
-  CK( vidro( w, 0, 0 ), "after Voltar the glass reads %d,%d, wanted the saved 0,0", w.tft.ox, w.tft.oy );
+  for ( const Gesto &g : GESTOS ) {
+    World w;
+    carrega( w, 0, 0 );
+    abreAlinhamento( w );
+    faz( w, g );
+    passe( w );
+    CK( vidro( w, g.px, g.py ), "%s: the preview is not on the glass (%d,%d)", g.nome, w.tft.ox, w.tft.oy );
+    w.dm.showSettingsDisplayOffset( );   // Core 0, the CLI's `screen offset`
+    passe( w, 2 );
+    CK( w.dm._offsetSavedX == 0 && w.dm._offsetSavedY == 0, "%s: the entry took the glass's preview for the saved offset: saved %d,%d", g.nome, w.dm._offsetSavedX, w.dm._offsetSavedY );
+    CK( vidro( w, 0, 0 ), "%s: after the second entry the glass reads %d,%d, wanted the entry's 0,0", g.nome, w.tft.ox, w.tft.oy );
+    toca( w, 'V' );
+    passe( w, 2 );
+    CK( w.dm._uiMode == MODE_SETTINGS_MAIN, "%s: Voltar did not reach the menu (mode %d)", g.nome, ( int )w.dm._uiMode );
+    CK( vidro( w, 0, 0 ), "%s: after Voltar the glass reads %d,%d, wanted the saved 0,0", g.nome, w.tft.ox, w.tft.oy );
+    CK( margensOk( w ), "%s: Core 1 moved the glass %d time(s) and painted the margins %d time(s)", g.nome, w.tft.sets1, w.tft.margens1 );
+  }
   fecha( );
 }
 
@@ -464,10 +493,11 @@ static void c5( ) {
   toca( w, 'V' );
   CK( vidro( w, 0, 0 ), "Voltar left the glass at %d,%d", w.tft.ox, w.tft.oy );
   CK( w.dm._uiMode == MODE_SETTINGS_MAIN, "Voltar did not reach the menu (mode %d)", ( int )w.dm._uiMode );
-  CK( w.dm._offsetPreviewX == 0 && w.dm._offsetPreviewY == 0, "the preview was not discarded: %d,%d", w.dm._offsetPreviewX, w.dm._offsetPreviewY );
+  CK( w.dm._offsetPreviewX == 0 && w.dm._offsetPreviewY == 0, "the preview was not discarded: %d,%d", ( int )w.dm._offsetPreviewX, ( int )w.dm._offsetPreviewY );
   w.zeraTique( );
   passe( w, 3 );
   CK( !w.houveTique && vidro( w, 0, 0 ), "after Voltar the tick still had to move the glass (changed %d, glass %d,%d)", w.houveTique, w.tft.ox, w.tft.oy );
+  CK( margensOk( w ), "Core 1 moved the glass %d time(s) and painted the margins %d time(s)", w.tft.sets1, w.tft.margens1 );
   fecha( );
 }
 
@@ -507,7 +537,7 @@ static void c6( ) {
     passe( w );
     w.dm.showSettingsDisplayOffset( );
     passe( w, 2 );
-    CK( w.dm._offsetPreviewX == 1 && w.dm._offsetPreviewY == 0, "pass at point %d: the next entry starts at %d,%d, wanted 1,0", k, w.dm._offsetPreviewX, w.dm._offsetPreviewY );
+    CK( w.dm._offsetPreviewX == 1 && w.dm._offsetPreviewY == 0, "pass at point %d: the next entry starts at %d,%d, wanted 1,0", k, ( int )w.dm._offsetPreviewX, ( int )w.dm._offsetPreviewY );
     CK( vidro( w, 1, 0 ), "pass at point %d: the next entry shows the glass at %d,%d, wanted 1,0", k, w.tft.ox, w.tft.oy );
     CK( w.tft.violacoes == 0, "pass at point %d: Core 0 painted the margins", k );
   }
@@ -542,10 +572,45 @@ static void c7( ) {
   fecha( );
 }
 
+// C9: `screen offset` on Core 0 while a stale preview is still in the members (the last visit was left by `screen dash`), with a Core 1 pass falling after each store the entry makes: the glass must never
+// show the old preview. The entry writes the preview and then the mode; a pass that sees the mode first takes the old preview for its target.
+static void c9( ) {
+  abre( "C9" );
+  for ( const Gesto &g : GESTOS ) {
+    int pontos = 0;
+    for ( int k = -2; k < pontos; k++ ) {   // -2: no pass (it counts the points); -1: a pass after every store; k: after the k-th only
+      World w;
+      carrega( w, 0, 0 );
+      abreAlinhamento( w );
+      faz( w, g );
+      passe( w );
+      w.dm.forceDashboard( );   // Core 0, `screen dash`: the preview stays in the members and the tick puts the saved offset on the glass
+      passe( w, 2 );
+      CK( vidro( w, 0, 0 ) && w.dm._offsetPreviewX == g.px && w.dm._offsetPreviewY == g.py && w.dm._uiMode == MODE_DASHBOARD, "%s: the setup: glass %d,%d, stale preview %d,%d, mode %d", g.nome, w.tft.ox, w.tft.oy,
+          ( int )w.dm._offsetPreviewX, ( int )w.dm._offsetPreviewY, ( int )w.dm._uiMode );
+      const size_t marca = w.tft.trilha.size( );
+      g_pontos = 0;
+      if ( k == -1 ) g_hook = [&w]( const char * ) { core1Pass( w ); };
+      else if ( k >= 0 ) g_hook = [&w, k]( const char * ) { if ( g_pontos - 1 == k ) core1Pass( w ); };
+      w.dm.showSettingsDisplayOffset( );   // Core 0, the CLI's `screen offset`
+      g_hook = nullptr;
+      if ( k == -2 ) pontos = g_pontos;
+      bool velha = false;
+      for ( size_t i = marca; i < w.tft.trilha.size( ); i++ ) if ( w.tft.trilha[i].first != 0 || w.tft.trilha[i].second != 0 ) velha = true;
+      CK( !velha, "%s, pass at point %d of the entry: the glass showed the old preview %d,%d", g.nome, k, g.px, g.py );
+      passe( w, 2 );
+      CK( vidro( w, 0, 0 ) && w.dm._uiMode == MODE_SETTINGS_DISPLAY_OFFSET && w.dm._offsetPreviewX == 0 && w.dm._offsetPreviewY == 0, "%s, pass at point %d: the entry ends with the glass at %d,%d, mode %d, preview %d,%d",
+          g.nome, k, w.tft.ox, w.tft.oy, ( int )w.dm._uiMode, ( int )w.dm._offsetPreviewX, ( int )w.dm._offsetPreviewY );
+      CK( margensOk( w ) && w.tft.violacoes == 0, "%s, pass at point %d: margins (Core 1 %d of %d, Core 0 %d)", g.nome, k, w.tft.margens1, w.tft.sets1, w.tft.violacoes );
+    }
+  }
+  fecha( );
+}
+
 int main( ) {
   for ( Ui ui : { ORIGINAL, ANGULO } ) {
     g_ui = ui;
-    c1( ); c2( ); c3( ); c4( ); c5( ); c6( ); c7( );
+    c1( ); c2( ); c3( ); c4( ); c5( ); c6( ); c7( ); c9( );
   }
   printf( "RESULT: %d checks, %d failed\n", g_checks, g_fails );
   return 0;
