@@ -126,7 +126,7 @@ both boards (*The bench*). The three pull requests merged since v2.12.0 are each
 ### Flash
 
 Against the published v2.12.0, signed `.bin` (the image plus its 241-byte signature; this release's are the files of the
-candidate the CI signed on `main` `ae87f6d6`, `release-ota.yml` run 41147066899, sizes read on 2026-10-31):
+candidate the CI signed on `main` `ae87f6d6`, `release-ota.yml` run 41147066899, sizes read on 2026-10-30):
 - release 1,036,133 → 1,036,333 B (+200);
 - alpha 990,621 → 990,621 B;
 - Air 1,035,581 → 1,035,581 B;
@@ -175,17 +175,18 @@ pin, on a common ground.
   (dark at that hour) with the stock accent and English texts, because v2.12.0's pack has no `@ANGULO` section; the
   53,035 B pack uploaded and the board restarted, which loaded it (texts in Portuguese, 18 of 18 theme keys of the page
   resolved); a stage cut at 400 kB and the hand's RESET, after which the board stayed on the candidate (B to B); theme
-  number 7 saved (dark with the second accent); down to v2.12.0 over the air (staged in 15.9 s, back 45.5 s later, B to
-  A), where the original panel drew 7 as `simut_def`, past the built-in theme and the two custom ones, and refused the
-  53,035 B pack; number 2 saved again, drawn as custom theme 1; up again (A to B); the two refusals (422, `v` 9 and `v`
-  12); the candidate over itself twice; the candidate's factory `.uf2` copied while the board was on slot B (B to A, not
-  on trial); the original panel of the same commit (`pico2_w_original`, 2.13.0, built here, since the release publishes
-  no such image) by its factory `.uf2`, which answered `/api/ui` 302 on slot A with number 2 kept, three theme rows
+  number 7 saved (dark with accent 2); down to v2.12.0 over the air (staged in 15.9 s, back 45.5 s later, B to A), where
+  the original panel drew 7 as `simut_def`, past the built-in theme and the two custom ones, and refused the 53,035 B
+  pack; number 2 saved again, drawn as custom theme 1; up again (A to B); the two refusals (422, `v` 9 and `v` 12); the
+  candidate over itself twice; the candidate's factory `.uf2` copied while the board was on slot B (B to A, not on
+  trial); the original panel of the same commit (`pico2_w_original`, 2.13.0, built here, since the release publishes no
+  such image) by its factory `.uf2`, which answered `/api/ui` 302 on slot A with number 2 kept, three theme rows
   (`simut_def` and the two custom ones) and the 53,035 B pack loaded too (557 keys); and the CI-signed candidate back
   over the air from that image (staged in 17.9 s, back 25.2 s later, A to B), `/api/ui` 401. No factory frame on the
-  console in the steps where it was captured (the over-the-air ones: the 1200-baud touch needs the port free), and 18
-  captures of the glass judged against F4's rule (`docs/analysis/UI_DRIVERS.md` section 2.16), all as it predicts (for
-  the refusal screen, the mode only).
+  console in the steps where it was captured (the over-the-air ones: the 1200-baud touch needs the port free), and 16
+  captures of the glass judged by the session against F4's rule (`docs/analysis/UI_DRIVERS.md` section 2.16), all as it
+  predicts (for the refusal screen, the mode only; the first step's first run, stopped by a defect of the bench's tool,
+  left a 17th that was not judged).
 - **Part C on the Pico 2 W** (2026-10-30 22:26 to 2026-10-31 00:41), on the candidate: the panel's SPI at `sys.clk_peri`
   150 MHz and `tft_hz` 37.50 MHz; `/api/themes` listed the Ângulo's 18 choices and 18 of 18 theme keys of the page
   resolved; the touch walk passed 15 and failed 0; the paint walk's medians were 42 to 49 ms per screen; the language
@@ -266,7 +267,7 @@ Before the gate, on development images of the Ângulo (the Pico 2 W of the bench
 Not run on a board: the Ângulo's confirmation to start the setup network pressed to Confirm (only Cancel ran, on
 2026-10-28); Core 1's stack under load with `optimize("no-reorder-blocks")` (the only measurement so far is the
 compiler's); the paint cost under TLS load (the paint walk's medians above are not a measurement under TLS load); the
-Wi-Fi signal levels of the status bar (the glass was judged for the mode and the accent; the signal read -38 to -42 dBm
+Wi-Fi signal levels of the status bar (the glass was judged for the mode and the accent; the signal read -38 to -43 dBm
 in the walks, and was never judged against the bars); the licence screen's added sources and the two reworded texts (the
 third full walk reached the licence screen and captured two pages, but none was compared with the host's frames); the
 figures of chapter 11A against the glass; and the Ângulo's full walk in es-ES and in English (the full walk ran in
@@ -349,13 +350,14 @@ pt-BR, and the language walk restarted the board in all three).
 - **The web page does not retry an install refused with 503** (a touch on the panel in the 5 s before), by the code.
 - **A large response can be cut short under concurrent load.** On the Pico 2 W, a screenshot of 230,454 B read in
   parallel with six page-like GETs was cut in 1 of 749 requests and in 1 of 602 on the candidate (2026-10-30 23:46 to
-  2026-10-31 00:00, with the telemetry server down and then up), and on v2.12.0, on the same board, there was 1 cut and
-  1 reset connection in 805 (00:11 to 00:19). The board counts each as `cgx` in `metr`, a disconnect that includes the
-  drop it chooses when a client does not drain half of the TCP send buffer within `WEB_SEND_STALL_MS` (4 s;
-  `WebManager_Send.cpp:89-90`), and never as the handler deadline (`cgd`) or the abort guard (`cgg`). No restart and no
-  data lost. It shows as a screenshot cut short and, once, as the web page loading without its dictionary (the theme
-  names in English that time). It is older than this release: v2.12.0 does the same, and #247's fix is in the candidate,
-  so this is not the eviction it closed.
+  2026-10-31 00:00, with the telemetry server down and then up), and on v2.12.0, on the same board, in 1 of 805 (00:11
+  to 00:19), where a reset connection on the next status read then ended the run. Each of the three cut screenshots
+  added one to `cgx` in `metr`, a disconnect that includes the drop the board chooses when a client does not drain half
+  of the TCP send buffer within `WEB_SEND_STALL_MS` (4 s; `WebManager_Send.cpp:89-90`), and none moved the handler
+  deadline (`cgd`) or the abort guard (`cgg`). No restart and no data lost. It shows as a screenshot cut short and,
+  once, as the web page loading without its dictionary (the theme names in English that time; inferred from the
+  browser's `ERR_CONTENT_LENGTH_MISMATCH` in that load, with no counter read). It is older than this release: v2.12.0
+  does the same, and #247's fix is in the candidate, so this is not the eviction it closed.
 - **`configure terminal` does not need `enable`**, although the console's command table says it needs privileged mode.
   It opens nothing, but the table and the behaviour disagree.
 - **With two pressure sensors, the measurement line sends the pressure under the first one's key and with the last
@@ -384,9 +386,10 @@ pt-BR, and the language walk restarted the board in all three).
   the Pico W's candidate, 2026-10-31). The packs carry the eleven names (#298); R-R14 of
   `docs/analysis/MODELO_DE_RECURSOS.md` has the limit. The Ângulo does not load `.thm` files: on a Pico 2 W with it,
   `GET /api/themes` lists its 18 choices.
-- **No language pack carries a name for the built-in theme `simut_def`,** so the web page shows "Simut Default" in every
-  language (the packs of v2.12.0 and of this release alike, 2026-10-31). #298 names the stock themes in the device's
-  language, and this one is the exception: it is compiled in and has no `thm_` key.
+- **No language pack carries a name for the built-in theme `simut_def`,** so, on the original panel, the web page shows
+  "Simut Default" in every language, by the code (the packs of v2.12.0 and of this release alike, 2026-10-31). #298
+  names the stock themes in the device's language, and this one is the exception: it is compiled in and has no `thm_`
+  key.
 - **Saving the alarm limits from the panel reads the working copy of the configuration with no copy and no lock**
   (F3). `AppManager::panelSaveAlarmLimits( )` reads it by reference after Salvar, and the writers of the copy run on
   Core 1. Found by reading the code while the Ângulo's screens were moved; not seen on a board. The fix touches all

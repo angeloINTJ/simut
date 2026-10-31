@@ -89,8 +89,8 @@ placa passou o resto em BOOTSEL, só com a ROM. Nessas 4,8 h, o soak de 30 min
 incluído, não houve reinício que não fosse nosso. No Pico 2 W da v2.12.0 ninguém
 conferiu onde o fio estava durante o soak dele, e nenhum passo usou a mão: os
 números daquele soak não dizem nada sobre o fio. No portão da v2.13.0 (30/10 a
-31/10/2026) o fio ficou no RUN nas duas placas, com o terra comum (o registro
-das duas sessões): o soak de 30 min do Pico 2 W (118 leituras) e o do Pico W
+31/10/2026) o fio ficou no RUN nas duas placas (o terra comum consta só do
+registro da sessão 1): o soak de 30 min do Pico 2 W (118 leituras) e o do Pico W
 (120 amostras) terminaram sem reinício, e no Pico 2 W a mão deu o RESET do passo
 do envio cortado, de que a placa voltou no mesmo slot. Os dois dias de 04 e
 05/10, o

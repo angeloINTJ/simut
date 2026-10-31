@@ -131,7 +131,7 @@ em 30/10/2026.
 
 Contra a v2.12.0 publicada, `.bin` assinado (a imagem mais a assinatura de 241 bytes; os desta release são os arquivos
 da candidata que o CI assinou na `main` `ae87f6d6`, `release-ota.yml` run 41147066899, com os tamanhos lidos em
-31/10/2026):
+30/10/2026):
 - release 1.036.133 → 1.036.333 B (+200);
 - alpha 990.621 → 990.621 B;
 - Air 1.035.581 → 1.035.581 B;
@@ -180,9 +180,9 @@ do RESET da PicoHand ficou no pino RUN, com o terra comum.
   que desenhou o Ângulo em modo automático (escuro àquela hora) com o destaque de fábrica e os textos em inglês, porque
   o pacote da v2.12.0 não tem a seção `@ANGULO`; o pacote de 53.035 B enviado e a placa reiniciada, que o carregou
   (textos em português, 18 de 18 chaves de tema da página resolvidas); um envio cortado em 400 kB e o RESET da mão,
-  depois do qual a placa seguiu na candidata (de B para B); o número de tema 7 salvo (escuro com o segundo destaque); de
-  volta à v2.12.0 pelo ar (enviada em 15,9 s, de volta 45,5 s depois, de B para A), onde o painel original desenhou o 7
-  como `simut_def`, além do tema embutido e dos dois personalizados, e recusou o pacote de 53.035 B; o número 2 salvo de
+  depois do qual a placa seguiu na candidata (de B para B); o número de tema 7 salvo (escuro com o destaque 2); de volta
+  à v2.12.0 pelo ar (enviada em 15,9 s, de volta 45,5 s depois, de B para A), onde o painel original desenhou o 7 como
+  `simut_def`, além do tema embutido e dos dois personalizados, e recusou o pacote de 53.035 B; o número 2 salvo de
   novo, desenhado como o tema personalizado 1; para cima de novo (de A para B); as duas recusas (422, `v` 9 e `v` 12); a
   candidata sobre ela mesma duas vezes; o `.uf2` de fábrica da candidata copiado com a placa no slot B (de B para A,
   fora de teste); o painel original do mesmo commit (`pico2_w_original`, 2.13.0, compilado aqui, já que a release não
@@ -190,8 +190,9 @@ do RESET da PicoHand ficou no pino RUN, com o terra comum.
   linhas de tema (o `simut_def` e os dois personalizados) e o pacote de 53.035 B carregado também (557 chaves); e a
   candidata assinada pelo CI de volta pelo ar a partir dessa imagem (enviada em 17,9 s, de volta 25,2 s depois, de A
   para B), `/api/ui` 401. Nenhum quadro de fábrica no console nos passos em que ele foi capturado (os pelo ar: o toque
-  de 1200 bps precisa da porta livre), e 18 capturas do vidro julgadas pela regra do F4 (`docs/analysis/UI_DRIVERS.md`
-  seção 2.16), todas como ela prevê (na tela de recusa, só o modo).
+  de 1200 bps precisa da porta livre), e 16 capturas do vidro que a sessão julgou pela regra do F4
+  (`docs/analysis/UI_DRIVERS.md` seção 2.16), todas como ela prevê (na tela de recusa, só o modo; a primeira rodada do
+  primeiro passo, parada por um defeito da ferramenta da bancada, deixou uma 17ª que não foi julgada).
 - **A parte C no Pico 2 W** (30/10/2026 22:26 a 31/10/2026 00:41), na candidata: o SPI do painel em `sys.clk_peri` 150
   MHz e `tft_hz` 37,50 MHz; o `/api/themes` listou as 18 escolhas do Ângulo e 18 de 18 chaves de tema da página
   resolveram; a caminhada de toque passou 15 e falhou 0; as medianas da caminhada de pintura ficaram em 42 a 49 ms por
@@ -275,7 +276,7 @@ Não rodou numa placa: a confirmação do Ângulo para iniciar a rede de configu
 rodou, em 28/10/2026); a pilha do Core 1 sob carga com `optimize("no-reorder-blocks")` (a única medida até agora é a do
 compilador); o custo de pintura sob carga TLS (as medianas da caminhada de pintura acima não são uma medida sob carga
 TLS); os níveis de sinal do Wi-Fi da barra de status (o vidro foi julgado pelo modo e pelo destaque; o sinal leu de -38
-a -42 dBm nas caminhadas e nunca foi conferido contra as barras); as fontes acrescentadas à tela Licença e os dois
+a -43 dBm nas caminhadas e nunca foi conferido contra as barras); as fontes acrescentadas à tela Licença e os dois
 textos reescritos (a terceira caminhada completa chegou à tela Licença e capturou duas páginas, mas nenhuma foi
 comparada com os quadros do host); as figuras do capítulo 11A contra o vidro; e a caminhada completa do Ângulo em es-ES
 e em inglês (a completa rodou em pt-BR, e a de idiomas reiniciou a placa nos três).
@@ -359,13 +360,15 @@ e em inglês (a completa rodou em pt-BR, e a de idiomas reiniciou a placa nos tr
 - **A página web não tenta de novo uma instalação recusada com 503** (um toque no painel nos 5 s antes), pelo código.
 - **Uma resposta grande pode ser cortada sob carga concorrente.** No Pico 2 W, uma captura de tela de 230.454 B lida em
   paralelo com seis GET do tipo de uma página foi cortada em 1 de 749 pedidos e em 1 de 602 na candidata (30/10/2026
-  23:46 a 31/10/2026 00:00, com o servidor de telemetria fora do ar e depois no ar), e na v2.12.0, na mesma placa, houve
-  1 corte e 1 conexão zerada em 805 (00:11 a 00:19). A placa conta cada um como `cgx` no `metr`, uma desconexão que
-  inclui a queda que ela mesma escolhe quando o cliente não esvazia metade do buffer de envio do TCP em
-  `WEB_SEND_STALL_MS` (4 s; `WebManager_Send.cpp:89-90`), e nunca como o prazo do handler (`cgd`) nem como a guarda de
-  aborto (`cgg`). Sem reinício e sem dado perdido. Aparece como uma captura de tela cortada e, uma vez, como a página
-  web carregando sem o dicionário (os nomes dos temas em inglês daquela vez). É mais velha que esta release: a v2.12.0
-  faz o mesmo, e a correção do #247 está na candidata, então não é a expulsão que ela fechou.
+  23:46 a 31/10/2026 00:00, com o servidor de telemetria fora do ar e depois no ar), e na v2.12.0, na mesma placa, em 1
+  de 805 (00:11 a 00:19), onde uma conexão zerada na leitura de status seguinte encerrou a rodada. Cada uma das três
+  capturas cortadas somou um ao `cgx` no `metr`, uma desconexão que inclui a queda que a placa mesma escolhe quando o
+  cliente não esvazia metade do buffer de envio do TCP em `WEB_SEND_STALL_MS` (4 s; `WebManager_Send.cpp:89-90`), e
+  nenhuma mexeu no prazo do handler (`cgd`) nem na guarda de aborto (`cgg`). Sem reinício e sem dado perdido. Aparece
+  como uma captura de tela cortada e, uma vez, como a página web carregando sem o dicionário (os nomes dos temas em
+  inglês daquela vez; deduzido do `ERR_CONTENT_LENGTH_MISMATCH` do navegador naquela carga, sem contador lido). É mais
+  velha que esta release: a v2.12.0 faz o mesmo, e a correção do #247 está na candidata, então não é a expulsão que ela
+  fechou.
 - **`configure terminal` não exige `enable`**, embora a tabela de comandos do console diga que exige o modo
   privilegiado. Não abre nada, mas a tabela e o comportamento discordam.
 - **Com dois sensores de pressão, a linha de medições manda a pressão na chave do primeiro e com o valor do último**,
@@ -394,9 +397,9 @@ e em inglês (a completa rodou em pt-BR, e a de idiomas reiniciou a placa nos tr
   na candidata do Pico W, 31/10/2026). Os pacotes trazem os onze nomes (#298); o R-R14 do
   `docs/analysis/MODELO_DE_RECURSOS.md` tem o limite. O Ângulo não carrega arquivos `.thm`: num Pico 2 W com ele, o `GET
   /api/themes` lista as 18 escolhas dele.
-- **Nenhum pacote de idioma traz um nome para o tema embutido `simut_def`,** então a página web mostra "Simut Default"
-  em todo idioma (os pacotes da v2.12.0 e os desta release, 31/10/2026). O #298 nomeia os temas de fábrica no idioma do
-  aparelho, e este é a exceção: está compilado e não tem chave `thm_`.
+- **Nenhum pacote de idioma traz um nome para o tema embutido `simut_def`,** então, no painel original, a página web
+  mostra "Simut Default" em todo idioma, pelo código (os pacotes da v2.12.0 e os desta release, 31/10/2026). O #298
+  nomeia os temas de fábrica no idioma do aparelho, e este é a exceção: está compilado e não tem chave `thm_`.
 - **Salvar os limites de alarme pelo painel lê a cópia de trabalho da configuração sem cópia e sem trava** (F3). O
   `AppManager::panelSaveAlarmLimits( )` a lê por referência depois do Salvar, e quem escreve na cópia roda no Core 1.
   Achado lendo o código enquanto as telas do Ângulo eram movidas; não foi visto numa placa. O conserto toca os nove
