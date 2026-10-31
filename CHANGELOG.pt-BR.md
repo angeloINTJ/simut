@@ -7,7 +7,7 @@ Todas as mudanças notáveis do firmware SIMUT.
 ## Não lançado
 
 **O Salvar do editor de limites de alarme do painel passa a salvar os limites que estavam na tela no toque, e não o que o editor guarda quando o Core 0 chega ao evento. Isto fecha o F3 da lista *Conhecido* da v2.13.0. Uma prévia do alinhamento da tela que não foi salva não sobrevive mais à saída da tela, no painel original e no Ângulo: por onde quer que a tela seja deixada, menos durante uma atualização do firmware, o Core 1 devolve o deslocamento gravado
-e redesenha, e a entrada seguinte parte dele. As duas correções foram encontradas lendo o código, e as duas foram conferidas na bancada em 31/10/2026, no Pico W (o painel original) e no Pico 2 W (o Ângulo).**
+e redesenha, e a entrada seguinte parte dele. As duas correções foram encontradas lendo o código, e as duas foram conferidas na bancada em 31/10/2026, no Pico W (o painel original) e no Pico 2 W (o Ângulo). Uma terceira mudança, que não rodou numa placa, fecha o F4: no Ângulo, o `GET /api/keypad` deixa de descrever o teclado do painel original. Ele manda as faces, o estado e a política, e nomeia a rota que lista as teclas do Ângulo; as duas imagens do Ângulo ficam 208 e 216 B menores e as outras nove são, byte a byte, o que eram.**
 
 ### O Salvar dos limites de alarme no painel
 
@@ -71,6 +71,35 @@ O `used` do linker, que o orçamento guarda, varia de +8 a +368 B no total.
 
 Folga sob o teto de 1.040.384 B da atualização pelo ar: release 3.731 (4.051 na v2.13.0), `pico_w_test` 2.947 (3.267), `pico_w_asserts` 1.427 (1.755).
 O portão avisa nas três, como já avisava, porque cada uma está a menos de um setor de flash, e não reprova nada. O slot do Pico 2 W é de 1.568.768 B, com 530.175 B sobrando na imagem do Ângulo (530.423) e 568.151 na original (568.471).
+
+### `GET /api/keypad` no Ângulo
+
+- **O que estava errado.** Numa imagem compilada com o Ângulo, a rota publicava a geometria do teclado do painel original: a `grid` dos cartões do original e, no teclado de grupos, um `pop` com as teclas do popup do original. Um cliente que toca por esses números erra as teclas do Ângulo. Com quatro cartões, as do original são de 152 × 44 em (6, 72), com passo de 156 e 50, e as do Ângulo de 146 × 44 em (12, 96), com passo de 150 e 48; as teclas do popup dele têm 48 px de largura, 52 de altura numa fileira e 36 em duas, onde as do original são de 56 × 52. O toque do próprio Ângulo nunca usou os números, e nada do que é entregue os lê; as duas ferramentas de bancada que dirigem o painel original, sim. Isto fecha o F4 da lista *Conhecido* da v2.13.0 (o item continua lá, como o registro do que aquele release entregou).
+- **O que a rota manda agora.** No Ângulo: `faces`, `up`, `kb` e `policy`, que são o estado do núcleo e querem dizer o mesmo nos dois painéis (a tecla *k* do Ângulo é a tecla *k* do original), e `"targets":"/api/ui"`, a rota que lista onde estão as teclas do quadro que está no vidro. Sem `grid` e sem `pop`. No painel original a resposta é a que era, byte a byte: rodam os mesmos comandos. O mantenedor escolheu isto em 31/10/2026 (a opção (c)).
+- **Como se escolhe.** Não por um `#if`: por um gancho do driver de UI, `uiKeypadTargets( )`, que responde `nullptr` no original (`src/ui/UiDriverMembers.h`) e `"/api/ui"` no Ângulo (definido na classe, em `src/ui/angulo/Members.h`, para ser uma constante que o handler enxerga). O `handleApiKeypad( )` monta a resposta do Ângulo quando o gancho responde e volta; senão, os comandos de antes rodam, intocados. Cada lado é uma constante, então o ramo que a imagem não toma não está na imagem: as imagens do Ângulo não levam a string de formato da grade nem a do popup, e as seis imagens originais com a rota não levam `"targets"`. A contagem do `check_feature_sprawl.py` não se move, e o `tools/ui_texts_allow.json` nomeia o literal da rota em `Members.h` como caminho de rota, e não texto que o painel desenha.
+- **As ferramentas de bancada.** O `tools/panel_users_hw_test.py` e o `tools/panel_fulltable_test.py` tocam o painel original pela grade. Agora leem a rota por um leitor só, o `tools/keypad_answer.py`, que recusa uma resposta com `targets` e diz para tocar pelo `/api/ui`, como faz o `tools/tft_ui/roteiro_ui.py` (esse script lê só `faces` e `kb`, e não foi tocado). O `Rig` também confere uma vez no começo, para a rodada parar antes de criar contas ou de apontar a telemetria para outro lugar. Uma resposta sem `grid` e sem `targets`, que é o que manda um aparelho anterior à v25, continua recebendo o desenho da v24. A `WebUI.h` não lê a rota.
+- **Os testes.** O `tools/test_keypad_answer.py`, no job `gates` da CI: uma resposta do original, uma do Ângulo (recusada, com uma mensagem que nomeia o `/api/ui` e o `tools/tft_ui/roteiro_ui.py`), uma anterior à v25 e o teclado de grupos com o popup, e que cada ferramenta lê a rota só pelo leitor. Ele estava vermelho antes de o leitor existir (faltava o módulo), e morde: com a recusa tirada falha exatamente um caso, o do Ângulo, e cada uma das outras três linhas que ele segura reprova exatamente os casos a que serve. Fora do repositório, um script leu os onze `firmware.bin` como bytes: no `6981fd93` ele reprova as duas imagens do Ângulo (sem `,"targets":"`, e com as strings de formato `"pop":[%d` e `"grid":[` ainda lá), e nesta árvore passam os 49 testes dele. As três imagens sem TFT (`pico_w_alpha`, `pico_w_air`, `pico_wire`) nunca compilaram a rota e não levam nenhuma das respostas. O `Rig.keypad_faces( )` do `6981fd93` contra o novo deu o mesmo resultado e o mesmo estado em 15 respostas que não são as do Ângulo.
+- **Não rodou numa placa.** As respostas foram provadas pelos bytes das imagens e pelos testes do host; nenhum aparelho foi contatado. O teclado de PIN do Ângulo não foi dirigido pelo `/api/ui` para esta mudança.
+
+### Flash (`GET /api/keypad`)
+
+Contra a `main` em `6981fd93` (a árvore da tabela acima), `firmware.bin` assinado (a imagem mais a assinatura de 241 bytes, como acima), as onze imagens compiladas do zero em 31/10/2026 pelo shim do pio, com `-Werror` valendo, a base compilada do mesmo jeito antes e igual a todos os registros. As nove imagens que não são as do Ângulo têm o mesmo `sha256`. As duas do Ângulo encolhem: o `handleApiKeypad( )` vai de 508 para 348 B no Pico 2 W e de 488 para 326 B no Wire, e as três strings de formato de que ele não precisa mais saem, 111 B contra os 59 B da nova (`"/api/ui"` é o literal que o registro da rota já guarda, fundido pelo linker). O `.bin` da compilação (sem a assinatura) vai de 1.038.352 para 1.038.144 B e de 829.200 para 828.984 B; o `used` do linker, que o orçamento guarda, varia nos mesmos −208 e −216 B, e os dois orçamentos baixam com ele.
+
+| Imagem | `main` | com esta mudança | Δ | `sha256` do `.bin` |
+|---|---:|---:|---:|---|
+| `pico_w_release` | 1.036.653 | 1.036.653 | 0 | igual |
+| `pico_w_test` | 1.037.437 | 1.037.437 | 0 | igual |
+| `pico_w_test_https` (sem assinatura) | 1.041.540 | 1.041.540 | 0 | igual |
+| `pico_w_asserts` | 1.038.957 | 1.038.957 | 0 | igual |
+| `pico_w_alpha` | 990.621 | 990.621 | 0 | igual |
+| `pico_w_air` | 1.035.581 | 1.035.581 | 0 | igual |
+| `pico2_w_release` | 1.038.593 | 1.038.385 | −208 | `e5d08714` → `c74a61cb` |
+| `pico_wire` | 604.673 | 604.673 | 0 | igual |
+| `pico_wiretft` | 788.377 | 788.377 | 0 | igual |
+| `pico_wiretft_angulo` | 829.441 | 829.225 | −216 | `3aeb751e` → `a35cc970` |
+| `pico2_w_original` | 1.000.617 | 1.000.617 | 0 | igual |
+
+A folga sob o teto da atualização pelo ar só se move nas imagens do Ângulo: o slot do Pico 2 W tem 530.383 B sobrando (530.175 B), e a `pico_wiretft_angulo` está 211.159 B sob o teto (210.943 B). As três imagens de que o portão avisa (release 3.731 B, `pico_w_test` 2.947 B, `pico_w_asserts` 1.427 B) não se moveram.
 
 ## v2.13.0 (2026-10-31)
 

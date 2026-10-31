@@ -7,7 +7,7 @@ All notable changes to SIMUT firmware.
 ## Unreleased
 
 **Salvar on the panel's alarm-limits editor now saves the limits that were on the screen at the tap, not what the editor holds when Core 0 gets to the event. This closes F3 of the v2.13.0 *Known* list. A display-alignment preview that was not saved no longer outlives the alignment screen, on the original panel and on the Ângulo: whichever way the screen is left except during a firmware update, Core 1 puts the saved offset back
-and repaints, and the next entry starts from it. Both fixes were found by reading the code, and both were checked on the bench on 2026-10-31, on the Pico W (the original panel) and on the Pico 2 W (the Ângulo).**
+and repaints, and the next entry starts from it. Both fixes were found by reading the code, and both were checked on the bench on 2026-10-31, on the Pico W (the original panel) and on the Pico 2 W (the Ângulo). A third change, not run on a board, closes F4: on the Ângulo, `GET /api/keypad` no longer describes the original panel's keypad. It sends the faces, the state and the policy, and names the route that lists the Ângulo's keys; the two Ângulo images get 208 and 216 B smaller and the other nine are byte for byte what they were.**
 
 ### The alarm-limits save on the panel
 
@@ -70,6 +70,35 @@ The linker's `used`, which the budget holds, moves by +8 to +368 B in all.
 
 Slack under the 1,040,384 B over-the-air ceiling: release 3,731 (4,051 in v2.13.0), `pico_w_test` 2,947 (3,267), `pico_w_asserts` 1,427 (1,755).
 The gate warns for all three, as it did, because each is under one flash sector, and fails nothing. The Pico 2 W's slot is 1,568,768 B, with 530,175 B left on the Ângulo image (530,423) and 568,151 on the original (568,471).
+
+### `GET /api/keypad` on the Ângulo
+
+- **What was wrong.** On an image built with the Ângulo, the route published the original panel's keypad geometry: the `grid` of the original's cards and, for the groups keyboard, a `pop` with the original's popup keys. A client that taps by those numbers misses the Ângulo's keys. With four cards the original's are 152 × 44 at (6, 72) with a pitch of 156 and 50, and the Ângulo's 146 × 44 at (12, 96) with a pitch of 150 and 48; its popup keys are 48 px wide, 52 tall on one row and 36 on two, where the original's are 56 × 52. The Ângulo's own touch never used the numbers, and nothing that ships reads them; the two bench tools that drive the original panel did. This closes F4 of the v2.13.0 *Known* list (the item stays there, as the record of what that release shipped).
+- **What the route sends now.** On the Ângulo: `faces`, `up`, `kb` and `policy`, which are the core's state and mean the same on both panels (the Ângulo's key *k* is the original's key *k*), and `"targets":"/api/ui"`, the route that lists where the keys of the frame on the glass are. No `grid` and no `pop`. On the original panel the answer is what it was, byte for byte: the same statements run. The maintainer chose this on 2026-10-31 (option (c)).
+- **How it is switched.** Not by an `#if`: by a UI hook, `uiKeypadTargets( )`, which answers `nullptr` on the original (`src/ui/UiDriverMembers.h`) and `"/api/ui"` on the Ângulo (defined in the class, `src/ui/angulo/Members.h`, so that it is a constant the handler sees). `handleApiKeypad( )` builds the Ângulo's answer when the hook answers and returns; otherwise its old statements run, untouched. Each side is a constant, so the branch an image does not take is not in the image: the Ângulo's images carry neither the grid's format string nor the popup's, and the six original images with the route carry no `"targets"`. The feature-sprawl count does not move, and `tools/ui_texts_allow.json` names the route's literal in `Members.h` as a route path and not text the panel draws.
+- **The bench tools.** `tools/panel_users_hw_test.py` and `tools/panel_fulltable_test.py` tap the original panel by the grid. They now read the route through one reader, `tools/keypad_answer.py`, which refuses an answer with `targets` and says to tap by `/api/ui`, as `tools/tft_ui/roteiro_ui.py` does (that script reads only `faces` and `kb`, and is untouched). `Rig` also checks once at its start, so a run stops before it makes accounts or re-points the telemetry. An answer with no `grid` and no `targets`, which is what a device older than v25 sends, still gets the v24 layout. `WebUI.h` does not read the route.
+- **The tests.** `tools/test_keypad_answer.py`, in CI's `gates` job: an original answer, an Ângulo answer (refused, with a message that names `/api/ui` and `tools/tft_ui/roteiro_ui.py`), an answer older than v25 and the groups keyboard with its popup, and that each tool reads the route only through the reader. It was red before the reader existed (the module was missing), and it bites: with the refusal taken out exactly one case fails, the Ângulo's, and each of the three other lines it holds fails exactly the cases it serves. Outside the repository, a script read the eleven `firmware.bin` as bytes: on `6981fd93` it fails on both Ângulo images (no `,"targets":"`, and the `"pop":[%d` and `"grid":[` format strings still there), and on this tree all 49 of its checks pass. The three images with no TFT (`pico_w_alpha`, `pico_w_air`, `pico_wire`) never compiled the route and carry neither answer. `Rig.keypad_faces( )` of `6981fd93` against the new one gave the same result and the same state on 15 answers that are not the Ângulo's.
+- **Not run on a board.** The answers were proved from the images' bytes and by the host tests; no device was contacted. The Ângulo's PIN keypad was not driven through `/api/ui` for this change.
+
+### Flash (`GET /api/keypad`)
+
+Against `main` at `6981fd93` (the tree of the table above), `firmware.bin` signed (the image plus its 241-byte signature, as above), all eleven images built from zero on 2026-10-31 through the pio shim, `-Werror` holding, the baseline built the same way first and equal to every record. The nine images that are not the Ângulo's have the same `sha256`. The Ângulo's two shrink: `handleApiKeypad( )` goes from 508 to 348 B on the Pico 2 W and from 488 to 326 B on the Wire, and the three format strings it no longer needs go, 111 B against the 59 B of the new one (`"/api/ui"` is the literal the route's registration already holds, merged by the linker). The build's `.bin` (without the signature) is 1,038,352 → 1,038,144 B and 829,200 → 828,984 B; the linker's `used`, which the budget holds, moves by the same −208 and −216 B, and both budgets are lowered with it.
+
+| Image | `main` | with this change | Δ | `sha256` of the `.bin` |
+|---|---:|---:|---:|---|
+| `pico_w_release` | 1,036,653 | 1,036,653 | 0 | equal |
+| `pico_w_test` | 1,037,437 | 1,037,437 | 0 | equal |
+| `pico_w_test_https` (unsigned) | 1,041,540 | 1,041,540 | 0 | equal |
+| `pico_w_asserts` | 1,038,957 | 1,038,957 | 0 | equal |
+| `pico_w_alpha` | 990,621 | 990,621 | 0 | equal |
+| `pico_w_air` | 1,035,581 | 1,035,581 | 0 | equal |
+| `pico2_w_release` | 1,038,593 | 1,038,385 | −208 | `e5d08714` → `c74a61cb` |
+| `pico_wire` | 604,673 | 604,673 | 0 | equal |
+| `pico_wiretft` | 788,377 | 788,377 | 0 | equal |
+| `pico_wiretft_angulo` | 829,441 | 829,225 | −216 | `3aeb751e` → `a35cc970` |
+| `pico2_w_original` | 1,000,617 | 1,000,617 | 0 | equal |
+
+The slack under the over-the-air ceiling moves only on the Ângulo's images: the Pico 2 W's slot has 530,383 B left (530,175 B), and `pico_wiretft_angulo` is 211,159 B under the ceiling (210,943 B). The three images the gate warns about (release 3,731 B, `pico_w_test` 2,947 B, `pico_w_asserts` 1,427 B) did not move.
 
 ## v2.13.0 (2026-10-31)
 
