@@ -29,7 +29,7 @@ Five new cases in the `native` suite (`test_validators`): **366 to 371** cases t
   screen `_repaintSettings` and `_forceSettingsRedraw`), so none is left standing. One exit keeps the preview: during a firmware update Core 1 is parked from the first byte to the end and Core 0 paints the update screen on the glass as it is, so a preview left on the glass stays on the update screen, shifted by up to 4 px, until the restart if the update succeeds and until Core 1 resumes and the tick corrects it if it fails. This closes the item *A display-alignment preview that was not saved survives the idle return, on both panels* of
   v2.13.0's *Known* list.
 - **The next entry starts at the saved offset.** `showSettingsDisplayOffset( )` read the "saved" offset from the glass, so a preview left there became the saved one, and `screen offset` over a preview
-  did the same. It now starts from the RAM mirror that the boot loads, on Core 0 under `_stateMutex`, and does not touch the glass. It writes the preview before the mode, so that no Core 1 pass takes the preview of the last visit for its target.
+  did the same. It now starts from the RAM mirror that the boot loads, on Core 0 under `_stateMutex`, and does not touch the glass. It writes the preview before the mode, so that no Core 1 pass takes the preview of the last visit for its target. A release fence sits between the two stores, and the acquire fence of the tick is its pair.
 - **The Apply loads the new offset.** The event handler calls `loadDisplayOffset( )` before `showTouchCalibration( )`. `loadDisplayOffset( )` writes the mirror before the glass, with a release fence, and the
   tick reads the glass before the mirror, with an acquire fence (`__atomic_thread_fence`, a DMB on the RP2040 and on the RP2350): Core 1 never sees a new glass with an old saved value, even where the cores
   reorder memory accesses. The comment that said the Apply applied the offset to the TFT is corrected: it never did. The LCD and no-display images (`pico_w_alpha`, `pico_wire`, `pico_w_air`) compile only
@@ -37,25 +37,34 @@ Five new cases in the `native` suite (`test_validators`): **366 to 371** cases t
 - **Found by the code, not seen on a board.** The walk of 2026-10-30 on the Pico 2 W stopped on this screen; the defect is read from the code, and both panels share the state and the actions. The
   check on the Pico W (original) and the Pico 2 W (Ângulo) is a preview, the idle return and a new entry, and an update with a preview on the glass.
 - **The test.** `tools/tft_ui/test_alinhar.py` cuts the pieces out of the sources and runs them against a fake panel, with Core 1 interleaved with Core 0 at each point the Apply and the boot's load
-  pass: 8 cases for each panel and 7 text checks, 64 script and 612 model checks in 2.3 s. Its first version failed 12 checks on the tree before the fix (C1 to C4 of both panels and T1 to T4); it
-  passes on the tree after, and its 13 mutants each fail it. It also holds that the tick raises exactly the requests of the screen that is up and that none is left standing, in both panels and in
+  pass: 8 cases for each panel and 7 text checks, 70 script and 612 model checks in 2.4 s. Its first version failed 12 checks on the tree before the fix (C1 to C4 of both panels and T1 to T4); it
+  passes on the tree after, and its 16 mutants each fail it. It also holds that the tick raises exactly the requests of the screen that is up and that none is left standing, in both panels and in
   11 screens. The preview runs as Right, as Down and as both, every move of the glass on Core 1 must paint the margins, and `screen offset` over a stale preview, with a Core 1 pass after each store of the entry, must never show the old preview. CI runs it in the `gates` job.
 - **The manual.** Chapter 11A said that the idle return leaves the image shifted and that a new entry keeps it; it now says that every exit puts the saved offset back and a new entry starts at it, and names the update as the exception.
 
 ### Flash
 
-Against v2.13.0 (`3ca4976f`), `firmware.bin` built from zero on both sides on 2026-10-31, signed (the image plus its 241-byte signature). The eight images with the touch panel grow, because `DisplayManager` carries the box; the three without it do not carry the editor (the alpha and `pico_wire` with the 16x2 LCD, the Air with no display) and have the **same sha256** as at `3ca4976f`:
-- release 1,036,333 → 1,036,437 B (+104);
-- `pico_w_test` 1,037,117 → 1,037,221 B (+104);
-- `pico_w_asserts` 1,038,629 → 1,038,733 B (+104);
-- Pico 2 W (Ângulo) 1,038,345 → 1,038,393 B (+48);
-- `pico_wiretft` 788,009 → 788,153 B (+144);
-- `pico_wiretft_angulo` 829,113 → 829,217 B (+104);
-- `pico2_w_original` 1,000,297 → 1,000,417 B (+120);
-- `pico_w_test_https`, which has no OTA ceiling: 1,041,220 → 1,041,324 B unsigned (+104);
-- alpha 990,621 → 990,621 B, Air 1,035,581 → 1,035,581 B and `pico_wire` 604,665 → 604,665 B: the same.
+Against v2.13.0 (`3ca4976f`), `firmware.bin` signed (the image plus its 241-byte signature), all eleven images built from zero on the merged tree on 2026-10-31 through the pio shim, `-Werror` holding.
+The two fixes add up: F3's share is `aaccce35` against `3ca4976f`, as F3 measured it on its own tree, and the display alignment's share is the merged tree against `aaccce35`. The eight images with
+the touch panel carry both; `pico_w_alpha`, `pico_w_air`, `pico_wire`, with no editor and no alignment screen, carry only the alignment fix's call to `loadDisplayOffset( )`, which is a stub there.
+The linker's `used`, which the budget holds, moves by +8 to +368 B in all.
 
-Slack under the 1,040,384 B over-the-air ceiling: release 3,947 (4,051 in v2.13.0), `pico_w_test` 3,163 (3,267), `pico_w_asserts` 1,651 (1,755). The gate warns for all three, as it did, because each is under one flash sector, and fails nothing. The Pico 2 W's slot is 1,568,768 B, with 530,375 B left on the Ângulo image (530,423) and 568,351 on the original (568,471).
+| Image | v2.13.0 | after both | Δ | F3's share | alignment's share |
+|---|---:|---:|---:|---:|---:|
+| `pico_w_release` | 1,036,333 | 1,036,653 | +320 | +104 | +216 |
+| `pico_w_test` | 1,037,117 | 1,037,437 | +320 | +104 | +216 |
+| `pico_w_test_https` (unsigned) | 1,041,220 | 1,041,540 | +320 | +104 | +216 |
+| `pico_w_asserts` | 1,038,629 | 1,038,957 | +328 | +104 | +224 |
+| `pico_w_alpha` | 990,621 | 990,621 | 0 | 0 | 0 |
+| `pico_w_air` | 1,035,581 | 1,035,581 | 0 | 0 | 0 |
+| `pico2_w_release` | 1,038,345 | 1,038,593 | +248 | +48 | +200 |
+| `pico_wire` | 604,665 | 604,673 | +8 | 0 | +8 |
+| `pico_wiretft` | 788,009 | 788,377 | +368 | +144 | +224 |
+| `pico_wiretft_angulo` | 829,113 | 829,441 | +328 | +104 | +224 |
+| `pico2_w_original` | 1,000,297 | 1,000,617 | +320 | +120 | +200 |
+
+Slack under the 1,040,384 B over-the-air ceiling: release 3,731 (4,051 in v2.13.0), `pico_w_test` 2,947 (3,267), `pico_w_asserts` 1,427 (1,755).
+The gate warns for all three, as it did, because each is under one flash sector, and fails nothing. The Pico 2 W's slot is 1,568,768 B, with 530,175 B left on the Ângulo image (530,423) and 568,151 on the original (568,471).
 
 ## v2.13.0 (2026-10-31)
 
