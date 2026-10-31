@@ -4,6 +4,55 @@
 
 Todas as mudanças notáveis do firmware SIMUT.
 
+## Não lançado
+
+**Uma prévia do alinhamento da tela que não foi salva não sobrevive mais à saída da tela, no painel original e no Ângulo: por onde quer que a tela seja deixada, o Core 1 devolve o deslocamento gravado
+e redesenha, e a entrada seguinte parte dele. Encontrado lendo o código em 31/10/2026; a conferência numa placa está pendente.**
+
+### O alinhamento da tela
+
+- **Toda saída devolve o deslocamento gravado.** A tela aplica a prévia no vidro na hora, e só o Voltar devolvia o deslocamento gravado. A volta por inatividade de 30 s, o comando `screen` do console, a
+  troca de tema pela web ou pelo console e uma atualização do firmware deixavam a prévia no vidro. `tickDisplayOffset( )` roda no Core 1 uma vez por passada, logo depois de `handleTouch( )` em
+  `loopCore1( )`: com a tela à vista o alvo é a prévia, senão o deslocamento gravado; quando o vidro difere, ele aplica o alvo com as margens e levanta sete pedidos de redesenho. Isso fecha o item
+  *Uma prévia do alinhamento da tela que não foi salva sobrevive à volta por inatividade, nos dois painéis* da lista *Conhecido* da v2.13.0.
+- **A entrada seguinte parte do deslocamento gravado.** `showSettingsDisplayOffset( )` lia o deslocamento "gravado" do vidro, então uma prévia deixada lá virava o gravado, e `screen offset` sobre uma
+  prévia fazia o mesmo. Agora ela parte do espelho em RAM que o boot carrega, no Core 0 sob o `_stateMutex`, e não toca o vidro.
+- **O Aplicar carrega o novo deslocamento.** O tratador do evento chama `loadDisplayOffset( )` antes de `showTouchCalibration( )`, e `loadDisplayOffset( )` grava o espelho antes do vidro, para que o
+  Core 1 nunca veja um vidro novo com um gravado antigo. O comentário que dizia que o Aplicar aplicava o deslocamento no TFT está corrigido: nunca aplicou. As imagens de LCD e sem tela
+  (`pico_w_alpha`, `pico_wire`, `pico_w_air`) compilam só essa chamada, nos stubs.
+- **Encontrado pelo código, não visto numa placa.** O passeio de 30/10/2026 no Pico 2 W parou nesta tela; o defeito é lido do código, e os dois painéis dividem o estado e as ações. A conferência no
+  Pico W (original) e no Pico 2 W (Ângulo) é uma prévia, a volta por inatividade e uma entrada nova, e uma atualização com a prévia no vidro.
+- **O teste.** `tools/tft_ui/test_alinhar.py` recorta as peças das fontes e as roda contra um painel de mentira, com o Core 1 intercalado com o Core 0 em cada ponto por onde passam o Aplicar e a
+  carga do boot: 7 casos para cada painel e 6 conferências de texto, 49 conferências do script e 318 do modelo em 1,5 s. Antes da correção 12 delas falhavam (C1 a C4 dos dois painéis e T1 a T4); depois,
+  nenhuma, e os 7 mutantes dele a reprovam. O CI roda o teste no job `gates`.
+- **O manual.** O capítulo 11A dizia que a volta por inatividade deixa a imagem deslocada e que uma entrada nova a mantém; agora diz que toda saída devolve o deslocamento gravado e que uma entrada
+  nova parte dele.
+
+### Flash
+
+- **Bytes por imagem.** Toda imagem muda: `used` varia de +8 a +184 B nas 11 imagens compiladas (as que desenham painel levam o tique e a entrada, as de LCD e sem tela só a chamada do Aplicar). Antes: os registros de `tools/flash_budget.json` em 3ca4976f; depois: as compilações desta mudança, pelo shim do pio de 28/10/2026 sob o lock compartilhado.
+
+| Imagem | `used` antes | depois | Δ | `.bin` antes | depois | Δ |
+|---|---:|---:|---:|---:|---:|---:|
+| `pico_w_release` | 1.024.060 | 1.024.236 | +176 | 1.036.092 | 1.036.268 | +176 |
+| `pico_w_test` | 1.024.844 | 1.025.028 | +184 | 1.036.876 | 1.037.060 | +184 |
+| `pico_w_test_https` | 1.029.188 | 1.029.372 | +184 | isenta | 1.041.404 | - |
+| `pico_w_asserts` | 1.026.356 | 1.026.540 | +184 | 1.038.388 | 1.038.572 | +184 |
+| `pico_w_alpha` | 976.228 | 976.236 | +8 | 990.380 | 990.380 | 0 |
+| `pico_w_air` | 1.019.464 | 1.019.472 | +8 | 1.035.340 | 1.035.340 | 0 |
+| `pico2_w_release` | 1.038.080 | 1.038.224 | +144 | 1.038.104 | 1.038.248 | +144 |
+| `pico_wire` | 592.388 | 592.396 | +8 | 604.424 | 604.432 | +8 |
+| `pico_wiretft` | 775.732 | 775.908 | +176 | 787.768 | 787.944 | +176 |
+| `pico_wiretft_angulo` | 816.836 | 817.012 | +176 | 828.872 | 829.048 | +176 |
+| `pico2_w_original` | 1.000.032 | 1.000.184 | +152 | 1.000.056 | 1.000.208 | +152 |
+
+### Conhecido, e não consertado aqui
+
+- **O painel inicial do painel original deixa pedidos de pé depois que o tique move o vidro.** O tique levanta sete pedidos porque não sabe qual tela está à vista. O painel inicial só toma `_isDirty` e
+  `_forceFullRedraw`, então `_repaintSettings`, `_repaintGraph` e `_repaintCalendar` ficam de pé até uma tela que os tome ser mostrada, e o `loopCore1( )` espera 1 ms e não 2 ms nesse meio tempo
+  (`repaintPending`). Pelo código, não medido; o teste imprime os pedidos de pé de cada tela como linhas NOTE. O Ângulo toma todos a cada passada.
+- **A tela de carregamento do gráfico não é redesenhada pelo tique.** O pedido dela, `_repaintLoading`, não está entre os sete; a tela fica à vista enquanto um gráfico carrega e sai por `_repaintGraph`.
+
 ## v2.13.0 (2026-10-31)
 
 **O release do Pico 2 W passa a desenhar um painel novo, o Ângulo: telas próprias, um tema que é um modo mais uma cor
