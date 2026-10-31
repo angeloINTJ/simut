@@ -56,13 +56,14 @@ void DisplayManager::fillCalData(TouchCalData* cal) const {
  * for the target of every screen but the alignment's, so a Core 1 pass that saw the new glass with
  * the old saved value would put the old one back, in the Apply for a pass with the preview
  * already shown. Saved first, a pass in between sees the old glass and the new saved value and
- * puts the new one on, which is what this function is about to do. The fence keeps the compiler
- * to that order: to it the two stores are independent. */
+ * puts the new one on, which is what this function is about to do. The release fence (a DMB on
+ * both ISAs) keeps that order for the compiler, to which the two stores are independent, and for the
+ * other core: the Pico 2 W's Cortex-M33 may reorder normal-memory accesses as the other core sees them. */
 void DisplayManager::loadDisplayOffset(const DisplayOffsetData* data) {
  if (!data || data->magic != 0xD0) {
  _offsetSavedX = 0;
  _offsetSavedY = 0;
- __atomic_signal_fence(__ATOMIC_RELEASE);
+ __atomic_thread_fence(__ATOMIC_RELEASE);
  if (_driver.tft) _driver.tft->setDisplayOffset(0, 0, false);
  return;
  }
@@ -70,7 +71,7 @@ void DisplayManager::loadDisplayOffset(const DisplayOffsetData* data) {
  int8_t oy = constrain((int)data->offsetY, -4, 4);
  _offsetSavedX = ox;
  _offsetSavedY = oy;
- __atomic_signal_fence(__ATOMIC_RELEASE);
+ __atomic_thread_fence(__ATOMIC_RELEASE);
  if (_driver.tft) _driver.tft->setDisplayOffset(ox, oy, false);
 }
 
@@ -220,14 +221,15 @@ void DisplayManager::showSettingsDisplayOffset( ) {
  * settings tree, and tools/tft_ui/test_alinhar.py checks that each of them has a branch in uiPass( ) that tests _repaintSettings.
  * Never inside _stateMutex (it takes it) and never on Core 0 (the glass is Core 1's); loopCore1( ) calls it after handleTouch( ).
  *
- * The glass is read first and the targets after it, with a fence between: loadDisplayOffset( ) writes the saved offset
- * before the glass, so a pass that has read the new glass reads the new saved offset too, and never puts the old one back.
+ * The glass is read first and the targets after it, with an acquire fence between (the pair of the release fence in
+ * loadDisplayOffset( ), which writes the saved offset before the glass): a pass that has read the new glass reads the
+ * new saved offset too, and never puts the old one back.
  */
 void DisplayManager::tickDisplayOffset( ) {
  if (!_driver.tft) return;
  const int8_t glassX = _driver.tft->getOffsetX( );
  const int8_t glassY = _driver.tft->getOffsetY( );
- __atomic_signal_fence(__ATOMIC_ACQUIRE);
+ __atomic_thread_fence(__ATOMIC_ACQUIRE);
  const UiMode mode = _uiMode;
  const bool shown = mode == MODE_SETTINGS_DISPLAY_OFFSET;
  const int8_t targetX = shown ? _offsetPreviewX : _offsetSavedX;

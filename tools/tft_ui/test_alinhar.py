@@ -24,14 +24,14 @@ new offset into that mirror (loadDisplayOffset( )) before the calibration's entr
      the original's touch branch (UiTouchChain.h) and the Angulo's case (DisplayManager_UiA_Ajustes.cpp), and the Angulo's uiThemeChanged( ). What the stand-in models, not cuts: the
      screens' draw chain (uiPass( )), the original's theme hook (it draws) and the calibration's entry (it changes the mode): items 3 and 4 hold those to the files.
   2. The text: T1 the tick is defined once, called once, from loopCore1( ), between `handleTouch( );` and `otaTick( );` and outside _stateMutex (never on Core 0); T2 in the Apply,
-     `loadDisplayOffset(` comes before `showTouchCalibration(`; T3 the entry does not touch the glass; T4 loadDisplayOffset( ) writes _offsetSaved* before every store to the glass.
+     `loadDisplayOffset(` comes before `showTouchCalibration(`; T3 the entry does not touch the glass; T4 loadDisplayOffset( ) writes _offsetSaved* before every store to the glass, with a release fence between; T7 the tick reads the glass, then an acquire fence, then the targets.
   3. T5 the original's screen chain: each mode branch of uiPass( ) tests the flag the stand-in assumes (the dashboard pullSnapshot( ), the chart _repaintGraph, the calendar
      _repaintCalendar, the loading screen _repaintLoading, every other screen _repaintSettings), and the update screen is painted by otaTick( ) from _otaRedrawAll.
   4. T6 the Angulo's screen chain takes every request (_repaintSettings, _repaintGraph, _repaintLoading, _repaintCalendar, _forceSettingsRedraw), its frame identity holds the glass's
      alignment, and its update screen turns _otaRedrawAll into a full repaint.
   5. The mutants (the cut pieces edited one statement at a time, the loop's text reordered), each of which must fail the script: M1 the tick without its mode test, M2 the entry reading
      the glass, M3 the Apply without loadDisplayOffset( ) or with it after showTouchCalibration( ), M4 the tick out of order, M5 the tick without the repaint request, M6 the load storing
-     the glass before the saved value, M7 the tick raising every request whatever the screen is. A mutant that does not compile, or an anchor not found exactly once, fails this script: a mutant must be killed by a check and not by the compiler.
+     the glass before the saved value, M7 the tick raising every request whatever the screen is, M8 the load without its release fence, M9 the tick without its acquire fence. A mutant that does not compile, or an anchor not found exactly once, fails this script: a mutant must be killed by a check and not by the compiler.
 
 Expected failures: XFAIL (below) lists what the defect still fails. The script exits 0 and lists them; an XPASS (an expected failure that passes) makes it exit 1, because the bug has
 closed and the mark must leave.
@@ -71,7 +71,7 @@ XFAIL = frozenset()
 NOMES = ('entrada.inc', 'carga.inc', 'tique.inc', 'acoes.inc', 'ocioso.inc', 'forca.inc', 'menu.inc', 'ota.inc', 'tema.inc', 'tema_ang.inc', 'evento.inc', 'toque_orig.inc', 'toque_ang.inc',
          'alinh.inc')
 CASOS = [f'{c}/{ui}' for c in ('C1', 'C2', 'C3', 'C4', 'C5', 'C6', 'C7') for ui in ('original', 'angulo')]
-TEXTOS = ['T1', 'T2', 'T3', 'T4', 'T5', 'T6']
+TEXTOS = ['T1', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7']
 
 CONTA = [0]
 FALHAS = []
@@ -255,7 +255,24 @@ def t4(carga):
         if not (re.search(r'_offsetSavedX\s*=', antes) and re.search(r'_offsetSavedY\s*=', antes)):
             msgs.append('a store to the glass comes before the _offsetSaved* stores: Core 1 could see a new glass with an old saved value')
             break
+        if not re.search(r'__atomic_thread_fence\s*\(\s*__ATOMIC_RELEASE\s*\)\s*;[^;{}]*$', antes):
+            msgs.append('no release fence (__atomic_thread_fence( __ATOMIC_RELEASE )) between the _offsetSaved* stores and the store to the glass')
+            break
     return ('FAIL', '; '.join(msgs)) if msgs else ('PASS', '')
+
+
+def t7(tique):
+    """The tick reads the glass, then an acquire fence, then the targets: loadDisplayOffset( ) writes the mirror before the glass, so a pass that read the new glass reads the new mirror."""
+    if not tique.strip():
+        return 'FAIL', 'tickDisplayOffset( ) is not defined'
+    vidro = [m.start() for m in re.finditer(r'getOffset[XY]\s*\(', tique)]
+    cerca = [m.start() for m in re.finditer(r'__atomic_thread_fence\s*\(\s*__ATOMIC_ACQUIRE\s*\)\s*;', tique)]
+    alvos = [m.start() for m in re.finditer(r'\b_uiMode\b|\b_offsetSaved[XY]\b|\b_offsetPreview[XY]\b', tique)]
+    if len(vidro) != 2 or len(cerca) != 1 or not alvos:
+        return 'FAIL', f'the tick reads the glass {len(vidro)} time(s) (wanted 2, X and Y) and has {len(cerca)} acquire fence(s) (wanted 1)'
+    if not max(vidro) < cerca[0] < min(alvos):
+        return 'FAIL', 'the tick must read the glass, then an acquire fence (__atomic_thread_fence), then the targets'
+    return 'PASS', ''
 
 
 # The original's screen chain: which flag each mode branch of uiPass( ) tests (the table the stand-in's uiPass( ) assumes).
@@ -314,7 +331,7 @@ def cadeia_angulo():
 def textos(p, laco, chamadas):
     t5 = cadeia_original()
     return {'T1': t1(laco, chamadas, p['tique.inc']), 'T2': t2(p['evento.inc']), 'T3': t3(p['entrada.inc']), 'T4': t4(p['carga.inc']),
-            'T5': t5[:2], 'T6': cadeia_angulo()}, t5[2]
+            'T5': t5[:2], 'T6': cadeia_angulo(), 'T7': t7(p['tique.inc'])}, t5[2]
 
 
 # ---- building and running the model ----
@@ -353,6 +370,8 @@ MUTANTES = [
     ('M5 the tick without the repaint request', 'tique.inc', None, None),
     ('M6 the load storing the glass before the saved value', 'carga.inc', None, None),
     ('M7 the tick raising every request, whatever the screen is', 'tique.inc', None, None),
+    ('M8 the load without its release fence', 'carga.inc', None, None),
+    ('M9 the tick without its acquire fence', 'tique.inc', None, None),
 ]
 
 
@@ -378,6 +397,16 @@ def aplica(nome, p, laco):
             if len(achou) != 1:
                 return None
             q['tique.inc'] = ti[:achou[0].end(1)] + '\n}\n'
+        elif n.startswith('M8'):
+            novo_cg = re.sub(r'__atomic_thread_fence\s*\(\s*__ATOMIC_RELEASE\s*\)\s*;', '', p['carga.inc'])
+            if novo_cg == p['carga.inc']:
+                return None
+            q['carga.inc'] = novo_cg
+        elif n.startswith('M9'):
+            novo_ti = re.sub(r'__atomic_thread_fence\s*\(\s*__ATOMIC_ACQUIRE\s*\)\s*;', '', p['tique.inc'])
+            if novo_ti == p['tique.inc']:
+                return None
+            q['tique.inc'] = novo_ti
         elif n.startswith('M7'):
             ti = p['tique.inc']
             sw = re.search(r'switch\s*\(\s*mode\s*\)\s*\{', ti)
