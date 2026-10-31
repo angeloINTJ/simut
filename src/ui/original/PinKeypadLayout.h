@@ -8,7 +8,7 @@
  *
  * Why it is a header of its own: the Ângulo draws the keypad with its own layout (ui/angulo/IdentidadeToque.h)
  * and links none of this. What the core, the web route (GET /api/keypad publishes the six POP_KEY_W/H, POP_GAP,
- * POP_ROW0/1_Y and POP_ONE_Y), the CLI or the Ângulo read stays in PinKeypad.h. tools/check_ui_boundary.py refuses
+ * POP_ROW0/1_Y and POP_ONE_Y on the original panel, and none of them on the Ângulo), the CLI or the Ângulo read stays in PinKeypad.h. tools/check_ui_boundary.py refuses
  * an include of anything under src/ui/original/ from an Ângulo unit, so a dependency of the Ângulo on this layout
  * is a finding at the gate and not bytes in its image.
  *
@@ -37,7 +37,7 @@ inline void orderedLabel(uint8_t alphabet, int k, char* out, size_t cap) {
 }
 
 /* The group popup of the ALPHA_ALNUM keyboard: its card. The keys, the rows and the six numbers that
- * GET /api/keypad publishes are in PinKeypad.h. */
+ * GET /api/keypad publishes on the original panel (the Ângulo's answer has none) are in PinKeypad.h. */
 constexpr int16_t POP_CARD_X = 6, POP_CARD_W = 308;
 
 /* One card for both shapes, covering the whole keyboard area (70..190). A

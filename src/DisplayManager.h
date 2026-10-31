@@ -605,7 +605,8 @@ public:
 	int8_t pinTargetUser( ) const { return _pinTarget; }
 	/** The layout the stored policy asks for. The renderer, the touch mapper
 	 *  and GET /api/keypad all take it from here, so they cannot disagree
-	 *  about how many cards are on the glass. */
+	 *  about how many cards are on the glass. The Ângulo's answer takes the
+	 *  key count from it and none of the geometry (uiKeypadTargets( )). */
 	PinKb::Grid pinGrid( ) const;
 	uint8_t pinKeypadMode( ) const;
 	uint8_t pinAlphabet( ) const;

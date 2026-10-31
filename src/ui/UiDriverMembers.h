@@ -18,5 +18,10 @@
  * returns 0, the test on it folds away, and no log call is left in its image. The Angulo declares its own in angulo/Members.h (S10c, B2b). */
 public:
 	UI_HOOK int uiLangLoaded( ) { return 0; }   /* the language pack has finished loading at boot; 0 = nothing to report */
+	/* uiKeypadTargets( ) is the hook GET /api/keypad asks (WebManager::handleApiKeypad( ), Core 0, another unit, so it is public too): the route that lists where the keys
+	 * of the PIN keypad are, for a panel whose geometry the route's grid cannot describe. nullptr = the route sends the grid (and the groups keyboard's popup), as it always
+	 * did. always_inline and a constant, like the hook above, so the handler's other branch folds out of the original's images and they keep their bytes (S12, F4). The
+	 * Angulo declares its own in angulo/Members.h. */
+	UI_HOOK const char *uiKeypadTargets( ) const { return nullptr; }
 private:
 #endif
