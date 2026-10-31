@@ -55,8 +55,9 @@ until then: not published and not a required check; CI builds it and holds it to
 budget. The Ângulo images (`pico_wiretft_angulo` and `pico2_w_release`) are held to the link-set
 and static-RAM gates, picked by the profile's `ui` (`tools/env_ui.py`) and not by the name. Both
 Pico 2 W images are `releasetwo` for the OTA, so a device moves between them over the air, both
-ways (the retention gate on the board is C5's; the Pico 2 W on the bench ran the S10b and S10c
-tips' images, section 2.16 of `docs/analysis/UI_DRIVERS.md`). Name the eleven.
+ways (the retention gate on the board, C5, ran on 2026-10-30 at v2.13.0's gate,
+`docs/VERIFICATION.md`; before it the Pico 2 W on the bench ran the S10b and S10c tips' images,
+section 2.16 of `docs/analysis/UI_DRIVERS.md`). Name the eleven.
 There is no debug environment — see the note in `platformio.ini` for why.
 
 ## What will fail your build before CI does

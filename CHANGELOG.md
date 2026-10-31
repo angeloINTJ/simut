@@ -4,7 +4,7 @@
 
 All notable changes to SIMUT firmware.
 
-## v2.13.0 (2026-10-30)
+## v2.13.0 (2026-10-31)
 
 **The Pico 2 W release draws a new panel, the Ângulo: its own screens, a theme that is a mode plus an accent colour,
 and the device's three languages through the language packs (#304). The Pico W keeps the original panel. The Ângulo's
@@ -14,12 +14,12 @@ language packs grow to about 53 KB and 55 KB and the largest language file the d
 KiB, so this firmware goes on before the new packs. The nightly savings floor stops counting the linker's alignment
 fill (#302), and the manual counts four published images and the Pico 2 W's two firmware slots (#303).**
 
-`CONFIG_VERSION` stays at 26 and the security version at 1. `keys/` and `src/ota/ota_layout.h` are the files of
-v2.12.0 (`git diff v2.12.0 HEAD -- keys src/ota/ota_layout.h` is empty, 2026-10-30), so v2.12.0 verifies this
-release's signature and an update can go over the air both ways, as far as the code says: the gate has not run that
-round trip on this release's candidate yet (*The bench*). The three pull requests merged since v2.12.0 are each named
-under the heading they belong to. #304 is the Ângulo series: 410 commits (390 without merges) on top of main
-`43b275d8`, measured at `4629e8c6` on 2026-10-30.
+`CONFIG_VERSION` stays at 26 and the security version at 1. `keys/` and `src/ota/ota_layout.h` are the files of v2.12.0
+(`git diff v2.12.0 HEAD -- keys src/ota/ota_layout.h` is empty, 2026-10-30), so v2.12.0 verifies this release's
+signature and an update goes over the air both ways: the gate ran that round trip on the candidate the CI signed, on
+both boards (*The bench*). The three pull requests merged since v2.12.0 are each named under the heading they belong to.
+#304 is the Ângulo series: 410 commits (390 without merges) on top of main `43b275d8`, measured at `4629e8c6` on
+2026-10-30.
 
 ### The Ângulo panel on the Pico 2 W (#304)
 
@@ -125,8 +125,8 @@ under the heading they belong to. #304 is the Ângulo series: 410 commits (390 w
 
 ### Flash
 
-Against the published v2.12.0, signed `.bin` (the image plus its 241-byte signature; this release's are the images
-built on this tree on 2026-10-30 plus those 241 B, as no candidate is signed yet):
+Against the published v2.12.0, signed `.bin` (the image plus its 241-byte signature; this release's are the files of the
+candidate the CI signed on `main` `ae87f6d6`, `release-ota.yml` run 41147066899, sizes read on 2026-10-30):
 - release 1,036,133 → 1,036,333 B (+200);
 - alpha 990,621 → 990,621 B;
 - Air 1,035,581 → 1,035,581 B;
@@ -142,10 +142,116 @@ and 55,064 B.
 
 ### The bench
 
-The release gate (`AGENTS.md` §2) has not run on this release's candidate yet. This section is filled in by the gate's
-documentation change, from the candidate the CI signs on `main`. Until then, each figure above names the build and the
-date it was measured on. What ran on a board before, on development images of the Ângulo (the Pico 2 W of the bench;
-each record is outside the repository):
+The release gate (`AGENTS.md` §2) ran on the candidate the CI signed on `main` `ae87f6d6` (`release-ota.yml`, run
+41147066899, with the maintainer's approval of `sign`), on both boards: the Pico 2 W from 2026-10-30 21:08 to 2026-10-31
+00:42, the Pico W from 2026-10-31 00:47 to 03:32. `ci_check.py` ended in ALL GOOD: each image's part is the local
+build's, the signatures verify (`v` 0) at security version 1, the Pico 2 W's update is flagged for trial, a copy with
+one byte changed gives `v` 9, and the image signed by the bench key gives `v` 12.
+
+**On the Pico 2 W,** the bench board (an RP2350 A2) with three sensors. It began on the bench's development image of the
+Ângulo (`/api/ui` 401 at 21:09; restored on 2026-10-29 and not dumped again) and, by the maintainer's choice, ended on
+the candidate. v2.12.0's factory `.uf2` was copied onto its BOOTSEL drive, reached by the 1200-baud touch on the board's
+own USB serial, and v2.12.0's Portuguese pack (42,517 B) was put in `/lang`. The PicoHand's RESET wire stayed on the RUN
+pin, on a common ground.
+- **The update, over the air:** from v2.12.0 (the original panel, `/api/ui` 302, 527 configuration values) the candidate
+  was staged in 17.6 s, the board came back 57.9 s later from slot B on trial and kept itself 45.7 s after that. All 527
+  values unchanged (0 differ), and `/api/ui` 401: the Ângulo.
+- **Refused,** the board left running on slot B at 2.13.0, with no restart: the candidate with one byte changed (422,
+  `v` 9) and an image signed by the bench key (422, `v` 12).
+- **The candidate over itself,** twice: slot B to A (staged in 17.2 s, back 58.9 s later, kept 47.5 s after that) and A
+  to B (17.6 s, 31.2 s, 61.7 s), the 527 values unchanged both times.
+- **The candidate's factory `.uf2`,** copied onto the BOOTSEL drive: up on 2.13.0 from slot A, not on trial, the 527
+  values unchanged. It was run in the order that the deviation of 2026-10-29 taught: v2.12.0's factory image had put the
+  board on slot A, so the update over itself ran twice to leave it on B; BOOTSEL by the 1200-baud touch with nothing
+  written and a reboot left it on B; the copy then took it to A.
+- **30 minutes** (2026-10-30 21:26 to 21:57) without a restart: 118 reads, no error, the three sensors valued in every
+  sample, free heap 296,732 to 296,852 B, about 6 KB below the original panel's 302,868 to 302,972 B of 2026-10-29 (the
+  Ângulo holds that much more). **The web suite on the candidate,** as the bench admin: 67 passed, 0 failed, 1 skipped,
+  as on 2026-10-29.
+- **C5, the retention between the two Pico 2 W images,** all 15 steps (2026-10-30 21:57 to 22:25), the 527 configuration
+  values read at every step: 0 differ at any of them. The steps, in order: v2.12.0's original panel by its factory
+  `.uf2`, with its pack and two custom themes (`cafe`, `contraste`), the saved theme number 2 drawn as custom theme 1;
+  the candidate over the air (A to B, staged in 17.6 s, back 42.4 s later), which drew the Ângulo in automatic mode
+  (dark at that hour) with the stock accent and English texts, because v2.12.0's pack has no `@ANGULO` section; the
+  53,035 B pack uploaded and the board restarted, which loaded it (texts in Portuguese, 18 of 18 theme keys of the page
+  resolved); a stage cut at 400 kB and the hand's RESET, after which the board stayed on the candidate (B to B); theme
+  number 7 saved (dark with accent 2); down to v2.12.0 over the air (staged in 15.9 s, back 45.5 s later, B to A), where
+  the original panel drew 7 as `simut_def`, past the built-in theme and the two custom ones, and refused the 53,035 B
+  pack; number 2 saved again, drawn as custom theme 1; up again (A to B); the two refusals (422, `v` 9 and `v` 12); the
+  candidate over itself twice; the candidate's factory `.uf2` copied while the board was on slot B (B to A, not on
+  trial); the original panel of the same commit (`pico2_w_original`, 2.13.0, built here, since the release publishes no
+  such image) by its factory `.uf2`, which answered `/api/ui` 302 on slot A with number 2 kept, three theme rows
+  (`simut_def` and the two custom ones) and the 53,035 B pack loaded too (557 keys); and the CI-signed candidate back
+  over the air from that image (staged in 17.9 s, back 25.2 s later, A to B), `/api/ui` 401. No factory frame on the
+  console in the steps where it was captured (the over-the-air ones: the 1200-baud touch needs the port free), and 16
+  captures of the glass judged by the session against F4's rule (`docs/analysis/UI_DRIVERS.md` section 2.16), all as it
+  predicts (for the refusal screen, the mode only; the first step's first run, stopped by a defect of the bench's tool,
+  left a 17th that was not judged).
+- **Part C on the Pico 2 W** (2026-10-30 22:26 to 2026-10-31 00:41), on the candidate: the panel's SPI at `sys.clk_peri`
+  150 MHz and `tft_hz` 37.50 MHz; `/api/themes` listed the Ângulo's 18 choices and 18 of 18 theme keys of the page
+  resolved; the touch walk passed 15 and failed 0; the paint walk's medians were 42 to 49 ms per screen; the language
+  walk passed 66 and failed 0; the theme names on the web passed 130 of 132 checks, the 2 failures being one load of the
+  page that came without its dictionary (the cut in *Known*); the full Ângulo walk passed 10 and failed 0 on its third
+  run, the first two having stopped on a screenshot cut short (at 8,760 and at 80,300 of 230,454 B), with no restart
+  and, after each walk, the configuration and the accounts equal to the snapshot taken before it.
+- **#294 seen on the candidate:** after a boot in English, the Ângulo's Idioma screen lists the pack in `/lang`, its row
+  says "Reboot required", the language stays English until the restart (`APP_UI_LANG_CHANGED` is logged), and the
+  restart brings Portuguese back. The restarts answered in 31 s (pt-BR), 26 s (es-ES), 29 s (English) and 27 s (back);
+  with both packs in `/lang` the es-ES one loaded (record 622, context 2).
+- **`heap_lb` on the Pico 2 W,** read for the first time: 258,683 to 258,769 B in 18 reads of `/api/status` on the
+  candidate (the guard's snapshots around the walks, 2026-10-30 22:26 to 2026-10-31 00:41; `heap_f` 288,020 to 288,116
+  B, with the 53,035 B pack in `/lang`) and 259,042 B on the development image at 21:09 on 2026-10-30.
+
+**On the Pico W,** the bench board with the touch display, from the published v2.12.0 with the bench's configuration
+(three sensors; the web API reports 539 configuration values on the release and 530 on the alpha and the Air), the web
+on port 8080. The maintainer swapped the boards at 00:47 and covered the flash writes in his word. The board's flash was
+dumped first, two equal reads, and written back at the end. The telemetry receiver was the bench PC, as on 2026-10-28.
+- **The start (S1),** as v2.12.0's gate made its own: the gate's seed (v2.11.1 with the bench's configuration) written
+  back byte for byte and updated over the air to the published v2.12.0 (backup of 723,325 B in 76 files, staged in 35.4
+  s, the board back 50.1 s later), its `.bkp` put back (76 files): 539 values unchanged, `system.bin` identical (6,806
+  B), the app slot equal to the published image part, 73 of the 76 files identical (the others are the open history
+  block, the sealed day's file and the log). The first send reached the receiver (1 TLS connection, 10 records).
+- **The update from v2.12.0,** complete, over the air, on the release: the `.bkp` downloaded, the image staged and
+  applied, the board back on `2.13.0` with all 539 values unchanged, and unchanged after the `.bkp` was put back (77
+  files); `system.bin` identical byte for byte (6,806 B, `CONFIG_VERSION` 26), the app slot equal to the candidate's
+  image part (1,036,092 B), 73 of the 77 files identical (the others are the telemetry cursor, the open history block,
+  the day's file and the log).
+- **The web suite on the candidate,** as an admin account: 67 passed, 0 failed, 1 skipped. Its first run began 13 s
+  after the dump with the board still booting and every request was refused; it was run again.
+- **The candidate over itself,** checking the signature (`image verified, 1036333 B` on the serial): the 539 values
+  unchanged, `system.bin` identical, the slot equal to the image part.
+- **Refused** with 422, the configuration unchanged after the refusal and after the hand's RESET: an unsigned image (8),
+  the Air's signed image (7), the Pico 2 W's (6) and the candidate with one byte changed (9).
+- **An upload cut at 400 kB, then a reset,** and the same with the filesystem filled between the cut and the reset: the
+  539 values unchanged, and the boot did not fall to factory defaults.
+- **Down and up over the air:** the candidate to v2.12.0 and back, both at security version 1, accepted both ways, the
+  539 values unchanged each time; the first send of each version seen at the receiver (10 records, pending back to 0
+  from the cursor).
+- **The alpha and the Air** (530 values): v2.12.0 written by USB, then the candidate over the air with the 530 values
+  unchanged, the `.bkp` back, `system.bin` identical, the slot equal to the image except the 4 KiB sector of BTstack's
+  flash bank (`0xee000` on the alpha, `0xf9000` on the Air), and the candidate over itself with the 530 unchanged; the
+  alpha's captures name their events and the panel fields are absent.
+- **#283 on the Air, for the first time on a board** (2026-10-31 02:15): the pt-BR pack (53,035 B) alone in `/lang`,
+  listed as sent, and the boot after the reboot loaded it (557 keys, record 620). A wake then wrote 567 once and nothing
+  of the preamble, and the M0 boot after it, when the wake found the charger high, logged `I18N_PACK_LOADED` (620, tag
+  `I18N` = 13). The gate of v2.12.0 had run that wake without a pack in `/lang`.
+- **Part C on the release:** the candidate over S1 again, 539 values unchanged and the web suite 67 passed, 0 failed, 1
+  skipped; the panel at `sys.clk_peri` 133 MHz and `tft_hz` 66.50 MHz; the maintainer looked at the glass (02:52):
+  clean, and the touch responds; a capture has the layout of 2026-10-29's, the two switched-off slots as "Empty /
+  Inactive" cards, with its texts in es-ES (both packs were in `/lang`); `/license` answered HTTP 200 with 16,400 B.
+  With the eleven stock `.thm` files uploaded, `/api/themes` listed nine rows, `simut_def` and eight (see *Known*).
+- **The 64 KiB ceiling:** the candidate loads the 55,064 B es-ES pack (within 65,536 B). With the 53,035 B pt-BR pack
+  alone in `/lang`, v2.12.0 refused it ("over old's 49,152 B", the panel in English) and the candidate loaded it, the
+  539 values unchanged against S1 at each update. The pack had to be put back after each update, because the apply
+  reformats the filesystem.
+- **30 minutes** (2026-10-31 03:01 to 03:32) on the candidate, with the RESET wire on RUN: 120 samples, no HTTP failure,
+  no restart, 2.13.0 throughout, free heap 54,932 to 55,068 B (54,908 to 55,300 B on 2026-10-29), `heap_lb_min` 29,441
+  B, the three sensors valued in every sample. The receiver got 3 batches (30 records; 12 to 15 requests, 15 TLS
+  handshakes ok, 0 failures) and the flash log recorded the send ("1 sent [200]").
+- **The way back:** the arrival dump (the development image of the Wire with the panel, 2.11.1, that the board came
+  with) written back through the 1200-baud BOOTSEL and read again, byte for byte.
+
+Before the gate, on development images of the Ângulo (the Pico 2 W of the bench; each record is outside the repository):
 - 2026-10-22: the theme catalogue and a paint comparison. `/api/themes` lists 18 choices where the build before the
   accent palette listed 3, the paint medians are within 1 ms (plain HTTP, 8 screens), and an uploaded `.thm` is
   stored, downloaded byte for byte and deleted.
@@ -158,19 +264,21 @@ each record is outside the repository):
 - 2026-10-30, 13:11: the panel's SPI clock on the Ângulo image of that day, read only: `sys.tft_hz` 37,500,000 and
   `clk_peri` 150,000,000.
 
-Not run on a board: the retention check between v2.12.0's original panel and the Ângulo, and the way down (they run at
-the gate, on the CI-signed candidate); the images of the move (no record shows this series' tip flashed); the
-confirmation to start the setup network pressed to Confirm (only Cancel ran); the three-language walk on an image
-after 2026-10-24. Open and needing a board (`docs/analysis/UI_DRIVERS.md`): Core 1's stack under load with
-`optimize("no-reorder-blocks")` (the only measurement so far is the compiler's), the paint cost under TLS load
-(unmeasured) and the Pico 2 W's `heap_lb` (not measured). Seen on the host only: the Wi-Fi signal levels of the status
-bar, the licence screen's four added sources, the two reworded texts and every figure of chapter 11A.
+Not run on a board: the Ângulo's confirmation to start the setup network pressed to Confirm (only Cancel ran, on
+2026-10-28); Core 1's stack under load with `optimize("no-reorder-blocks")` (the only measurement so far is the
+compiler's); the paint cost under TLS load (the paint walk's medians above are not a measurement under TLS load); the
+Wi-Fi signal levels of the status bar (the glass was judged for the mode and the accent; the signal read -38 to -43 dBm
+in the walks, and was never judged against the bars); the licence screen's added sources and the two reworded texts (the
+third full walk reached the licence screen and captured two pages, but none was compared with the host's frames); the
+figures of chapter 11A against the glass; and the Ângulo's full walk in es-ES and in English (the full walk ran in
+pt-BR, and the language walk restarted the board in all three).
 
 ### Upgrading
 
 - **Install this firmware before the new language packs.** pt-BR goes from 42,517 to 53,035 B and es-ES from 44,262 to
-  55,064 B; v2.12.0 and earlier refuse a language file over 49,152 B at boot, and the panel stays in English. This
-  firmware loads files up to 64 KiB.
+  55,064 B; v2.12.0 and earlier refuse a language file over 49,152 B at boot, and the panel stays in English (v2.12.0
+  refused the 53,035 B pack on the Pico W on 2026-10-31). This firmware loads files up to 64 KiB (the 55,064 B es-ES
+  pack loaded on the Pico W, and the 53,035 B pt-BR one on both boards).
 - **From v2.12.0, on a Pico W (release, alpha or Air):** over the air, from the Files page, with this release's `.bin`
   and with no other page of the device open. Download the `.bkp` the page offers first. The apply reformats the
   filesystem and keeps only `/config/system.bin`: `/lang` is gone, so the device shows English until the pack is back
@@ -178,18 +286,22 @@ bar, the licence screen's four added sources, the two reworded texts and every f
   `.bkp`. Restore the `.bkp` (it brings the old pack back), upload **the pack of the device's language** attached to
   this release, over the old one, and reboot; a pack is read at boot. The Pico W keeps the original panel.
 - **From v2.12.0, on a Pico 2 W:** over the air, with this release's `.bin`: the update goes to the other slot, leaves
-  the filesystem alone and boots on trial, as since v2.11.0. **The board draws the Ângulo after it**, where v2.12.0
-  drew the original panel. The pack in `/lang` stays, and it has no `@ANGULO` section, so the Ângulo's texts read in
-  English until the new pack of the device's language replaces it. **The saved theme number is read the other way:**
-  the original panel takes it as a built-in or custom theme (0 is `simut_def`, 1 to 8 a custom theme when that `.thm`
-  is loaded), the Ângulo as a mode and an accent (`mode + 3 x accent`, 0 to 17; any other number reads as light with
-  the stock accent; `docs/analysis/UI_DRIVERS.md` section 2.16, F4's rule), so a saved theme can look different after
-  the move. Both Pico 2 W images are `releasetwo`, so a Pico 2 W can move between the original panel and the Ângulo
-  over the air, in both directions. The retention check between the two has not run on a board.
+  the filesystem alone and boots on trial, as since v2.11.0. **The board draws the Ângulo after it**, where v2.12.0 drew
+  the original panel. The pack in `/lang` stays, and it has no `@ANGULO` section, so the Ângulo's texts read in English
+  until the new pack of the device's language replaces it. **The saved theme number is read the other way:** the
+  original panel takes it as a built-in or custom theme (0 is `simut_def`, 1 to 8 a custom theme when that `.thm` is
+  loaded), the Ângulo as a mode and an accent (`mode + 3 x accent`, 0 to 17; any other number reads as light with the
+  stock accent; `docs/analysis/UI_DRIVERS.md` section 2.16, F4's rule), so a saved theme can look different after the
+  move. Both Pico 2 W images are `releasetwo`, so a Pico 2 W can move between the original panel and the Ângulo over the
+  air, in both directions. The retention check between the two ran at the gate (C5, 2026-10-30; *The bench*): the update
+  kept the pack in `/lang` and the `.thm` files in `/themes`, the 527 configuration values were unchanged at every step,
+  and the saved number 2, the original's custom theme 1, drew on the Ângulo as automatic mode with the stock accent.
 - **Back to v2.12.0:** over the air with its signed `.bin` (both carry security version 1 and series 1), or over USB.
-  It has not run on a board for this release. A pack of this release in `/lang` is over v2.12.0's ceiling, so v2.12.0
-  refuses it at boot and the panel stays in English until v2.12.0's pack is back; a Pico 2 W then draws the original
-  panel again and reads the theme number the first way.
+  The way down over the air ran at the gate on both boards (the Pico 2 W in C5, 2026-10-30; the Pico W, candidate to
+  v2.12.0 and back, 2026-10-31): accepted, the configuration unchanged. A pack of this release in `/lang` is over
+  v2.12.0's ceiling, so v2.12.0 refuses it at boot and the panel stays in English until v2.12.0's pack is back (measured
+  on both boards); a Pico 2 W then draws the original panel again and reads the theme number the first way (number 7
+  drew as `simut_def`).
 - **From an older version, or a Pico 2 W's first install:** as for v2.11.0, in its entry below.
 - **Language packs: upload only the one of the device's language.** With more than one `language_*.lng` in `/lang` the
   device loads the first in alphabetical order (every image does, by the code; all but the alpha also log 622,
@@ -222,7 +334,7 @@ bar, the licence screen's four added sources, the two reworded texts and every f
   release (the maintainer's word of 2026-10-30).
 - **The emergency console has no `language` command**, and the web has no key for it. After a boot in English, the
   panel's Idioma screen is the way back (#294), on the Ângulo too (seen on the Pico 2 W's bench on 2026-10-28, on a
-  development image).
+  development image, and on the candidate on 2026-10-31).
 - **The web page's theme select gives no feedback when the device refuses the change.** `saveTheme( )` ignores the
   answer of `/api/save_sys`.
 - **Narrowing the PIN alphabet or lowering the length ceiling still strands an old PIN** that uses a letter no longer
@@ -236,6 +348,16 @@ bar, the licence screen's four added sources, the two reworded texts and every f
 - **Accented lines on the original panel's boot screen print `?`**, by the code: the boot box folds text that is
   already Latin-1 as if it were UTF-8. The Ângulo's boot screen was not checked for it.
 - **The web page does not retry an install refused with 503** (a touch on the panel in the 5 s before), by the code.
+- **A large response can be cut short under concurrent load.** On the Pico 2 W, a screenshot of 230,454 B read in
+  parallel with six page-like GETs was cut in 1 of 749 requests and in 1 of 602 on the candidate (2026-10-30 23:46 to
+  2026-10-31 00:00, with the telemetry server down and then up), and on v2.12.0, on the same board, in 1 of 805 (00:11
+  to 00:19), where a reset connection on the next status read then ended the run. Each of the three cut screenshots
+  added one to `cgx` in `metr`, a disconnect that includes the drop the board chooses when a client does not drain half
+  of the TCP send buffer within `WEB_SEND_STALL_MS` (4 s; `WebManager_Send.cpp:89-90`), and none moved the handler
+  deadline (`cgd`) or the abort guard (`cgg`). No restart and no data lost. It shows as a screenshot cut short and,
+  once, as the web page loading without its dictionary (the theme names in English that time; inferred from the
+  browser's `ERR_CONTENT_LENGTH_MISMATCH` in that load, with no counter read). It is older than this release: v2.12.0
+  does the same, and #247's fix is in the candidate, so this is not the eviction it closed.
 - **`configure terminal` does not need `enable`**, although the console's command table says it needs privileged mode.
   It opens nothing, but the table and the behaviour disagree.
 - **With two pressure sensors, the measurement line sends the pressure under the first one's key and with the last
@@ -260,9 +382,14 @@ bar, the licence screen's four added sources, the two reworded texts and every f
 - **Only eight of the eleven stock themes load, on the original panel.** `MAX_CUSTOM_THEMES` is 8
   (`src/ui/original/Themes.cpp`, since v1.0.0) and the directory is read in order, so with all eleven `.thm` files
   uploaded `ubuntu`, `unimed_claro` and `unimed_escuro`, the last in that order, are left out: `GET /api/themes` lists
-  nine rows, `simut_def` and eight, on both boards (2026-10-29, when the Pico 2 W still ran the original panel). The
-  packs carry the eleven names (#298); R-R14 of `docs/analysis/MODELO_DE_RECURSOS.md` has the limit. The Ângulo does
-  not load `.thm` files: on a Pico 2 W with it, `GET /api/themes` lists its 18 choices.
+  nine rows, `simut_def` and eight, on both boards (2026-10-29, when the Pico 2 W still ran the original panel; again on
+  the Pico W's candidate, 2026-10-31). The packs carry the eleven names (#298); R-R14 of
+  `docs/analysis/MODELO_DE_RECURSOS.md` has the limit. The Ângulo does not load `.thm` files: on a Pico 2 W with it,
+  `GET /api/themes` lists its 18 choices.
+- **No language pack carries a name for the built-in theme `simut_def`,** so, on the original panel, the web page shows
+  "Simut Default" in every language, by the code (the packs of v2.12.0 and of this release alike, 2026-10-31). #298
+  names the stock themes in the device's language, and this one is the exception: it is compiled in and has no `thm_`
+  key.
 - **Saving the alarm limits from the panel reads the working copy of the configuration with no copy and no lock**
   (F3). `AppManager::panelSaveAlarmLimits( )` reads it by reference after Salvar, and the writers of the copy run on
   Core 1. Found by reading the code while the Ângulo's screens were moved; not seen on a board. The fix touches all
@@ -281,7 +408,10 @@ bar, the licence screen's four added sources, the two reworded texts and every f
   applies the previewed offset to the glass at once, and only Voltar (`actOffsetBack( )`) puts the saved offset back;
   the return to the dashboard after the idle time does not go through it, so the image stays shifted, and the next
   visit to the screen takes the shifted offset for the saved one (`showSettingsDisplayOffset( )` reads it from the
-  glass). By the code, not seen on a board.
+  glass). By the code, not seen on a board. On the Pico 2 W on 2026-10-30 a walk stopped on that screen after a "right"
+  preview and before Voltar; the board went back to the dashboard on the idle timeout, and the maintainer, looking at
+  the glass, found it normal. Whether the preview's touch had taken is unknown (its capture was cut), so the defect
+  stays unseen.
 
 ## v2.12.0 (2026-10-29)
 
