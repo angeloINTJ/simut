@@ -6,7 +6,7 @@ All notable changes to SIMUT firmware.
 
 ## Unreleased
 
-**Salvar on the panel's alarm-limits editor now saves the limits that were on the screen at the tap, not what the editor holds when Core 0 gets to the event. This closes F3 of the v2.13.0 *Known* list. A display-alignment preview that was not saved no longer outlives the alignment screen, on the original panel and on the Ângulo: whichever way the screen is left, Core 1 puts the saved offset back
+**Salvar on the panel's alarm-limits editor now saves the limits that were on the screen at the tap, not what the editor holds when Core 0 gets to the event. This closes F3 of the v2.13.0 *Known* list. A display-alignment preview that was not saved no longer outlives the alignment screen, on the original panel and on the Ângulo: whichever way the screen is left except during a firmware update, Core 1 puts the saved offset back
 and repaints, and the next entry starts from it. Both fixes were found by reading the code, and neither has been checked on a board.**
 
 ### The alarm-limits save on the panel
@@ -22,7 +22,7 @@ Five new cases in the `native` suite (`test_validators`): **366 to 371** cases t
 
 ### The display alignment
 
-- **Every exit puts the saved offset back.** The screen applies its preview to the glass at once, and only Voltar put the saved offset back. The 30 s idle return, the console's `screen` command, a theme
+- **Every exit but a firmware update puts the saved offset back.** The screen applies its preview to the glass at once, and only Voltar put the saved offset back. The 30 s idle return, the console's `screen` command, a theme
   change by the web or the console and a firmware update left the preview on the glass. `tickDisplayOffset( )` runs on Core 1 once a pass, right after `handleTouch( )` in `loopCore1( )`: while the
   screen is shown the target is the preview, otherwise the saved offset; when the glass differs, it sets the target with its margins and raises the repaint request of the screen that is up and of no
   other (the dashboard `_isDirty` and `_forceFullRedraw`, the chart `_repaintGraph`, its loading screen `_repaintLoading`, the calendar `_repaintCalendar`, the update screen `_otaRedrawAll`, every other
@@ -37,8 +37,8 @@ Five new cases in the `native` suite (`test_validators`): **366 to 371** cases t
 - **Found by the code, not seen on a board.** The walk of 2026-10-30 on the Pico 2 W stopped on this screen; the defect is read from the code, and both panels share the state and the actions. The
   check on the Pico W (original) and the Pico 2 W (Ângulo) is a preview, the idle return and a new entry, and an update with a preview on the glass.
 - **The test.** `tools/tft_ui/test_alinhar.py` cuts the pieces out of the sources and runs them against a fake panel, with Core 1 interleaved with Core 0 at each point the Apply and the boot's load
-  pass: 8 cases for each panel and 7 text checks, 70 script and 612 model checks in 2.4 s. Its first version failed 12 checks on the tree before the fix (C1 to C4 of both panels and T1 to T4); it
-  passes on the tree after, and its 16 mutants each fail it. It also holds that the tick raises exactly the requests of the screen that is up and that none is left standing, in both panels and in
+  pass: 8 cases for each panel and 7 text checks, 74 script and 612 model checks in 2.7 s. Its first version failed 12 checks on the tree before the fix (C1 to C4 of both panels and T1 to T4); it
+  passes on the tree after, and its 18 mutants each fail it, two of them a fence left in dead code. It also holds that the tick raises exactly the requests of the screen that is up and that none is left standing, in both panels and in
   11 screens. The preview runs as Right, as Down and as both, every move of the glass on Core 1 must paint the margins, and `screen offset` over a stale preview, with a Core 1 pass after each store of the entry, must never show the old preview. CI runs it in the `gates` job.
 - **The manual.** Chapter 11A said that the idle return leaves the image shifted and that a new entry keeps it; it now says that every exit puts the saved offset back and a new entry starts at it, and names the update as the exception.
 

@@ -13,7 +13,8 @@ new offset into that mirror (loadDisplayOffset( )) before the calibration's entr
      original panel and once for the Angulo. Eight cases for each (the numbering follows the review: there is no C8); C1 and C4 run the preview as Right, as Down and as both, and every move of the glass on Core 1 must paint the margins:
        C1  saved 0,0, Right, the 30 s idle return, ONE pass: the glass is 0,0 and the full repaint was asked for; before that, a pass leaves the preview on the glass while the screen is shown
        C2  the next entry starts at 0,0
-       C3  Core 0's exits (`screen dash`, `screen set`, an update, a theme change), and a preview left in any mode (the dashboard, the chart, its loading screen and detail, the calendar, the settings
+       C3  Core 0's exits (`screen dash`, `screen set`, an update while Core 1 runs, before the stage parks it or after a failed one: the parked case is the
+           documented exception, which the host cannot run, and a theme change), and a preview left in any mode (the dashboard, the chart, its loading screen and detail, the calendar, the settings
            screens, the update screen), leave the glass at the saved offset and the screen repainted in full at it; the tick raises exactly the requests that screen takes, and none is left standing
        C4  `screen offset` while a preview is shown, then Voltar: the saved offset is back (the preview is not taken for the saved one)
        C5  Voltar, the control: the saved offset goes back at once and the tick has nothing left to correct
@@ -32,7 +33,7 @@ new offset into that mirror (loadDisplayOffset( )) before the calibration's entr
      alignment, and its update screen turns _otaRedrawAll into a full repaint.
   5. The mutants (the cut pieces edited one statement at a time, the loop's text reordered), each of which must fail the script: M1 the tick without its mode test, M2 the entry reading
      the glass, M3 the Apply without loadDisplayOffset( ) or with it after showTouchCalibration( ), M4 the tick out of order, M5 the tick without the repaint request, M6 the load storing
-     the glass before the saved value, M7 the tick raising every request whatever the screen is, M8 the load without its release fence, M9 the tick without its acquire fence, and the review's N7 the tick comparing the X axis only, N7b the tick taking the saved Y while the screen is shown, N4 the restore without the margins, M10 the entry without its release fence, M11 the tick reading the mode after its fence, M12 the entry writing the mode before the preview. A mutant that does not compile, or an anchor not found exactly once, fails this script: a mutant must be killed by a check and not by the compiler.
+     the glass before the saved value, M7 the tick raising every request whatever the screen is, M8 the load without its release fence, M9 the tick without its acquire fence, and the review's N7 the tick comparing the X axis only, N7b the tick taking the saved Y while the screen is shown, N4 the restore without the margins, M10 the entry without its release fence, M11 the tick reading the mode after its fence, M12 the entry writing the mode before the preview, and the re-review's M13 and M14 a fence in dead code (`if (0)`), in the entry and in the tick. A mutant that does not compile, or an anchor not found exactly once, fails this script: a mutant must be killed by a check and not by the compiler.
 
 Expected failures: XFAIL (below) lists what the defect still fails. The script exits 0 and lists them; an XPASS (an expected failure that passes) makes it exit 1, because the bug has
 closed and the mark must leave.
@@ -241,12 +242,26 @@ def t2(evento):
     return 'PASS', ''
 
 
+def cercas(texto, ordem):
+    """The positions of the fences of that order that stand as a statement of their own: alone at the start of their line, and not the body of an
+    if/for/while/else on the line before. A fence in dead code (`if (0) __atomic_thread_fence( ... );`) passed the position checks below; the
+    re-review of 2026-10-31 found it. These checks pin the fence in the text; that it is a DMB in the image is read from the disassembly, by hand."""
+    linhas, pos, achadas = texto.split('\n'), 0, []
+    for i, l in enumerate(linhas):
+        if re.match(r'[ \t]*__atomic_thread_fence\s*\(\s*' + ordem + r'\s*\)\s*;', l):
+            antes = next((x for x in reversed(linhas[:i]) if x.strip()), '')
+            if not re.search(r'^\s*(?:\}\s*)?(?:(?:if|for|while)\b.*\)|else)\s*$', antes):
+                achadas.append(pos + l.index('__atomic_thread_fence'))
+        pos += len(l) + 1
+    return achadas
+
+
 def t3(entrada):
     achou = re.findall(r'getOffset[XY]|setDisplayOffset|_driver\.tft', entrada)
     if achou:
         return 'FAIL', f'the entry touches the glass ({", ".join(sorted(set(achou)))}); it must start from _offsetSaved*'
     pv = [m.start() for m in re.finditer(r'_offsetPreview[XY]\s*=(?!=)', entrada)]
-    ce = [m.start() for m in re.finditer(r'__atomic_thread_fence\s*\(\s*__ATOMIC_RELEASE\s*\)\s*;', entrada)]
+    ce = cercas(entrada, '__ATOMIC_RELEASE')
     md = [m.start() for m in re.finditer(r'\b_uiMode\s*=(?!=)', entrada)]
     if len(pv) != 2 or len(ce) != 1 or len(md) != 1 or not max(pv) < ce[0] < md[0]:
         return 'FAIL', f'the entry must write the preview (X and Y), then a release fence, then the mode: {len(pv)} preview store(s), {len(ce)} fence(s), {len(md)} mode store(s), in that order or not'
@@ -263,7 +278,8 @@ def t4(carga):
         if not (re.search(r'_offsetSavedX\s*=', antes) and re.search(r'_offsetSavedY\s*=', antes)):
             msgs.append('a store to the glass comes before the _offsetSaved* stores: Core 1 could see a new glass with an old saved value')
             break
-        if not re.search(r'__atomic_thread_fence\s*\(\s*__ATOMIC_RELEASE\s*\)\s*;[^;{}]*$', antes):
+        cs = cercas(antes, '__ATOMIC_RELEASE')
+        if not cs or not re.fullmatch(r'__atomic_thread_fence\s*\(\s*__ATOMIC_RELEASE\s*\)\s*;[^;{}]*', antes[cs[-1]:]):
             msgs.append('no release fence (__atomic_thread_fence( __ATOMIC_RELEASE )) between the _offsetSaved* stores and the store to the glass')
             break
     return ('FAIL', '; '.join(msgs)) if msgs else ('PASS', '')
@@ -274,7 +290,7 @@ def t7(tique):
     if not tique.strip():
         return 'FAIL', 'tickDisplayOffset( ) is not defined'
     vidro = [m.start() for m in re.finditer(r'getOffset[XY]\s*\(', tique)]
-    cerca = [m.start() for m in re.finditer(r'__atomic_thread_fence\s*\(\s*__ATOMIC_ACQUIRE\s*\)\s*;', tique)]
+    cerca = cercas(tique, '__ATOMIC_ACQUIRE')
     modo = [m.start() for m in re.finditer(r'\b_uiMode\b', tique)]
     alvos = [m.start() for m in re.finditer(r'\b_offsetSaved[XY]\b|\b_offsetPreview[XY]\b', tique)]
     if len(vidro) != 2 or len(cerca) != 1 or len(modo) != 1 or not alvos:
@@ -387,6 +403,8 @@ MUTANTES = [
     ('M11 the tick reading the mode after its fence', 'tique.inc', None, None),
     ('M12 the entry writing the mode before the preview', 'entrada.inc', None, None),
     ('M9 the tick without its acquire fence', 'tique.inc', None, None),
+    ('M13 the entry\'s release fence in dead code', 'entrada.inc', '__atomic_thread_fence(__ATOMIC_RELEASE);', 'if (0) __atomic_thread_fence(__ATOMIC_RELEASE);'),
+    ('M14 the tick\'s acquire fence in dead code', 'tique.inc', '__atomic_thread_fence(__ATOMIC_ACQUIRE);', 'if (0) __atomic_thread_fence(__ATOMIC_ACQUIRE);'),
 ]
 
 

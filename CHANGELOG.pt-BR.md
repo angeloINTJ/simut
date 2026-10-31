@@ -6,7 +6,7 @@ Todas as mudanças notáveis do firmware SIMUT.
 
 ## Não lançado
 
-**O Salvar do editor de limites de alarme do painel passa a salvar os limites que estavam na tela no toque, e não o que o editor guarda quando o Core 0 chega ao evento. Isto fecha o F3 da lista *Conhecido* da v2.13.0. Uma prévia do alinhamento da tela que não foi salva não sobrevive mais à saída da tela, no painel original e no Ângulo: por onde quer que a tela seja deixada, o Core 1 devolve o deslocamento gravado
+**O Salvar do editor de limites de alarme do painel passa a salvar os limites que estavam na tela no toque, e não o que o editor guarda quando o Core 0 chega ao evento. Isto fecha o F3 da lista *Conhecido* da v2.13.0. Uma prévia do alinhamento da tela que não foi salva não sobrevive mais à saída da tela, no painel original e no Ângulo: por onde quer que a tela seja deixada, menos durante uma atualização do firmware, o Core 1 devolve o deslocamento gravado
 e redesenha, e a entrada seguinte parte dele. As duas correções foram encontradas lendo o código, e nenhuma foi conferida numa placa.**
 
 ### O Salvar dos limites de alarme no painel
@@ -22,7 +22,7 @@ Cinco casos novos na suíte `native` (`test_validators`): de **366 para 371** ca
 
 ### O alinhamento da tela
 
-- **Toda saída devolve o deslocamento gravado.** A tela aplica a prévia no vidro na hora, e só o Voltar devolvia o deslocamento gravado. A volta por inatividade de 30 s, o comando `screen` do console, a
+- **Toda saída, menos uma atualização do firmware, devolve o deslocamento gravado.** A tela aplica a prévia no vidro na hora, e só o Voltar devolvia o deslocamento gravado. A volta por inatividade de 30 s, o comando `screen` do console, a
   troca de tema pela web ou pelo console e uma atualização do firmware deixavam a prévia no vidro. `tickDisplayOffset( )` roda no Core 1 uma vez por passada, logo depois de `handleTouch( )` em
   `loopCore1( )`: com a tela à vista o alvo é a prévia, senão o deslocamento gravado; quando o vidro difere, ele aplica o alvo com as margens e levanta o pedido de redesenho da tela que está à vista e
   de nenhuma outra (o painel inicial `_isDirty` e `_forceFullRedraw`, o gráfico `_repaintGraph`, a tela de carregamento dele `_repaintLoading`, o calendário `_repaintCalendar`, a tela de atualização
@@ -37,8 +37,8 @@ Cinco casos novos na suíte `native` (`test_validators`): de **366 para 371** ca
 - **Encontrado pelo código, não visto numa placa.** O passeio de 30/10/2026 no Pico 2 W parou nesta tela; o defeito é lido do código, e os dois painéis dividem o estado e as ações. A conferência no
   Pico W (original) e no Pico 2 W (Ângulo) é uma prévia, a volta por inatividade e uma entrada nova, e uma atualização com a prévia no vidro.
 - **O teste.** `tools/tft_ui/test_alinhar.py` recorta as peças das fontes e as roda contra um painel de mentira, com o Core 1 intercalado com o Core 0 em cada ponto por onde passam o Aplicar e a
-  carga do boot: 8 casos para cada painel e 7 conferências de texto, 70 conferências do script e 612 do modelo em 2,4 s. A primeira versão dele falhou 12 conferências na árvore anterior à
-  correção (C1 a C4 dos dois painéis e T1 a T4); passa na árvore posterior, e os 16 mutantes dele a reprovam. Ele também confere que o tique levanta exatamente os pedidos da tela que está à vista e
+  carga do boot: 8 casos para cada painel e 7 conferências de texto, 74 conferências do script e 612 do modelo em 2,7 s. A primeira versão dele falhou 12 conferências na árvore anterior à
+  correção (C1 a C4 dos dois painéis e T1 a T4); passa na árvore posterior, e os 18 mutantes dele a reprovam, dois deles uma barreira deixada em código morto. Ele também confere que o tique levanta exatamente os pedidos da tela que está à vista e
   que nenhum fica de pé, nos dois painéis e em 11 telas. A prévia roda como Direita, como Baixo e como as duas, todo movimento do vidro no Core 1 tem de pintar as margens, e `screen offset` sobre uma prévia velha, com uma passada do Core 1 depois de cada escrita da entrada, nunca pode mostrar a prévia antiga. O CI roda o teste no job `gates`.
 - **O manual.** O capítulo 11A dizia que a volta por inatividade deixa a imagem deslocada e que uma entrada nova a mantém; agora diz que toda saída devolve o deslocamento gravado e que uma entrada
   nova parte dele, e cita a atualização como a exceção.
