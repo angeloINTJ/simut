@@ -117,7 +117,7 @@ class DisplayManager {
   int _menuSelection = 0, _mainMenuPage = 0, _lastMainMenuPage = 0, _menuCount = 0, _menuItems[8] = { };
   uint32_t _panelPerms = 0;
   std::vector<UiEvent> fila;
-  Pintura ultima;
+  Pintura ultima, ultimaCheia;   // the last paint, and the last one that repainted the whole screen
   int pinturas = 0;
   bool temQuadro = false;
   UiMode quadroModo = MODE_DASHBOARD;
@@ -152,7 +152,7 @@ class DisplayManager {
     _otaState = otaPack( ( uint16_t )( otaSeqOf( visto ) + 1 ), OTA_PH_NONE, OTA_WHY_NONE );
     return true;
   }
-  void pintar( UiMode m, bool cheia ) { ultima.modo = m; ultima.ox = _driver.tft->ox; ultima.oy = _driver.tft->oy; ultima.cheia = cheia; ultima.n = ++pinturas; }
+  void pintar( UiMode m, bool cheia ) { ultima.modo = m; ultima.ox = _driver.tft->ox; ultima.oy = _driver.tft->oy; ultima.cheia = cheia; ultima.n = ++pinturas; if ( cheia ) ultimaCheia = ultima; }
   void uiPaintOta( ) { pintar( MODE_OTA_UPDATE, _otaRedrawAll ); _otaRedrawAll = false; }   // both UIs: _otaRedrawAll is a full repaint (the Angulo: _uaTudo, DisplayManager_UiA.cpp)
   void showTouchCalibration( ) {   // the calibration's entry, reduced to what the Apply's order depends on: the mode changes
     ponto( "showTouchCalibration:antes" );
@@ -312,13 +312,13 @@ static void toca( World &w, char qual ) {   // a touch on Right ('R'), Voltar ('
   g_core = antes;
 }
 static bool vidro( const World &w, int x, int y ) { return w.tft.ox == x && w.tft.oy == y; }
-static bool repintado( const World &w ) {   // the screen on the glass was repainted in full at the glass's own offset
-  const Pintura &p = w.dm.ultima;
-  return p.modo == w.dm._uiMode && p.ox == w.tft.ox && p.oy == w.tft.oy && p.cheia;
+static bool repintado( const World &w ) {   // the screen on the glass was repainted in full at the glass's own offset (the update screen goes on painting its bar after that, in part)
+  const Pintura &p = w.dm.ultimaCheia;
+  return p.modo == w.dm._uiMode && p.ox == w.tft.ox && p.oy == w.tft.oy;
 }
 static std::string pintura( const World &w ) {
   char b[120];
-  snprintf( b, sizeof b, "mode %d last painted at %d,%d full=%d, glass %d,%d", ( int )w.dm._uiMode, w.dm.ultima.ox, w.dm.ultima.oy, w.dm.ultima.cheia, w.tft.ox, w.tft.oy );
+  snprintf( b, sizeof b, "mode %d, last full paint was mode %d at %d,%d, glass %d,%d", ( int )w.dm._uiMode, ( int )w.dm.ultimaCheia.modo, w.dm.ultimaCheia.ox, w.dm.ultimaCheia.oy, w.tft.ox, w.tft.oy );
   return b;
 }
 static void abreAlinhamento( World &w ) { w.dm.showSettingsDisplayOffset( ); w.dm._lastTouchTime = g_now; passe( w ); }   // the CLI's `screen` ends in resetTouchIdle( )

@@ -29,6 +29,9 @@ new offset into that mirror (loadDisplayOffset( )) before the calibration's entr
      _repaintCalendar, the loading screen _repaintLoading, every other screen _repaintSettings), and the update screen is painted by otaTick( ) from _otaRedrawAll.
   4. T6 the Angulo's screen chain takes every request (_repaintSettings, _repaintGraph, _repaintLoading, _repaintCalendar, _forceSettingsRedraw), its frame identity holds the glass's
      alignment, and its update screen turns _otaRedrawAll into a full repaint.
+  5. The mutants (the cut pieces edited one statement at a time, the loop's text reordered), each of which must fail the script: M1 the tick without its mode test, M2 the entry reading
+     the glass, M3 the Apply without loadDisplayOffset( ) or with it after showTouchCalibration( ), M4 the tick out of order, M5 the tick without the repaint request, M6 the load storing
+     the glass before the saved value. A mutant that does not compile, or an anchor not found exactly once, fails this script: a mutant must be killed by a check and not by the compiler.
 
 Expected failures: XFAIL (below) lists what the defect still fails. The script exits 0 and lists them; an XPASS (an expected failure that passes) makes it exit 1, because the bug has
 closed and the mark must leave.
@@ -61,8 +64,9 @@ F_AJ = SRC / 'ui' / 'angulo' / 'DisplayManager_UiA_Ajustes.cpp'
 F_UIA = SRC / 'ui' / 'angulo' / 'DisplayManager_UiA.cpp'
 F_ALVO = SRC / 'ui' / 'angulo' / 'telas' / 'AjustesTela.h'
 
-# The expected failures: the cases and checks the defect still fails. Empty once the fix is in (the mark leaves with the bug).
-XFAIL = frozenset(f'{c}/{ui}' for c in ('C1', 'C2', 'C3', 'C4') for ui in ('original', 'angulo')) | {'T1', 'T2', 'T3', 'T4'}
+# The expected failures: none. The defect is closed; a case that is marked here fails without failing the script, and one marked here that passes (XPASS) fails it,
+# so a known bug can be written down again with its mark and has to leave it when it is fixed.
+XFAIL = frozenset()
 
 NOMES = ('entrada.inc', 'carga.inc', 'tique.inc', 'acoes.inc', 'ocioso.inc', 'forca.inc', 'menu.inc', 'ota.inc', 'tema.inc', 'tema_ang.inc', 'evento.inc', 'toque_orig.inc', 'toque_ang.inc',
          'alinh.inc')
@@ -331,6 +335,85 @@ def resultados(rc, out, p, laco, chamadas):
     return res, (int(m.group(1)), int(m.group(2))) if m else (0, 0)
 
 
+# (name, the piece, the statement, what replaces it): each edit must make the model or the text checks fail. The statements are the tree's, as cut (comments removed).
+MUTANTES = [
+    ('M1 the tick without its mode test', 'tique.inc', '_uiMode == MODE_SETTINGS_DISPLAY_OFFSET', 'false'),
+    ('M2 the entry reading the glass', 'entrada.inc', '_offsetPreviewX = _offsetSavedX;',
+     '_offsetSavedX = _driver.tft ? _driver.tft->getOffsetX( ) : 0; _offsetSavedY = _driver.tft ? _driver.tft->getOffsetY( ) : 0; _offsetPreviewX = _offsetSavedX;'),
+    ('M3a the Apply without loadDisplayOffset( )', 'evento.inc', '_displayMgr->loadDisplayOffset(ofs);', '( void )0;'),
+    ('M3b the Apply with loadDisplayOffset( ) after showTouchCalibration( )', 'evento.inc', None, None),
+    ('M5 the tick without the repaint request', 'tique.inc', None, None),
+    ('M6 the load storing the glass before the saved value', 'carga.inc', None, None),
+]
+
+
+def aplica(nome, p, laco):
+    """(pieces, loop text) after the mutant `nome`, or None when its anchor is not exactly where it must be."""
+    q = dict(p)
+    for n, peca, antigo, novo in MUTANTES:
+        if n != nome:
+            continue
+        if antigo is not None:
+            if p[peca].count(antigo) != 1:
+                return None
+            q[peca] = p[peca].replace(antigo, novo)
+        elif n.startswith('M3b'):
+            ev = p['evento.inc']
+            chamada, tela = '_displayMgr->loadDisplayOffset(ofs);', '_displayMgr->showTouchCalibration( );'
+            if ev.count(chamada) != 1 or ev.count(tela) != 1:
+                return None
+            q['evento.inc'] = ev.replace(chamada, '( void )0;').replace(tela, tela + ' ' + chamada)
+        elif n.startswith('M5'):
+            ti = p['tique.inc']
+            achou = list(re.finditer(r'(setDisplayOffset\s*\(\s*targetX\s*,\s*targetY\s*\)\s*;).*\n\}\s*$', ti, re.S))
+            if len(achou) != 1:
+                return None
+            q['tique.inc'] = ti[:achou[0].end(1)] + '\n}\n'
+        elif n.startswith('M6'):
+            cg = p['carga.inc']
+            gl = list(re.finditer(r'[^\n;{}]*setDisplayOffset\s*\([^;]*\)\s*;', cg))
+            sv = list(re.finditer(r'\s*_offsetSavedX\s*=\s*ox\s*;\s*_offsetSavedY\s*=\s*oy\s*;', cg))
+            if len(sv) != 1 or len(gl) < 2:
+                return None
+            glass = gl[-1]
+            if glass.start() < sv[0].end():
+                return None
+            q['carga.inc'] = cg[:sv[0].start()] + '\n' + glass.group(0) + cg[sv[0].start():glass.start()] + cg[glass.end():]
+    return q, laco
+
+
+def mutante_do_laco(laco):
+    """M4: the tick moved after otaTick( )."""
+    tique = re.compile(r'\btickDisplayOffset\s*\(\s*\)\s*;')
+    ota = re.compile(r'(\botaTick\s*\(\s*\)\s*;)')
+    if len(tique.findall(laco)) != 1 or len(ota.findall(laco)) != 1:
+        return None
+    return ota.sub(r'\1 tickDisplayOffset( );', tique.sub('', laco))
+
+
+def mutantes(tmp, p, laco, chamadas, sem_tique):
+    trabalho = []
+    for nome, *_ in MUTANTES:
+        r = aplica(nome, p, laco)
+        if not confere(r is not None, f'mutant "{nome}": its anchor is not in the piece exactly once'):
+            continue
+        trabalho.append((nome, r[0], r[1]))
+    m4 = mutante_do_laco(laco)
+    if confere(m4 is not None, 'mutant "M4 the tick out of order": loopCore1( ) has not `tickDisplayOffset( );` and `otaTick( );` once each'):
+        trabalho.append(('M4 the tick out of order', p, m4))
+    with concurrent.futures.ThreadPoolExecutor(max_workers=4) as ex:
+        fs = [(nome, q, lc, ex.submit(roda, tmp, f'mut{k}', q, sem_tique)) for k, (nome, q, lc) in enumerate(trabalho)]
+        for nome, q, lc, f in fs:
+            rc_m, out_m = f.result()
+            if rc_m is None:
+                confere(False, f'mutant "{nome}" does not compile (a mutant is killed by a check, not by the compiler): {out_m.strip().splitlines()[0][:160] if out_m.strip() else ""}')
+                continue
+            res_m, _ = resultados(rc_m, out_m, q, lc, chamadas)
+            mortos = [i for i in CASOS + TEXTOS if res_m.get(i, ('FAIL', ''))[0] == 'FAIL' and i not in XFAIL]
+            if confere(bool(mortos), f'mutant "{nome}" must fail the script, and every check passed'):
+                print(f'  killed: {nome} by {", ".join(mortos[:6])}{" ..." if len(mortos) > 6 else ""} ({res_m[mortos[0]][1][:100]})')
+
+
 
 
 def julga(res):
@@ -372,6 +455,8 @@ def main():
         print('the base:')
         xfail, xpass = julga(res)
         confere(modelo[0] > 0 and len(re.findall(r'^CASE ', out, re.M)) == len(CASOS), f'the model ran {len(re.findall(r"^CASE ", out, re.M))} of {len(CASOS)} cases')
+        if not FALHAS:
+            mutantes(tmp, p, laco, chamadas, sem_tique)
     print(f'RESULT: {CONTA[0]} script checks, {MODELO[0]} model checks, {len(FALHAS)} failures, {xfail} expected failures (XFAIL), {xpass} XPASS, {time.time() - t0:.1f} s')
     return 1 if FALHAS else 0
 
