@@ -11,9 +11,9 @@ Todas as mudanças notáveis do firmware SIMUT.
 ### O Salvar dos limites de alarme no painel
 
 - **O que estava errado.** O Salvar só enfileira o `EVT_SAVE_ALARMS`, e o editor continua vivo até o Core 0 tratar o evento. O `AppManager::panelSaveAlarmLimits( )` então lia a cópia de trabalho do editor (`_tempAlarmConfig`) por referência, sem cópia e sem trava, e quem escreve nessa cópia roda no Core 1: as setas, o `repairAlarmLimits( )` e o `showAlarmEdit( )`. Duas sequências salvavam o que ninguém pediu. Um passo de seta que caía entre as leituras do MIN e do MAX de um canal salvava um par cruzado, MIN 10,0 e MAX 10,0, o estado que arma um alarme que nunca desarma. Salvar no sensor A, Voltar e abrir o editor no sensor B antes de o Core 0 rodar escrevia os limites de B em A.
-- **Achado lendo o código, não visto numa placa.** Foi achado em 31/10/2026, fechando a v2.13.0. Nenhuma corrida de bancada o reproduz, então nada aqui está provado no vidro: a caixa está provada no host (abaixo) e a trava, por leitura.
+- **Achado lendo o código, não visto numa placa.** Foi achado em 31/10/2026, fechando a v2.13.0. Não rodou numa placa. Nada aqui está provado no vidro: a caixa está provada no host (abaixo) e a trava, por leitura.
 - **O conserto.** No Salvar, o Core 1 copia a cópia de trabalho para uma caixa de uma entrada (`src/display/AlarmLimitsSnap.h`, 68 B, membro do `DisplayManager`), e o Core 0 tira a cópia de lá sob o `_stateMutex`, para o sensor do evento. Uma retirada que acha a caixa vazia, ou com os limites de outro sensor, volta antes de qualquer outra coisa: sem som, sem gravação, sem log, sem troca de tela. O `editedAlarmRecord( )`, que entregava a cópia viva, saiu, e os cinco comentários que ainda diziam que o Core 0 compara a cópia viva agora dizem por que não.
-- **O limite que fica.** A caixa guarda um Salvar. Se um segundo Salvar, noutro sensor, chega antes de o Core 0 tratar o primeiro, ele o substitui, e o primeiro salvamento se perde sem som. Antes deste conserto, a mesma sequência escrevia os limites do segundo sensor no primeiro.
+- **O limite que fica.** A caixa guarda um Salvar. Se um segundo Salvar, noutro sensor, chega antes de o Core 0 tratar o primeiro, ele o substitui, e o primeiro salvamento se perde sem som. Antes deste conserto, a mesma sequência escrevia os limites do segundo sensor no primeiro. Um Salvar que o Core 0 nega, ou cujo evento o anel cheio descarta, deixa a cópia na caixa até o próximo Salvar substituí-la; isso é inofensivo, porque o `actLimitsSave( )` é o único produtor do evento.
 
 ### Testes
 
@@ -22,17 +22,17 @@ Cinco casos novos na suíte `native` (`test_validators`): de **366 para 371** ca
 ### Flash
 
 Contra a v2.13.0 (`3ca4976f`), `firmware.bin` compilado do zero dos dois lados em 31/10/2026, assinado (a imagem mais a assinatura de 241 bytes). As oito imagens com o painel de toque crescem, porque o `DisplayManager` carrega a caixa; as três com LCD não levam o editor e têm o **mesmo sha256** de `3ca4976f`:
-- release 1.036.333 → 1.036.429 B (+96);
-- `pico_w_test` 1.037.117 → 1.037.213 B (+96);
+- release 1.036.333 → 1.036.437 B (+104);
+- `pico_w_test` 1.037.117 → 1.037.221 B (+104);
 - `pico_w_asserts` 1.038.629 → 1.038.733 B (+104);
-- Pico 2 W (Ângulo) 1.038.345 → 1.038.385 B (+40);
+- Pico 2 W (Ângulo) 1.038.345 → 1.038.393 B (+48);
 - `pico_wiretft` 788.009 → 788.153 B (+144);
 - `pico_wiretft_angulo` 829.113 → 829.217 B (+104);
 - `pico2_w_original` 1.000.297 → 1.000.417 B (+120);
-- `pico_w_test_https`, que não tem teto de OTA: 1.041.220 → 1.041.316 B sem assinatura (+96);
-- alpha 990.621 → 990.621 B, Air 1.035.581 → 1.035.581 B and `pico_wire` 604.665 → 604.665 B: iguais.
+- `pico_w_test_https`, que não tem teto de OTA: 1.041.220 → 1.041.324 B sem assinatura (+104);
+- alpha 990.621 → 990.621 B, Air 1.035.581 → 1.035.581 B e `pico_wire` 604.665 → 604.665 B: iguais.
 
-Folga sob o teto de 1.040.384 B da atualização pelo ar: release 3.955 (4.051 na v2.13.0), `pico_w_test` 3.171 (3.267), `pico_w_asserts` 1.651 (1.755). O portão avisa nas três, como já avisava, porque cada uma está a menos de um setor de flash, e não reprova nada. O slot do Pico 2 W tem 1.568.768 B, com 530.383 B livres na imagem do Ângulo (530.423) e 568.351 na original (568.471).
+Folga sob o teto de 1.040.384 B da atualização pelo ar: release 3.947 (4.051 na v2.13.0), `pico_w_test` 3.163 (3.267), `pico_w_asserts` 1.651 (1.755). O portão avisa nas três, como já avisava, porque cada uma está a menos de um setor de flash, e não reprova nada. O slot do Pico 2 W tem 1.568.768 B, com 530.375 B livres na imagem do Ângulo (530.423) e 568.351 na original (568.471).
 
 ## v2.13.0 (2026-10-31)
 
