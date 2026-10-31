@@ -15,7 +15,7 @@
  * byte deltas; the decoded argument that the behaviour is unchanged is in docs/analysis/UI_DRIVERS.md section 2.18.
  */
 #include "DisplayManager.h"
-#include "ui/original/PinKeypadLayout.h"   /* the keypad cards, the popup card and the dots: the original's alone, they left PinKeypad.h in S10c, C8; early, where PinKeypad.h defined them */
+#include "ui/original/PinKeypadLayout.h"   /* the keypad cards, the popup card, rows and hit test, the footer's zones and the dots: the original's alone, they left PinKeypad.h in S10c, C8 and S12, A3 (keyAt stays there); early, where PinKeypad.h defined them */
 #include "DisplayManager_Fonts.h"
 #include "UiWidgets.h"
 #include "SystemDefs_Validate.h"     /* PIN_MIN_LEN / PIN_MAX_LEN */

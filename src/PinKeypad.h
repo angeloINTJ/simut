@@ -7,7 +7,10 @@
  *        the geometry below (the grids and the popup's six numbers) on the
  *        original panel's images only: it is the original's, and the Ângulo's
  *        answer carries the faces and the policy and points to /api/ui for
- *        where the keys are.
+ *        where the keys are. What only the original's paint and touch handler
+ *        read (the popup's rows and hit test, the footer's zones, the cards'
+ *        corners, the dots) is in ui/original/PinKeypadLayout.h; keyAt( ) is
+ *        the one such name that stays here (the note at its definition).
  * @details Two keypads live here, and which one is on screen depends on what
  *          the screen is for.
  *
@@ -283,38 +286,9 @@ constexpr int16_t POP_KEY_W = 56, POP_KEY_H = 52, POP_GAP = 6;
  * footer, where BACK and ENTER live. */
 constexpr int16_t POP_ROW0_Y = 76, POP_ROW1_Y = 132, POP_ONE_Y = 104;
 
-inline int popupRows(int n)          { return (n > 5) ? 2 : 1; }
-inline int popupRowKeys(int n, int r) {
-	if (n <= 5) return (r == 0) ? n : 0;
-	const int first = (n + 1) / 2;
-	return (r == 0) ? first : n - first;
-}
-inline int16_t popupRowY(int n, int r) {
-	if (n <= 5) return POP_ONE_Y;
-	return (r == 0) ? POP_ROW0_Y : POP_ROW1_Y;
-}
-inline int16_t popupRowX0(int m) {
-	return (int16_t)((320 - (m * POP_KEY_W + (m - 1) * POP_GAP)) / 2);
-}
-
-/** Index into the group of the popup key at (x, y), or -1 — which the caller
- *  reads as "cancel", the same as tapping off the card. */
-inline int popupKeyAt(int n, int16_t x, int16_t y) {
-	int base = 0;
-	for (int r = 0; r < popupRows(n); r++) {
-		const int m = popupRowKeys(n, r);
-		const int16_t ry = popupRowY(n, r), rx = popupRowX0(m);
-		if (y >= ry && y < ry + POP_KEY_H) {
-			for (int i = 0; i < m; i++) {
-				const int16_t kx = (int16_t)(rx + i * (POP_KEY_W + POP_GAP));
-				if (x >= kx && x < kx + POP_KEY_W) return base + i;
-			}
-			return -1;
-		}
-		base += m;
-	}
-	return -1;
-}
+/* The rows these numbers lay out (popupRows, popupRowKeys, popupRowY, popupRowX0) and the
+ * popup's hit test (popupKeyAt) are in ui/original/PinKeypadLayout.h since S12, A3
+ * (2026-10-31): only the original's paint and its touch handler read them. */
 
 /* The widest grid and the widest card, for the fixed-size buffers that hold a
  * deal (DisplayManager::_pinKeyChars) and one tap (DisplayManager::_pinTaps).
@@ -343,6 +317,13 @@ inline int decoyCount(uint8_t alphabet, uint8_t keypad) {
 
 /* ── Hit tests ─────────────────────────────────────────────────────────── */
 
+/* keyAt( ) is read by the original's touch handler (handleTouchPanelV24( ), two call sites) and
+ * by the native suite only, like the popup's hit test that went to ui/original/PinKeypadLayout.h
+ * in S12, A3 (2026-10-31), and it stays here all the same: S11's first try moved it with the
+ * others and six of the eleven images changed (keyAt( ) and a lambda of handleTouchPanelV24( )
+ * traded places in the object, docs/analysis/UI_DRIVERS.md section 4.7). Its row in the
+ * function table stays the original's. */
+
 /** Index of the card containing (x, y) in this layout, or -1. */
 inline int keyAt(const Grid& g, int16_t x, int16_t y) {
 	for (int i = 0; i < (int)g.keys; i++) {
@@ -358,19 +339,12 @@ inline int keyAt(const Grid& g, int16_t x, int16_t y) {
  * keyAt( ) as every other layout: two copies of one rectangle is two things
  * to keep in step, and this panel has already paid for that once. */
 
-/* The footer every other screen of the panel draws: y=195, 40 tall, exit at
- * 141 and the primary action at 222. Backspace takes the two nav-arrow slots
- * as one key, which is how this panel already merges slots it does not need
- * (drawSettingsThemes does it with a 174-wide BACK). */
-constexpr int16_t FOOT_Y = 195, FOOT_H = 40;
-constexpr int16_t FOOT_BACK_X = 5,   FOOT_BACK_W = 130;   /* backspace glyph */
-constexpr int16_t FOOT_EXIT_X = 141, FOOT_EXIT_W = 75;    /* TR_BACK */
-constexpr int16_t FOOT_OK_X   = 222, FOOT_OK_W   = 93;    /* TR_ENTER */
-
-/* What only the original's paint reads is not in this header: orderedLabel,
- * POP_CARD_X/W, popupCardY/H, keyX/keyY, slotX/slotW, DOTS_Y/H, dotSpacing and
- * dotRadius are in ui/original/PinKeypadLayout.h since S10c, C8 (2026-10-28).
- * The Ângulo links none of them. */
+/* What only the original's paint and touch handler read is not in this header:
+ * orderedLabel, POP_CARD_X/W, popupCardY/H, keyX/keyY, slotX/slotW, DOTS_Y/H,
+ * dotSpacing and dotRadius are in ui/original/PinKeypadLayout.h since S10c, C8
+ * (2026-10-28), and popupRows, popupRowKeys, popupRowY, popupRowX0, popupKeyAt and
+ * the eight FOOT_* constants since S12, A3 (2026-10-31). keyAt( ) above is the
+ * exception. The Ângulo links none of them, keyAt( ) included. */
 
 }  /* namespace PinKb */
 
