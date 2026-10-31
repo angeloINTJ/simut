@@ -11,7 +11,7 @@ All notable changes to SIMUT firmware.
 ### The alarm-limits save on the panel
 
 - **What was wrong.** Salvar only queues `EVT_SAVE_ALARMS`, and the editor stays live until Core 0 handles the event. `AppManager::panelSaveAlarmLimits( )` then read the editor's working copy (`_tempAlarmConfig`) by reference, with no copy and no lock, and the writers of that copy run on Core 1: the arrow steps, `repairAlarmLimits( )` and `showAlarmEdit( )`. Two sequences saved what nobody asked for. An arrow step that landed between the reads of a channel's MIN and MAX saved a crossed pair, MIN 10.0 and MAX 10.0, the state that arms an alarm that never clears. Salvar on sensor A, Voltar, and the editor opened on sensor B before Core 0 ran wrote B's limits into A.
-- **Found by reading the code, not seen on a board.** It was found on 2026-10-31, while closing v2.13.0. Not run on a board. Nothing here is proved on the glass: the box is proved on the host (below) and the lock by reading.
+- **Found by reading the code, not seen on a board.** It was found while the Ângulo's screens were moved, before v2.13.0, whose *Known* list has it, and a second reading on 2026-10-31 confirmed the race. Not run on a board. Nothing here is proved on the glass: the box is proved on the host (below) and the lock by reading.
 - **The fix.** At Salvar, Core 1 copies the working copy into a box of one entry (`src/display/AlarmLimitsSnap.h`, 68 B, a member of `DisplayManager`), and Core 0 takes the copy out under `_stateMutex`, for the sensor of the event. A take that finds the box empty, or holding another sensor's limits, returns before anything else: no sound, no save, no log, no screen change. `editedAlarmRecord( )`, which handed out the live copy, is gone, and the five comments that still said Core 0 diffs the live copy now say why it does not.
 - **The limit that stays.** The box holds one Salvar. If a second Salvar, on another sensor, comes before Core 0 has handled the first, it replaces the first, and the first save is dropped without a sound. Before this fix the same sequence wrote the second sensor's limits into the first. A Salvar that Core 0 denies, or whose event the full ring drops, leaves its copy in the box until the next Salvar replaces it; that is harmless, because `actLimitsSave( )` is the only producer of the event.
 
@@ -21,7 +21,7 @@ Five new cases in the `native` suite (`test_validators`): **366 to 371** cases t
 
 ### Flash
 
-Against v2.13.0 (`3ca4976f`), `firmware.bin` built from zero on both sides on 2026-10-31, signed (the image plus its 241-byte signature). The eight images with the touch panel grow, because `DisplayManager` carries the box; the three with the LCD do not carry the editor and have the **same sha256** as at `3ca4976f`:
+Against v2.13.0 (`3ca4976f`), `firmware.bin` built from zero on both sides on 2026-10-31, signed (the image plus its 241-byte signature). The eight images with the touch panel grow, because `DisplayManager` carries the box; the three without it do not carry the editor (the alpha and `pico_wire` with the 16x2 LCD, the Air with no display) and have the **same sha256** as at `3ca4976f`:
 - release 1,036,333 → 1,036,437 B (+104);
 - `pico_w_test` 1,037,117 → 1,037,221 B (+104);
 - `pico_w_asserts` 1,038,629 → 1,038,733 B (+104);
