@@ -761,10 +761,13 @@ inline __attribute__((always_inline)) void DisplayManager::actLimitsBack( ) {
 	showAlarmSensorMenu(_editSensorIdx);
 }
 
-/* Salvar: the working copy stays here for Core 0 to diff against the config (editedAlarmRecord( )); it decides, saves, logs and emits the alarm_lim record, then
- * brings the sensor menu back. The caller holds acceptTouch( 13 ). */
+/* Salvar: a copy of the working copy is posted now, on Core 1 (postSavedAlarmLimits( )), and Core 0 takes that copy out when it gets to the event; it diffs the copy
+ * against the config, decides, saves, logs and emits the alarm_lim record, then brings the sensor menu back. Not the live working copy: the editor stays live until
+ * Core 0 gets there, and an arrow step, or a Voltar and the editor on another sensor, in between would be saved as this Salvar (2026-10-31, F3 of the v2.13.0 Known
+ * list; display/AlarmLimitsSnap.h). The caller holds acceptTouch( 13 ). */
 inline __attribute__((always_inline)) void DisplayManager::actLimitsSave( ) {
 	_lastPressedBtn = -1;
+	postSavedAlarmLimits( );
 	UiEvent ev; ev.type = UiEvent::EVT_SAVE_ALARMS;
 	ev.id = _editSensorIdx; ev.param = 0; pushUiEvent(ev);
 }

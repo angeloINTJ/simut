@@ -36,6 +36,7 @@ class Adafruit_GFX;
 #include "display/ClockEntry.h" /* the date and time set at the panel */
 #include "display/SettingsMenu.h" /* the Settings menu: items, order, rows */
 #include "display/LangChoice.h" /* the Idioma screen: rows, opening row, what waits for a boot */
+#include "display/AlarmLimitsSnap.h" /* the limits editor's Salvar: the copy Core 0 takes out */
 #include "OtaScreen.h"          /* what the panel says during a firmware update */
 #include "Themes.h"
 #include "SoundManager.h"
@@ -629,9 +630,11 @@ public:
 	void showPanelMessage(bool ok, LangKey msg, UiMode returnTo);
 	/** Name typed for a new account (MODE_SETTINGS_PASSWORD, purpose 1). */
 	void getNewName(char* out, size_t cap) const;
-	/** The limit editor's working copy — Core 0 diffs it against the config
-	 * on EVT_SAVE_ALARMS; Core 1 never writes the config itself any more. */
-	const SensorRecord& editedAlarmRecord( ) const { return _tempAlarmConfig; }
+	/** The limits the editor's last Salvar posted for `slot`, taken out of the box once (Core 0, on EVT_SAVE_ALARMS): false when the box is empty or holds
+	 * another sensor's. A copy, not the editor's live working copy, which Core 1 keeps moving (an arrow step, a Voltar and the editor on another sensor)
+	 * until Core 0 gets to the event: the live copy read then was saved as the user's Salvar, a crossed pair or another sensor's limits (2026-10-31,
+	 * found by reading the code; display/AlarmLimitsSnap.h). Takes _stateMutex around the take and nothing else. Core 1 never writes the config itself. */
+	bool takeSavedAlarmLimits( int slot, AlarmLimitsSnap& out );
 	void showSettingsMain( );
 	void showSettingsAlarms(const SystemConfig* cfg);
 
@@ -764,6 +767,12 @@ private:
 	 */
 	void truncateTextKeepSuffix(Adafruit_GFX* gfx, const char* name,
 		const char* suffix, char* out, size_t outSize, int16_t maxPixelW);
+
+	/** Salvar, on Core 1 (actLimitsSave( )): copies the editor's limits into _limitsSaved under _stateMutex, for takeSavedAlarmLimits( ). */
+	void postSavedAlarmLimits( );
+	/** The box that carries one Salvar from Core 1 to Core 0, empty at boot (AlarmLimitsSnap::slot is -1). Guarded by _stateMutex; a TFT member, because
+	 * only the images with the editor post to it. */
+	AlarmLimitsSnap _limitsSaved;
 #endif
 
 	SystemState _sharedState;

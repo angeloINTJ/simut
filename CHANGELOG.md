@@ -6,8 +6,19 @@ All notable changes to SIMUT firmware.
 
 ## Unreleased
 
-**A display-alignment preview that was not saved no longer outlives the alignment screen, on the original panel and on the Ângulo: whichever way the screen is left, Core 1 puts the saved offset back
-and repaints, and the next entry starts from it. Found by reading the code on 2026-10-31; the check on a board is pending.**
+**Salvar on the panel's alarm-limits editor now saves the limits that were on the screen at the tap, not what the editor holds when Core 0 gets to the event. This closes F3 of the v2.13.0 *Known* list. A display-alignment preview that was not saved no longer outlives the alignment screen, on the original panel and on the Ângulo: whichever way the screen is left, Core 1 puts the saved offset back
+and repaints, and the next entry starts from it. Both fixes were found by reading the code, and neither has been checked on a board.**
+
+### The alarm-limits save on the panel
+
+- **What was wrong.** Salvar only queues `EVT_SAVE_ALARMS`, and the editor stays live until Core 0 handles the event. `AppManager::panelSaveAlarmLimits( )` then read the editor's working copy (`_tempAlarmConfig`) by reference, with no copy and no lock, and the writers of that copy run on Core 1: the arrow steps, `repairAlarmLimits( )` and `showAlarmEdit( )`. Two sequences saved what nobody asked for. An arrow step that landed between the reads of a channel's MIN and MAX saved a crossed pair, MIN 10.0 and MAX 10.0, the state that arms an alarm that never clears. Salvar on sensor A, Voltar, and the editor opened on sensor B before Core 0 ran wrote B's limits into A.
+- **Found by reading the code, not seen on a board.** It was found while the Ângulo's screens were moved, before v2.13.0, whose *Known* list has it, and a second reading on 2026-10-31 confirmed the race. Not run on a board. Nothing here is proved on the glass: the box is proved on the host (below) and the lock by reading.
+- **The fix.** At Salvar, Core 1 copies the working copy into a box of one entry (`src/display/AlarmLimitsSnap.h`, 68 B, a member of `DisplayManager`), and Core 0 takes the copy out under `_stateMutex`, for the sensor of the event. A take that finds the box empty, or holding another sensor's limits, returns before anything else: no sound, no save, no log, no screen change. `editedAlarmRecord( )`, which handed out the live copy, is gone, and the five comments that still said Core 0 diffs the live copy now say why it does not.
+- **The limit that stays.** The box holds one Salvar. If a second Salvar, on another sensor, comes before Core 0 has handled the first, it replaces the first, and the first save is dropped without a sound. Before this fix the same sequence wrote the second sensor's limits into the first. A Salvar that Core 0 denies, or whose event the full ring drops, leaves its copy in the box until the next Salvar replaces it; that is harmless, because `actLimitsSave( )` is the only producer of the event.
+
+### Tests
+
+Five new cases in the `native` suite (`test_validators`): **366 to 371** cases there and **772 to 777** in the eleven suites, all passing on 2026-10-31. They pin the box: the copy keeps what was posted when the record changes afterwards (10.0 and 20.0 stay), a take for another sensor fails and leaves the box for its own, a second take of the same Salvar fails, a new box gives nothing for any slot, and all 8 channels of both arrays come through. They were red before the header existed (the suite did not build). Each of three mutations of the header fails exactly one case: a take that reads the live record, a take with no sensor check, a take that does not empty the box. The host's mutex does nothing, so the lock is checked by reading, not by a test.
 
 ### The display alignment
 
@@ -33,21 +44,18 @@ and repaints, and the next entry starts from it. Found by reading the code on 20
 
 ### Flash
 
-- **Bytes per image.** Every image changes: `used` moves by +8 to +224 B across the 11 images built. The eight that draw a panel carry the tick and the entry; `pico_w_alpha`, `pico_w_air`, `pico_wire`, with no panel, only the Apply's call (+8 B each). The thread fences alone cost 8 B on `pico_w_release` (1,024,268 to 1,024,276 B `used`) and on `pico2_w_release` (1,038,264 to 1,038,272 B), measured against the tree without them. Before: the records of `tools/flash_budget.json` at 3ca4976f, which a baseline build of `pico_w_release` here matched to the byte (1,024,060 B `used`, 1,036,092 B `.bin`); after: the builds of this change, through the pio shim of 2026-10-28 under the shared lock.
+Against v2.13.0 (`3ca4976f`), `firmware.bin` built from zero on both sides on 2026-10-31, signed (the image plus its 241-byte signature). The eight images with the touch panel grow, because `DisplayManager` carries the box; the three without it do not carry the editor (the alpha and `pico_wire` with the 16x2 LCD, the Air with no display) and have the **same sha256** as at `3ca4976f`:
+- release 1,036,333 → 1,036,437 B (+104);
+- `pico_w_test` 1,037,117 → 1,037,221 B (+104);
+- `pico_w_asserts` 1,038,629 → 1,038,733 B (+104);
+- Pico 2 W (Ângulo) 1,038,345 → 1,038,393 B (+48);
+- `pico_wiretft` 788,009 → 788,153 B (+144);
+- `pico_wiretft_angulo` 829,113 → 829,217 B (+104);
+- `pico2_w_original` 1,000,297 → 1,000,417 B (+120);
+- `pico_w_test_https`, which has no OTA ceiling: 1,041,220 → 1,041,324 B unsigned (+104);
+- alpha 990,621 → 990,621 B, Air 1,035,581 → 1,035,581 B and `pico_wire` 604,665 → 604,665 B: the same.
 
-| Image | `used` before | after | Δ | `.bin` before | after | Δ |
-|---|---:|---:|---:|---:|---:|---:|
-| `pico_w_release` | 1,024,060 | 1,024,276 | +216 | 1,036,092 | 1,036,308 | +216 |
-| `pico_w_test` | 1,024,844 | 1,025,068 | +224 | 1,036,876 | 1,037,100 | +224 |
-| `pico_w_test_https` | 1,029,188 | 1,029,412 | +224 | exempt | 1,041,444 | - |
-| `pico_w_asserts` | 1,026,356 | 1,026,580 | +224 | 1,038,388 | 1,038,612 | +224 |
-| `pico_w_alpha` | 976,228 | 976,236 | +8 | 990,380 | 990,380 | 0 |
-| `pico_w_air` | 1,019,464 | 1,019,472 | +8 | 1,035,340 | 1,035,340 | 0 |
-| `pico2_w_release` | 1,038,080 | 1,038,272 | +192 | 1,038,104 | 1,038,296 | +192 |
-| `pico_wire` | 592,388 | 592,396 | +8 | 604,424 | 604,432 | +8 |
-| `pico_wiretft` | 775,732 | 775,948 | +216 | 787,768 | 787,984 | +216 |
-| `pico_wiretft_angulo` | 816,836 | 817,060 | +224 | 828,872 | 829,096 | +224 |
-| `pico2_w_original` | 1,000,032 | 1,000,232 | +200 | 1,000,056 | 1,000,256 | +200 |
+Slack under the 1,040,384 B over-the-air ceiling: release 3,947 (4,051 in v2.13.0), `pico_w_test` 3,163 (3,267), `pico_w_asserts` 1,651 (1,755). The gate warns for all three, as it did, because each is under one flash sector, and fails nothing. The Pico 2 W's slot is 1,568,768 B, with 530,375 B left on the Ângulo image (530,423) and 568,351 on the original (568,471).
 
 ## v2.13.0 (2026-10-31)
 

@@ -220,10 +220,16 @@ void AppManager::panelDeactivateAlarm( ) {
  _displayMgr->forceDashboard( );
 }
 
-/* The limit editor's SAVE. Core 1 kept its working copy; the diff against
- * the config says which channels changed, and each one becomes an alarm_lim
- * record with both limits and the user. Nothing else in the record moves:
- * enable/disable is EVT_ALARM_BLOCK's, with its own bit. */
+/* The limit editor's SAVE. Core 1 posted a copy of its working copy at Salvar
+ * (postSavedAlarmLimits( )) and this takes it out for `slot`; the diff of that
+ * copy against the config says which channels changed, and each one becomes an
+ * alarm_lim record with both limits and the user. Never the live working copy
+ * (2026-10-31, F3 of the v2.13.0 Known list): the editor stays live until this
+ * event is handled, and what it shows by then (an arrow step, another sensor's
+ * editor) is not what Salvar saved. A take that fails, nothing posted for this
+ * slot, returns before anything else: no sound, no save, no log, no screen
+ * change. Nothing else in the record moves: enable/disable is
+ * EVT_ALARM_BLOCK's, with its own bit. */
 void AppManager::panelSaveAlarmLimits(int slot) {
  SystemConfig &cfg = _storageMgr->getConfig( );
  if (slot < 0 || slot >= MAX_SENSORS || !cfg.sensors[slot].active) return;
@@ -231,7 +237,8 @@ void AppManager::panelSaveAlarmLimits(int slot) {
  _displayMgr->showAlarmSensorMenu(slot);
  return;
  }
- const SensorRecord& edited = _displayMgr->editedAlarmRecord( );
+ AlarmLimitsSnap edited;   /* 68 B on Core 0's stack; never a local on Core 1 */
+ if (!_displayMgr->takeSavedAlarmLimits(slot, edited)) return;
  SensorRecord& rec = cfg.sensors[slot];
  const uint8_t actor = alarmActorFromSlot(_panelUser);
  bool changed = false;

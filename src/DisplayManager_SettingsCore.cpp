@@ -4,6 +4,7 @@
  */
 
 #include "DisplayManager.h"
+#include <stddef.h>   /* offsetof, in the static_asserts below */
 #include "simut_config.h"   /* SIMUT_NET_LAN and SIMUT_NET_WIFI are tested below: included here, not left to another header */
 #include "SensorManager.h"
 #include "DisplayManager_Fonts.h"
@@ -44,6 +45,31 @@ void DisplayManager::showAlarmEdit(int sensorIdx) {
  _editFieldFocus = 0; _lastEditPage = -1;
  _forceSettingsRedraw = true; _repaintSettings = true;
  mutex_exit(&_stateMutex);
+}
+
+/* limitsSnapPost( ) is a template on the record type so that the host suite can instantiate it: test/test_validators cannot include SystemDefs_Records.h,
+ * and RecordLike there stands in for SensorRecord (packed, 139 B, the limit arrays at bytes 66 and 98, so the floats are unaligned). The stand-in is only as
+ * good as its likeness, and these are the numbers it copies (read from SystemDefs_Records.h and compiled on the host, 2026-10-31): change RecordLike with them. */
+static_assert(sizeof(SensorRecord) == 139 && alignof(SensorRecord) == 1,
+	"SensorRecord's size or alignment moved: change RecordLike in test/test_validators/test_main.cpp, the stand-in the AlarmLimitsSnap cases use, with it");
+static_assert(offsetof(SensorRecord, chMin) == 66 && offsetof(SensorRecord, chMax) == 98,
+	"SensorRecord's limit arrays moved: change RecordLike in test/test_validators/test_main.cpp, the stand-in the AlarmLimitsSnap cases use, with it");
+
+/* Salvar's copy, on Core 1 (actLimitsSave( )): the editor's limits go into the box under the lock showAlarmEdit( ) writes them under, and nothing else runs
+ * inside it. Every writer of _tempAlarmConfig is Core 1's, so the copy is what the screen shows at the Salvar (2026-10-31, F3 of the v2.13.0 Known list). */
+void DisplayManager::postSavedAlarmLimits( ) {
+ mutex_enter_blocking(&_stateMutex);
+ limitsSnapPost(_limitsSaved, _tempAlarmConfig, _editSensorIdx);
+ mutex_exit(&_stateMutex);
+}
+
+/* Core 0, on EVT_SAVE_ALARMS: the copy Salvar posted, once and only for `slot`. The lock covers the take and nothing else: the diff, the save, the
+ * log and the alarm_lim records stay outside it, in AppManager::panelSaveAlarmLimits( ). */
+bool DisplayManager::takeSavedAlarmLimits(int slot, AlarmLimitsSnap& out) {
+ mutex_enter_blocking(&_stateMutex);
+ const bool got = limitsSnapTake(_limitsSaved, slot, out);
+ mutex_exit(&_stateMutex);
+ return got;
 }
 
 void DisplayManager::showSettingsMain( ) {

@@ -6,8 +6,19 @@ Todas as mudanças notáveis do firmware SIMUT.
 
 ## Não lançado
 
-**Uma prévia do alinhamento da tela que não foi salva não sobrevive mais à saída da tela, no painel original e no Ângulo: por onde quer que a tela seja deixada, o Core 1 devolve o deslocamento gravado
-e redesenha, e a entrada seguinte parte dele. Encontrado lendo o código em 31/10/2026; a conferência numa placa está pendente.**
+**O Salvar do editor de limites de alarme do painel passa a salvar os limites que estavam na tela no toque, e não o que o editor guarda quando o Core 0 chega ao evento. Isto fecha o F3 da lista *Conhecido* da v2.13.0. Uma prévia do alinhamento da tela que não foi salva não sobrevive mais à saída da tela, no painel original e no Ângulo: por onde quer que a tela seja deixada, o Core 1 devolve o deslocamento gravado
+e redesenha, e a entrada seguinte parte dele. As duas correções foram encontradas lendo o código, e nenhuma foi conferida numa placa.**
+
+### O Salvar dos limites de alarme no painel
+
+- **O que estava errado.** O Salvar só enfileira o `EVT_SAVE_ALARMS`, e o editor continua vivo até o Core 0 tratar o evento. O `AppManager::panelSaveAlarmLimits( )` então lia a cópia de trabalho do editor (`_tempAlarmConfig`) por referência, sem cópia e sem trava, e quem escreve nessa cópia roda no Core 1: as setas, o `repairAlarmLimits( )` e o `showAlarmEdit( )`. Duas sequências salvavam o que ninguém pediu. Um passo de seta que caía entre as leituras do MIN e do MAX de um canal salvava um par cruzado, MIN 10,0 e MAX 10,0, o estado que arma um alarme que nunca desarma. Salvar no sensor A, Voltar e abrir o editor no sensor B antes de o Core 0 rodar escrevia os limites de B em A.
+- **Achado lendo o código, não visto numa placa.** Foi achado quando as telas do Ângulo foram movidas, antes da v2.13.0, cuja lista *Conhecido* o traz, e uma segunda leitura em 31/10/2026 confirmou a corrida. Não rodou numa placa. Nada aqui está provado no vidro: a caixa está provada no host (abaixo) e a trava, por leitura.
+- **O conserto.** No Salvar, o Core 1 copia a cópia de trabalho para uma caixa de uma entrada (`src/display/AlarmLimitsSnap.h`, 68 B, membro do `DisplayManager`), e o Core 0 tira a cópia de lá sob o `_stateMutex`, para o sensor do evento. Uma retirada que acha a caixa vazia, ou com os limites de outro sensor, volta antes de qualquer outra coisa: sem som, sem gravação, sem log, sem troca de tela. O `editedAlarmRecord( )`, que entregava a cópia viva, saiu, e os cinco comentários que ainda diziam que o Core 0 compara a cópia viva agora dizem por que não.
+- **O limite que fica.** A caixa guarda um Salvar. Se um segundo Salvar, noutro sensor, chega antes de o Core 0 tratar o primeiro, ele o substitui, e o primeiro salvamento se perde sem som. Antes deste conserto, a mesma sequência escrevia os limites do segundo sensor no primeiro. Um Salvar que o Core 0 nega, ou cujo evento o anel cheio descarta, deixa a cópia na caixa até o próximo Salvar substituí-la; isso é inofensivo, porque o `actLimitsSave( )` é o único produtor do evento.
+
+### Testes
+
+Cinco casos novos na suíte `native` (`test_validators`): de **366 para 371** casos nela e de **772 para 777** nas onze suítes, todos passando em 31/10/2026. Eles fixam a caixa: a cópia guarda o que foi postado quando o registro muda depois (10,0 e 20,0 ficam), uma retirada para outro sensor falha e deixa a caixa para o dono, uma segunda retirada do mesmo Salvar falha, uma caixa nova não dá nada para nenhum slot, e os 8 canais dos dois vetores passam. Eles estavam vermelhos antes de o cabeçalho existir (a suíte não compilava). Cada uma de três mutações do cabeçalho reprova exatamente um caso: uma retirada que lê o registro vivo, uma retirada sem a conferência do sensor, uma retirada que não esvazia a caixa. O mutex do host não faz nada, então a trava é conferida por leitura, não por teste.
 
 ### O alinhamento da tela
 
@@ -34,21 +45,18 @@ e redesenha, e a entrada seguinte parte dele. Encontrado lendo o código em 31/1
 
 ### Flash
 
-- **Bytes por imagem.** Toda imagem muda: `used` varia de +8 a +224 B nas 11 imagens compiladas. As oito que desenham painel levam o tique e a entrada; `pico_w_alpha`, `pico_w_air`, `pico_wire`, sem painel, só a chamada do Aplicar (+8 B cada). As barreiras de thread sozinhas custam 8 B na `pico_w_release` (1.024.268 para 1.024.276 B de `used`) e na `pico2_w_release` (1.038.264 para 1.038.272 B), medidas contra a árvore sem elas. Antes: os registros de `tools/flash_budget.json` em 3ca4976f, que uma compilação-base da `pico_w_release` aqui reproduziu ao byte (1.024.060 B de `used`, 1.036.092 B de `.bin`); depois: as compilações desta mudança, pelo shim do pio de 28/10/2026 sob o lock compartilhado.
+Contra a v2.13.0 (`3ca4976f`), `firmware.bin` compilado do zero dos dois lados em 31/10/2026, assinado (a imagem mais a assinatura de 241 bytes). As oito imagens com o painel de toque crescem, porque o `DisplayManager` carrega a caixa; as três sem ele não levam o editor (a alpha e o `pico_wire` com o LCD 16x2, o Air sem tela) e têm o **mesmo sha256** de `3ca4976f`:
+- release 1.036.333 → 1.036.437 B (+104);
+- `pico_w_test` 1.037.117 → 1.037.221 B (+104);
+- `pico_w_asserts` 1.038.629 → 1.038.733 B (+104);
+- Pico 2 W (Ângulo) 1.038.345 → 1.038.393 B (+48);
+- `pico_wiretft` 788.009 → 788.153 B (+144);
+- `pico_wiretft_angulo` 829.113 → 829.217 B (+104);
+- `pico2_w_original` 1.000.297 → 1.000.417 B (+120);
+- `pico_w_test_https`, que não tem teto de OTA: 1.041.220 → 1.041.324 B sem assinatura (+104);
+- alpha 990.621 → 990.621 B, Air 1.035.581 → 1.035.581 B e `pico_wire` 604.665 → 604.665 B: iguais.
 
-| Imagem | `used` antes | depois | Δ | `.bin` antes | depois | Δ |
-|---|---:|---:|---:|---:|---:|---:|
-| `pico_w_release` | 1.024.060 | 1.024.276 | +216 | 1.036.092 | 1.036.308 | +216 |
-| `pico_w_test` | 1.024.844 | 1.025.068 | +224 | 1.036.876 | 1.037.100 | +224 |
-| `pico_w_test_https` | 1.029.188 | 1.029.412 | +224 | isenta | 1.041.444 | - |
-| `pico_w_asserts` | 1.026.356 | 1.026.580 | +224 | 1.038.388 | 1.038.612 | +224 |
-| `pico_w_alpha` | 976.228 | 976.236 | +8 | 990.380 | 990.380 | 0 |
-| `pico_w_air` | 1.019.464 | 1.019.472 | +8 | 1.035.340 | 1.035.340 | 0 |
-| `pico2_w_release` | 1.038.080 | 1.038.272 | +192 | 1.038.104 | 1.038.296 | +192 |
-| `pico_wire` | 592.388 | 592.396 | +8 | 604.424 | 604.432 | +8 |
-| `pico_wiretft` | 775.732 | 775.948 | +216 | 787.768 | 787.984 | +216 |
-| `pico_wiretft_angulo` | 816.836 | 817.060 | +224 | 828.872 | 829.096 | +224 |
-| `pico2_w_original` | 1.000.032 | 1.000.232 | +200 | 1.000.056 | 1.000.256 | +200 |
+Folga sob o teto de 1.040.384 B da atualização pelo ar: release 3.947 (4.051 na v2.13.0), `pico_w_test` 3.163 (3.267), `pico_w_asserts` 1.651 (1.755). O portão avisa nas três, como já avisava, porque cada uma está a menos de um setor de flash, e não reprova nada. O slot do Pico 2 W tem 1.568.768 B, com 530.375 B livres na imagem do Ângulo (530.423) e 568.351 na original (568.471).
 
 ## v2.13.0 (2026-10-31)
 
