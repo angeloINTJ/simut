@@ -58,6 +58,7 @@
 #include "display/SettingsMenu.h"       /* the panel's Settings menu: rows, order */
 #include "display/SettingsSteps.h"       /* the settings screens' steps: volumes, the alignment, the language slots */
 #include "display/LangChoice.h"         /* the Idioma screen: rows, opening row, what waits for a boot */
+#include "display/AlarmLimitsSnap.h"    /* the limits editor's Salvar: the copy Core 0 takes out */
 #include "PasswordCheck.h"             /* one derivation per password check */
 #include "SessionCheck.h"              /* a session against its live account */
 #include "display/CountInText.h"        /* a number inside a translated line */
@@ -1957,6 +1958,88 @@ void test_langidx_end_of_file(void) {
     const char* u = "@DICT\na\n@NAME X ";
     ix = langIndex(u);
     TEST_ASSERT_EQUAL_STRING("X", langRange(u, ix, LANG_SEC_NAME).c_str());
+}
+
+/* ===========================================================================
+ *  THE LIMITS EDITOR'S SAVE - display/AlarmLimitsSnap.h
+ *
+ *  Salvar queues EVT_SAVE_ALARMS and leaves the editor live. Core 0 used to read
+ *  the limits from Core 1's working copy when it got to the event, so an arrow
+ *  step in between saved a crossed pair (MIN 10.0 and MAX 10.0, the state that
+ *  arms an alarm that never clears), and a Voltar plus the editor on another
+ *  sensor in between wrote that sensor's limits into the first one. Found by
+ *  reading the code on 2026-10-31, never seen on a board (F3 of the v2.13.0
+ *  Known list). Core 1 now posts a copy at Salvar into a box of one entry, and
+ *  Core 0 takes it out for the slot of the event. The box is plain data, so
+ *  each rule is a case here; the lock around it is DisplayManager's, and the
+ *  host's mutex stub does nothing, so that part is checked by reading.
+ * =========================================================================== */
+/* What the box reads of a SensorRecord: the two limit arrays, in a packed struct that puts them where the real record does. This suite cannot
+ * include SystemDefs_Records.h (its extern dallasCrc8 and its HIST_NAN_SENTINEL clash with the copies above), so the box is a template on the record
+ * type and this stands in for it: 66 bytes of head as in the real record (active, sensorType, pins[4], rom[8], hwId[16], friendlyName[32],
+ * provisionEpoch), which leaves the floats unaligned, and 139 B in all, the size SystemDefs_Records.h asserts for SensorRecord. */
+struct __attribute__((packed)) RecordLike {
+    uint8_t head[66];
+    float chMin[MAX_SENSOR_CHANNELS];
+    float chMax[MAX_SENSOR_CHANNELS];
+    uint8_t tail[1 + MAX_SENSOR_CHANNELS];   /* alarmsActive, channelBitWidth[] */
+};
+static_assert(sizeof(RecordLike) == 139, "RecordLike has to stay the size of SensorRecord (SystemDefs_Records.h)");
+
+static void limitsSetPair(RecordLike& r, int c, float mn, float mx) {
+    r.chMin[c] = mn;   /* packed: assigned, never bound to a float& */
+    r.chMax[c] = mx;
+}
+
+void test_limits_snap_keeps_what_salvar_posted_when_the_editor_moves_on(void) {
+    RecordLike edited; memset(&edited, 0, sizeof edited);
+    limitsSetPair(edited, 0, 10.0f, 20.0f);
+    AlarmLimitsSnap box, out;
+    limitsSnapPost(box, edited, 3);
+    /* The arrow step that lands before Core 0 reads: MAX comes down onto MIN. */
+    limitsSetPair(edited, 0, 10.0f, 10.0f);
+    TEST_ASSERT_TRUE(limitsSnapTake(box, 3, out));
+    TEST_ASSERT_EQUAL_FLOAT(10.0f, out.chMin[0]);
+    TEST_ASSERT_EQUAL_FLOAT(20.0f, out.chMax[0]);
+}
+
+void test_limits_snap_a_take_for_another_slot_fails_and_leaves_the_box_for_its_own(void) {
+    RecordLike edited; memset(&edited, 0, sizeof edited);
+    limitsSetPair(edited, 0, 10.0f, 20.0f);
+    AlarmLimitsSnap box, out;
+    limitsSnapPost(box, edited, 3);
+    TEST_ASSERT_FALSE(limitsSnapTake(box, 5, out));
+    TEST_ASSERT_TRUE(limitsSnapTake(box, 3, out));
+    TEST_ASSERT_EQUAL_INT(3, out.slot);
+}
+
+void test_limits_snap_a_second_take_of_the_same_salvar_fails(void) {
+    RecordLike edited; memset(&edited, 0, sizeof edited);
+    limitsSetPair(edited, 0, 10.0f, 20.0f);
+    AlarmLimitsSnap box, out;
+    limitsSnapPost(box, edited, 3);
+    TEST_ASSERT_TRUE(limitsSnapTake(box, 3, out));
+    TEST_ASSERT_FALSE(limitsSnapTake(box, 3, out));
+}
+
+void test_limits_snap_a_new_box_gives_nothing(void) {
+    AlarmLimitsSnap box, out;
+    /* Every slot, 0 included: a box that starts at slot 0 would hand out limits nobody saved. */
+    for (int s = 0; s < MAX_SENSORS; s++) TEST_ASSERT_FALSE(limitsSnapTake(box, s, out));
+    TEST_ASSERT_FALSE(limitsSnapTake(box, -1, out));
+}
+
+void test_limits_snap_all_eight_channels_of_both_arrays_come_through(void) {
+    RecordLike edited; memset(&edited, 0, sizeof edited);
+    for (int c = 0; c < MAX_SENSOR_CHANNELS; c++) limitsSetPair(edited, c, 1.5f + (float)c, 100.25f + (float)c);
+    AlarmLimitsSnap box, out;
+    limitsSnapPost(box, edited, 0);   /* slot 0 is a slot like any other */
+    TEST_ASSERT_TRUE(limitsSnapTake(box, 0, out));
+    TEST_ASSERT_EQUAL_INT(8, MAX_SENSOR_CHANNELS);
+    for (int c = 0; c < MAX_SENSOR_CHANNELS; c++) {
+        TEST_ASSERT_EQUAL_FLOAT(1.5f + (float)c, out.chMin[c]);
+        TEST_ASSERT_EQUAL_FLOAT(100.25f + (float)c, out.chMax[c]);
+    }
 }
 
 /* ===========================================================================
@@ -5978,6 +6061,11 @@ int main(int /*argc*/, char** /*argv*/) {
     RUN_TEST(test_langidx_last_occurrence_wins);
     RUN_TEST(test_langidx_absent_and_empty_sections);
     RUN_TEST(test_langidx_end_of_file);
+    RUN_TEST(test_limits_snap_keeps_what_salvar_posted_when_the_editor_moves_on);
+    RUN_TEST(test_limits_snap_a_take_for_another_slot_fails_and_leaves_the_box_for_its_own);
+    RUN_TEST(test_limits_snap_a_second_take_of_the_same_salvar_fails);
+    RUN_TEST(test_limits_snap_a_new_box_gives_nothing);
+    RUN_TEST(test_limits_snap_all_eight_channels_of_both_arrays_come_through);
     RUN_TEST(test_langchoice_english_boot_with_a_pack_in_lang_lists_two_rows);
     RUN_TEST(test_langchoice_english_boot_without_a_pack_lists_one_row);
     RUN_TEST(test_langchoice_pt_boot_with_the_pack_loaded_lists_two_rows);

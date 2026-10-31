@@ -335,8 +335,9 @@ UaToque DisplayManager::uaToqueAjustes( const ua::Alvo *a, int16_t &x, int16_t &
           actLimitsBack( );
           return UaToque::TRATADO;
         case LIMITES_SALVAR:
-          /* SAVE: the core's actLimitsSave( ): the working copy stays here for Core 0 to diff against the config (editedAlarmRecord( )); it decides,
-           * saves, logs and brings the sensor's menu back. */
+          /* SAVE: the core's actLimitsSave( ): a copy of the working copy goes to Core 0 (postSavedAlarmLimits( )), which diffs that copy against the config,
+           * decides, saves, logs and brings the sensor's menu back. The live copy stays here and goes on moving until Core 0 gets to the event, so it is not what
+           * Core 0 reads (2026-10-31, F3 of the v2.13.0 Known list). */
           if ( !acceptTouch( 13 ) ) return UaToque::TRATADO;
           actLimitsSave( );
           return UaToque::TRATADO;
