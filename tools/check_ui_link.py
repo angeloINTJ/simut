@@ -251,9 +251,9 @@ def selftest():
                     a, f, u = scan('\n'.join(real + ['00002000 r ' + nm + '(int)']), rows, listed, set())
                     if not (len(f) == 1 and r['unit'] in f[0][1]): miss.append((nm, f))
         case('the real table: every name of every original row of a header unit, planted, is one finding that names that header (%d names)' % n_h, not miss and n_h >= len(H_ORIG), str(miss[:2]))
-        H_MIXED = ['DisplayManager::handleTouchPanelV24(short, short)', 'DisplayManager::handleTouchPanelV24(short, short)::{lambda(int)#1}::operator()(int) const']
-        miss = [(p, f) for p in H_MIXED for a, f, u in [scan('\n'.join(real + ['00002000 t ' + p]), rows, listed, set())] if not (len(f) == 1 and f[0][0] == p and 'mixed row of DisplayManager_UsersUi.cpp' in f[0][1])]
-        case('the real table: handleTouchPanelV24( ) and its lambda (a mixed row; C6b passed both) are each exactly one finding', not miss, str(miss[:2]))
+        H_V24 = ['DisplayManager::handleTouchPanelV24(short, short)', 'DisplayManager::handleTouchPanelV24(short, short)::{lambda(int)#1}::operator()(int) const']
+        miss = [(p, f) for p in H_V24 for a, f, u in [scan('\n'.join(real + ['00002000 t ' + p]), rows, listed, set())] if not (len(f) == 1 and f[0][0] == p and 'original row of DisplayManager_UsersUi.cpp' in f[0][1])]
+        case('the real table: handleTouchPanelV24( ) and its lambda (an original row since S12 A3, a mixed one before; C6b passed both) are each exactly one finding, told as an original row of its unit', not miss, str(miss[:2]))
         H_PASS = ['menuLabelNoNumber(char const*)', 'sensorNthChannel(SensorType, unsigned char)', 'DisplayManager::channelLabel(unsigned char)',
                   'dmaTftOpen(TftWithOffset*, short, short, short, short)', 'fillWindowDma(TftWithOffset*, unsigned short, short, short, short, short) [clone .constprop.0]', 'Adafruit_GFX::drawCircle(short, short, short, unsigned short)', 'Adafruit_GFX::charBounds(unsigned char, short*, short*, short*, short*, short*, short*)', 'CSWTCH.349', '__gnu_thumb1_case_si']
         miss = [(p, f) for p in H_PASS for a, f, u in [scan('\n'.join(real + ['00002000 t ' + p]), rows, listed, set())] if f]

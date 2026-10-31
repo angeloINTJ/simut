@@ -24,7 +24,7 @@
 #include <unity.h>
 #include <stdlib.h>
 #include "SystemDefs_Validate.h"
-#include "ui/original/PinKeypadLayout.h"   /* PinKb's original-only layout (keyX, popupCardY, DOTS_Y ...), which left PinKeypad.h in S10c, C8 */
+#include "ui/original/PinKeypadLayout.h"   /* PinKb's original-only layout (keyX, popupCardY, popupKeyAt, FOOT_Y, DOTS_Y ...), which left PinKeypad.h in S10c, C8 and S12, A3 (keyAt stays there) */
 #include "display/AlphaMarquee.h"
 #include "ParseFloat.h"
 #include "SystemDefs_Time.h"
