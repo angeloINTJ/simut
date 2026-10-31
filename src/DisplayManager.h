@@ -666,6 +666,7 @@ public:
 	/* Display alignment offset (+-4H / +-4V) */
 	void showSettingsDisplayOffset( );
 	void loadDisplayOffset(const DisplayOffsetData* data);
+	void tickDisplayOffset( );   /**< Core 1, once a pass (loopCore1( ), after handleTouch( )): the glass shows the preview while the alignment screen is up and the saved offset otherwise; the repaint of the screen that is up is asked for when it moves it. DisplayManager_CalibrationCore.cpp */
 	void fillDisplayOffsetData(DisplayOffsetData* data) const;
 	int8_t getDisplayOffsetX( ) const;
 	int8_t getDisplayOffsetY( ) const;
@@ -1409,7 +1410,7 @@ private:
 	/* Display positioning adjustment (+-4H / +-4V) */
 	int8_t _offsetPreviewX = 0; /**< Value being edited (applied live to _tft) */
 	int8_t _offsetPreviewY = 0;
-	int8_t _offsetSavedX = 0; /**< Snapshot of saved value (for BACK restore) */
+	int8_t _offsetSavedX = 0; /**< The saved offset: the RAM mirror that loadDisplayOffset( ) sets at boot and after the Apply. The entry starts the preview from it; BACK and tickDisplayOffset( ) put it on the glass */
 	int8_t _offsetSavedY = 0;
 	int8_t _lastOffsetDrawX = 99; /**< Sentinel: forces first redraw */
 	int8_t _lastOffsetDrawY = 99;

@@ -6,7 +6,8 @@ Todas as mudanças notáveis do firmware SIMUT.
 
 ## Não lançado
 
-**O Salvar do editor de limites de alarme do painel passa a salvar os limites que estavam na tela no toque, e não o que o editor guarda quando o Core 0 chega ao evento. Isto fecha o F3 da lista *Conhecido* da v2.13.0.**
+**O Salvar do editor de limites de alarme do painel passa a salvar os limites que estavam na tela no toque, e não o que o editor guarda quando o Core 0 chega ao evento. Isto fecha o F3 da lista *Conhecido* da v2.13.0. Uma prévia do alinhamento da tela que não foi salva não sobrevive mais à saída da tela, no painel original e no Ângulo: por onde quer que a tela seja deixada, menos durante uma atualização do firmware, o Core 1 devolve o deslocamento gravado
+e redesenha, e a entrada seguinte parte dele. As duas correções foram encontradas lendo o código, e nenhuma foi conferida numa placa.**
 
 ### O Salvar dos limites de alarme no painel
 
@@ -19,20 +20,52 @@ Todas as mudanças notáveis do firmware SIMUT.
 
 Cinco casos novos na suíte `native` (`test_validators`): de **366 para 371** casos nela e de **772 para 777** nas onze suítes, todos passando em 31/10/2026. Eles fixam a caixa: a cópia guarda o que foi postado quando o registro muda depois (10,0 e 20,0 ficam), uma retirada para outro sensor falha e deixa a caixa para o dono, uma segunda retirada do mesmo Salvar falha, uma caixa nova não dá nada para nenhum slot, e os 8 canais dos dois vetores passam. Eles estavam vermelhos antes de o cabeçalho existir (a suíte não compilava). Cada uma de três mutações do cabeçalho reprova exatamente um caso: uma retirada que lê o registro vivo, uma retirada sem a conferência do sensor, uma retirada que não esvazia a caixa. O mutex do host não faz nada, então a trava é conferida por leitura, não por teste.
 
+### O alinhamento da tela
+
+- **Toda saída, menos uma atualização do firmware, devolve o deslocamento gravado.** A tela aplica a prévia no vidro na hora, e só o Voltar devolvia o deslocamento gravado. A volta por inatividade de 30 s, o comando `screen` do console, a
+  troca de tema pela web ou pelo console e uma atualização do firmware deixavam a prévia no vidro. `tickDisplayOffset( )` roda no Core 1 uma vez por passada, logo depois de `handleTouch( )` em
+  `loopCore1( )`: com a tela à vista o alvo é a prévia, senão o deslocamento gravado; quando o vidro difere, ele aplica o alvo com as margens e levanta o pedido de redesenho da tela que está à vista e
+  de nenhuma outra (o painel inicial `_isDirty` e `_forceFullRedraw`, o gráfico `_repaintGraph`, a tela de carregamento dele `_repaintLoading`, o calendário `_repaintCalendar`, a tela de atualização
+  `_otaRedrawAll`, toda outra tela `_repaintSettings` e `_forceSettingsRedraw`), de modo que nenhum fica de pé. Uma saída mantém a prévia: durante uma atualização do firmware o Core 1 fica parado do primeiro byte ao fim e o Core 0 desenha a tela de atualização no vidro como está, então uma prévia deixada no vidro continua na tela de atualização, deslocada até 4 px, até o reinício se a atualização termina e até o Core 1 voltar e o tique corrigir se ela falha. Isso fecha o item *Uma prévia do alinhamento da tela que não foi salva sobrevive à volta por
+  inatividade, nos dois painéis* da lista *Conhecido* da v2.13.0.
+- **A entrada seguinte parte do deslocamento gravado.** `showSettingsDisplayOffset( )` lia o deslocamento "gravado" do vidro, então uma prévia deixada lá virava o gravado, e `screen offset` sobre uma
+  prévia fazia o mesmo. Agora ela parte do espelho em RAM que o boot carrega, no Core 0 sob o `_stateMutex`, e não toca o vidro. Ela grava a prévia antes do modo, para que nenhuma passada do Core 1 tome a prévia da visita anterior por alvo. Uma barreira de liberação separa as duas escritas, e a barreira de aquisição do tique é o par dela.
+- **O Aplicar carrega o novo deslocamento.** O tratador do evento chama `loadDisplayOffset( )` antes de `showTouchCalibration( )`. `loadDisplayOffset( )` grava o espelho antes do vidro, com uma barreira de
+  liberação, e o tique lê o vidro antes do espelho, com uma barreira de aquisição (`__atomic_thread_fence`, um DMB no RP2040 e no RP2350): o Core 1 nunca vê um vidro novo com um gravado antigo, nem onde os
+  núcleos reordenam acessos à memória. O comentário que dizia que o Aplicar aplicava o deslocamento no TFT está corrigido: nunca aplicou. As imagens de LCD e sem tela (`pico_w_alpha`, `pico_wire`,
+  `pico_w_air`) compilam só essa chamada, nos stubs.
+- **Encontrado pelo código, não visto numa placa.** O passeio de 30/10/2026 no Pico 2 W parou nesta tela; o defeito é lido do código, e os dois painéis dividem o estado e as ações. A conferência no
+  Pico W (original) e no Pico 2 W (Ângulo) é uma prévia, a volta por inatividade e uma entrada nova, e uma atualização com a prévia no vidro.
+- **O teste.** `tools/tft_ui/test_alinhar.py` recorta as peças das fontes e as roda contra um painel de mentira, com o Core 1 intercalado com o Core 0 em cada ponto por onde passam o Aplicar e a
+  carga do boot: 8 casos para cada painel e 7 conferências de texto, 74 conferências do script e 612 do modelo em 2,7 s. A primeira versão dele falhou 12 conferências na árvore anterior à
+  correção (C1 a C4 dos dois painéis e T1 a T4); passa na árvore posterior, e os 18 mutantes dele a reprovam, dois deles uma barreira deixada em código morto. Ele também confere que o tique levanta exatamente os pedidos da tela que está à vista e
+  que nenhum fica de pé, nos dois painéis e em 11 telas. A prévia roda como Direita, como Baixo e como as duas, todo movimento do vidro no Core 1 tem de pintar as margens, e `screen offset` sobre uma prévia velha, com uma passada do Core 1 depois de cada escrita da entrada, nunca pode mostrar a prévia antiga. O CI roda o teste no job `gates`.
+- **O manual.** O capítulo 11A dizia que a volta por inatividade deixa a imagem deslocada e que uma entrada nova a mantém; agora diz que toda saída devolve o deslocamento gravado e que uma entrada
+  nova parte dele, e cita a atualização como a exceção.
+
 ### Flash
 
-Contra a v2.13.0 (`3ca4976f`), `firmware.bin` compilado do zero dos dois lados em 31/10/2026, assinado (a imagem mais a assinatura de 241 bytes). As oito imagens com o painel de toque crescem, porque o `DisplayManager` carrega a caixa; as três sem ele não levam o editor (a alpha e o `pico_wire` com o LCD 16x2, o Air sem tela) e têm o **mesmo sha256** de `3ca4976f`:
-- release 1.036.333 → 1.036.437 B (+104);
-- `pico_w_test` 1.037.117 → 1.037.221 B (+104);
-- `pico_w_asserts` 1.038.629 → 1.038.733 B (+104);
-- Pico 2 W (Ângulo) 1.038.345 → 1.038.393 B (+48);
-- `pico_wiretft` 788.009 → 788.153 B (+144);
-- `pico_wiretft_angulo` 829.113 → 829.217 B (+104);
-- `pico2_w_original` 1.000.297 → 1.000.417 B (+120);
-- `pico_w_test_https`, que não tem teto de OTA: 1.041.220 → 1.041.324 B sem assinatura (+104);
-- alpha 990.621 → 990.621 B, Air 1.035.581 → 1.035.581 B e `pico_wire` 604.665 → 604.665 B: iguais.
+Contra a v2.13.0 (`3ca4976f`), `firmware.bin` assinado (a imagem mais a assinatura de 241 bytes), as onze imagens compiladas do zero na árvore da fusão em 31/10/2026 pelo shim do pio, com `-Werror` valendo.
+As duas correções somam: a parte do F3 é o `aaccce35` contra o `3ca4976f`, como o F3 mediu na árvore dele, e a parte do alinhamento é a árvore da fusão contra o `aaccce35`. As oito imagens com
+o painel de toque levam as duas; `pico_w_alpha`, `pico_w_air`, `pico_wire`, sem o editor e sem a tela de alinhamento, levam só a chamada do alinhamento a `loadDisplayOffset( )`, que ali é um stub.
+O `used` do linker, que o orçamento guarda, varia de +8 a +368 B no total.
 
-Folga sob o teto de 1.040.384 B da atualização pelo ar: release 3.947 (4.051 na v2.13.0), `pico_w_test` 3.163 (3.267), `pico_w_asserts` 1.651 (1.755). O portão avisa nas três, como já avisava, porque cada uma está a menos de um setor de flash, e não reprova nada. O slot do Pico 2 W tem 1.568.768 B, com 530.375 B livres na imagem do Ângulo (530.423) e 568.351 na original (568.471).
+| Imagem | v2.13.0 | depois das duas | Δ | do F3 | do alinhamento |
+|---|---:|---:|---:|---:|---:|
+| `pico_w_release` | 1.036.333 | 1.036.653 | +320 | +104 | +216 |
+| `pico_w_test` | 1.037.117 | 1.037.437 | +320 | +104 | +216 |
+| `pico_w_test_https` (sem assinatura) | 1.041.220 | 1.041.540 | +320 | +104 | +216 |
+| `pico_w_asserts` | 1.038.629 | 1.038.957 | +328 | +104 | +224 |
+| `pico_w_alpha` | 990.621 | 990.621 | 0 | 0 | 0 |
+| `pico_w_air` | 1.035.581 | 1.035.581 | 0 | 0 | 0 |
+| `pico2_w_release` | 1.038.345 | 1.038.593 | +248 | +48 | +200 |
+| `pico_wire` | 604.665 | 604.673 | +8 | 0 | +8 |
+| `pico_wiretft` | 788.009 | 788.377 | +368 | +144 | +224 |
+| `pico_wiretft_angulo` | 829.113 | 829.441 | +328 | +104 | +224 |
+| `pico2_w_original` | 1.000.297 | 1.000.617 | +320 | +120 | +200 |
+
+Folga sob o teto de 1.040.384 B da atualização pelo ar: release 3.731 (4.051 na v2.13.0), `pico_w_test` 2.947 (3.267), `pico_w_asserts` 1.427 (1.755).
+O portão avisa nas três, como já avisava, porque cada uma está a menos de um setor de flash, e não reprova nada. O slot do Pico 2 W é de 1.568.768 B, com 530.175 B sobrando na imagem do Ângulo (530.423) e 568.151 na original (568.471).
 
 ## v2.13.0 (2026-10-31)
 

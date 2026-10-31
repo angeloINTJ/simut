@@ -604,7 +604,8 @@ inline __attribute__((always_inline)) void DisplayManager::actOffsetPreview( ) {
 }
 
 /* Voltar: the preview is discarded, the saved offset goes back onto the panel (on Core 1, before the menu is shown) and the settings list comes up. The
- * caller holds acceptTouch( 25 ) and returns. */
+ * caller holds acceptTouch( 25 ) and returns.
+ * Every other exit from the screen leaves it to tickDisplayOffset( ) (CalibrationCore.cpp), which puts the saved offset back on Core 1's next pass. */
 inline __attribute__((always_inline)) void DisplayManager::actOffsetBack( ) {
 	/* Discard preview adjustment: restore saved offset before exiting. */
 	_offsetPreviewX = _offsetSavedX;

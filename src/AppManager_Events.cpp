@@ -485,11 +485,13 @@ void AppManager::core0Yield( ) {
 
  else if (uiEv.type == UiEvent::EVT_APPLY_DISPLAY_OFFSET) {
  /*
- * Applies the new offset to the TFT (already applied by the screen
- * in preview, but values come from the event to ensure consistency),
- * persists in reserved[] and restarts touch calibration: the
- * raw→pixel mapping directly depends on the image position on the LCD,
- * so keeping the old calibration after shifting makes no sense.
+ * Takes the new offset as the saved one: loadDisplayOffset( ) sets the
+ * mirror that Core 1's tickDisplayOffset( ) puts on the glass whenever the
+ * alignment screen is not shown, and writes the glass too (the preview
+ * put it there already; this code never did, whatever this comment said
+ * until 2026-10-31). Then it persists in reserved[] and restarts touch
+ * calibration: the raw→pixel mapping directly depends on the image position
+ * on the LCD, so keeping the old calibration after shifting makes no sense.
  */
  SystemConfig &cfg = _storageMgr->getConfig( );
 
@@ -501,6 +503,11 @@ void AppManager::core0Yield( ) {
  ofs->offsetX = ox;
  ofs->offsetY = oy;
  ofs->reserved = 0;
+
+ /* BEFORE showTouchCalibration( ): the mode changes there, and from then on Core 1 takes the
+ * saved offset for the target. With the old one still in the mirror it would put the previous
+ * offset back on the glass for a pass, under the new calibration screen (2026-10-31). */
+ _displayMgr->loadDisplayOffset(ofs);
 
  /* Invalidates touch calibration: magic=0 forces recalibration; the rest
  * of the block can remain as garbage — magic is the sole validity
