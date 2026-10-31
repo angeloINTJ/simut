@@ -25,14 +25,14 @@ new offset into that mirror (loadDisplayOffset( )) before the calibration's entr
      the original's touch branch (UiTouchChain.h) and the Angulo's case (DisplayManager_UiA_Ajustes.cpp), and the Angulo's uiThemeChanged( ). What the stand-in models, not cuts: the
      screens' draw chain (uiPass( )), the original's theme hook (it draws) and the calibration's entry (it changes the mode): items 3 and 4 hold those to the files.
   2. The text: T1 the tick is defined once, called once, from loopCore1( ), between `handleTouch( );` and `otaTick( );` and outside _stateMutex (never on Core 0); T2 in the Apply,
-     `loadDisplayOffset(` comes before `showTouchCalibration(`; T3 the entry does not touch the glass; T4 loadDisplayOffset( ) writes _offsetSaved* before every store to the glass, with a release fence between; T7 the tick reads the glass, then an acquire fence, then the targets.
+     `loadDisplayOffset(` comes before `showTouchCalibration(`; T3 the entry does not touch the glass and writes the preview, a release fence, then the mode; T4 loadDisplayOffset( ) writes _offsetSaved* before every store to the glass, with a release fence between; T7 the tick reads the glass and the mode, then an acquire fence, then the targets.
   3. T5 the original's screen chain: each mode branch of uiPass( ) tests the flag the stand-in assumes (the dashboard pullSnapshot( ), the chart _repaintGraph, the calendar
      _repaintCalendar, the loading screen _repaintLoading, every other screen _repaintSettings), and the update screen is painted by otaTick( ) from _otaRedrawAll.
   4. T6 the Angulo's screen chain takes every request (_repaintSettings, _repaintGraph, _repaintLoading, _repaintCalendar, _forceSettingsRedraw), its frame identity holds the glass's
      alignment, and its update screen turns _otaRedrawAll into a full repaint.
   5. The mutants (the cut pieces edited one statement at a time, the loop's text reordered), each of which must fail the script: M1 the tick without its mode test, M2 the entry reading
      the glass, M3 the Apply without loadDisplayOffset( ) or with it after showTouchCalibration( ), M4 the tick out of order, M5 the tick without the repaint request, M6 the load storing
-     the glass before the saved value, M7 the tick raising every request whatever the screen is, M8 the load without its release fence, M9 the tick without its acquire fence, and the review's N7 the tick comparing the X axis only, N7b the tick taking the saved Y while the screen is shown, N4 the restore without the margins. A mutant that does not compile, or an anchor not found exactly once, fails this script: a mutant must be killed by a check and not by the compiler.
+     the glass before the saved value, M7 the tick raising every request whatever the screen is, M8 the load without its release fence, M9 the tick without its acquire fence, and the review's N7 the tick comparing the X axis only, N7b the tick taking the saved Y while the screen is shown, N4 the restore without the margins, M10 the entry without its release fence, M11 the tick reading the mode after its fence, M12 the entry writing the mode before the preview. A mutant that does not compile, or an anchor not found exactly once, fails this script: a mutant must be killed by a check and not by the compiler.
 
 Expected failures: XFAIL (below) lists what the defect still fails. The script exits 0 and lists them; an XPASS (an expected failure that passes) makes it exit 1, because the bug has
 closed and the mark must leave.
@@ -65,9 +65,9 @@ F_AJ = SRC / 'ui' / 'angulo' / 'DisplayManager_UiA_Ajustes.cpp'
 F_UIA = SRC / 'ui' / 'angulo' / 'DisplayManager_UiA.cpp'
 F_ALVO = SRC / 'ui' / 'angulo' / 'telas' / 'AjustesTela.h'
 
-# The expected failures: none. The defect is closed; a case that is marked here fails without failing the script, and one marked here that passes (XPASS) fails it,
-# so a known bug can be written down again with its mark and has to leave it when it is fixed.
-XFAIL = frozenset()
+# The expected failures: T3 and T7, the fences of the entry's order (the review of 2026-10-31, round 4). A check that is marked here fails without failing the script, and one marked here that
+# passes (XPASS) fails it, so the mark has to leave with the fix. No mutant runs while a mark stands: it is judged against a base that is green.
+XFAIL = frozenset({'T3', 'T7'})
 
 NOMES = ('entrada.inc', 'carga.inc', 'tique.inc', 'acoes.inc', 'ocioso.inc', 'forca.inc', 'menu.inc', 'ota.inc', 'tema.inc', 'tema_ang.inc', 'evento.inc', 'toque_orig.inc', 'toque_ang.inc',
          'alinh.inc')
@@ -243,7 +243,14 @@ def t2(evento):
 
 def t3(entrada):
     achou = re.findall(r'getOffset[XY]|setDisplayOffset|_driver\.tft', entrada)
-    return ('FAIL', f'the entry touches the glass ({", ".join(sorted(set(achou)))}); it must start from _offsetSaved*') if achou else ('PASS', '')
+    if achou:
+        return 'FAIL', f'the entry touches the glass ({", ".join(sorted(set(achou)))}); it must start from _offsetSaved*'
+    pv = [m.start() for m in re.finditer(r'_offsetPreview[XY]\s*=(?!=)', entrada)]
+    ce = [m.start() for m in re.finditer(r'__atomic_thread_fence\s*\(\s*__ATOMIC_RELEASE\s*\)\s*;', entrada)]
+    md = [m.start() for m in re.finditer(r'\b_uiMode\s*=(?!=)', entrada)]
+    if len(pv) != 2 or len(ce) != 1 or len(md) != 1 or not max(pv) < ce[0] < md[0]:
+        return 'FAIL', f'the entry must write the preview (X and Y), then a release fence, then the mode: {len(pv)} preview store(s), {len(ce)} fence(s), {len(md)} mode store(s), in that order or not'
+    return 'PASS', ''
 
 
 def t4(carga):
@@ -263,16 +270,17 @@ def t4(carga):
 
 
 def t7(tique):
-    """The tick reads the glass, then an acquire fence, then the targets: loadDisplayOffset( ) writes the mirror before the glass, so a pass that read the new glass reads the new mirror."""
+    """The tick reads the glass and the mode, then an acquire fence, then the targets: loadDisplayOffset( ) writes the mirror before the glass and the entry writes the preview before the mode, so a pass that read the new glass, or the mode "shown", reads the new values."""
     if not tique.strip():
         return 'FAIL', 'tickDisplayOffset( ) is not defined'
     vidro = [m.start() for m in re.finditer(r'getOffset[XY]\s*\(', tique)]
     cerca = [m.start() for m in re.finditer(r'__atomic_thread_fence\s*\(\s*__ATOMIC_ACQUIRE\s*\)\s*;', tique)]
-    alvos = [m.start() for m in re.finditer(r'\b_uiMode\b|\b_offsetSaved[XY]\b|\b_offsetPreview[XY]\b', tique)]
-    if len(vidro) != 2 or len(cerca) != 1 or not alvos:
-        return 'FAIL', f'the tick reads the glass {len(vidro)} time(s) (wanted 2, X and Y) and has {len(cerca)} acquire fence(s) (wanted 1)'
-    if not max(vidro) < cerca[0] < min(alvos):
-        return 'FAIL', 'the tick must read the glass, then an acquire fence (__atomic_thread_fence), then the targets'
+    modo = [m.start() for m in re.finditer(r'\b_uiMode\b', tique)]
+    alvos = [m.start() for m in re.finditer(r'\b_offsetSaved[XY]\b|\b_offsetPreview[XY]\b', tique)]
+    if len(vidro) != 2 or len(cerca) != 1 or len(modo) != 1 or not alvos:
+        return 'FAIL', f'the tick reads the glass {len(vidro)} time(s) (wanted 2, X and Y), the mode {len(modo)} time(s) (wanted 1) and has {len(cerca)} acquire fence(s) (wanted 1)'
+    if not (max(vidro) < cerca[0] and modo[0] < cerca[0] < min(alvos)):
+        return 'FAIL', 'the tick must read the glass and the mode, then an acquire fence (__atomic_thread_fence), then the targets'
     return 'PASS', ''
 
 
@@ -375,6 +383,9 @@ MUTANTES = [
     ('N7 the tick comparing the X axis only', 'tique.inc', 'if (glassX == targetX && glassY == targetY) return;', 'if (glassX == targetX) return;'),
     ('N7b the tick taking the saved Y while the screen is shown', 'tique.inc', 'const int8_t targetY = shown ? _offsetPreviewY : _offsetSavedY;', 'const int8_t targetY = _offsetSavedY;'),
     ('N4 the restore without the margins', 'tique.inc', '_driver.tft->setDisplayOffset(targetX, targetY);', '_driver.tft->setDisplayOffset(targetX, targetY, false);'),
+    ('M10 the entry without its release fence', 'entrada.inc', None, None),
+    ('M11 the tick reading the mode after its fence', 'tique.inc', None, None),
+    ('M12 the entry writing the mode before the preview', 'entrada.inc', None, None),
     ('M9 the tick without its acquire fence', 'tique.inc', None, None),
 ]
 
@@ -401,6 +412,28 @@ def aplica(nome, p, laco):
             if len(achou) != 1:
                 return None
             q['tique.inc'] = ti[:achou[0].end(1)] + '\n}\n'
+        elif n.startswith('M10'):
+            novo_en = re.sub(r'__atomic_thread_fence\s*\(\s*__ATOMIC_RELEASE\s*\)\s*;', '', p['entrada.inc'])
+            if novo_en == p['entrada.inc']:
+                return None
+            q['entrada.inc'] = novo_en
+        elif n.startswith('M11'):
+            ti = p['tique.inc']
+            fe = re.search(r'__atomic_thread_fence\s*\(\s*__ATOMIC_ACQUIRE\s*\)\s*;', ti)
+            if not fe or 'const UiMode mode' not in ti:
+                return None
+            sem = ti[:fe.start()] + ti[fe.end():]
+            k = sem.index('const UiMode mode')
+            q['tique.inc'] = sem[:k] + fe.group(0) + ' ' + sem[k:]
+        elif n.startswith('M12'):
+            en = p['entrada.inc']
+            mm = re.search(r'_uiMode\s*=\s*MODE_SETTINGS_DISPLAY_OFFSET\s*;', en)
+            pv = re.search(r'_offsetPreviewX\s*=', en)
+            if not mm or not pv or mm.start() < pv.start():
+                return None
+            sem = en[:mm.start()] + en[mm.end():]
+            k = sem.index('_offsetPreviewX')
+            q['entrada.inc'] = sem[:k] + mm.group(0) + ' ' + sem[k:]
         elif n.startswith('M8'):
             novo_cg = re.sub(r'__atomic_thread_fence\s*\(\s*__ATOMIC_RELEASE\s*\)\s*;', '', p['carga.inc'])
             if novo_cg == p['carga.inc']:
@@ -502,7 +535,7 @@ def main():
         print('the base:')
         xfail, xpass = julga(res)
         confere(modelo[0] > 0 and len(re.findall(r'^CASE ', out, re.M)) == len(CASOS), f'the model ran {len(re.findall(r"^CASE ", out, re.M))} of {len(CASOS)} cases')
-        if not FALHAS:
+        if not FALHAS and not XFAIL:   # a mutant is judged against a base that is green
             mutantes(tmp, p, laco, chamadas, sem_tique)
     print(f'RESULT: {CONTA[0]} script checks, {MODELO[0]} model checks, {len(FALHAS)} failures, {xfail} expected failures (XFAIL), {xpass} XPASS, {time.time() - t0:.1f} s')
     return 1 if FALHAS else 0
