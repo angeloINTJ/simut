@@ -21262,7 +21262,7 @@ curl -s -b jar -F bkp=@backup.bkp &quot;$H/api/restore?op=apply&quot;</code></pr
 </tr>
 <tr class="odd">
 <td><code>GET /api/keypad</code></td>
-<td>As faces do teclado de PIN que está na tela, a geometria das teclas e a política de PIN</td>
+<td>As faces do teclado de PIN que está na tela e a política de PIN. No painel original, também a geometria das teclas; no Ângulo, no lugar dela, <code>targets</code>: a rota onde as teclas estão</td>
 </tr>
 <tr class="even">
 <td><code>GET /api/ui</code></td>
@@ -21280,9 +21280,13 @@ curl -s -b jar -X POST &quot;$H/api/touch&quot; -d &#39;x=160&amp;y=120&#39;</co
 <li><strong>O PIN continua valendo.</strong> Um toque remoto passa pelo mesmo teclado de PIN que um dedo. A rota não dá acesso a nada que a conta não tenha.</li>
 </ul>
 <p><code>GET /api/keypad</code> responde, por exemplo:</p>
-<pre class="json"><code>{&quot;faces&quot;:[&quot;123&quot;,&quot;456&quot;,&quot;789&quot;,&quot;0&quot;],&quot;up&quot;:true,&quot;kb&quot;:&quot;num&quot;,
- &quot;grid&quot;:[4,3,2,2,20,60,130,60,150,70],&quot;policy&quot;:[4,8,3,0]}</code></pre>
-<p><code>faces</code> descreve as teclas como estão desenhadas, sem dizer qual caractere é o do PIN. <code>up</code> diz se o teclado está na tela; <code>kb</code> é <code>cards</code> (teclado embaralhado), <code>num</code> ou <code>groups</code>. <code>grid</code> traz a geometria das teclas em pixels, e <code>policy</code> traz o mínimo, o máximo, os glifos por tecla e o alfabeto da política de PIN.</p>
+<pre class="json"><code>{&quot;faces&quot;:[&quot;123&quot;,&quot;45!&quot;,&quot;678&quot;,&quot;90@&quot;],&quot;up&quot;:true,&quot;kb&quot;:&quot;cards&quot;,
+ &quot;grid&quot;:[4,3,2,2,6,72,152,44,156,50],&quot;policy&quot;:[4,8,3,0]}</code></pre>
+<p><code>faces</code> descreve as teclas como estão desenhadas, sem dizer qual caractere é o do PIN: uma por tecla, em ordem, e no teclado numérico ordenado duas delas são vazias. <code>up</code> diz se o teclado está na tela; <code>kb</code> é <code>cards</code> (cartões sorteados), <code>num</code> ou <code>groups</code>. <code>policy</code> traz o mínimo, o máximo, os glifos por tecla e o alfabeto da política de PIN. No painel original, <code>grid</code> traz a geometria das teclas em pixels (quantas, glifos por tecla, colunas, linhas, x, y, largura, altura e o passo nos dois eixos) e, no teclado <code>groups</code>, <code>pop</code> traz a do popup.</p>
+<p>O Ângulo desenha as teclas em outro lugar, e a geometria do original as erraria. Por isso a resposta dele não traz <code>grid</code> nem <code>pop</code>, e traz <code>targets</code>, a rota que lista os alvos de toque do quadro que está na tela:</p>
+<pre class="json"><code>{&quot;faces&quot;:[&quot;123&quot;,&quot;45!&quot;,&quot;678&quot;,&quot;90@&quot;],&quot;up&quot;:true,&quot;kb&quot;:&quot;cards&quot;,
+ &quot;policy&quot;:[4,8,3,0],&quot;targets&quot;:&quot;/api/ui&quot;}</code></pre>
+<p>Um cliente que toca o teclado lê <code>targets</code> quando o campo existe, e <code>grid</code> quando não existe.</p>
 <h3 id="cap-26-python">Um cliente em Python</h3>
 <p>Este cliente usa a biblioteca <code>requests</code>. Ele entra, lê o estado, sai e trata a sessão vencida do jeito descrito em <a href="#cap-26-401-403">401 e 403</a>. A conta e a senha vêm do ambiente.</p>
 <pre class="python"><code>#!/usr/bin/env python3

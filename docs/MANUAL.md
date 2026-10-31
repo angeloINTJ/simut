@@ -1345,7 +1345,7 @@ What a manager of many devices (the SIMUT-RX app, or any client) relies on:
 | `/api/screenshot_chunk` | GET | One 16-row chunk with a CRC32, for verifiable transfer |
 | `/api/screen_stream` | GET | One frame of the panel in palette-RLE strips (live mirror) |
 | `/api/touch` | POST | Taps the panel at `x` (0..319), `y` (0..239) — panel coordinates; with `ms` (100..15000) it holds the touch that long |
-| `/api/keypad` | GET | The PIN keypad **as it is on the glass right now**: `faces` (one per key, positional — the ordered numeric pad has two EMPTY ones), `kb` (`cards`, `num` or `groups`), `grid`, `policy`, and `pop` for the two-tap alphanumeric popup. It describes the glass, not the secret: on a dealt keypad it never says which slot of a card is the character |
+| `/api/keypad` | GET | The PIN keypad **as it is on the glass right now**: `faces` (one per key, positional — the ordered numeric pad has two EMPTY ones), `kb` (`cards`, `num` or `groups`), `policy`, and, on the original panel, `grid` and `pop` for the two-tap alphanumeric popup. On the Ângulo the answer has `"targets":"/api/ui"` in place of `grid` and `pop`: where the keys are is in the targets of that route. It describes the glass, not the secret: on a dealt keypad it never says which slot of a card is the character |
 
 ---
 

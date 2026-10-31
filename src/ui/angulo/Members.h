@@ -10,6 +10,11 @@ public:
 	/* The language pack has finished loading at boot (AppManager_Boot.cpp, Core 0, once): the panel reads the pack's @ANGULO section into ua::textosCarregar( ).
 	 * Returns 0, or the ua::TextosResultado of the refusal, which the core logs. DisplayManager_UiA_Textos.cpp; the original's hook of the same name returns 0 (UiDriverMembers.h). */
 	int uiLangLoaded( );
+	/* GET /api/keypad (WebManager::handleApiKeypad( ), Core 0) sends the faces, "up", "kb" and the policy and, in place of the original panel's grid and popup geometry (which
+	 * would miss this panel's keys), this route: the one that lists where the keys of the frame on the glass are (WebManager_UiA.cpp registers it). Defined here, in the class and
+	 * not in a unit of its own, like uaSujo( ) below: the handler is another unit, and what it asks has to be a constant it can see, so that the original's branch folds out of the Angulo's
+	 * images (S12, F4). The original's hook of the same name answers nullptr (UiDriverMembers.h). */
+	const char *uiKeypadTargets( ) const { return "/api/ui"; }
 private:
 	/* The Ângulo build (src/ui/angulo/DisplayManager_UiA*.cpp). Last among
 	 * the members, like the update screen's, so they move no other one. */

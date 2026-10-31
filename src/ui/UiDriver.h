@@ -30,8 +30,11 @@
 
 /* UI_HOOK declares a hook of the driver contract in the class. The original's hooks are the core's own code,
  * moved: always_inline, so a hook costs the call it replaced and the product images keep their bytes. The
- * Ângulo's are ordinary functions, defined in src/ui/angulo/. The macro reads the same in every translation
- * unit of an image, so a hook is inline everywhere or nowhere ([dcl.inline]/6). */
+ * Ângulo's are ordinary functions, defined in src/ui/angulo/, except one that answers a constant:
+ * uiKeypadTargets( ) is defined inside the class (angulo/Members.h), inline by the language and not by this macro,
+ * so that WebManager::handleApiKeypad( ), in another unit, sees the constant and the branch its image does not take
+ * folds out (S12, F4; uaSujo( ) there is the other member defined in the class). The macro reads the same in every
+ * translation unit of an image, so a hook is inline everywhere or nowhere ([dcl.inline]/6). */
 #if SIMUT_UI_ANGULO
 #define UI_HOOK
 #else

@@ -1369,7 +1369,7 @@ Permissões entre colchetes.
 | `/api/screenshot_chunk` | GET | Um bloco de 16 linhas com um CRC32, para transferência verificável |
 | `/api/screen_stream` | GET | Um quadro do painel em faixas com RLE de paleta (espelho ao vivo) |
 | `/api/touch` | POST | Toca o painel em `x` (0..319) e `y` (0..239) — coordenadas do painel; com `ms` (100..15000), segura o toque esse tempo |
-| `/api/keypad` | GET | O teclado do PIN **como está no vidro agora**: `faces` (uma por tecla, POSICIONAL — o pad numérico ordenado tem duas VAZIAS), `kb` (`cards`, `num` ou `groups`), `grid`, `policy` e `pop` para o popup do alfanumérico de dois toques. Descreve o vidro, não o segredo: num teclado sorteado nunca diz qual casa do cartão é o caractere |
+| `/api/keypad` | GET | O teclado do PIN **como está no vidro agora**: `faces` (uma por tecla, POSICIONAL — o pad numérico ordenado tem duas VAZIAS), `kb` (`cards`, `num` ou `groups`), `policy` e, no painel original, `grid` e `pop` para o popup do alfanumérico de dois toques. No Ângulo a resposta traz `"targets":"/api/ui"` no lugar de `grid` e `pop`: onde as teclas estão é nos alvos dessa rota. Descreve o vidro, não o segredo: num teclado sorteado nunca diz qual casa do cartão é o caractere |
 
 ---
 

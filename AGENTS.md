@@ -349,6 +349,14 @@ assim:
   uma lista cujo último cartão era `'56'`. **Leia a grade e a política de
   `GET /api/keypad`** (`grid` = keys, slots, cols, rows, x, y, w, h, pitchX,
   pitchY; `policy` = minLen, maxLen, teclado, alfabeto), nunca de constantes.
+  **Isso vale para o painel original.** Na imagem com o painel Ângulo (o
+  Pico 2 W da release e a `pico_wiretft_angulo`) a resposta não traz `grid`
+  nem `pop`, porque a geometria do original erraria as teclas do Ângulo: traz
+  `faces`, `up`, `kb`, `policy` e `"targets":"/api/ui"`, e as coordenadas das
+  teclas são os alvos dessa rota (`tools/tft_ui/roteiro_ui.py` toca por eles).
+  As duas ferramentas do painel original (`panel_users_hw_test.py` e
+  `panel_fulltable_test.py`) leem a rota por `tools/keypad_answer.py` e
+  recusam essa resposta com uma mensagem que diz onde tocar.
 - **Com 1 glifo por tecla NÃO há sorteio**: o teclado é ORDENADO, porque um
   conjunto de um não esconde nada de quem lê o vidro e embaralhar só custa a
   memória muscular do operador. O campo **`kb`** do `/api/keypad` diz qual
@@ -360,9 +368,9 @@ assim:
   | `groups` | 9 grupos (`0-9 ABC … WXYZ`) + popup | **2** (grupo, caractere) |
   Atenção: num teclado ordenado **não espere re-sorteio** (`fresh_faces` esperaria
   para sempre) e **não descarte faces vazias** — elas são posicionais, e o pad
-  numérico tem duas. A geometria do popup vem em **`pop`** = keyW, keyH, gap,
-  y(1 linha), y(linha 0), y(linha 1); uma linha de `m` teclas começa em
-  `(320 - (m*keyW + (m-1)*gap)) / 2`.
+  numérico tem duas. A geometria do popup vem em **`pop`** (só no painel
+  original) = keyW, keyH, gap, y(1 linha), y(linha 0), y(linha 1); uma linha
+  de `m` teclas começa em `(320 - (m*keyW + (m-1)*gap)) / 2`.
 - **A tela de ESCOLHER um PIN é sempre ordenada**, qualquer que seja a
   política — escolher não é o problema que o embaralhamento resolve. Ela também
   responde ao `/api/keypad` agora, então `pin_exact( )` lê a geometria como

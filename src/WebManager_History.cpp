@@ -2313,7 +2313,10 @@ void WebManager::handleApiTouch( ) {
  _server->send(200, "application/json", json);
 }
 
-/* GET /api/keypad -> {"up":true,"faces":["123","45!","678","90@"]}
+/* GET /api/keypad -> {"faces":["123","45!","678","90@"],"up":true,"kb":"cards","grid":[...],"policy":[...]}
+ * on the original panel, with ,"pop":[...] added for the groups keyboard, and
+ * {"faces":[...],"up":true,"kb":"cards","policy":[...],"targets":"/api/ui"} on the
+ * Ângulo (below).
  *
  * The same four card faces `show display keypad` prints, over HTTP. It is not
  * a convenience: reading them over the serial CLI costs ~7 s per digit on a
@@ -2328,6 +2331,20 @@ void WebManager::handleApiTouch( ) {
  * to it as a finger is. Empty faces when the keypad is not up, so it can
  * never describe a layout that is not live.
  *
+ * The Ângulo's answer has no "grid" and no "pop" (F4 of v2.13.0's Known list;
+ * the maintainer's option (c), 2026-10-31). They are the original panel's
+ * geometry (PinKb::GRIDS, NUM_GRID, GROUP_GRID, POP_*), and a client that taps
+ * by them misses the Ângulo's keys: with four cards the original's are 152x44
+ * at 6,72 and the Ângulo's 146x44 at 12,96, and its popup keys are 48 px wide
+ * where the original's are 56. The faces, "up", "kb" and "policy" are the
+ * core's state and mean the same on both (the Ângulo's key k is PinKb's key
+ * k), so they stay; "targets" names the route that lists where to tap on the
+ * frame on the glass. The UI driver decides, through a hook that is a constant
+ * on each side (uiKeypadTargets( ): nullptr on the original, "/api/ui" on the
+ * Ângulo), so the branch an image does not take folds out of it: the Ângulo's
+ * images carry neither the grid's nor the popup's format string, and the
+ * others carry no "targets". The original's answer is what it was, byte for byte.
+ *
  * Deliberately NOT gated by the post-touch 503 window that /api/screenshot
  * uses: that window exists to keep a screenshot from catching a half-painted
  * frame, and _pinKeyChars is plain state, not the canvas. Waiting 5 s per tap
@@ -2337,7 +2354,8 @@ void WebManager::handleApiKeypad( ) {
  if (!_displayRef) { _server->send(500, "text/plain", "Display offline"); return; }
 
  /* v25: the layout is a policy setting, so the geometry goes on the wire with
-  * the faces. Before this the bench carried PIN_KEY_X/Y/W/H as constants and
+  * the faces (the original's; the Ângulo's answer does not carry it, below).
+  * Before this the bench carried PIN_KEY_X/Y/W/H as constants and
   * a policy change would have moved the cards out from under the two hardware
   * suites without any of them failing in a way that pointed here. */
  const PinKb::Grid g = _displayRef->pinGrid( );
@@ -2356,10 +2374,26 @@ void WebManager::handleApiKeypad( ) {
  /* Which keyboard is on the glass, because the bench cannot tell from the
   * grid alone and the interaction differs: "cards" is one tap per CARD,
   * "num" is one tap per key, and "groups" is TWO taps — the group key, then
-  * a key inside the popup whose geometry follows in "pop". */
+  * a key inside the popup whose geometry follows in "pop" (on the original;
+  * the Ângulo's popup keys are among its targets). */
  const bool ordered = _displayRef->pinOrderedNow( );
  const bool groups = ordered && _displayRef->pinAlphabet( ) == PinKb::ALPHA_ALNUM;
  const char* kb = !ordered ? "cards" : (groups ? "groups" : "num");
+ /* The Ângulo: the same faces, "up", "kb" and "policy", and "targets" in place
+  * of "grid" and "pop". The hook answers a constant, so on each image one of
+  * the two answers folds out. */
+ if (const char* targets = _displayRef->uiKeypadTargets( )) {
+ snprintf(json + n, sizeof(json) - (size_t)n,
+          "],\"up\":%s,\"kb\":\"%s\",\"policy\":[%u,%u,%u,%u],\"targets\":\"%s\"}",
+          up ? "true" : "false", kb,
+          (unsigned)_displayRef->pinMinLen( ),
+          (unsigned)PinKb::maxLenFor(_displayRef->pinKeypadMode( )),
+          (unsigned)_displayRef->pinKeypadMode( ),
+          (unsigned)_displayRef->pinAlphabet( ),
+          targets);
+ _server->send(200, "application/json", json);
+ return;
+ }
  n += snprintf(json + n, sizeof(json) - (size_t)n,
                /* grid = keys, slots, cols, rows, x, y, w, h, pitchX, pitchY;
                 * policy = minLen, maxLen, keypad, alphabet. Positional because

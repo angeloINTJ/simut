@@ -1,6 +1,6 @@
 # tools/
 
-211 scripts. This file exists because until 2026-09-08 there was no way
+214 scripts. This file exists because until 2026-09-08 there was no way
 to tell a live bench tool from a leftover, and one of them —
 `compressor.py` — had been superseded for three months while still looking
 usable: it regenerated `WebUI_GZ.h` into the repository root, where nothing
@@ -16,7 +16,7 @@ wrong, the description is the bug.
 
 ---
 
-## Called by CI (73)
+## Called by CI (75)
 
 Invoked from `.github/workflows/build.yml` — or, for the release manifest, from
 `release-ota.yml` when a tag is pushed. Breaking one of these fails a pull request
@@ -98,6 +98,7 @@ or a release.
 | `tft_ui/test_alinhar.py` | Proves on the host, with g++ and the standard library, that the display alignment's preview does not outlive the alignment screen (2026-10-31, the v2.13.0 *Known* item). `showSettingsDisplayOffset( )`, `loadDisplayOffset( )`, `tickDisplayOffset( )`, `actOffsetUp( )` to `actOffsetApply( )`, the idle return, `forceDashboard( )`, `showSettingsMain( )`, `otaTick( )`, the Apply branch of `AppManager_Events.cpp` and both panels' touch code for the screen are cut out of the sources verbatim and compiled with `tft_ui/host/test_alinhar_main.cpp` against a fake panel that records every value the glass was given, with Core 1 interleaved with Core 0 at each point the Apply and the boot's load pass. Eight cases for each panel and seven text checks; its 18 mutants must fail it, and `XFAIL` in the script lists what an open defect still fails (an XPASS fails the run). No Adafruit GFX needed. Exit 0 when all hold. |
 | `check_ui_texts.py` | Finds the texts the Ângulo draws that do not go through `UA_TXT( "<English>" )` (S10c, stage B1). It reads every string literal with a letter under `src/ui/angulo/**` as the compiler does (comments removed by the lexer of `check_net_boundary.py`, escapes decoded, adjacent literals joined, raw strings verbatim) and reports each one that is not the whole argument of `UA_TXT( )` and is not named in `ui_texts_allow.json`, which lists only what is not panel text (a unit, an icon name, a format string with no word, a bench tag, ...) and why. `--report` counts the findings by file and exits 0 (the inventory B3 to B5b worked from); the default mode prints each and exits 1; `--selftest` plants literals in temporary trees, runs the script as a process and breaks ten parts of the gate to see that the cases notice (102 cases and controls). Since S10c B2a-b it also refuses a looked-up text used as a printf format (`UA_TXT( )` in the format argument of `printf`, `snprintf` and the rest of the family, or of a kit function declared with a `const char *` before `...` or a `va_list`; the rule is written in the docstring and in `Textos.h`) and an English that is not valid UTF-8 (the English is the compiler's bytes: an escape split across adjacent literals is one character), both counted in the default mode's exit and on the last line of `--report`. **In CI since S10c B6** (2026-10-23): the `gates` job runs `--selftest`, then `--selftest --no-strip`, which must exit non-zero with a RESULT line of failed cases, then the gate on the tree; the inventory went from 523 texts in 33 files (B1) to 0 (B5b). | 2026-10-23 |
 | `test_lang_gate.py` | Positive controls for check_lang_packs.py — the split ceilings, the order (a section after @WEBDICT), the License opening, @HELPWIRE before @HELP, and, since S10c B2a, the Ângulo's `@ANGULO` section. A copy of `src/ui/angulo` gets a file with `UA_TXT( )` literals planted in it and packs made from the real ones get the section; each refusal is provoked beside the case that passes: a literal without its entry in one of two packs (the message names the pack, the hash, the English and the file), an orphan, two literals with one real FNV-1a collision, the section after @WEBDICT, twice, over `UA_TEXTOS_MAX` (read from a header the test writes) and at the bound, ten shapes of malformed line, CRLF; a header with no bound, or none, stops the gate; and the reader of literals on comments, near misses, adjacent pieces, a raw string and escapes. Since S10c B2a-b the English is the compiler's bytes: an escape split across adjacent literals is one character (the hash is the hash of the bytes), an English that is not UTF-8 is refused where it is written (with its twin written as UTF-8), and one CR before a newline is the line end while a second is the text's. Since S10c B4b-0 it holds `LANG_FILE_MAX` at or under the web text viewer's `TV_CAP`, both read from the sources (the real tree passes, a parser planted one byte over the cap fails and names both numbers, a `WebUI.h` without the cap is refused), and since B4b-0-b the cap is read only as a plain number. 52 cases (2026-10-23). Job `gates` since S10c B2a. | 2026-10-23 |
+| `test_keypad_answer.py` | Tests `keypad_answer.py`, the one reader of `GET /api/keypad` for the two bench tools that drive the original panel: four answers (the original's, the Ângulo's, one older than v25, the groups keyboard with its popup), the refusal of the Ângulo's (`"targets":"/api/ui"`, no grid and no pop) naming `/api/ui` and `tools/tft_ui/roteiro_ui.py`, the v24 layout for an answer with no grid, and that both tools read the route only through the parser. It bites: the parser run again with one line taken out fails exactly the cases that line serves (S12, F4). | 2026-10-31 |
 
 ## Called by the build (17)
 
@@ -125,7 +126,7 @@ local build before CI ever sees it.
 | `sensor_soak.py` | Sensor soak — protocol item #4 of docs/analysis/SIMUT-Plano-Estabilidade-Concorrencia.md. | 2026-08-14 |
 | `web_test_suite.py` | End-to-end test suite for the SIMUT web interface. | 2026-08-17 |
 
-## Referenced elsewhere (63)
+## Referenced elsewhere (64)
 
 Named by a document, a workflow, or another script — a recipe in `docs/` or a
 step in a bench procedure. Run by hand, but with instructions somewhere.
@@ -155,6 +156,7 @@ step in a bench procedure. Run by hand, but with instructions somewhere.
 | `ha_discovery_test.py` | r"""§5.18 Interoperabilidade — Home Assistant MQTT Discovery ao vivo | 2026-08-23 |
 | `heap_gate_interaction.py` | r"""§5.7 Interações de recurso (§4.4 do plano) — gate de heap da telemetria | 2026-08-23 |
 | `history_v5.py` | HistoryV5 — reference implementation of the SIMUT compressed history format. | 2026-08-01 |
+| `keypad_answer.py` | The reader of `GET /api/keypad` that `panel_users_hw_test.py` and `panel_fulltable_test.py` share (S12, F4): the faces, the keyboard, the grid (the v24 layout for a device older than v25), the popup and the PIN policy. It refuses the Ângulo's answer (`"targets":"/api/ui"`, no grid, no pop: the original panel's geometry cannot describe its keys) with a message that names `/api/ui` and `tools/tft_ui/roteiro_ui.py`. Tested by `test_keypad_answer.py`. | 2026-10-31 |
 | `repro_post_slow.py` | repro_post_slow.py — §5.9: corpo lento (POST) dropado sem reboot (15.000 ms). | 2026-08-22 |
 | `repro_sensorswitch.py` | repro_sensorswitch.py — §5.9: trocar schema de sensor sob carga não trava. | 2026-08-22 |
 | `repro_slowloris.py` | repro_slowloris.py — §5.9: GET lento dropado sem reboot (parse 3.000 ms). | 2026-08-22 |

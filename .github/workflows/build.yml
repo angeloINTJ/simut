@@ -179,6 +179,16 @@ jobs:
       - name: Touch panel UI driver
         run: python3 tools/test_ui_caps.py
 
+      # GET /api/keypad on an image with the Ângulo sends the faces, the policy and
+      # "targets":"/api/ui", and no grid and no popup geometry (the original panel's
+      # would miss the Ângulo's keys). The two bench tools that tap the original panel
+      # by that geometry read the route through tools/keypad_answer.py, which refuses an
+      # answer with "targets". Four answers (original, Ângulo, older than v25, the groups
+      # keyboard with its popup), the wiring of the two tools, and four controls: a line
+      # taken out of the parser fails exactly the cases it serves.
+      - name: Keypad answer reader of the bench tools
+        run: python3 tools/test_keypad_answer.py
+
       # The wired build (the ENC28J60 driver, the SIMUT Wire: a plain Pico with the
       # network on an ENC28J60 module) is held, by the preprocessor, to the pins
       # it may use, the radio it does not have and the name it takes in the OTA.

@@ -3,7 +3,11 @@
  * @brief Alphabet, geometry and CPU ceiling of the panel-PIN keypad, shared
  *        by the renderer (DisplayManager_UsersUi.cpp::drawPinScreen), the touch
  *        mapper (handleTouchPanelV24), the validator (SystemDefs_Validate.h)
- *        and the CLI/HTTP readouts used by the bench.
+ *        and the CLI/HTTP readouts used by the bench. GET /api/keypad publishes
+ *        the geometry below (the grids and the popup's six numbers) on the
+ *        original panel's images only: it is the original's, and the Ângulo's
+ *        answer carries the faces and the policy and points to /api/ui for
+ *        where the keys are.
  * @details Two keypads live here, and which one is on screen depends on what
  *          the screen is for.
  *
