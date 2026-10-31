@@ -15,10 +15,10 @@ e redesenha, e a entrada seguinte parte dele. Encontrado lendo o código em 31/1
   troca de tema pela web ou pelo console e uma atualização do firmware deixavam a prévia no vidro. `tickDisplayOffset( )` roda no Core 1 uma vez por passada, logo depois de `handleTouch( )` em
   `loopCore1( )`: com a tela à vista o alvo é a prévia, senão o deslocamento gravado; quando o vidro difere, ele aplica o alvo com as margens e levanta o pedido de redesenho da tela que está à vista e
   de nenhuma outra (o painel inicial `_isDirty` e `_forceFullRedraw`, o gráfico `_repaintGraph`, a tela de carregamento dele `_repaintLoading`, o calendário `_repaintCalendar`, a tela de atualização
-  `_otaRedrawAll`, toda outra tela `_repaintSettings` e `_forceSettingsRedraw`), de modo que nenhum fica de pé. Isso fecha o item *Uma prévia do alinhamento da tela que não foi salva sobrevive à volta por
+  `_otaRedrawAll`, toda outra tela `_repaintSettings` e `_forceSettingsRedraw`), de modo que nenhum fica de pé. Uma saída mantém a prévia: durante uma atualização do firmware o Core 1 fica parado do primeiro byte ao fim e o Core 0 desenha a tela de atualização no vidro como está, então uma prévia deixada no vidro continua na tela de atualização, deslocada até 4 px, até o reinício se a atualização termina e até o Core 1 voltar e o tique corrigir se ela falha. Isso fecha o item *Uma prévia do alinhamento da tela que não foi salva sobrevive à volta por
   inatividade, nos dois painéis* da lista *Conhecido* da v2.13.0.
 - **A entrada seguinte parte do deslocamento gravado.** `showSettingsDisplayOffset( )` lia o deslocamento "gravado" do vidro, então uma prévia deixada lá virava o gravado, e `screen offset` sobre uma
-  prévia fazia o mesmo. Agora ela parte do espelho em RAM que o boot carrega, no Core 0 sob o `_stateMutex`, e não toca o vidro.
+  prévia fazia o mesmo. Agora ela parte do espelho em RAM que o boot carrega, no Core 0 sob o `_stateMutex`, e não toca o vidro. Ela grava a prévia antes do modo, para que nenhuma passada do Core 1 tome a prévia da visita anterior por alvo.
 - **O Aplicar carrega o novo deslocamento.** O tratador do evento chama `loadDisplayOffset( )` antes de `showTouchCalibration( )`. `loadDisplayOffset( )` grava o espelho antes do vidro, com uma barreira de
   liberação, e o tique lê o vidro antes do espelho, com uma barreira de aquisição (`__atomic_thread_fence`, um DMB no RP2040 e no RP2350): o Core 1 nunca vê um vidro novo com um gravado antigo, nem onde os
   núcleos reordenam acessos à memória. O comentário que dizia que o Aplicar aplicava o deslocamento no TFT está corrigido: nunca aplicou. As imagens de LCD e sem tela (`pico_w_alpha`, `pico_wire`,
@@ -26,11 +26,11 @@ e redesenha, e a entrada seguinte parte dele. Encontrado lendo o código em 31/1
 - **Encontrado pelo código, não visto numa placa.** O passeio de 30/10/2026 no Pico 2 W parou nesta tela; o defeito é lido do código, e os dois painéis dividem o estado e as ações. A conferência no
   Pico W (original) e no Pico 2 W (Ângulo) é uma prévia, a volta por inatividade e uma entrada nova, e uma atualização com a prévia no vidro.
 - **O teste.** `tools/tft_ui/test_alinhar.py` recorta as peças das fontes e as roda contra um painel de mentira, com o Core 1 intercalado com o Core 0 em cada ponto por onde passam o Aplicar e a
-  carga do boot: 7 casos para cada painel e 7 conferências de texto, 56 conferências do script e 380 do modelo em 1,9 s. A primeira versão dele falhou 12 conferências na árvore anterior à
-  correção (C1 a C4 dos dois painéis e T1 a T4); passa na árvore posterior, e os 10 mutantes dele a reprovam. Ele também confere que o tique levanta exatamente os pedidos da tela que está à vista e
-  que nenhum fica de pé, nos dois painéis e em 11 telas. O CI roda o teste no job `gates`.
+  carga do boot: 8 casos para cada painel e 7 conferências de texto, 64 conferências do script e 612 do modelo em 2,3 s. A primeira versão dele falhou 12 conferências na árvore anterior à
+  correção (C1 a C4 dos dois painéis e T1 a T4); passa na árvore posterior, e os 13 mutantes dele a reprovam. Ele também confere que o tique levanta exatamente os pedidos da tela que está à vista e
+  que nenhum fica de pé, nos dois painéis e em 11 telas. A prévia roda como Direita, como Baixo e como as duas, todo movimento do vidro no Core 1 tem de pintar as margens, e `screen offset` sobre uma prévia velha, com uma passada do Core 1 depois de cada escrita da entrada, nunca pode mostrar a prévia antiga. O CI roda o teste no job `gates`.
 - **O manual.** O capítulo 11A dizia que a volta por inatividade deixa a imagem deslocada e que uma entrada nova a mantém; agora diz que toda saída devolve o deslocamento gravado e que uma entrada
-  nova parte dele.
+  nova parte dele, e cita a atualização como a exceção.
 
 ### Flash
 

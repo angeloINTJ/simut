@@ -15,10 +15,10 @@ and repaints, and the next entry starts from it. Found by reading the code on 20
   change by the web or the console and a firmware update left the preview on the glass. `tickDisplayOffset( )` runs on Core 1 once a pass, right after `handleTouch( )` in `loopCore1( )`: while the
   screen is shown the target is the preview, otherwise the saved offset; when the glass differs, it sets the target with its margins and raises the repaint request of the screen that is up and of no
   other (the dashboard `_isDirty` and `_forceFullRedraw`, the chart `_repaintGraph`, its loading screen `_repaintLoading`, the calendar `_repaintCalendar`, the update screen `_otaRedrawAll`, every other
-  screen `_repaintSettings` and `_forceSettingsRedraw`), so none is left standing. This closes the item *A display-alignment preview that was not saved survives the idle return, on both panels* of
+  screen `_repaintSettings` and `_forceSettingsRedraw`), so none is left standing. One exit keeps the preview: during a firmware update Core 1 is parked from the first byte to the end and Core 0 paints the update screen on the glass as it is, so a preview left on the glass stays on the update screen, shifted by up to 4 px, until the restart if the update succeeds and until Core 1 resumes and the tick corrects it if it fails. This closes the item *A display-alignment preview that was not saved survives the idle return, on both panels* of
   v2.13.0's *Known* list.
 - **The next entry starts at the saved offset.** `showSettingsDisplayOffset( )` read the "saved" offset from the glass, so a preview left there became the saved one, and `screen offset` over a preview
-  did the same. It now starts from the RAM mirror that the boot loads, on Core 0 under `_stateMutex`, and does not touch the glass.
+  did the same. It now starts from the RAM mirror that the boot loads, on Core 0 under `_stateMutex`, and does not touch the glass. It writes the preview before the mode, so that no Core 1 pass takes the preview of the last visit for its target.
 - **The Apply loads the new offset.** The event handler calls `loadDisplayOffset( )` before `showTouchCalibration( )`. `loadDisplayOffset( )` writes the mirror before the glass, with a release fence, and the
   tick reads the glass before the mirror, with an acquire fence (`__atomic_thread_fence`, a DMB on the RP2040 and on the RP2350): Core 1 never sees a new glass with an old saved value, even where the cores
   reorder memory accesses. The comment that said the Apply applied the offset to the TFT is corrected: it never did. The LCD and no-display images (`pico_w_alpha`, `pico_wire`, `pico_w_air`) compile only
@@ -26,10 +26,10 @@ and repaints, and the next entry starts from it. Found by reading the code on 20
 - **Found by the code, not seen on a board.** The walk of 2026-10-30 on the Pico 2 W stopped on this screen; the defect is read from the code, and both panels share the state and the actions. The
   check on the Pico W (original) and the Pico 2 W (Ângulo) is a preview, the idle return and a new entry, and an update with a preview on the glass.
 - **The test.** `tools/tft_ui/test_alinhar.py` cuts the pieces out of the sources and runs them against a fake panel, with Core 1 interleaved with Core 0 at each point the Apply and the boot's load
-  pass: 7 cases for each panel and 7 text checks, 56 script and 380 model checks in 1.9 s. Its first version failed 12 checks on the tree before the fix (C1 to C4 of both panels and T1 to T4); it
-  passes on the tree after, and its 10 mutants each fail it. It also holds that the tick raises exactly the requests of the screen that is up and that none is left standing, in both panels and in
-  11 screens. CI runs it in the `gates` job.
-- **The manual.** Chapter 11A said that the idle return leaves the image shifted and that a new entry keeps it; it now says that every exit puts the saved offset back and a new entry starts at it.
+  pass: 8 cases for each panel and 7 text checks, 64 script and 612 model checks in 2.3 s. Its first version failed 12 checks on the tree before the fix (C1 to C4 of both panels and T1 to T4); it
+  passes on the tree after, and its 13 mutants each fail it. It also holds that the tick raises exactly the requests of the screen that is up and that none is left standing, in both panels and in
+  11 screens. The preview runs as Right, as Down and as both, every move of the glass on Core 1 must paint the margins, and `screen offset` over a stale preview, with a Core 1 pass after each store of the entry, must never show the old preview. CI runs it in the `gates` job.
+- **The manual.** Chapter 11A said that the idle return leaves the image shifted and that a new entry keeps it; it now says that every exit puts the saved offset back and a new entry starts at it, and names the update as the exception.
 
 ### Flash
 
