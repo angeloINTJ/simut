@@ -13,44 +13,41 @@ and repaints, and the next entry starts from it. Found by reading the code on 20
 
 - **Every exit puts the saved offset back.** The screen applies its preview to the glass at once, and only Voltar put the saved offset back. The 30 s idle return, the console's `screen` command, a theme
   change by the web or the console and a firmware update left the preview on the glass. `tickDisplayOffset( )` runs on Core 1 once a pass, right after `handleTouch( )` in `loopCore1( )`: while the
-  screen is shown the target is the preview, otherwise the saved offset; when the glass differs, it sets the target with its margins and raises seven repaint requests. This closes the item *A
-  display-alignment preview that was not saved survives the idle return, on both panels* of v2.13.0's *Known* list.
+  screen is shown the target is the preview, otherwise the saved offset; when the glass differs, it sets the target with its margins and raises the repaint request of the screen that is up and of no
+  other (the dashboard `_isDirty` and `_forceFullRedraw`, the chart `_repaintGraph`, its loading screen `_repaintLoading`, the calendar `_repaintCalendar`, the update screen `_otaRedrawAll`, every other
+  screen `_repaintSettings` and `_forceSettingsRedraw`), so none is left standing. This closes the item *A display-alignment preview that was not saved survives the idle return, on both panels* of
+  v2.13.0's *Known* list.
 - **The next entry starts at the saved offset.** `showSettingsDisplayOffset( )` read the "saved" offset from the glass, so a preview left there became the saved one, and `screen offset` over a preview
   did the same. It now starts from the RAM mirror that the boot loads, on Core 0 under `_stateMutex`, and does not touch the glass.
-- **The Apply loads the new offset.** The event handler calls `loadDisplayOffset( )` before `showTouchCalibration( )`, and `loadDisplayOffset( )` writes the mirror before the glass, so Core 1 never
-  sees a new glass with an old saved value. The comment that said the Apply applied the offset to the TFT is corrected: it never did. The LCD and no-display images (`pico_w_alpha`, `pico_wire`,
-  `pico_w_air`) compile only this call, into their stubs.
+- **The Apply loads the new offset.** The event handler calls `loadDisplayOffset( )` before `showTouchCalibration( )`. `loadDisplayOffset( )` writes the mirror before the glass, with a release fence, and the
+  tick reads the glass before the mirror, with an acquire fence (`__atomic_thread_fence`, a DMB on the RP2040 and on the RP2350): Core 1 never sees a new glass with an old saved value, even where the cores
+  reorder memory accesses. The comment that said the Apply applied the offset to the TFT is corrected: it never did. The LCD and no-display images (`pico_w_alpha`, `pico_wire`, `pico_w_air`) compile only
+  this call, into their stubs.
 - **Found by the code, not seen on a board.** The walk of 2026-10-30 on the Pico 2 W stopped on this screen; the defect is read from the code, and both panels share the state and the actions. The
   check on the Pico W (original) and the Pico 2 W (Ângulo) is a preview, the idle return and a new entry, and an update with a preview on the glass.
 - **The test.** `tools/tft_ui/test_alinhar.py` cuts the pieces out of the sources and runs them against a fake panel, with Core 1 interleaved with Core 0 at each point the Apply and the boot's load
-  pass: 7 cases for each panel and 6 text checks, 49 script and 318 model checks in 1.5 s. Before the fix 12 of them failed (C1 to C4 of both panels and T1 to T4); after it none, and its 7 mutants
-  each fail it. CI runs it in the `gates` job.
+  pass: 7 cases for each panel and 7 text checks, 56 script and 380 model checks in 1.9 s. Its first version failed 12 checks on the tree before the fix (C1 to C4 of both panels and T1 to T4); it
+  passes on the tree after, and its 10 mutants each fail it. It also holds that the tick raises exactly the requests of the screen that is up and that none is left standing, in both panels and in
+  11 screens. CI runs it in the `gates` job.
 - **The manual.** Chapter 11A said that the idle return leaves the image shifted and that a new entry keeps it; it now says that every exit puts the saved offset back and a new entry starts at it.
 
 ### Flash
 
-- **Bytes per image.** Every image changes: `used` moves by +8 to +184 B across the 11 images built (the six that draw a panel carry the tick and the entry, the LCD and no-display images only the Apply's call). Before: the records of `tools/flash_budget.json` at 3ca4976f; after: the builds of this change, through the pio shim of 2026-10-28 under the shared lock.
+- **Bytes per image.** Every image changes: `used` moves by +8 to +224 B across the 11 images built. The eight that draw a panel carry the tick and the entry; `pico_w_alpha`, `pico_w_air`, `pico_wire`, with no panel, only the Apply's call (+8 B each). The thread fences alone cost 8 B on `pico_w_release` (1,024,268 to 1,024,276 B `used`) and on `pico2_w_release` (1,038,264 to 1,038,272 B), measured against the tree without them. Before: the records of `tools/flash_budget.json` at 3ca4976f, which a baseline build of `pico_w_release` here matched to the byte (1,024,060 B `used`, 1,036,092 B `.bin`); after: the builds of this change, through the pio shim of 2026-10-28 under the shared lock.
 
 | Image | `used` before | after | Δ | `.bin` before | after | Δ |
 |---|---:|---:|---:|---:|---:|---:|
-| `pico_w_release` | 1,024,060 | 1,024,236 | +176 | 1,036,092 | 1,036,268 | +176 |
-| `pico_w_test` | 1,024,844 | 1,025,028 | +184 | 1,036,876 | 1,037,060 | +184 |
-| `pico_w_test_https` | 1,029,188 | 1,029,372 | +184 | exempt | 1,041,404 | - |
-| `pico_w_asserts` | 1,026,356 | 1,026,540 | +184 | 1,038,388 | 1,038,572 | +184 |
+| `pico_w_release` | 1,024,060 | 1,024,276 | +216 | 1,036,092 | 1,036,308 | +216 |
+| `pico_w_test` | 1,024,844 | 1,025,068 | +224 | 1,036,876 | 1,037,100 | +224 |
+| `pico_w_test_https` | 1,029,188 | 1,029,412 | +224 | exempt | 1,041,444 | - |
+| `pico_w_asserts` | 1,026,356 | 1,026,580 | +224 | 1,038,388 | 1,038,612 | +224 |
 | `pico_w_alpha` | 976,228 | 976,236 | +8 | 990,380 | 990,380 | 0 |
 | `pico_w_air` | 1,019,464 | 1,019,472 | +8 | 1,035,340 | 1,035,340 | 0 |
-| `pico2_w_release` | 1,038,080 | 1,038,224 | +144 | 1,038,104 | 1,038,248 | +144 |
+| `pico2_w_release` | 1,038,080 | 1,038,272 | +192 | 1,038,104 | 1,038,296 | +192 |
 | `pico_wire` | 592,388 | 592,396 | +8 | 604,424 | 604,432 | +8 |
-| `pico_wiretft` | 775,732 | 775,908 | +176 | 787,768 | 787,944 | +176 |
-| `pico_wiretft_angulo` | 816,836 | 817,012 | +176 | 828,872 | 829,048 | +176 |
-| `pico2_w_original` | 1,000,032 | 1,000,184 | +152 | 1,000,056 | 1,000,208 | +152 |
-
-### Known, and not fixed here
-
-- **The original panel's dashboard leaves requests standing after the tick moves the glass.** The tick raises seven requests because it does not know which screen is up. The dashboard takes
-  `_isDirty` and `_forceFullRedraw` only, so `_repaintSettings`, `_repaintGraph` and `_repaintCalendar` stay up until a screen that takes them is shown, and `loopCore1( )` waits 1 ms and not 2 ms
-  meanwhile (`repaintPending`). By the code, not measured; the test prints the standing requests of each screen as NOTE lines. The Ângulo takes all of them each pass.
-- **The graph's loading screen is not repainted by the tick.** Its request, `_repaintLoading`, is not among the seven; the screen is shown while a chart loads and leaves through `_repaintGraph`.
+| `pico_wiretft` | 775,732 | 775,948 | +216 | 787,768 | 787,984 | +216 |
+| `pico_wiretft_angulo` | 816,836 | 817,060 | +224 | 828,872 | 829,096 | +224 |
+| `pico2_w_original` | 1,000,032 | 1,000,232 | +200 | 1,000,056 | 1,000,256 | +200 |
 
 ## v2.13.0 (2026-10-31)
 

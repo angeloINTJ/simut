@@ -378,8 +378,9 @@ jobs:
       # The display alignment's preview and the glass it leaves (2026-10-31, the v2.13.0 Known item): the entry, loadDisplayOffset( ), the alignment's actions, the idle return, the Apply's
       # branch, both panels' touch handling and Core 1's tickDisplayOffset( ) are cut out of the sources and compiled with g++ against a fake panel that records every value the glass was given;
       # Core 1 is interleaved with Core 0 at each point the Apply and the boot's load pass. Seven cases for each panel (the idle return, the next entry, Core 0's exits and a preview left in
-      # nine screens, `screen offset` over a preview, Voltar, Salvar, the boot interleaved) and six text checks (the tick between `handleTouch( );` and `otaTick( );` and called once, the
-      # Apply's order, the entry not reading the glass, the load's order, both panels' repaint chains read from their files); its 7 mutants must fail it. 49 + 318 checks; 1.5 s here on 2026-10-31.
+      # eleven screens, `screen offset` over a preview, Voltar, Salvar, the boot interleaved) and seven text checks (the tick between `handleTouch( );` and `otaTick( );` and called once, the
+      # Apply's order, the entry not reading the glass, the load's order and its fences, the tick's read order, both panels' repaint chains read from their files); its 10 mutants must fail it.
+      # 56 + 380 checks; 1.9 s here on 2026-10-31.
       - name: Display alignment preview and the glass on the host (test_alinhar.py)
         run: python3 tools/tft_ui/test_alinhar.py
       # The figures of the manual's chapter 11A (S10c, C6 step 2): docs/images/manual/11a-*.png are frames that host_telas.py draws from the code at the commit (src/ui/angulo and the

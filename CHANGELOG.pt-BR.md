@@ -13,45 +13,42 @@ e redesenha, e a entrada seguinte parte dele. Encontrado lendo o código em 31/1
 
 - **Toda saída devolve o deslocamento gravado.** A tela aplica a prévia no vidro na hora, e só o Voltar devolvia o deslocamento gravado. A volta por inatividade de 30 s, o comando `screen` do console, a
   troca de tema pela web ou pelo console e uma atualização do firmware deixavam a prévia no vidro. `tickDisplayOffset( )` roda no Core 1 uma vez por passada, logo depois de `handleTouch( )` em
-  `loopCore1( )`: com a tela à vista o alvo é a prévia, senão o deslocamento gravado; quando o vidro difere, ele aplica o alvo com as margens e levanta sete pedidos de redesenho. Isso fecha o item
-  *Uma prévia do alinhamento da tela que não foi salva sobrevive à volta por inatividade, nos dois painéis* da lista *Conhecido* da v2.13.0.
+  `loopCore1( )`: com a tela à vista o alvo é a prévia, senão o deslocamento gravado; quando o vidro difere, ele aplica o alvo com as margens e levanta o pedido de redesenho da tela que está à vista e
+  de nenhuma outra (o painel inicial `_isDirty` e `_forceFullRedraw`, o gráfico `_repaintGraph`, a tela de carregamento dele `_repaintLoading`, o calendário `_repaintCalendar`, a tela de atualização
+  `_otaRedrawAll`, toda outra tela `_repaintSettings` e `_forceSettingsRedraw`), de modo que nenhum fica de pé. Isso fecha o item *Uma prévia do alinhamento da tela que não foi salva sobrevive à volta por
+  inatividade, nos dois painéis* da lista *Conhecido* da v2.13.0.
 - **A entrada seguinte parte do deslocamento gravado.** `showSettingsDisplayOffset( )` lia o deslocamento "gravado" do vidro, então uma prévia deixada lá virava o gravado, e `screen offset` sobre uma
   prévia fazia o mesmo. Agora ela parte do espelho em RAM que o boot carrega, no Core 0 sob o `_stateMutex`, e não toca o vidro.
-- **O Aplicar carrega o novo deslocamento.** O tratador do evento chama `loadDisplayOffset( )` antes de `showTouchCalibration( )`, e `loadDisplayOffset( )` grava o espelho antes do vidro, para que o
-  Core 1 nunca veja um vidro novo com um gravado antigo. O comentário que dizia que o Aplicar aplicava o deslocamento no TFT está corrigido: nunca aplicou. As imagens de LCD e sem tela
-  (`pico_w_alpha`, `pico_wire`, `pico_w_air`) compilam só essa chamada, nos stubs.
+- **O Aplicar carrega o novo deslocamento.** O tratador do evento chama `loadDisplayOffset( )` antes de `showTouchCalibration( )`. `loadDisplayOffset( )` grava o espelho antes do vidro, com uma barreira de
+  liberação, e o tique lê o vidro antes do espelho, com uma barreira de aquisição (`__atomic_thread_fence`, um DMB no RP2040 e no RP2350): o Core 1 nunca vê um vidro novo com um gravado antigo, nem onde os
+  núcleos reordenam acessos à memória. O comentário que dizia que o Aplicar aplicava o deslocamento no TFT está corrigido: nunca aplicou. As imagens de LCD e sem tela (`pico_w_alpha`, `pico_wire`,
+  `pico_w_air`) compilam só essa chamada, nos stubs.
 - **Encontrado pelo código, não visto numa placa.** O passeio de 30/10/2026 no Pico 2 W parou nesta tela; o defeito é lido do código, e os dois painéis dividem o estado e as ações. A conferência no
   Pico W (original) e no Pico 2 W (Ângulo) é uma prévia, a volta por inatividade e uma entrada nova, e uma atualização com a prévia no vidro.
 - **O teste.** `tools/tft_ui/test_alinhar.py` recorta as peças das fontes e as roda contra um painel de mentira, com o Core 1 intercalado com o Core 0 em cada ponto por onde passam o Aplicar e a
-  carga do boot: 7 casos para cada painel e 6 conferências de texto, 49 conferências do script e 318 do modelo em 1,5 s. Antes da correção 12 delas falhavam (C1 a C4 dos dois painéis e T1 a T4); depois,
-  nenhuma, e os 7 mutantes dele a reprovam. O CI roda o teste no job `gates`.
+  carga do boot: 7 casos para cada painel e 7 conferências de texto, 56 conferências do script e 380 do modelo em 1,9 s. A primeira versão dele falhou 12 conferências na árvore anterior à
+  correção (C1 a C4 dos dois painéis e T1 a T4); passa na árvore posterior, e os 10 mutantes dele a reprovam. Ele também confere que o tique levanta exatamente os pedidos da tela que está à vista e
+  que nenhum fica de pé, nos dois painéis e em 11 telas. O CI roda o teste no job `gates`.
 - **O manual.** O capítulo 11A dizia que a volta por inatividade deixa a imagem deslocada e que uma entrada nova a mantém; agora diz que toda saída devolve o deslocamento gravado e que uma entrada
   nova parte dele.
 
 ### Flash
 
-- **Bytes por imagem.** Toda imagem muda: `used` varia de +8 a +184 B nas 11 imagens compiladas (as que desenham painel levam o tique e a entrada, as de LCD e sem tela só a chamada do Aplicar). Antes: os registros de `tools/flash_budget.json` em 3ca4976f; depois: as compilações desta mudança, pelo shim do pio de 28/10/2026 sob o lock compartilhado.
+- **Bytes por imagem.** Toda imagem muda: `used` varia de +8 a +224 B nas 11 imagens compiladas. As oito que desenham painel levam o tique e a entrada; `pico_w_alpha`, `pico_w_air`, `pico_wire`, sem painel, só a chamada do Aplicar (+8 B cada). As barreiras de thread sozinhas custam 8 B na `pico_w_release` (1.024.268 para 1.024.276 B de `used`) e na `pico2_w_release` (1.038.264 para 1.038.272 B), medidas contra a árvore sem elas. Antes: os registros de `tools/flash_budget.json` em 3ca4976f, que uma compilação-base da `pico_w_release` aqui reproduziu ao byte (1.024.060 B de `used`, 1.036.092 B de `.bin`); depois: as compilações desta mudança, pelo shim do pio de 28/10/2026 sob o lock compartilhado.
 
 | Imagem | `used` antes | depois | Δ | `.bin` antes | depois | Δ |
 |---|---:|---:|---:|---:|---:|---:|
-| `pico_w_release` | 1.024.060 | 1.024.236 | +176 | 1.036.092 | 1.036.268 | +176 |
-| `pico_w_test` | 1.024.844 | 1.025.028 | +184 | 1.036.876 | 1.037.060 | +184 |
-| `pico_w_test_https` | 1.029.188 | 1.029.372 | +184 | isenta | 1.041.404 | - |
-| `pico_w_asserts` | 1.026.356 | 1.026.540 | +184 | 1.038.388 | 1.038.572 | +184 |
+| `pico_w_release` | 1.024.060 | 1.024.276 | +216 | 1.036.092 | 1.036.308 | +216 |
+| `pico_w_test` | 1.024.844 | 1.025.068 | +224 | 1.036.876 | 1.037.100 | +224 |
+| `pico_w_test_https` | 1.029.188 | 1.029.412 | +224 | isenta | 1.041.444 | - |
+| `pico_w_asserts` | 1.026.356 | 1.026.580 | +224 | 1.038.388 | 1.038.612 | +224 |
 | `pico_w_alpha` | 976.228 | 976.236 | +8 | 990.380 | 990.380 | 0 |
 | `pico_w_air` | 1.019.464 | 1.019.472 | +8 | 1.035.340 | 1.035.340 | 0 |
-| `pico2_w_release` | 1.038.080 | 1.038.224 | +144 | 1.038.104 | 1.038.248 | +144 |
+| `pico2_w_release` | 1.038.080 | 1.038.272 | +192 | 1.038.104 | 1.038.296 | +192 |
 | `pico_wire` | 592.388 | 592.396 | +8 | 604.424 | 604.432 | +8 |
-| `pico_wiretft` | 775.732 | 775.908 | +176 | 787.768 | 787.944 | +176 |
-| `pico_wiretft_angulo` | 816.836 | 817.012 | +176 | 828.872 | 829.048 | +176 |
-| `pico2_w_original` | 1.000.032 | 1.000.184 | +152 | 1.000.056 | 1.000.208 | +152 |
-
-### Conhecido, e não consertado aqui
-
-- **O painel inicial do painel original deixa pedidos de pé depois que o tique move o vidro.** O tique levanta sete pedidos porque não sabe qual tela está à vista. O painel inicial só toma `_isDirty` e
-  `_forceFullRedraw`, então `_repaintSettings`, `_repaintGraph` e `_repaintCalendar` ficam de pé até uma tela que os tome ser mostrada, e o `loopCore1( )` espera 1 ms e não 2 ms nesse meio tempo
-  (`repaintPending`). Pelo código, não medido; o teste imprime os pedidos de pé de cada tela como linhas NOTE. O Ângulo toma todos a cada passada.
-- **A tela de carregamento do gráfico não é redesenhada pelo tique.** O pedido dela, `_repaintLoading`, não está entre os sete; a tela fica à vista enquanto um gráfico carrega e sai por `_repaintGraph`.
+| `pico_wiretft` | 775.732 | 775.948 | +216 | 787.768 | 787.984 | +216 |
+| `pico_wiretft_angulo` | 816.836 | 817.060 | +224 | 828.872 | 829.096 | +224 |
+| `pico2_w_original` | 1.000.032 | 1.000.232 | +200 | 1.000.056 | 1.000.256 | +200 |
 
 ## v2.13.0 (2026-10-31)
 
