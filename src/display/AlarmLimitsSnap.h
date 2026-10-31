@@ -44,16 +44,31 @@ struct AlarmLimitsSnap {
 	float  chMax[MAX_SENSOR_CHANNELS];
 };
 
-/** Core 1, at Salvar: copies the editor's limits into the box and names the sensor. The slot goes in first as -1 and last as the sensor, so a
- *  box is never half a copy under a valid slot. The record is packed and its floats are unaligned (chMin starts at byte 66 in SensorRecord):
- *  memcpy, never the address of a member. */
+/** Core 1, at Salvar: copies the editor's limits into the box and names the sensor. The record is packed and its floats are unaligned (chMin
+ *  starts at byte 66 in SensorRecord): memcpy, never the address of a member.
+ *
+ *  Two guards keep Core 0 from taking half a copy. The first is the lock: DisplayManager::postSavedAlarmLimits( ) and takeSavedAlarmLimits( ) hold
+ *  _stateMutex around this and around the take, so the take cannot run inside the copy. The second is the slot, -1 first and the sensor last, for a
+ *  Core 1 killed in the middle of the copy: DisplayManager.cpp re-initialises _stateMutex wherever Core 1 is reset or may have died holding it
+ *  (lines 260, 441, 490, 946 and 976, by grep on 2026-10-31), so that a corpse-held lock cannot block Core 0, and that leaves the lock free over a
+ *  box that is half written, under the slot of an earlier Salvar that was never taken (a denied one). Stored first, the -1 makes that box read
+ *  as empty.
+ *
+ *  The second guard needs the compiler to keep the order, and left alone it does not (2026-10-31): the -1 is dead to the optimiser, because the
+ *  slot is stored again below with nothing reading it in between, and GCC removed it. The disassembly of DisplayManager::postSavedAlarmLimits in
+ *  the release ELF was the lock, two memcpy, one strb of the slot, the unlock. So the -1 is an atomic store, which GCC does not remove, and a
+ *  compiler barrier stands between it and the copies and between the copies and the slot (no instruction on ARM: the lock is what orders the two
+ *  cores). No host test holds this, because a reordered post passes on x86; the proof is the disassembly of that function in pico_w_release and
+ *  pico2_w_release: the lock, a strb of 0xFF, the copies, a strb of the slot, the unlock. */
 template <typename Rec>
 inline void limitsSnapPost(AlarmLimitsSnap& box, const Rec& edited, int slot) {
 	static_assert(sizeof edited.chMin == sizeof box.chMin && sizeof edited.chMax == sizeof box.chMax, "the record's limit arrays are the box's");
-	box.slot = -1;
+	__atomic_store_n(&box.slot, (int8_t)-1, __ATOMIC_RELAXED);   /* not box.slot = -1: GCC drops the plain store as dead */
+	__atomic_signal_fence(__ATOMIC_SEQ_CST);                     /* the copies stay after the -1 ... */
 	memcpy(box.chMin, edited.chMin, sizeof box.chMin);
 	memcpy(box.chMax, edited.chMax, sizeof box.chMax);
-	box.slot = (int8_t)slot;
+	__atomic_signal_fence(__ATOMIC_SEQ_CST);                     /* ... and before the slot */
+	__atomic_store_n(&box.slot, (int8_t)slot, __ATOMIC_RELAXED);
 }
 
 /** Core 0, on EVT_SAVE_ALARMS: false when the box is empty or holds another sensor's limits (nothing is touched, and a Salvar for that other
