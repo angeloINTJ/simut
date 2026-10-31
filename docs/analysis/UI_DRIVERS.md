@@ -86,7 +86,8 @@ PIN lockout ladder and the calibration math), and moving the original into
 
 ### 2.2 The hooks
 
-All are private `DisplayManager` members, declared without `#if`. The right
+All are private `DisplayManager` members, declared without `#if`, except `uiKeypadTargets( )`
+(public: its caller is the web handler, another class; S12). The right
 column is where the original's body comes from on `192e1ad`.
 
 | hook | the core calls it | original: body from |
@@ -105,6 +106,7 @@ column is where the original's body comes from on `192e1ad`.
 | `uiPages( list, items )` **(S0)** | the core must bound a page index | the arithmetic now spread over six draw bodies, `(items + 3) / 4`, the License text's wrap count, `buildDashLayout`'s button strip |
 | `uiThemeCount( )`, `uiThemeId( i )`, `uiThemeName( i )` | the catalogue is read | `availableThemes` and the custom `.thm` list, `Themes.cpp:433-487` **S10b (C4a), a recorded deviation from the plan's section 3.2: the catalogue is a link-time interface and these three hooks do not exist.** The six functions the core already calls (`getThemeCount`, `getThemeId`, `getThemeIndexByName`, `getThemePalette`, `loadTheme`, `scanCustomThemes`) keep their names, signatures and call sites, are declared in `src/ThemeCatalog.h`, and each driver defines them: the original in `Themes.cpp`, the Ângulo in `ui/angulo/Temas.cpp` over its three rows. The linker enforces one definition, as it does for a hook. A `uint8_t` parameter would add a truncation at the `for (int i...)` call sites, and forwarders change the products unless they are inline in every caller (section 2.15) |
 | `licenseOpening( ) const` | the Ângulo's licence screen needs the opening in the pack's language, which Core 0 composes into a buffer of `DisplayManager.cpp` (external linkage since S10c D4b-1, declared in `display/LicenseOpening.h`; it was a file-static) | **S4 (C9):** a member defined next to that buffer, replacing the free function `uaAberturaLicenca` the Ângulo declared weak; no product calls it and the linker drops it |
+| `uiKeypadTargets( ) const` **(S12, F4)** | `GET /api/keypad` builds its answer (`WebManager::handleApiKeypad( )`, Core 0; public, because the caller is another class) | **Not a body that moved: a constant on each side.** The original answers `nullptr` (`UI_HOOK`, `src/ui/UiDriverMembers.h`) and the route sends its grid and, for the groups keyboard, its popup, statements untouched; the Ângulo answers `"/api/ui"` (defined in the class, `src/ui/angulo/Members.h`, so that the handler's unit sees the constant) and the route sends `targets` in place of both. The branch an image does not take folds out of it: the nine images that are not the Ângulo's keep their sha256 and the Ângulo's two shrink by 208 and 216 B (the CHANGELOG's Unreleased section) |
 | `WebManager::registerUiDriverRoutes( )` | the web server registers routes | empty inline; the Ângulo adds `GET /api/ui` **S4 (C9):** called by every image; declared through `ui/UiDriverWeb.h` |
 
 The core ticks of section 2.4, duty 9, are inline members in `src/DisplayManager_Ticks.h`, `always_inline` for
