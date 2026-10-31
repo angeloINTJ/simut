@@ -6,7 +6,7 @@ O que cada versão da linha 2.x trouxe para quem usa o aparelho, da mais nova pa
 
 | Versão | Data | O que trouxe |
 |---|---|---|
-| v2.13.0 | 30/10/2026 | O Pico 2 W passa a desenhar o painel Ângulo: telas próprias, um tema que é um modo mais uma cor de destaque (18 escolhas) e os três idiomas do aparelho pelos pacotes de idioma ([capítulo 11A](#cap-11a)). O Pico W continua com o painel original. Os pacotes de idioma crescem para cerca de 53 KB e 55 KB, e o maior arquivo de idioma que o aparelho carrega sobe de 48 KiB para 64 KiB: instale o firmware antes dos pacotes novos. A barra de status do Ângulo mostra o sinal do Wi-Fi em quatro níveis, e o `/license` e a tela Licença listam as fontes e os ícones dele. O configurador oferece a escolha do visual. O manual ganha o capítulo 11A e conta as quatro imagens publicadas e os dois slots do Pico 2 W. |
+| v2.13.0 | 31/10/2026 | O Pico 2 W passa a desenhar o painel Ângulo: telas próprias, um tema que é um modo mais uma cor de destaque (18 escolhas) e os três idiomas do aparelho pelos pacotes de idioma ([capítulo 11A](#cap-11a)). O Pico W continua com o painel original. Os pacotes de idioma crescem para cerca de 53 KB e 55 KB, e o maior arquivo de idioma que o aparelho carrega sobe de 48 KiB para 64 KiB: instale o firmware antes dos pacotes novos. A barra de status do Ângulo mostra o sinal do Wi-Fi em quatro níveis, e o `/license` e a tela Licença listam as fontes e os ícones dele. O configurador oferece a escolha do visual. O manual ganha o capítulo 11A e conta as quatro imagens publicadas e os dois slots do Pico 2 W. |
 
 ## Linha 2.12 — estável
 
