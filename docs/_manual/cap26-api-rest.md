@@ -1324,7 +1324,7 @@ As cinco rotas do painel exigem **Sistema** [PERM_SYS_CONFIG]{.perm}. A interfac
 | `GET /api/screenshot_chunk?n=N` | Um pedaço de 16 linhas, `n` de 0 a 14: 12 bytes de cabeçalho (índice, tamanho e CRC-32, cada um em 32 bits *big-endian*) e 15.360 bytes de pixels BGR |
 | `GET /api/screen_stream` | Um quadro inteiro no formato compacto do espelho, em 30 faixas de 8 linhas. O formato é interno e pode mudar entre versões |
 | `POST /api/touch` | Com `x` de 0 a 319 e `y` de 0 a 239, em coordenadas do painel, um toque. Com `ms`, o toque fica pressionado esse tempo antes de soltar — é o toque longo, como o de 3 s que fixa o cartão de cima; de 100 a 15000, e um valor fora disso é levado à borda. Responde `{"ok":true,"x":160,"y":120,"ms":100}`; `x` ou `y` fora da faixa, ou `ms` que não é número, `400` |
-| `GET /api/keypad` | As faces do teclado de PIN que está na tela, a geometria das teclas e a política de PIN |
+| `GET /api/keypad` | As faces do teclado de PIN que está na tela e a política de PIN. No painel original, também a geometria das teclas; no Ângulo, no lugar dela, `targets`: a rota onde as teclas estão |
 | `GET /api/ui` | Só nas imagens com o painel Ângulo. Um objeto JSON com o que está no vidro: `modo` (a tela do quadro) e `modo_atual` (a tela em que o painel está agora), `tema` (`claro` ou `escuro`), `hash`, `pinturas`, `ms`, `ms_max` e `faixas` (o quadro e o custo da pintura), `painel` (o estado da tela inicial), `janela` (início e fim do gráfico, em segundos de época; `[0,0]` fora do gráfico e do detalhe), `agora` (o relógio do aparelho) e `alvos`, os alvos de toque do quadro, no máximo 48, cada um `[x, y, w, h, tipo, indice]`: o script toca no centro do que está desenhado, com `POST /api/touch`. Sem quadro na tela, ou com o painel sendo redesenhado, responde `503` com `Retry-After: 1` |
 
 ```bash
@@ -1342,11 +1342,20 @@ Regras que um cliente precisa seguir:
 `GET /api/keypad` responde, por exemplo:
 
 ```json
-{"faces":["123","456","789","0"],"up":true,"kb":"num",
- "grid":[4,3,2,2,20,60,130,60,150,70],"policy":[4,8,3,0]}
+{"faces":["123","45!","678","90@"],"up":true,"kb":"cards",
+ "grid":[4,3,2,2,6,72,152,44,156,50],"policy":[4,8,3,0]}
 ```
 
-`faces` descreve as teclas como estão desenhadas, sem dizer qual caractere é o do PIN. `up` diz se o teclado está na tela; `kb` é `cards` (teclado embaralhado), `num` ou `groups`. `grid` traz a geometria das teclas em pixels, e `policy` traz o mínimo, o máximo, os glifos por tecla e o alfabeto da política de PIN.
+`faces` descreve as teclas como estão desenhadas, sem dizer qual caractere é o do PIN: uma por tecla, em ordem, e no teclado numérico ordenado duas delas são vazias. `up` diz se o teclado está na tela; `kb` é `cards` (cartões sorteados), `num` ou `groups`. `policy` traz o mínimo, o máximo, os glifos por tecla e o alfabeto da política de PIN. No painel original, `grid` traz a geometria das teclas em pixels (quantas, glifos por tecla, colunas, linhas, x, y, largura, altura e o passo nos dois eixos) e, no teclado `groups`, `pop` traz a do popup.
+
+O Ângulo desenha as teclas em outro lugar, e a geometria do original as erraria. Por isso a resposta dele não traz `grid` nem `pop`, e traz `targets`, a rota que lista os alvos de toque do quadro que está na tela:
+
+```json
+{"faces":["123","45!","678","90@"],"up":true,"kb":"cards",
+ "policy":[4,8,3,0],"targets":"/api/ui"}
+```
+
+Um cliente que toca o teclado lê `targets` quando o campo existe, e `grid` quando não existe.
 
 ## Um cliente em Python {#cap-26-python}
 
