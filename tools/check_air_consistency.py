@@ -348,19 +348,26 @@ def c9_air_stop_starts_the_web():
     (AppManager_Boot.cpp, "web skipped (wake)"). `air stop` used to start the network AND the server under
     `if (!_airRadioUp)`, so on a telemetry wake it started neither the server nor anything else and left M0 with no
     browser, against docs/_manual/cap19-air.md and F13 of the plan. Held by three facts: _airWebUp exists and starts false;
-    the boot sets it right where it starts the server; `air stop` starts the server under `if (!_airWebUp)`, outside the
-    radio's block."""
+    the boot sets it, `!_airActive`, in the #if SIMUT_AIR block that skips the server on a wake (so it is true exactly when
+    the boot starts the server); `air stop` starts the server under `if (!_airWebUp)`, outside the radio's block."""
     hdr = read(os.path.join(SRC, 'AppManager.h'))
     m = re.search(r'#if SIMUT_AIR(.*?)#endif /\* SIMUT_AIR \*/', hdr, re.DOTALL)
     if not m or not re.search(r'\bbool\s+_airWebUp\s*=\s*false\s*;', blank_comments(m.group(1))):
         problem('C9', 'src/AppManager.h: the SIMUT_AIR block does not declare `bool _airWebUp = false;`')
     boot = blank_comments(read(os.path.join(SRC, 'AppManager_Boot.cpp')))
     begins = [x.start() for x in WEB_BEGIN_RE.finditer(boot)]
-    sets = [x.start() for x in re.finditer(r'\b_airWebUp\s*=\s*true\s*;', boot)]
-    if len(begins) != 1 or len(sets) != 1 or not begins[0] < sets[0] or '}' in boot[begins[0]:sets[0]]:
-        problem('C9', 'src/AppManager_Boot.cpp: `_airWebUp = true;` must follow the one `_webMgr->begin(` of the boot, in the same block')
-    elif not [g for n, _l, g in guarded_lines(boot) if n == boot.count('\n', 0, sets[0]) + 1 and g]:
-        problem('C9', 'src/AppManager_Boot.cpp: `_airWebUp = true;` is outside #if SIMUT_AIR')
+    sets = list(re.finditer(r'\b_airWebUp\s*=\s*([^;]*);', boot))
+    if len(begins) != 1 or len(sets) != 1 or ' '.join(sets[0].group(1).split()) != '!_airActive':
+        problem('C9', 'src/AppManager_Boot.cpp: the boot must assign the flag once, `_airWebUp = !_airActive;`: it starts the server exactly when this is not a wake')
+    else:
+        s0 = sets[0].start()
+        between = boot[sets[0].end():begins[0]] if s0 < begins[0] else ''
+        skip = re.search(r'if\s*\(\s*_airActive\s*\)\s*\{[^{}]*\}\s*else', between)
+        if not [g for n, _l, g in guarded_lines(boot) if n == boot.count('\n', 0, s0) + 1 and g]:
+            problem('C9', 'src/AppManager_Boot.cpp: `_airWebUp = !_airActive;` is outside #if SIMUT_AIR')
+        elif not skip or re.search(r'#\s*(?:if|endif)', between[:skip.start()]):
+            problem('C9', 'src/AppManager_Boot.cpp: `_airWebUp = !_airActive;` must sit in the same #if SIMUT_AIR block as the `if (_airActive) { ... } else` '
+                          'that skips the web server on a wake, before the one `_webMgr->begin(`')
     cmds = blank_comments(read(os.path.join(SRC, 'AppManager_Commands.cpp')))
     i = cmds.find('case CMD_AIR_STOP:')
     j = cmds.find('case CMD_AIR_IDLE', i)

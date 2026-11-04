@@ -1341,17 +1341,17 @@ void AppManager::setup( ) {
   * raises the radio does so to send telemetry, and telemetry needs no listener.
   *
   * `air stop` during a wake starts the web server itself, so the escape hatch
-  * an operator needs is still there: _airWebUp, set below, says whether this
-  * boot started it. */
+  * an operator needs is still there: _airWebUp says whether this boot started
+  * it. It is set here, from the same test that skips the server just below, and
+  * not after the begin( ) (2026-11-04, the maintainer's decision: one #if less in
+  * this shared unit, and the flag and the skip cannot drift apart). */
+ _airWebUp = !_airActive;
  if (_airActive) {
   AIR_BOOT_MARK("web skipped (wake)");
  } else
 #endif
  {
  _webMgr->begin(_storageMgr.get( ), _sensorMgr.get( ), _netMgr.get( ), _displayMgr.get( ), _telemetryMgr.get( ), _soundMgr.get( ));
-#if SIMUT_AIR
- _airWebUp = true;
-#endif
  AIR_BOOT_MARK("web ok");
  }
  BLOG("[BOOT step] 13: pos _webMgr->begin( ) @ "); BLOG_U(millis( )); BLOG_NL( );
