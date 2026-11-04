@@ -137,8 +137,8 @@ jobs:
       # answers to the strings the firmware has, read from the source. C10 above only
       # needs the refusal to name `air stop` and to be ASCII, so a rewording that still
       # does passes it, and the bench's T19 would then fail on a correct firmware: only
-      # this step sees that on the host (REPORT_B F1, the review of the Air fixes,
-      # 2026-11-04).
+      # this step sees that on the host (found by the review of the Air fixes,
+      # 2026-11-04: nothing in CI ran the selftest).
       - name: Air bench suite selftest
         run: python3 tools/air_test_suite.py --selftest
 

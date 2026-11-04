@@ -2491,7 +2491,7 @@ class Suite:
         reading-only one. The device answers GET /api/status with 401 to a client with no session, which is as good as 200: any code is a
         listener. Fails before the fix, passes after it. An `air stop` the console did not acknowledge (Hibernation cancelled / Hibernacao
         cancelada) is a skip and not a verdict: a wake that closes before the command runs leaves an empty reply, and that condition of the
-        instrument must not read as the defect (REPORT_B F2 of the review of the Air fixes)."""
+        instrument must not read as the defect (the review of the Air fixes, 2026-11-04, found T18 failing on an empty reply)."""
         if not self.host:
             raise TestSkip('no host IP')
         self.need_web()
@@ -2531,7 +2531,7 @@ class Suite:
         (it names `air stop`; no "AP mode started"), that `armed=` did not change, and that the device goes back to sleep by itself
         afterwards instead of staying awake in an AP. Fails before the fix: the answer is "AP mode started (WPA2). Key: ...".
         Nothing here is run against the Air's M0, where `ap` works as ever: the refusal is the cycle's. No answer to `ap` at all (the wake
-        closed before it ran) is a skip, not a verdict (REPORT_B F2)."""
+        closed before it ran, or only the echo of the line came back) is a skip, not a verdict (the review of the Air fixes, 2026-11-04, found T19 failing on an empty reply)."""
         self.need_web()
         self.point_telemetry_here(min_batch=1)
         seen = {}
