@@ -144,7 +144,10 @@ inline void bootLineAscii(const char* keyLatin1, const char* suffixUtf8, char* o
  *  empty key. Until 2026-11-04 the ring joined the two and converted the WHOLE line from Latin-1, so the suffix was encoded a second time: the AP's "Estação_SETUP" (the
  *  device's name and "_SETUP") came out as the bytes 45 73 74 61 C3 83 C2 A7 C3 83 C2 A3 6F ..., drawn "EstaÃ§Ã£o_SETUP". The line is cut at a whole character at `cap`,
  *  the terminator included, so no sequence is left half, and a key that does not fit whole leaves the suffix out. A suffix byte that is not UTF-8 is one '?' (as
- *  utf8FoldNext( ) counts it): what the kit gets is always valid UTF-8, as it was when every byte of the joined line was encoded again. */
+ *  utf8FoldNext( ) counts it). What the kit gets is well formed in structure, a lead byte (C2..F4) with all its continuation bytes (80..BF) or a '?', and not valid
+ *  in RFC 3629's sense: the table does not look at the code point, so an overlong E0 80 80, a surrogate ED A0 80 and F4 90 80 80 are copied whole. The path this
+ *  replaced, which encoded every byte again, was strictly valid. The kit decodes by structure and skips a code point it does not hold (proximo( ) and codigo( ) in
+ *  src/ui/angulo/Angulo.cpp), which is why the table is left as it is. */
 inline void bootLineUtf8(const char* keyLatin1, const char* suffixUtf8, char* out, size_t cap) {
 	if (!out || cap == 0) return;
 	size_t n = 0;

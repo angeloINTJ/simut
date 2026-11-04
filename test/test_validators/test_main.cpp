@@ -2385,7 +2385,7 @@ void test_ringline_cut_is_at_a_whole_character(void) {
 }
 
 void test_ringline_a_suffix_that_is_not_utf8_is_marks_and_the_line_stays_valid(void) {
-    /* what is drawn is always valid UTF-8, as it was when every byte of the joined line was encoded again */
+    /* what is drawn is well formed in structure (validUtf8( ) above: each lead byte with all its continuation bytes), as bootLineUtf8( ) promises; it is not strict RFC 3629 (Utf8Fold.h) */
     TEST_ASSERT_EQUAL_STRING("a?b", ringLine("", "a\x80" "b").c_str( ));                /* a stray continuation byte */
     TEST_ASSERT_EQUAL_STRING("a?", ringLine("", "a\xC3").c_str( ));                     /* a lead byte at the end */
     TEST_ASSERT_EQUAL_STRING("?x", ringLine("", "\xE2\x82x").c_str( ));                /* a three-byte sequence that stops short */
