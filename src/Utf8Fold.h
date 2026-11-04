@@ -7,7 +7,10 @@
  * License screen, the copyright holder's name. A Latin letter loses its accent
  * ("ção" -> "cao"), typographic punctuation becomes its ASCII cousin, the
  * Spanish opening marks disappear (the closing mark already says what the
- * sentence is), and anything else is one '?' per character.
+ * sentence is), and anything else is one '?' per character. The one text that
+ * is not UTF-8 is the key of a boot line: tr( ) returns Latin-1, so
+ * latin1FoldNext( ) and bootLineAscii( ) at the end of this file fold that part
+ * by its own encoding (the suffix of the same line is UTF-8).
  *
  * Until 2026-10-02 this lived twice, as DisplayManager::unaccent( ) in
  * DisplayManager_LangParser.cpp and in DisplayManager_Alpha.cpp, and both
@@ -102,4 +105,35 @@ inline void utf8FoldAscii(const char* utf8, char* out, size_t outSize) {
 		if (ch) out[o++] = ch;
 	}
 	out[o] = '\0';
+}
+
+/** One byte of Latin-1 folded as the character it is. Latin-1 is the first 256 code points of Unicode, so the byte is the UTF-8 pair of its
+ *  code point (0xC2 and the byte for 0x80..0xBF, 0xC3 and the byte less 0x40 for 0xC0..0xFF) and goes through the table above: one table for
+ *  both encodings, and a letter folds the same in either. Returns 0 when the character prints as nothing (the Spanish opening marks). */
+inline char latin1FoldNext(unsigned char b) {
+	if (b < 0x80) return (char)b;
+	const unsigned char pair[3] = { (unsigned char)(b < 0xC0 ? 0xC2 : 0xC3), (unsigned char)(0x80 | (b & 0x3F)), 0 };
+	const unsigned char* p = pair;
+	return utf8FoldNext(p);
+}
+
+/** A line of the boot terminal. Its two parts do not share an encoding: the key's text is what tr( ) returns, Latin-1 (the TFT fonts index glyphs
+ *  by Latin-1 code), and the suffix is what the boot formatted in, UTF-8 (a device name, an SSID: showApOnPanel( ) in AppManager_Commands.cpp).
+ *  The box draws with the built-in 5x7 font, which is 7-bit, so each part goes through its own table, and the line is padded with spaces to
+ *  `cols` columns AFTER the fold, so that a shorter line overwrites a longer one that was there: an accent in the suffix is two bytes in and one
+ *  out. Until 2026-11-04 the two were joined and folded as UTF-8, and the key's "Conexão" (43 6F 6E 65 78 E3 6F) read as a lead byte with no
+ *  continuation: "Conex?o". */
+inline void bootLineAscii(const char* keyLatin1, const char* suffixUtf8, char* out, size_t outSize, size_t cols) {
+	if (!out || outSize == 0) return;
+	size_t n = 0;
+	for (const unsigned char* p = (const unsigned char*)keyLatin1; p && *p && n + 1 < outSize; p++) {
+		const char ch = latin1FoldNext(*p);
+		if (ch) out[n++] = ch;
+	}
+	for (const unsigned char* p = (const unsigned char*)suffixUtf8; p && *p && n + 1 < outSize; ) {
+		const char ch = utf8FoldNext(p);
+		if (ch) out[n++] = ch;
+	}
+	while (n < cols && n + 1 < outSize) out[n++] = ' ';
+	out[n] = '\0';
 }

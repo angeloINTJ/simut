@@ -250,25 +250,23 @@ void DisplayManager::render(const SystemState& state) {
 			 *
 			 * This box draws with setFont(NULL) — the built-in 5x7 font,
 			 * which is NOT Latin-1: byte 0xE7 is a math symbol there, not
-			 * 'c-cedilla'. tr() hands back Latin-1 (the TFT fonts carry it),
-			 * so every accented boot line rendered as tau/theta/pi. Fold to
-			 * ASCII the way the license screen already does.
+			 * 'c-cedilla', so an accented line drew as tau/theta/pi. Fold to
+			 * ASCII, and fold each part of the line by ITS encoding
+			 * (bootLineAscii( ), Utf8Fold.h): tr( ) hands back Latin-1 (the TFT
+			 * fonts carry it), one byte per accent, and the suffix is UTF-8 (a
+			 * device name, an SSID), two bytes per accent. Until 2026-11-04 the
+			 * joined text went through unaccent( ), the UTF-8 fold, which read
+			 * the key's 0xE3 as the lead byte of a three-byte sequence with no
+			 * continuation: "Conexão" drew as "Conex?o".
 			 *
-			 * The fold has to come BEFORE the padding, too: an accent is 2
+			 * The padding comes AFTER the fold, too: the suffix's accent is 2
 			 * bytes in and 1 out, so padding measured on the pre-fold length
 			 * left the tail of a longer previous line on screen. */
-			char logRaw[96];
 			char logLine[48];
-			if (cur.key >= 0 && cur.key < (int16_t)TR_KEYS_COUNT) {
-				snprintf(logRaw, sizeof(logRaw), "%s%s",
-				         tr((LangKey)cur.key), cur.suffix);
-			} else {
-				snprintf(logRaw, sizeof(logRaw), "%s", cur.suffix); /* raw legacy */
-			}
-			unaccent(logRaw, logLine, sizeof(logLine));
-			size_t llen = strlen(logLine);
-			while (llen < 46 && llen < sizeof(logLine) - 1) logLine[llen++] = ' ';
-			logLine[llen] = '\0';
+			const char* keyText = (cur.key >= 0 && cur.key < (int16_t)TR_KEYS_COUNT)
+			                    ? tr((LangKey)cur.key)
+			                    : "";   /* a raw legacy line: the suffix alone */
+			bootLineAscii(keyText, cur.suffix, logLine, sizeof(logLine), 46);
 			_driver.tft->print(logLine);
 		}
 

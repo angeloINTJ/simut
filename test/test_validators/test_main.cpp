@@ -2193,6 +2193,65 @@ void test_fold_symbols(void) {
 }
 
 /* ===========================================================================
+ *  THE BOOT TERMINAL'S LINES — latin1FoldNext, bootLineAscii (Utf8Fold.h)
+ *
+ *  A line of the boot terminal is two texts in two encodings: tr( ) returns
+ *  Latin-1 (the TFT fonts index glyphs by Latin-1 code) and the suffix is what
+ *  the boot formatted in, UTF-8 (a device name, an SSID). The box draws with the
+ *  built-in 5x7 font, which is 7-bit, so each part is folded by its own table.
+ *  Joined and folded as UTF-8, the key's "Conex\xC3\xA3o" (43 6F 6E 65 78 E3 6F)
+ *  read as a lead byte with no continuation and drew "Conex?o".
+ * =========================================================================== */
+static std::string bootLine(const char* key, const char* suffix, size_t cols = 0, size_t cap = 96) {
+    std::vector<char> out(cap ? cap : 1, 'X');
+    bootLineAscii(key, suffix, out.data( ), cap, cols);
+    return cap ? std::string(out.data( )) : std::string( );
+}
+
+void test_bootline_latin1_key_then_utf8_suffix(void) {
+    /* the case that was wrong: a Latin-1 key, then a UTF-8 name */
+    TEST_ASSERT_EQUAL_STRING("Conexao Jose", bootLine("Conex\xE3o", " Jos\xC3\xA9").c_str( ));
+    /* a raw legacy line has no key, and an English one has an ASCII key: unchanged */
+    TEST_ASSERT_EQUAL_STRING("PSK abc", bootLine("", "PSK abc").c_str( ));
+    TEST_ASSERT_EQUAL_STRING("Mounting FS... ok", bootLine("Mounting FS...", " ok").c_str( ));
+}
+
+void test_bootline_every_latin1_byte_folds_like_its_utf8_pair(void) {
+    /* one table for both encodings: the upper half of Latin-1 against the two-byte sequence of the same code point */
+    for (int b = 0x80; b <= 0xFF; b++) {
+        const char latin1[2] = { (char)b, '\0' };
+        const char pair[3] = { (char)(b < 0xC0 ? 0xC2 : 0xC3), (char)(0x80 | (b & 0x3F)), '\0' };
+        char msg[40];
+        snprintf(msg, sizeof msg, "Latin-1 byte 0x%02X", b);
+        TEST_ASSERT_EQUAL_STRING_MESSAGE(fold(pair).c_str( ), bootLine(latin1, "").c_str( ), msg);
+    }
+    /* and the letters of the shipped packs, by name (the UTF-8 twin is test_fold_keeps_ascii_and_latin_letters) */
+    TEST_ASSERT_EQUAL_STRING("Acao Nandu Uber ate e Ola",
+        bootLine("A\xE7\xE3o \xD1" "and\xFA \xDC" "ber at\xE9 \xE9 Ol\xE1", "").c_str( ));
+}
+
+void test_bootline_drops_the_spanish_opening_marks(void) {
+    TEST_ASSERT_EQUAL_STRING("Listo? Si!", bootLine("\xBF" "Listo? \xA1" "S\xED!", "").c_str( ));
+}
+
+void test_bootline_pads_after_the_fold(void) {
+    /* the suffix's accent is two bytes in and one out: a pad counted on the bytes leaves a column of the longer line that was there */
+    const std::string line = bootLine("Conex\xE3o", " Jos\xC3\xA9", 46);
+    TEST_ASSERT_EQUAL_UINT32(46, line.size( ));
+    TEST_ASSERT_EQUAL_STRING("Conexao Jose", line.substr(0, 12).c_str( ));
+    TEST_ASSERT_EQUAL_STRING(std::string(34, ' ').c_str( ), line.substr(12).c_str( ));
+}
+
+void test_bootline_respects_capacity(void) {
+    /* the screen's buffer is 48 B: 47 columns, terminated, whatever the text */
+    const std::string full = "Conexao Jose and a device name much too long for the box";
+    TEST_ASSERT_EQUAL_STRING(full.substr(0, 47).c_str( ),
+        bootLine("Conex\xE3o", " Jos\xC3\xA9 and a device name much too long for the box", 46, 48).c_str( ));
+    TEST_ASSERT_EQUAL_STRING("abc", bootLine("abc", "def", 0, 4).c_str( ));
+    TEST_ASSERT_EQUAL_STRING("", bootLine("abc", "def", 46, 1).c_str( ));
+}
+
+/* ===========================================================================
  *  ONE STRING FROM @WEBDICT — WebDictValue (WebDictValue.h)
  *
  *  The License screen opens with the same sentences the /license page shows,
@@ -6088,6 +6147,11 @@ int main(int /*argc*/, char** /*argv*/) {
     RUN_TEST(test_fold_never_reads_past_the_end);
     RUN_TEST(test_fold_respects_capacity);
     RUN_TEST(test_fold_symbols);
+    RUN_TEST(test_bootline_latin1_key_then_utf8_suffix);
+    RUN_TEST(test_bootline_every_latin1_byte_folds_like_its_utf8_pair);
+    RUN_TEST(test_bootline_drops_the_spanish_opening_marks);
+    RUN_TEST(test_bootline_pads_after_the_fold);
+    RUN_TEST(test_bootline_respects_capacity);
     RUN_TEST(test_wdv_finds_a_value);
     RUN_TEST(test_wdv_decodes_escapes);
     RUN_TEST(test_wdv_matches_the_key_exactly);
