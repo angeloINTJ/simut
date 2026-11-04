@@ -399,7 +399,9 @@ figcaption b{color:var(--tinta);font-weight:600}
 .moldura{border:1px solid var(--linha);border-radius:var(--raio-cartao);background:var(--superficie-2);padding:var(--espaco-3);display:inline-block;max-width:100%}
 .moldura img{display:block;max-width:100%;height:auto;border-radius:var(--raio-controle)}
 .moldura-tft img{width:640px;image-rendering:pixelated}
-/* The LCD's figures are drawn dot by dot at 639 px (tools/lcd_alpha/lcd.py): shown at that size and never smoothed. */
+/* The LCD's figures are drawn dot by dot at 639 px (tools/lcd_alpha/lcd.py): shown at that size and not smoothed. Below 600 px they are
+   smoothed (the @media rule at the end): a nearest-neighbour shrink to about 340 px drops the 1 px gaps of the grid unevenly (seen in
+   headless Chrome at 390 px by the review of 2026-11-04). */
 .moldura-lcd img{width:639px;image-rendering:pixelated}
 .moldura-web{border:1px solid var(--linha);border-radius:var(--raio-cartao);overflow:hidden;background:var(--superficie)}
 .moldura-web .barra{display:flex;gap:var(--espaco-1);padding:var(--espaco-2) var(--espaco-3);border-bottom:1px solid var(--linha);background:var(--superficie-2)}
@@ -416,7 +418,7 @@ figcaption b{color:var(--tinta);font-weight:600}
 .volta{font:400 13px/18px var(--font-texto);margin-top:var(--espaco-5)}
 .colofao{border-top:1px solid var(--linha);margin-top:var(--espaco-7);padding-top:var(--espaco-5);font:400 13px/18px var(--font-texto);color:var(--tinta-2)}
 .colofao p{max-width:none}
-@media (max-width:600px){.capa h1,.parte h2{font-size:28px;line-height:32px}.moldura-tft img{width:100%}.moldura-lcd img{width:100%}}
+@media (max-width:600px){.capa h1,.parte h2{font-size:28px;line-height:32px}.moldura-tft img{width:100%}.moldura-lcd img{width:100%;image-rendering:auto}}
 @media print{#tema{display:none}.parte{break-before:page}.capitulo{break-inside:auto}pre,.tw,.fig{break-inside:avoid}}
 """
 

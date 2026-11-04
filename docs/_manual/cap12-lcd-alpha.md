@@ -34,7 +34,7 @@ Os algarismos grandes são desenhados com caracteres especiais do LCD: cada um o
 
 ## O boot {#cap-12-boot}
 
-Ao ligar, o LCD mostra por 1,2 s:
+Ao ligar, o LCD mostra por 1,2 s, com a versão do firmware na linha de cima. Os exemplos e as figuras deste capítulo mostram `SIMUT 2.13.0`:
 
 ```text
 SIMUT 2.13.0
@@ -74,7 +74,7 @@ Depois disso, o LCD passa às leituras, também num alpha sem rede configurada: 
 ```
 
 ::: {.figura #fig-12-conectado tipo="lcd" arquivo="12-conectado.png" captura="desenhada pelo código do alpha no host (tools/lcd_alpha), amostra conectado, ROM A00, 639 x 137; refazer com python3 tools/lcd_alpha/manual_lcd.py --write; fim do boot, na rede, com IP; Conectado! e o endereço IP na linha de baixo, 192.0.2.10, da faixa de documentação (RFC 5737)"}
-O fim do boot com a rede: Conectado! e o endereço IP.
+O fim do boot com a rede, em valores de exemplo: Conectado! e o endereço IP.
 :::
 
 ::: {.figura #fig-12-obtendo-ip tipo="lcd" arquivo="12-obtendo-ip.png" captura="desenhada pelo código do alpha no host (tools/lcd_alpha), amostra obtendo-ip, ROM A00, 639 x 137; refazer com python3 tools/lcd_alpha/manual_lcd.py --write; fim do boot, associado ao roteador sem endereço ainda; Conectado! e Obtendo IP..."}
@@ -111,19 +111,19 @@ A dezena de uma temperatura abaixo de 10 °C fica em branco: 5,3 °C aparece com
 **Qual sensor está na tela.** Com mais de um sensor ativo, o canto de baixo à esquerda mostra `S` e o número do slot, como `S2`. Com um só, o canto fica livre para a contagem de pendentes. O LCD não mostra o nome do sensor.
 
 ::: {.figura #fig-12-temperatura tipo="lcd" arquivo="12-temperatura.png" captura="desenhada pelo código do alpha no host (tools/lcd_alpha), amostra temperatura, ROM A00, 639 x 137; refazer com python3 tools/lcd_alpha/manual_lcd.py --write; 2 sensores ativos; na vez da temperatura do slot 0, com 23,4 °C; W e o ícone de sinal, de cinco barras, no canto de cima, S0 no canto de baixo"}
-Uma temperatura em algarismos grandes, com o slot no canto de baixo.
+Uma temperatura em algarismos grandes, em valores de exemplo, com o slot no canto de baixo.
 :::
 
 ::: {.figura #fig-12-umidade tipo="lcd" arquivo="12-umidade.png" captura="desenhada pelo código do alpha no host (tools/lcd_alpha), amostra umidade, ROM A00, 639 x 137; refazer com python3 tools/lcd_alpha/manual_lcd.py --write; DHT22 no slot 1, na vez da umidade, com 58 %; S1 no canto de baixo"}
-A umidade em algarismos grandes, com %UR.
+A umidade em algarismos grandes, em valores de exemplo, com %UR.
 :::
 
 ::: {.figura #fig-12-pressao tipo="lcd" arquivo="12-pressao.png" captura="desenhada pelo código do alpha no host (tools/lcd_alpha), amostra pressao, ROM A00, 639 x 137; refazer com python3 tools/lcd_alpha/manual_lcd.py --write; BME280 no slot 2, na vez da pressão, com 1013.2 hPa, com ponto decimal como o LCD escreve; S2 no canto de baixo"}
-A pressão, em caracteres normais na linha de cima.
+A pressão em caracteres normais na linha de cima, em valores de exemplo.
 :::
 
 ::: {.figura #fig-12-negativa tipo="lcd" arquivo="12-negativa.png" captura="desenhada pelo código do alpha no host (tools/lcd_alpha), amostra negativa, ROM A00, 639 x 137; refazer com python3 tools/lcd_alpha/manual_lcd.py --write; DS18B20 num congelador, com -18,5 °C; um só sensor ativo e nenhum pendente"}
-Uma temperatura negativa: o traço antes dos algarismos.
+Uma temperatura negativa, em valores de exemplo: o traço antes dos algarismos.
 :::
 
 ## Erro e ausência de sensor {#cap-12-erro}
@@ -181,11 +181,11 @@ O aparelho atualiza a contagem a cada 10 s. Com mais de um sensor, o canto mostr
 Na v2.7.1, o LCD não mostra os pendentes.
 
 ::: {.figura #fig-12-pendentes tipo="lcd" arquivo="12-pendentes.png" captura="desenhada pelo código do alpha no host (tools/lcd_alpha), amostra pendentes, ROM A00, 639 x 137; refazer com python3 tools/lcd_alpha/manual_lcd.py --write; 1 sensor ativo; telemetria ligada com o coletor fora do ar, 37 registros pendentes; 37 no canto de baixo à esquerda"}
-A contagem de pendentes no canto de baixo, com um único sensor.
+A contagem de pendentes no canto de baixo, com um único sensor, em valores de exemplo.
 :::
 
 ::: {.figura #fig-12-pendentes-k tipo="lcd" arquivo="12-pendentes-k.png" captura="desenhada pelo código do alpha no host (tools/lcd_alpha), amostra pendentes-k, ROM A00, 639 x 137; refazer com python3 tools/lcd_alpha/manual_lcd.py --write; 1 sensor ativo; 2.500 registros pendentes; 2k no canto de baixo"}
-Mais de mil pendentes: a contagem em milhares.
+Mais de mil pendentes, em valores de exemplo: a contagem em milhares.
 :::
 
 ## O ponto de acesso de configuração {#cap-12-ap}
@@ -234,7 +234,7 @@ A página 2 do AP: o nome da rede.
 :::
 
 ::: {.figura #fig-12-ap-3 tipo="lcd" arquivo="12-ap-3.png" captura="desenhada pelo código do alpha no host (tools/lcd_alpha), amostra ap-3, ROM A00, 639 x 137; refazer com python3 tools/lcd_alpha/manual_lcd.py --write; mesmo estado; página Senha: 3 de 3 com uma chave de demonstração, de 10 caracteres do alfabeto das chaves e de nenhum aparelho"}
-A página 3 do AP: a chave.
+A página 3 do AP, em valores de exemplo: a chave.
 :::
 
 ## A atualização do firmware {#cap-12-atualizacao}

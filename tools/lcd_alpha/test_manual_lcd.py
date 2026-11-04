@@ -19,6 +19,7 @@
 
   python3 tools/lcd_alpha/test_manual_lcd.py     exit 0 when every control holds, 1 when one does not, 2 when it cannot draw
 """
+import contextlib
 import io
 import os
 import pathlib
@@ -83,6 +84,20 @@ def main():
         confere(not sem and not a, f'the committed figures and chapters give {len(a)} finding(s): {a[:3]}', f'clean: 17 figures drawn again, 0 findings')
         r = cli('--check')
         confere(r.returncode == 0 and r.stdout.rstrip().endswith('0 finding(s)'), f'the command line on the committed tree exited {r.returncode}: {r.stdout.strip()[-200:]} {r.stderr.strip()[-200:]}', 'command line: exit 0 on the committed tree')
+        quando = m.versao_do_firmware( )
+        confere(quando == m.VERSAO and 'note:' not in r.stdout, f'with the firmware at {quando} the command line printed a note: {r.stdout.strip()[-200:]}',
+                f'the firmware is SIMUT {quando}, the figures show it: no note')
+        # A firmware ahead of the figures: a note in the log and still exit 0 (the figures are pinned on purpose; review of 2026-11-04).
+        antes = m.versao_do_firmware
+        m.versao_do_firmware = lambda: '9.9.9'
+        saida = io.StringIO()
+        try:
+            with contextlib.redirect_stdout(saida):
+                rc = m.main(['--check'])
+        finally:
+            m.versao_do_firmware = antes
+        confere(rc == 0 and f'the figures show SIMUT {m.VERSAO} and the firmware is 9.9.9' in saida.getvalue(),
+                f'a firmware at 9.9.9 gave exit {rc}: {saida.getvalue().strip()[-200:]}', 'a firmware ahead of the figures: the note, and exit 0')
 
         # one pixel of one figure
         alvo = img / '12-temperatura.png'

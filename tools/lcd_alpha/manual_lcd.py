@@ -230,6 +230,16 @@ def conferir_imagens(imagens, desenhadas, sem, capitulos):
     return achados
 
 
+def versao_do_firmware( ):
+    """SIMUT_VERSION as src/SystemDefs_Limits.h defines it, read from the source; None when it cannot be read (the note is then skipped)."""
+    try:
+        t = (ROOT / 'src' / 'SystemDefs_Limits.h').read_text(encoding='utf-8')
+    except OSError:
+        return None
+    m = re.search(r'^#define\s+SIMUT_VERSION\s+"([^"]+)"', t, re.M)
+    return m.group(1) if m else None
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__.split('\n')[0])
     modo = ap.add_mutually_exclusive_group(required=True)
@@ -272,6 +282,12 @@ def main(argv=None):
         return 2
     for linha in achados:
         print(linha)
+    firmware = versao_do_firmware( )
+    if firmware and firmware != VERSAO:
+        # A note and not a finding: the figures are pinned on purpose, and chapter 12 says which version they show. The note keeps the gap
+        # visible in the CI log after a release (the review of 2026-11-04: the cover follows SIMUT_VERSION, the figures do not).
+        print(f'manual_lcd: note: the figures show SIMUT {VERSAO} and the firmware is {firmware}; to follow it, change VERSAO, run --write '
+              f'and the chapter text --check names')
     print(f'manual_lcd: {len(FIGURAS)} figures drawn again from the code and compared by pixels, the chapters read, {len(achados)} finding(s)')
     return 1 if achados else 0
 
