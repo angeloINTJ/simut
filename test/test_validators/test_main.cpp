@@ -2402,6 +2402,55 @@ void test_ringline_a_key_that_does_not_fit_leaves_the_suffix_out(void) {
     TEST_ASSERT_TRUE(got.find("XYZ") == std::string::npos);
 }
 
+/* The lead-byte table of bootLineUtf8( ), byte by byte. The cases above pin it at C3, E2 and F0 (and C0, FF and 80 as non-leads); the review of 2026-11-04 found
+ * seven mutants of its boundaries alive after them (C2, DF, E0, EF and F4 not leads, F5..FF leads, a continuation test loosened to `& 0x80`), and the
+ * validUtf8( ) above cannot tell, since it carries the same table. So the expected output here comes from RFC 3629, section 4, written out as the RFC writes it
+ * (UTF8-2, UTF8-3 and UTF8-4, a row for each alternative) and read back from neither bootLineUtf8( ) nor validUtf8( ). Only what the function holds is pinned: the
+ * lead's range and the continuation bytes (80..BF). The rest of the RFC's rule (E0 80..9F and F0 80..8F overlong, ED A0..BF a surrogate, F4 90.. past U+10FFFF) is not,
+ * on purpose (Utf8Fold.h says so), and no case here depends on it. */
+static size_t rfc3629LeadLength(int b) {
+    static const struct { int lo, hi; size_t len; } leads[] = {
+        { 0xC2, 0xDF, 2 },                                                                          /* UTF8-2 = %xC2-DF UTF8-tail */
+        { 0xE0, 0xE0, 3 }, { 0xE1, 0xEC, 3 }, { 0xED, 0xED, 3 }, { 0xEE, 0xEF, 3 },                  /* UTF8-3 = %xE0 ... / %xE1-EC ... / %xED ... / %xEE-EF ... */
+        { 0xF0, 0xF0, 4 }, { 0xF1, 0xF3, 4 }, { 0xF4, 0xF4, 4 },                                    /* UTF8-4 = %xF0 ... / %xF1-F3 ... / %xF4 ... */
+    };
+    for (const auto& r : leads) if (b >= r.lo && b <= r.hi) return r.len;
+    return 0;                                                                                       /* 80..BF are tails; C0, C1 and F5..FF open nothing */
+}
+
+void test_ringline_the_lead_byte_table_byte_by_byte(void) {
+    /* 1. Every byte 0x80..0xFF as a lead, then three continuation bytes and a letter: the sequence its lead opens, whole, then one '?' for each continuation byte
+     *    that is left over; a byte that opens nothing is one '?', and so is each of the three after it. */
+    for (int b = 0x80; b <= 0xFF; b++) {
+        const char in[6] = { (char)b, (char)0x80, (char)0x80, (char)0x80, 'z', '\0' };
+        const size_t len = rfc3629LeadLength(b);
+        std::string want;
+        if (len) want.append(in, len);
+        want.append(len ? 4 - len : 4, '?');
+        want += 'z';
+        char msg[64];
+        snprintf(msg, sizeof msg, "lead byte 0x%02X, then 80 80 80 z", b);
+        TEST_ASSERT_EQUAL_STRING_MESSAGE(want.c_str( ), ringLine("", in).c_str( ), msg);
+    }
+    /* 2. The last byte of a 2-, 3- and 4-byte sequence, every value 0x01..0xFF in turn, then a letter: 80..BF completes the sequence, and anything else cuts it short,
+     *    so the lead and the continuation bytes before it are one '?' and the byte is read again as itself (a 7-bit byte stays; a lead or a non-lead is one '?' of its own). */
+    static const struct { unsigned char lead; size_t len; } opens[] = { { 0xC2, 2 }, { 0xE2, 3 }, { 0xF1, 4 } };
+    for (const auto& o : opens) {
+        for (int c = 0x01; c <= 0xFF; c++) {
+            std::string in(1, (char)o.lead);
+            in.append(o.len - 2, (char)0x80);
+            in += (char)c;
+            in += 'z';
+            std::string want;
+            if (c >= 0x80 && c <= 0xBF) want = in;
+            else { want = "?"; want += c < 0x80 ? std::string(1, (char)c) : std::string("?"); want += 'z'; }
+            char msg[64];
+            snprintf(msg, sizeof msg, "%u-byte lead 0x%02X, last byte 0x%02X", (unsigned)o.len, (unsigned)o.lead, c);
+            TEST_ASSERT_EQUAL_STRING_MESSAGE(want.c_str( ), ringLine("", in.c_str( )).c_str( ), msg);
+        }
+    }
+}
+
 /* ===========================================================================
  *  ONE STRING FROM @WEBDICT — WebDictValue (WebDictValue.h)
  *
@@ -6312,6 +6361,7 @@ int main(int /*argc*/, char** /*argv*/) {
     RUN_TEST(test_ringline_cut_is_at_a_whole_character);
     RUN_TEST(test_ringline_a_suffix_that_is_not_utf8_is_marks_and_the_line_stays_valid);
     RUN_TEST(test_ringline_a_key_that_does_not_fit_leaves_the_suffix_out);
+    RUN_TEST(test_ringline_the_lead_byte_table_byte_by_byte);
     RUN_TEST(test_wdv_finds_a_value);
     RUN_TEST(test_wdv_decodes_escapes);
     RUN_TEST(test_wdv_matches_the_key_exactly);
