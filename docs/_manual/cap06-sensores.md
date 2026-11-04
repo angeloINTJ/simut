@@ -318,7 +318,7 @@ A tela inicial do painel com dois sensores lendo normalmente.
 Um sensor em erro no painel: o cartão mostra Erro no lugar da temperatura e fica âmbar pelo alarme de falha.
 :::
 
-::: {.figura #fig-06-lcd-erro tipo="lcd" arquivo="06-lcd-erro.png" captura="imagem alpha; 1 sensor DHT22 ativo e desligado do pino; o LCD mostra ERRO em letras grandes"}
+::: {.figura #fig-06-lcd-erro tipo="lcd" arquivo="06-lcd-erro.png" captura="desenhada pelo código do alpha no host (tools/lcd_alpha), amostra lcd-erro, ROM A00, 639 x 137; refazer com python3 tools/lcd_alpha/manual_lcd.py --write; imagem alpha; 1 sensor DHT22 ativo e desligado do pino; o LCD mostra ERRO em letras grandes; é o mesmo quadro de 12-sem-sensor, porque com um só sensor e nenhum pendente o canto de baixo fica livre"}
 O LCD do alpha com o sensor em erro.
 :::
 

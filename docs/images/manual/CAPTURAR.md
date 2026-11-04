@@ -3,7 +3,7 @@
 Gerado por `tools/build_manual.py` — não edite à mão. Salve cada captura
 nesta pasta com o nome indicado e rode o script de novo.
 
-151 pendentes de 245.
+134 pendentes de 245.
 
 
 ## Capítulo 1 — O SIMUT em uma página
@@ -45,8 +45,6 @@ nesta pasta com o nome indicado e rode o script de novo.
       A pergunta do fim do boot num aparelho sem rede: a data e a hora do relógio provisório, prontas para acertar.
 - [ ] `04-painel-ap.png` (Tela do painel) — release recém-gravada, sem rede configurada; ponto de acesso aberto pelo menu (CFG, admin, PIN, item 8 Modo de Configuração, Confirmar) ou pelo comando ap no console USB; a caixa termina com simut_SETUP, PSK e a chave, Acesse no celular: 192.168.4.1 e AP Ativo! Reinicie a placa para sair.; capturar com GET /api/screenshot pelo próprio AP, com sessão admin depois da troca de senha; se a captura não funcionar no AP, use foto da tela; borre a chave antes de publicar
       O painel com o ponto de acesso aberto: a rede, a chave e o aviso de AP ativo ficam na tela.
-- [ ] `04-lcd-ap.png` (LCD 16×2) — alpha recém-gravada, sem rede configurada; ponto de acesso aberto pelo comando ap no console USB, com o aparelho já nas leituras; página Rede: 2 de 3 com simut_SETUP na linha de baixo
-      O LCD de uma alpha com o ponto de acesso aberto pelo comando ap: a página com o nome da rede.
 - [ ] `04-novo-pin.png` (Tela do painel) — release com configuração de fábrica; tela inicial → botão de configurações → admin → PIN 1234 → ENTRAR; tela Novo PIN aberta, antes de digitar
       A troca obrigatória do PIN de fábrica: a tela Novo PIN abre direto depois do 1234.
 
@@ -77,8 +75,6 @@ nesta pasta com o nome indicado e rode o script de novo.
       A tela inicial do painel com dois sensores lendo normalmente.
 - [ ] `06-painel-erro.png` (Tela do painel) — screen dash; 2 sensores ativos; a sonda DS18B20 desligada do pino há mais de 3 leituras, alarmes do slot ligados
       Um sensor em erro no painel: o cartão mostra Erro no lugar da temperatura e fica âmbar pelo alarme de falha.
-- [ ] `06-lcd-erro.png` (LCD 16×2) — imagem alpha; 1 sensor DHT22 ativo e desligado do pino; o LCD mostra ERRO em letras grandes
-      O LCD do alpha com o sensor em erro.
 - [ ] `06-calibracao.png` (Página web) — rota /config; largura 1280; sessão admin com a permissão Calibração; editor de um slot DHT22 ativo; relógio sincronizado por NTP; Temp com 2 pontos preenchidos e Reta escolhida; Umid sem correção; recorte do bloco Calibração
       O bloco Calibração de um DHT22. Cada grandeza tem sua linha de leitura, o mini gráfico da correção e seus pontos.
 - [ ] `06-calibracao-suave.png` (Página web) — rota /config; largura 1280; sessão admin com a permissão Calibração; editor de um slot DS18B20; Temp com 3 pontos (0, 25 e 50 °C de referência) e Suave escolhida; recorte do bloco Calibração
@@ -211,38 +207,8 @@ nesta pasta com o nome indicado e rode o script de novo.
 
 ## Capítulo 12 — O LCD do alpha
 
-- [ ] `12-splash.png` (LCD 16×2) — logo depois de ligar; linha de cima SIMUT 2.7.1, linha de baixo Inicializando
-      A abertura do LCD, com a versão.
-- [ ] `12-boot.png` (LCD 16×2) — durante o boot, com a barra pela metade: SIMUT 2.7.1 e [#######       ]
-      A barra de progresso do boot.
-- [ ] `12-conectado.png` (LCD 16×2) — fim do boot, na rede, com IP; Conectado! e o endereço IP na linha de baixo (use um endereço de documentação na legenda publicada)
-      O fim do boot com a rede: Conectado! e o endereço IP.
-- [ ] `12-obtendo-ip.png` (LCD 16×2) — fim do boot, associado ao roteador sem endereço ainda; Conectado! e Obtendo IP...
-      Associado à rede, esperando o endereço.
-- [ ] `12-offline.png` (LCD 16×2) — fim do boot sem rede alcançável; Sem WiFi e Offline
-      O fim do boot sem rede.
-- [ ] `12-temperatura.png` (LCD 16×2) — 2 sensores ativos; na vez da temperatura do slot 0, com 23,4 °C; W e o ícone de sinal no canto de cima, S0 no canto de baixo
-      Uma temperatura em algarismos grandes, com o slot no canto de baixo.
-- [ ] `12-umidade.png` (LCD 16×2) — DHT22 no slot 1, na vez da umidade, com 58 %; S1 no canto de baixo
-      A umidade em algarismos grandes, com %UR.
-- [ ] `12-pressao.png` (LCD 16×2) — BME280 no slot 2, na vez da pressão, com 1013,2 hPa; S2 no canto de baixo
-      A pressão, em caracteres normais na linha de cima.
-- [ ] `12-negativa.png` (LCD 16×2) — DS18B20 num congelador, com -18,5 °C; um só sensor ativo e nenhum pendente
-      Uma temperatura negativa: o traço antes dos algarismos.
-- [ ] `12-sem-sensor.png` (LCD 16×2) — imagem alpha sem nenhum slot ativo, conectada ao Wi-Fi; ERRO em letras grandes e W com o ícone de sinal
-      ERRO fixo: nenhum sensor ativo.
 - [ ] `12-wifi-niveis.png` (Diagrama) — os seis desenhos do ícone, em grade de 5 x 8 pixels, lado a lado: X, 1, 2, 3, 4 e 5 barras; em cima, a escada da v2.7.2 (colunas acesas da esquerda para a direita); embaixo, os desenhos da v2.7.1 (linhas acesas de baixo para cima); bitmaps em src/display/BigFont_HD44780.h
       Os seis estados do ícone de sinal: a escada da v2.7.2 e as linhas da v2.7.1.
-- [ ] `12-pendentes.png` (LCD 16×2) — imagem v2.7.2; 1 sensor ativo; telemetria ligada com o coletor fora do ar, 37 registros pendentes; 37 no canto de baixo à esquerda
-      A contagem de pendentes no canto de baixo, com um único sensor.
-- [ ] `12-pendentes-k.png` (LCD 16×2) — imagem v2.7.2; 1 sensor ativo; 2.500 registros pendentes; 2k no canto de baixo
-      Mais de mil pendentes: a contagem em milhares.
-- [ ] `12-ap-1.png` (LCD 16×2) — AP aberto em operação pelo comando ap; página Modo AP 1 de 3 com 192.168.4.1
-      A página 1 do AP: o endereço.
-- [ ] `12-ap-2.png` (LCD 16×2) — mesmo estado; página Rede: 2 de 3 com simut_SETUP
-      A página 2 do AP: o nome da rede.
-- [ ] `12-ap-3.png` (LCD 16×2) — mesmo estado; página Senha: 3 de 3 com a chave; borre a chave na foto publicada ou use um aparelho de demonstração
-      A página 3 do AP: a chave.
 
 ## Capítulo 13 — A interface web no dia a dia
 
