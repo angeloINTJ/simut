@@ -258,7 +258,7 @@ A rede do AP:
 | Endereço do aparelho | `http://192.168.4.1`, com a porta do servidor web se ela não for a 80, como `http://192.168.4.1:8080` |
 | Qualquer outro endereço | Leva ao aparelho, com o servidor web na porta 80 ([capítulo 13](#cap-13-abrir)) |
 
-O AP atende na porta configurada em [Servidor Web](#cap-09-servidor-web). O console, a resposta do comando `ap`, o painel e o LCD do alpha mostram o endereço com a porta sempre que ela não é a do protocolo: 80 no HTTP, 443 no HTTPS. Até a v2.11.1, os quatro mostravam `192.168.4.1` sem a porta, e esse endereço recusava a conexão num aparelho com outra porta (medido em bancada em 13/10/2026, com o AP aberto e a porta 8080).
+O AP atende na porta configurada em [Servidor Web](#cap-09-servidor-web). O console, a resposta do comando `ap`, o painel e o LCD do alpha mostram o endereço com a porta sempre que ela não é a do protocolo: 80 no HTTP, 443 no HTTPS. Até a v2.13.0, os quatro mostravam `192.168.4.1` sem a porta, e esse endereço recusava a conexão num aparelho com outra porta (medido em bancada em 13/10/2026, com o AP aberto e a porta 8080).
 
 A chave é derivada da identidade do chip e é sempre a mesma para aquele aparelho, mesmo depois de um reset de fábrica. Ela usa letras maiúsculas e algarismos, sem `O`, `0`, `I` e `1`, para ser lida em voz alta sem confusão. A chave aparece:
 
