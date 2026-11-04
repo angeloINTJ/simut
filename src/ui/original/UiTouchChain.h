@@ -1,8 +1,8 @@
 /**
  * @file UiTouchChain.h
  * @brief The original's touch chain: what a touch does on each screen, one branch per _uiMode. Old lines 408-1225 of
- *        src/DisplayManager_Touch.cpp (50828bdf), word for word. Included INSIDE handleTouch( ) by src/ui/UiDriverTouch.h, after the early
- *        gates; x and y are its locals.
+ *        src/DisplayManager_Touch.cpp (50828bdf), word for word but the dashboard's min/max zones (2026-11-04, the first
+ *        branch). Included INSIDE handleTouch( ) by src/ui/UiDriverTouch.h, after the early gates; x and y are its locals.
  *
  * Not self-contained and no include guard: it is a fragment of a function body.
  */

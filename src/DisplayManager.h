@@ -213,8 +213,8 @@ constexpr uint32_t DASH_HOLD_GAP_MS = 120;
  * Lifting off a resistive panel is not a clean edge. Pressure decays, the
  * controller keeps reporting contact, and the X/Y it reports while decaying
  * drifts — often to an extreme of the axis. Every branch in this region is
- * reachable by that garbage: x>280 flips pinned/interactive on touch-down,
- * x>266 opens the graph, and a release with holdStart set runs the tap action.
+ * reachable by that garbage: a touch-down on a card's min/max button opens the
+ * graph, and a release with holdStart set runs the tap action (UiTouchChain.h).
  * Guarding them one at a time is whack-a-mole, so the whole region goes deaf
  * for the length of a lift instead. The gesture already did what it was asked;
  * nothing else it produces on the way up is wanted.
