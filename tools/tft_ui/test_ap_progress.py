@@ -15,8 +15,15 @@ stamped again at every step of the hold: the flicker the comment beside it says 
      carried (today -2 or -1, so the previous-percentage term alone would also clear; the rule must not hang on that).
   3. A cancelled hold (the percentage back to -1, then the boot terminal again) is a full redraw: the terminal is painted again over the
      hold's frame. The fix must keep `fullRedraw` true there.
-  4. The mutants, each of which must fail 1-3: M1 `enterAp` back to `fullRedraw || prev < 0` (the defect), M2 without `langJustChanged`,
-     M3 without the not-booting term, M4 `fullRedraw` without the percentage term (a cancel would leave the hold's frame on screen).
+  4. The hold's block itself (`if (state.apProgressPct >= 0) { ... }`, cut by its braces with the comments taken out): the screen is
+     cleared exactly once in it, by the first statement under `if (enterAp) {`; the bar is painted after that block closes, so on every
+     frame; and the block ends in `return;`, so a hold frame never falls through to the boot terminal's painting (whose `fullRedraw` is
+     true at every step). The expressions alone said nothing of what they guard: until 2026-11-04 the guard could read
+     `if (fullRedraw) {` or `if (true) {` and this script still passed (the review of the small-bugs branch).
+  5. The mutants, each of which must fail 1-4: M1 `enterAp` back to `fullRedraw || prev < 0` (the defect), M2 without `langJustChanged`,
+     M3 without the not-booting term, M4 `fullRedraw` without the percentage term (a cancel would leave the hold's frame on screen),
+     M5 the clear guarded by `fullRedraw`, M6 by `true`, M7 a second clear before the bar, M8 the block's `return;` gone, M9 the bar
+     never painted.
 
 While the defect stands the base run is red and the mutants are not run.
 
@@ -32,6 +39,9 @@ RENDER = ROOT / 'src' / 'ui' / 'original' / 'DisplayManager_Render.cpp'
 
 FULL_RE = re.compile(r'bool\s+fullRedraw\s*=\s*(.*?);', re.S)
 ENTER_RE = re.compile(r'const\s+bool\s+enterAp\s*=\s*(.*?);', re.S)
+HOLD_RE = re.compile(r'if\s*\(\s*state\.apProgressPct\s*>=\s*0\s*\)\s*\{')
+GUARD_RE = re.compile(r'if\s*\(\s*enterAp\s*\)\s*\{')
+COMMENT_RE = re.compile(r'/\*.*?\*/|//[^\n]*', re.S)
 
 
 def cut(text, rx, name):
@@ -40,6 +50,52 @@ def cut(text, rx, name):
         print(f'ERROR: {name} found {len(found)} times in {RENDER.relative_to(ROOT)} (expected exactly once)')
         sys.exit(2)
     return ' '.join(found[0].split())
+
+
+def braced(text, open_at):
+    """The text between the brace at `open_at` and the brace that closes it (None when it never closes)."""
+    depth = 0
+    for i in range(open_at, len(text)):
+        if text[i] == '{':
+            depth += 1
+        elif text[i] == '}':
+            depth -= 1
+            if depth == 0:
+                return text[open_at + 1:i]
+    return None
+
+
+def cut_hold(text):
+    """The hold's block, comments taken out (the comment beside it quotes code), or exit 2 when it is not found exactly once."""
+    code = COMMENT_RE.sub(' ', text)
+    found = list(HOLD_RE.finditer(code))
+    body = braced(code, found[0].end() - 1) if len(found) == 1 else None
+    if body is None:
+        print(f'ERROR: the hold block `if (state.apProgressPct >= 0) {{` found {len(found)} times in {RENDER.relative_to(ROOT)}'
+              f' (expected exactly once, with its closing brace)')
+        sys.exit(2)
+    return body
+
+
+def body_checks(body):
+    """The failures of 4, as text."""
+    bad = []
+    clears = body.count('fastClearScreen(')
+    if clears != 1:
+        bad.append(f'4: the hold block clears the screen at {clears} places (expected 1, under `if (enterAp) {{`)')
+    guard = GUARD_RE.search(body)
+    inner = braced(body, guard.end() - 1) if guard else None
+    if inner is None:
+        bad.append('4: no `if (enterAp) {` block in the hold: nothing says the clear is only for entering the hold')
+        return bad
+    if not re.match(r'\s*fastClearScreen\(', inner):
+        bad.append('4: the first statement under `if (enterAp) {` is not the clear')
+    after = body[guard.end() + len(inner) + 1:]
+    if 'fillRoundRect(' not in after:
+        bad.append('4: the bar is not painted after the `if (enterAp)` block (it must grow on every frame)')
+    if not re.search(r'return\s*;\s*$', body):
+        bad.append('4: the hold block does not end in `return;`: a hold frame falls through to the boot terminal, cleared at every step')
+    return bad
 
 
 def to_python(expr):
@@ -65,9 +121,9 @@ def st(booting, pct):
     return SimpleNamespace(isBooting=booting, apProgressPct=pct)
 
 
-def checks(full_expr, enter_expr):
-    """The failures of 1-3, as text (empty when all hold)."""
-    bad = []
+def checks(full_expr, enter_expr, body):
+    """The failures of 1-4, as text (empty when all hold)."""
+    bad = body_checks(body)
     # 1. the boot terminal, then a hold from 0 to 100 % in steps of 5: one clear, on entering.
     prev, clears = st(True, -1), 0
     for pct in range(0, 101, 5):
@@ -101,29 +157,37 @@ def checks(full_expr, enter_expr):
 def main():
     text = RENDER.read_text(encoding='utf-8')
     full_expr, enter_expr = cut(text, FULL_RE, 'fullRedraw'), cut(text, ENTER_RE, 'enterAp')
+    body = cut_hold(text)
     print(f'fullRedraw = {full_expr}')
     print(f'enterAp    = {enter_expr}')
-    bad = checks(full_expr, enter_expr)
+    bad = checks(full_expr, enter_expr, body)
     for b in bad:
         print(f'FAIL {b}')
     if bad:
         print(f'test_ap_progress: {len(bad)} failure(s); the mutants are not run against a red base')
         return 1
     print('PASS 1-3: one clear over the hold, again on a language and on a first frame, a full redraw on a cancel')
+    print('PASS 4: the hold block clears once, under `if (enterAp) {`, paints the bar on every frame and ends in `return;`')
     mutants = {
-        'M1 enterAp = fullRedraw || prev < 0 (the defect)': (full_expr, 'fullRedraw || (_lastRenderedState.apProgressPct < 0)'),
-        'M2 without langJustChanged': (full_expr, re.sub(r'\|\|\s*langJustChanged', '', enter_expr)),
-        'M3 without the not-booting term': (full_expr, re.sub(r'!_lastRenderedState\.isBooting\s*\|\|', '', enter_expr)),
+        'M1 enterAp = fullRedraw || prev < 0 (the defect)': (full_expr, 'fullRedraw || (_lastRenderedState.apProgressPct < 0)', body),
+        'M2 without langJustChanged': (full_expr, re.sub(r'\|\|\s*langJustChanged', '', enter_expr), body),
+        'M3 without the not-booting term': (full_expr, re.sub(r'!_lastRenderedState\.isBooting\s*\|\|', '', enter_expr), body),
         'M4 fullRedraw without the percentage term': (re.sub(r'\|\|\s*\(_lastRenderedState\.apProgressPct != state\.apProgressPct\)', '',
-                                                               full_expr), enter_expr),
+                                                               full_expr), enter_expr, body),
+        'M5 the clear guarded by fullRedraw': (full_expr, enter_expr, GUARD_RE.sub('if (fullRedraw) {', body, count=1)),
+        'M6 the clear guarded by true': (full_expr, enter_expr, GUARD_RE.sub('if (true) {', body, count=1)),
+        'M7 a second clear before the bar': (full_expr, enter_expr, re.sub(r'(\bint\s+wBar\b)', r'fastClearScreen(C_BG_MAIN); \1', body,
+                                                                               count=1)),
+        'M8 the block without its return': (full_expr, enter_expr, re.sub(r'return\s*;(\s*)$', r'\1', body, count=1)),
+        'M9 the bar never painted': (full_expr, enter_expr, re.sub(r'_driver\.tft->fillRoundRect\([^;]*\);', '', body, count=1)),
     }
     survived = 0
-    for name, (f, e) in mutants.items():
-        if (f, e) == (full_expr, enter_expr):
+    for name, (f, e, bd) in mutants.items():
+        if (f, e, bd) == (full_expr, enter_expr, body):
             print(f'FAIL {name}: the mutation did not change the cut text (its anchor moved)')
             survived += 1
             continue
-        killed = bool(checks(f, e))
+        killed = bool(checks(f, e, bd))
         print(f'{"PASS" if killed else "FAIL"} {name}: {"killed" if killed else "SURVIVED"}')
         survived += 0 if killed else 1
     if survived:
