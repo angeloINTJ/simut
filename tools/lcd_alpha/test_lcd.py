@@ -3,12 +3,15 @@
 
 The checks read pixels of drawn frames against what the rule says they must be, and the mutants show the checks can tell the rule
 from a wrong one: each replaces one of lcd.py's small functions (the bit order of a row, the gap between two dots, where a cell starts,
-where a code's glyph comes from) by a wrong version, reruns every check, and must make at least one fail. The CGRAM check reads BF_LT
+where a code's glyph comes from, the vertical step, where a row of cells starts) by a wrong version, reruns every check, and must make
+at least one fail. The probes are fixed pixels worked out by hand from the formula in lcd.py's docstring, across and down: the review of
+2026-11-04 found three vertical mutants that the first version (probes at dot centres only) let through. The CGRAM check reads BF_LT
 from the firmware's own src/display/BigFont_HD44780.h, so the convention is tied to what the alpha loads and not to this file.
 
   python3 tools/lcd_alpha/test_lcd.py     exit 0 when every check passes and every mutant is caught, 1 otherwise
 """
 import copy
+import json
 import os
 import re
 import subprocess
@@ -16,6 +19,7 @@ import sys
 import tempfile
 import types
 
+sys.dont_write_bytecode = True   # python3 -I ignores PYTHONDONTWRITEBYTECODE
 AQUI = os.path.dirname(os.path.abspath(__file__))
 RAIZ = os.path.dirname(os.path.dirname(AQUI))
 sys.path.insert(0, AQUI)
@@ -37,12 +41,6 @@ def linha(codigos):
     return bytes(codigos) + b' ' * (16 - len(codigos))
 
 
-def centro(e, linha_, coluna, i, j):
-    x0, y0 = lcd._origem_celula(e, linha_, coluna)
-    x, y = lcd._origem_ponto(e, x0, y0, i, j)
-    return (x + e.ponto // 2, y + e.ponto // 2)
-
-
 def verificacoes():
     """Runs every check against the module as it is now; returns the list of failures (empty = all hold)."""
     falhas = []
@@ -58,7 +56,7 @@ def verificacoes():
     a = lcd.desenhar((linha([0x41]), linha([])), VAZIA, FONTE, e)
     confere(a.size == (639, 137), f'the image is {a.size}')
     lit = dict((c, n) for n, c in a.getcolors(1 << 16)).get(e.aceso, 0)   # getcolors( ): getdata( ) leaves Pillow in 14
-    confere(lit == sum(bin(v).count('1') for v in A) * 36, f"lit pixels of 'A' = {lit}, not 15 dots x 36")
+    confere(lit == sum(bin(v).count('1') for v in A) * 36, f"lit pixels of 'A' = {lit}, not 18 dots x 36")
     # Cell (0,0) starts at (10,10); a dot is 6 px with a 1 px gap, so dot (i,j) spans x 10+7j .. 15+7j, y 10+7i .. 15+7i.
     confere(a.getpixel((12, 12)) == e.apagado, "dot (0,0) of 'A' (row 0b01110: leftmost off) is not unlit")
     confere(a.getpixel((19, 12)) == e.aceso, "dot (0,1) of 'A' is not lit")
@@ -68,6 +66,20 @@ def verificacoes():
     confere(all(a.getpixel((x, y)) == e.fundo for x in range(44, 49) for y in range(10, 65)), 'the gap between cells 0 and 1 is not the glass')
     confere(all(a.getpixel((x, 5)) == e.fundo for x in range(639)), 'the top margin is not the glass')
     confere(a.getpixel((51, 12)) == e.apagado, 'cell (0,1) does not start at x 49')
+    # Down the cell: dot rows are 6 px with a 1 px gap from y 10, so the gaps are y 16, 23, ..., 58; dot row 7 is y 59..64; row 0 of cells
+    # ends at y 64, the gap between the two rows of cells is y 65..71, row 1 starts at y 72 and ends at 126, the bottom margin is y 127..136;
+    # the side margins are x 0..9 and x 629..638 (cell 15 is x 595..628). Worked out by hand from the formula, 2026-11-04.
+    confere(all(a.getpixel((x, 16)) == e.fundo for x in range(10, 44)), 'the gap between dot rows 0 and 1 (y 16) is not the glass')
+    confere(all(a.getpixel((x, 58)) == e.fundo for x in range(10, 44)), 'the gap between dot rows 6 and 7 (y 58) is not the glass')
+    confere(a.getpixel((12, 61)) == e.apagado, "dot (7,0) of 'A' (y 59..64) is not unlit")
+    confere(all(a.getpixel((x, y)) == e.fundo for x in range(639) for y in range(65, 72)), 'the gap between the two rows of cells (y 65..71) is not the glass')
+    confere(a.getpixel((12, 74)) == e.apagado, 'cell (1,0) does not start at y 72')
+    confere(all(a.getpixel((x, y)) == e.fundo for x in range(639) for y in range(127, 137)), 'the bottom margin (y 127..136) is not the glass')
+    confere(all(a.getpixel((x, y)) == e.fundo for y in range(137) for x in list(range(10)) + list(range(629, 639))), 'a side margin is not the glass')
+    # The default font is ROM A00 (rom_hd44780.py): its 'A' is 01110 on top, like the test font's, and its '0' has the slash (row 3 = 10101).
+    d = lcd.desenhar((linha([0x41, 0x30]), linha([])), VAZIA, None, e)
+    confere(d.getpixel((12, 12)) == e.apagado and d.getpixel((19, 12)) == e.aceso, "ROM A00 'A': row 0 is not 01110")
+    confere([d.getpixel((51 + 7 * j, 33)) == e.aceso for j in range(5)] == [True, False, True, False, True], "ROM A00 '0': row 3 is not 10101")
     # CGRAM: code 0 at row 1, column 15 with slot 0 = BF_LT (top row 0b00111): its top-left dot off, its top-right dot on.
     # Cell (1,15) starts at x 10 + 15*(34+5) = 595, y 10 + 55 + 7 = 72.
     cg = [bf_lt()] + [bytes(8)] * 7
@@ -75,6 +87,8 @@ def verificacoes():
     confere(b.getpixel((597, 74)) == e.apagado, 'CGRAM slot 0 (BF_LT): dot (0,0) is not unlit')
     confere(b.getpixel((625, 74)) == e.aceso, 'CGRAM slot 0 (BF_LT): dot (0,4) is not lit')
     confere(b.getpixel((597, 88)) == e.aceso, 'CGRAM slot 0 (BF_LT): dot (2,0) is not lit')
+    m = lcd.desenhar((linha([]), bytes(15).replace(b'\x00', b' ') + b'\x08'), cg, FONTE, e)
+    confere(m.getpixel((597, 74)) == e.apagado and m.getpixel((625, 74)) == e.aceso, 'code 0x08 does not show CGRAM slot 0 (the controller mirrors 8..15 onto 0..7)')
     # A code with no glyph: the message names the byte, the row and the column.
     # Each refusal is its own check: another exception is that check's failure, and the checks after it still run.
     try:
@@ -105,7 +119,6 @@ def cli():
     """The command line: exit 0 with a PNG of the right size, exit 2 on a byte with no glyph."""
     falhas = []
     with tempfile.TemporaryDirectory() as d:
-        import json
         q = os.path.join(d, 'q.json')
         f = os.path.join(d, 'f.json')
         out = os.path.join(d, 'o.png')
@@ -118,6 +131,13 @@ def cli():
             from PIL import Image
             if Image.open(out).size != (639, 137):
                 falhas.append('CLI: the PNG is not 639 x 137')
+        r = subprocess.run([sys.executable, os.path.join(AQUI, 'lcd.py'), '--quadro', q, '--out', out], capture_output=True, text=True)
+        if r.returncode != 0:
+            falhas.append(f'CLI without --fonte (ROM A00): exit {r.returncode} {r.stderr.strip()}')
+        json.dump([], open(f + '.lista', 'w'))
+        r = subprocess.run([sys.executable, os.path.join(AQUI, 'lcd.py'), '--quadro', q, '--fonte', f + '.lista', '--out', out], capture_output=True, text=True)
+        if r.returncode != 2:
+            falhas.append(f'CLI with a font that is a JSON list: exit {r.returncode}, not 2')
         json.dump({'linhas': [(bytes([0x10]) + b' ' * 15).hex(), linha([]).hex()], 'cgram': [bytes(8).hex()] * 8}, open(q, 'w'))
         r = subprocess.run([sys.executable, os.path.join(AQUI, 'lcd.py'), '--quadro', q, '--fonte', f, '--out', out], capture_output=True, text=True)
         if r.returncode != 2 or '0x10' not in r.stderr:
@@ -130,6 +150,9 @@ MUTANTES = {
     'the gap between dots one pixel smaller': ('_origem_ponto', lambda e, x0, y0, i, j: (x0 + j * (e.ponto + e.vao_ponto - 1), y0 + i * (e.ponto + e.vao_ponto - 1))),
     'the cells without the gap between them': ('_origem_celula', lambda e, l, c: (e.margem + c * lcd.celula(e)[0], e.margem + l * (lcd.celula(e)[1] + e.vao_linha))),
     'codes 0..7 read from the font, not the CGRAM': ('_glifo', lambda cod, cg, fo, l, c: fo.get(cod) or (0,) * 8),
+    'the vertical dot step one pixel short': ('_origem_ponto', lambda e, x0, y0, i, j: (x0 + j * (e.ponto + e.vao_ponto), y0 + i * (e.ponto + e.vao_ponto - 1))),
+    'every cell one pixel lower': ('_origem_celula', lambda e, l, c: (e.margem + c * (lcd.celula(e)[0] + e.vao_char), e.margem + 1 + l * (lcd.celula(e)[1] + e.vao_linha))),
+    'the second row of cells one pixel higher': ('_origem_celula', lambda e, l, c: (e.margem + c * (lcd.celula(e)[0] + e.vao_char), e.margem + l * (lcd.celula(e)[1] + e.vao_linha - 1))),
 }
 
 

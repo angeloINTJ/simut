@@ -10,12 +10,16 @@ What is held, on the real module:
               it was read, the METHOD, and the table's own digest; the docstring carries the URL, the sha256, the date and a Method line;
   * pin       the sha256 of the table as text equals TABLE_SHA256 in the header. This is a change detector and nothing more: it says the table is
               the one that rom_extract.py --check proved equal to the PDF on 2026-11-04, so a hand edit, or a regeneration from another file, shows;
-              it does not say the table is right. What says that is the extractor (two reads of the page) and, later, the reviewer's glyphs typed
-              from the PDF, which are not here on purpose: a golden table written from this table would prove nothing;
+              it does not say the table is right. What says that is the extractor (two reads of the page) and the golden table below;
   * typography facts about letter shapes that hold in any sans-serif face and are visible on the datasheet's page, and so do not come from the
               table: the space is blank and the other 95 glyphs are not (blank); no two glyphs are equal (distinct); the capitals A H I M O T U V
               W X Y are their own mirror image (symmetric); the capitals B D E F H K L P R have a stem down the left side, bit 4 set in rows 0 to
               6 (stem). The last one is the orientation anchor: it is what tells bit 4 = leftmost from the reverse.
+
+  * golden    every glyph equals rom_a00_golden.txt: the reviewer's own reading of page 17, typed by eye from a 600 dpi render on 2026-11-04 at
+              20:41:55Z BEFORE the reviewer opened this module (the file as delivered, sha256
+              961e08fe17175a0b8df5dc7cb6044e3cf6346a9c44576e2927dea14b5d1018a7; 96 of 96 codes equal when it was compared). It is a second reading of
+              the same page by another hand, so a regeneration from a wrong source with a consistent pin, which the pin cannot see, fails here.
 
 The controls: every check is run again on a copy of the table (or header) with one fault put in, and must report exactly the findings expected: a bit
 flipped, the bit order reversed in every row, two glyphs swapped, a glyph of 7 rows, a row of 32, a dot on row 7, a code missing, a code too many, a
@@ -188,6 +192,17 @@ MUTANTS = [
 ]
 
 
+def golden():
+    """rom_a00_golden.txt as {code: 8 rows}: a line is '0xNN' and 8 groups of 5 characters, '#' a lit dot, the first character the left dot."""
+    out = {}
+    for line in open(os.path.join(HERE, 'rom_a00_golden.txt'), encoding='utf-8'):
+        f = line.split()
+        if not f or f[0].startswith('#'):
+            continue
+        out[int(f[0], 16)] = tuple(int(g.replace('#', '1').replace('.', '0'), 2) for g in f[1:9])
+    return out
+
+
 def main():
     fails = 0
 
@@ -213,6 +228,13 @@ def main():
         ok = set(got) == expected and len(got) == len(set(got))
         shown = ', '.join('%s%s' % (k, ' ' + dt if dt else '') for k, dt in sorted(expected))
         report(ok, 'mutant: %s -> %s' % (what, shown if ok else 'EXPECTED %s, GOT %s' % (sorted(expected), sorted(got))))
+    gold = golden()
+    report(sorted(gold) == list(range(0x20, 0x80)), 'golden: rom_a00_golden.txt holds the 96 codes 0x20..0x7F')
+    diff = sorted(c for c in gold if tuple(table.get(c, ())) != gold[c])
+    report(not diff, 'golden: every glyph equals the reviewer\'s independent reading of page 17%s' % ('' if not diff else ': differ ' + ', '.join('0x%02X' % c for c in diff)))
+    t = copy.deepcopy(table)
+    t[0x53] = tuple(v ^ (0x04 if i == 3 else 0) for i, v in enumerate(t[0x53]))   # the S's mutant above: only the pin sees it among the shape checks
+    report(sorted(c for c in gold if tuple(t[c]) != gold[c]) == [0x53], 'mutant: one bit flipped in the S -> golden reports exactly 0x53')
     print('test_rom: %s' % ('all hold' if not fails else '%d failed' % fails))
     return 1 if fails else 0
 

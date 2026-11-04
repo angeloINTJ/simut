@@ -78,7 +78,7 @@ XL, XR = 125.584 * GRID_SX, 511.391 * GRID_SX     # the 16 nibble columns span X
 YT, YB = 693.319 * GRID_SY, 202.98 * GRID_SY      # the 16 rows span YT (under the header row) to YB
 CW, CH = (XR - XL) / 16, (YT - YB) / 16
 DOT, PITCH = 2.51, 3.0                            # a dot's side, and the pitch of the lattice
-DOT_X0 = 4.55   # dot column 0's left edge, from its cell's left edge: 4.18 to 4.94 over the 12 populated columns
+DOT_X0 = 4.55   # dot column 0's left edge, from its cell's left edge: 4.18 to 5.00 over the 12 populated columns (re-measured by the review, 2026-11-04)
 DOT_Y0 = 0.60   # dot row 0's top edge, below its cell's top edge: 0.54 to 0.66 over the 16 rows
 DPI = 600
 

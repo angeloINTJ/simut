@@ -6,8 +6,9 @@ The SIMUT alpha's LCD has no pixels to read back. What the glass shows is the DD
 so a frame the alpha composes becomes an image: the manual's LCD figures, drawn from the alpha's code on the host, and a capture of a
 board later.
 
-Glyphs: codes 0..7 come from `cgram`, every other code from `fonte` (by default the ROM A00 table, rom_hd44780.py, read from the
-HD44780U datasheet). A glyph is 8 rows, element 0 on top, and in each row bit 4 is the leftmost dot and bit 0 the rightmost: the
+Glyphs: codes 0..15 come from `cgram` (8..15 mirror 0..7, as on the controller: Table 4 of the datasheet lists CGRAM (1)..(8) twice in
+its column 0000; the alpha's driver drops 8..31, so only 0..7 reach its DDRAM), every other code from `fonte` (by default the ROM A00
+table, rom_hd44780.py, read from the HD44780U datasheet). A glyph is 8 rows, element 0 on top, and in each row bit 4 is the leftmost dot and bit 0 the rightmost: the
 firmware's own CGRAM convention (BF_LT = { 0b00111, ... } has its top-left dot off). Bits above 4 are not dots and are ignored, as the
 controller ignores them.
 
@@ -31,6 +32,7 @@ from typing import Tuple
 
 from PIL import Image, ImageDraw
 
+sys.dont_write_bytecode = True   # python3 -I ignores PYTHONDONTWRITEBYTECODE; no __pycache__ beside the tools
 LINHAS = 2
 COLUNAS = 16
 PONTOS_X = 5
@@ -80,8 +82,9 @@ def _origem_ponto(estilo, x0, y0, i, j):
 
 
 def _glifo(codigo, cgram, fonte, linha, coluna):
-    """The 8 rows of the glyph of a code: CGRAM for 0..7, the font for the rest; an error that names the byte and where it is."""
-    g = cgram[codigo] if codigo < 8 else fonte.get(codigo)
+    """The 8 rows of the glyph of a code: CGRAM for 0..15 (8..15 mirror 0..7), the font for the rest; an error that names the byte and
+    where it is."""
+    g = cgram[codigo & 7] if codigo < 16 else fonte.get(codigo)
     if g is None:
         raise ValueError(f'no glyph for byte 0x{codigo:02x} at row {linha}, column {coluna}')
     if len(g) != PONTOS_Y or not all(isinstance(v, int) for v in g):
@@ -127,7 +130,10 @@ def _ler_quadro(caminho):
 
 def _ler_fonte(caminho):
     with open(caminho, encoding='utf-8') as f:
-        return {int(k): tuple(v) for k, v in json.load(f).items()}
+        j = json.load(f)
+    if not isinstance(j, dict):
+        raise ValueError(f'{caminho}: a font is a JSON object of "<code>": [8 ints], not {type(j).__name__}')
+    return {int(k): tuple(v) for k, v in j.items()}
 
 
 def main(argv=None):
