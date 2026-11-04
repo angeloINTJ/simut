@@ -393,6 +393,12 @@ jobs:
       # 74 + 612 checks; 2.7 s here on 2026-10-31.
       - name: Display alignment preview and the glass on the host (test_alinhar.py)
         run: python3 tools/tft_ui/test_alinhar.py
+      # The original dashboard's min/max graph button (2026-11-04): the lower card's touch zone read `x > 266` while both cards paint the button from x 245 to 302 (CARD_X + minMaxBtnX( CARD_W ),
+      # MINMAX_BTN_W), so its left third turned min/max off and the 17 columns past its right edge opened the graph. The painted rectangle (SensorDrawing.h, DisplayManager.h) and the dashboard
+      # branch of the touch chain (ui/original/UiTouchChain.h) are cut out of the sources and compiled with g++ against a stand-in for the core's actions; every column of each card's rows must
+      # reach the card's action once, with onGraphBtn true on the painted columns only. Two text checks hold that both cards are painted by the same code; its 6 mutants must fail it.
+      - name: Original dashboard min/max graph-button zones on the host (test_zona_minmax.py)
+        run: python3 tools/tft_ui/test_zona_minmax.py
       # The figures of the manual's chapter 11A (S10c, C6 step 2): docs/images/manual/11a-*.png are frames that host_telas.py draws from the code at the commit (src/ui/angulo and the
       # pt-BR pack), enlarged 2x. manual_frames.py --check draws them again and compares the PIXELS with the committed files, never the PNG bytes (those depend on Pillow's and zlib's
       # versions): one line for each figure that differs, so a change to the panel's code or to the pack's @ANGULO that moves a pixel of a figure fails here until the figures are
