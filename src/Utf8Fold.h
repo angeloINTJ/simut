@@ -137,3 +137,35 @@ inline void bootLineAscii(const char* keyLatin1, const char* suffixUtf8, char* o
 	while (n < cols && n + 1 < outSize) out[n++] = ' ';
 	out[n] = '\0';
 }
+
+/** A line of the Angulo's boot ring, in UTF-8. It has the two parts of bootLineAscii( ) in the same two encodings: the key's text is what tr( ) returns,
+ *  Latin-1, and the suffix is what the boot formatted in, UTF-8 (a device name, an SSID). The kit draws UTF-8, so the key's bytes at 0x80 and above become their
+ *  two-byte sequences and the suffix is kept as it is; a line with no key (a raw legacy line, key == TR_KEYS_COUNT) is the suffix alone, which the caller passes with an
+ *  empty key. Until 2026-11-04 the ring joined the two and converted the WHOLE line from Latin-1, so the suffix was encoded a second time: the AP's "Estação_SETUP" (the
+ *  device's name and "_SETUP") came out as the bytes 45 73 74 61 C3 83 C2 A7 C3 83 C2 A3 6F ..., drawn "EstaÃ§Ã£o_SETUP". The line is cut at a whole character at `cap`,
+ *  the terminator included, so no sequence is left half, and a key that does not fit whole leaves the suffix out. A suffix byte that is not UTF-8 is one '?' (as
+ *  utf8FoldNext( ) counts it): what the kit gets is always valid UTF-8, as it was when every byte of the joined line was encoded again. */
+inline void bootLineUtf8(const char* keyLatin1, const char* suffixUtf8, char* out, size_t cap) {
+	if (!out || cap == 0) return;
+	size_t n = 0;
+	bool full = true;
+	for (const unsigned char* p = (const unsigned char*)keyLatin1; p && *p; p++) {
+		const size_t w = *p < 0x80 ? 1 : 2;
+		if (n + w + 1 > cap) { full = false; break; }                  /* a whole character, and the terminator */
+		if (w == 1) out[n++] = (char)*p;
+		else { out[n++] = (char)(0xC0 | (*p >> 6)); out[n++] = (char)(0x80 | (*p & 0x3F)); }
+	}
+	for (const unsigned char* p = (const unsigned char*)suffixUtf8; full && p && *p; ) {
+		const unsigned char c = p[0];
+		const size_t want = c < 0x80 ? 1 : (c >= 0xC2 && c <= 0xDF) ? 2 : (c >= 0xE0 && c <= 0xEF) ? 3 : (c >= 0xF0 && c <= 0xF4) ? 4 : 0;
+		size_t have = 1;
+		while (have < want && (p[have] & 0xC0) == 0x80) have++;        /* a NUL is not a continuation */
+		const bool whole = want != 0 && have == want;                 /* a character, as it came */
+		const size_t w = whole ? want : 1;                            /* anything else is one '?' for the bytes it spans */
+		if (n + w + 1 > cap) break;
+		if (whole) { for (size_t k = 0; k < want; k++) out[n++] = (char)p[k]; }
+		else out[n++] = '?';
+		p += whole ? want : have;
+	}
+	out[n] = '\0';
+}
