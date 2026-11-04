@@ -71,6 +71,12 @@ The linker's `used`, which the budget holds, moves by +8 to +368 B in all.
 Slack under the 1,040,384 B over-the-air ceiling: release 3,731 (4,051 in v2.13.0), `pico_w_test` 2,947 (3,267), `pico_w_asserts` 1,427 (1,755).
 The gate warns for all three, as it did, because each is under one flash sector, and fails nothing. The Pico 2 W's slot is 1,568,768 B, with 530,175 B left on the Ângulo image (530,423) and 568,151 on the original (568,471).
 
+The `tft_graph` savings floor falls 230 B, from 20,365 B to 20,135 B (`tools/feature_savings.json`): the nightly savings job had failed on it since
+2026-11-01 (issue #314). Nothing of the graph leaked. F3's 68 B box sits in the middle of `DisplayManager`, and on the image without the graph it moves the
+members after it out of the Cortex-M0+'s cheap offsets (in `loopCore1( )`, 28 literal loads became 27 `movs` + `lsls` pairs): -238 B net in 65 functions,
+decoded in `docs/analysis/ECONOMIA_DE_RECURSOS.md`. The box at the end of the class would bring the saving back and grow `pico_w_release` by 8 B and
+`pico2_w_release` by 144 B, the two published images with a panel, so the floor moves instead (the maintainer's choice, 2026-11-04).
+
 ### `GET /api/keypad` on the Ângulo
 
 - **What was wrong.** On an image built with the Ângulo, the route published the original panel's keypad geometry: the `grid` of the original's cards and, for the groups keyboard, a `pop` with the original's popup keys. A client that taps by those numbers misses the Ângulo's keys. With four cards the original's are 152 × 44 at (6, 72) with a pitch of 156 and 50, and the Ângulo's 146 × 44 at (12, 96) with a pitch of 150 and 48; its popup keys are 48 px wide, 52 tall on one row and 36 on two, where the original's are 56 × 52. The Ângulo's own touch never used the numbers, and nothing that ships reads them; the two bench tools that drive the original panel did. This closes F4 of the v2.13.0 *Known* list (the item stays there, as the record of what that release shipped).

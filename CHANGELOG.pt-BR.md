@@ -72,6 +72,12 @@ O `used` do linker, que o orçamento guarda, varia de +8 a +368 B no total.
 Folga sob o teto de 1.040.384 B da atualização pelo ar: release 3.731 (4.051 na v2.13.0), `pico_w_test` 2.947 (3.267), `pico_w_asserts` 1.427 (1.755).
 O portão avisa nas três, como já avisava, porque cada uma está a menos de um setor de flash, e não reprova nada. O slot do Pico 2 W é de 1.568.768 B, com 530.175 B sobrando na imagem do Ângulo (530.423) e 568.151 na original (568.471).
 
+O piso de economia do `tft_graph` desce 230 B, de 20.365 B para 20.135 B (`tools/feature_savings.json`): o job noturno de economia reprovava nele desde
+01/11/2026 (issue #314). Nada do gráfico vazou. A caixa de 68 B do F3 fica no meio do `DisplayManager` e, na imagem sem o gráfico, tira os membros que vêm
+depois dela dos deslocamentos baratos do Cortex-M0+ (em `loopCore1( )`, 28 cargas de literal viraram 27 pares `movs` + `lsls`): -238 B no líquido de 65
+funções, decodificados em `docs/analysis/ECONOMIA_DE_RECURSOS.md`. A caixa no fim da classe devolveria a economia e faria a `pico_w_release` crescer 8 B e a
+`pico2_w_release` 144 B, as duas imagens publicadas com painel; por isso o piso desce (escolha do mantenedor, 04/11/2026).
+
 ### `GET /api/keypad` no Ângulo
 
 - **O que estava errado.** Numa imagem compilada com o Ângulo, a rota publicava a geometria do teclado do painel original: a `grid` dos cartões do original e, no teclado de grupos, um `pop` com as teclas do popup do original. Um cliente que toca por esses números erra as teclas do Ângulo. Com quatro cartões, as do original são de 152 × 44 em (6, 72), com passo de 156 e 50, e as do Ângulo de 146 × 44 em (12, 96), com passo de 150 e 48; as teclas do popup dele têm 48 px de largura, 52 de altura numa fileira e 36 em duas, onde as do original são de 56 × 52. O toque do próprio Ângulo nunca usou os números, e nada do que é entregue os lê; as duas ferramentas de bancada que dirigem o painel original, sim. Isto fecha o F4 da lista *Conhecido* da v2.13.0 (o item continua lá, como o registro do que aquele release entregou).
