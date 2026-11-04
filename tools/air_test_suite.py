@@ -2886,6 +2886,11 @@ def selftest():
           ap_refusal_verdict('ap\r\n' + ok_reply + '\r\nSIMUT> ', 1, 1, True)[0] == 'pass'
           and ap_refusal_verdict('ap\r\n' + started[0] + '\r\nSIMUT> ', 1, 1, True)[0] == 'fail'
           and ap_refusal_verdict('ap\r\nERROR: Command not available in this mode.\r\nSIMUT> ', 1, 1, True)[0] == 'fail')
+    # Only a WHOLE line equal to the command is the echo: an answer line that begins with the command, or holds it, is an answer and is judged.
+    # Without these, a filter widened to startswith( ) or `in` passed the whole selftest (the fourth review's mutants D1 and D2, 2026-11-04).
+    check('T19 verdict: an answer line that begins with or holds `ap` is judged, not dropped as the echo (-> fail, not skip)',
+          all(ap_refusal_verdict(reply, 1, 1, True)[0] == 'fail' for reply in
+              ('apx\r\n', 'ap: unexpected\r\nSIMUT> ', 'the ap is off\r\n', 'ap\r\nap: unexpected\r\nSIMUT> ')))
     check('T18 verdict: only the echo of `air stop` is no acknowledgement -> skip (the web server says nothing about the fix)',
           all(air_stop_web_verdict(1, None, web, 'air stop\r\n')[0] == 'skip' for web in (None, 401)))
     check('T20 verdict: with the echo in front, the defect still fails, the fix passes and an echo alone fails',
