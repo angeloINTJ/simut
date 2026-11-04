@@ -602,8 +602,9 @@ void AppManager::executeCommand(CliDemand cmd) {
  case CMD_SET_HISTORY_INTERVAL: {
  const bool pt = _cmdMgr->isPt( );
  if (!cmd.intVal1Valid) {
- _cmdMgr->printError(pt ? "Numero invalido para lote minimo"
- : "Invalid number for minimum batch");
+ /* Its own text: until 2026-11-04 it was CMD_SET_TEL_INTERVAL's, which names the minimum batch. */
+ _cmdMgr->printError(pt ? "Numero invalido para intervalo do historico"
+ : "Invalid number for history interval");
  break;
  }
  if (cmd.intVal1 < HISTORY_INTERVAL_MIN_MIN || cmd.intVal1 > HISTORY_INTERVAL_MAX_MIN) {
