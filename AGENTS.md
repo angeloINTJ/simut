@@ -742,7 +742,7 @@ ficar na fila e executar vários inputs depois.
   Portões que valem regra: **T12** (volta a dormir após reset), **T15** (`.wip`
   ≤ 2 por ciclo), **T16** (wake ≤ 1 registro de preâmbulo), **T17** (`admin
   reset` sobrevive ao boot).
-- `python3 tools/check_air_consistency.py` (C1–C8) roda em segundos, sem
+- `python3 tools/check_air_consistency.py` (C1–C9) roda em segundos, sem
   PlatformIO, e está no CI.
 
 ### Como medir sem ser enganado

@@ -1146,16 +1146,25 @@ void AppManager::executeCommand(CliDemand cmd) {
    * _netMgr->begin( ) the device answered pings and synced NTP while every
    * /api/ call still failed, because nothing was listening on port 80. The
    * web callbacks are registered outside the skipped block at boot, so
-   * begin( ) here finds them already in place. */
+   * begin( ) here finds them already in place.
+   *
+   * They are two questions, each with its own flag. A wake that sends
+   * telemetry has the radio and still no listener (the boot starts the server
+   * in M0 only, AppManager_Boot.cpp), so the server is not asked about under
+   * the radio's flag: until 2026-11-04 it was, and `air stop` on a telemetry
+   * wake left M0 with the network up and nothing on port 80. */
   if (!_airRadioUp) {
    _netMgr->begin(_storageMgr->getConfig( ),
                   _storageMgr->isDnsAuto( ),
                   _storageMgr->isNtpEnabled( ),
                   _storageMgr->getSecondaryDns( ));
-   _webMgr->begin(_storageMgr.get( ), _sensorMgr.get( ), _netMgr.get( ),
-                  _displayMgr.get( ), _telemetryMgr.get( ), _soundMgr.get( ));
    _airRadioUp = true;
    _airRadioWake = true;
+  }
+  if (!_airWebUp) {
+   _webMgr->begin(_storageMgr.get( ), _sensorMgr.get( ), _netMgr.get( ),
+                  _displayMgr.get( ), _telemetryMgr.get( ), _soundMgr.get( ));
+   _airWebUp = true;
   }
   airSetLed(true);
   _cmdMgr->printInfo(_cmdMgr->isPt( )

@@ -10,7 +10,8 @@ code review of 2026-09-06 (docs/analysis/SIMUT_AIR_PLANO_FIX.md) said must hold:
   * the awake window is bounded by the work, not by the telemetry cadence (F05);
   * the M0 idle timer is reset by web activity, not only by the CLI (F21);
   * offline wakes are stamped with the real elapsed time (F04);
-  * `air idle` rejects what the uint16 field cannot hold (F09).
+  * `air idle` rejects what the uint16 field cannot hold (F09);
+  * `air stop` on a wake that raised the radio brings the web server up too (T18).
 
 Three instruments, all optional except the target's USB CDC:
 
@@ -787,6 +788,34 @@ def tcp_open(host, port, timeout=2.0):
         return False
 
 
+def http_status(host, path, timeout=2.0):
+    """The status code of an unauthenticated GET on port 80, or None when nothing answered (refused, timed out).
+
+    Any code at all means a listener: /api/status answers 401 to a client with no session, and that is as good as 200 here."""
+    if requests is None:
+        raise TestSkip('requests missing')
+    try:
+        return requests.get(f'http://{host}{path}', timeout=timeout, allow_redirects=False).status_code
+    except requests.RequestException:
+        return None
+
+
+def air_stop_web_verdict(radio, web_before, web_after):
+    """T18's verdict over what the bench saw on a wake: ('pass' | 'fail' | 'skip', text).
+
+    radio is the `radio=` field of `air status`, web_before and web_after the status code of GET /api/status (or None) before and after
+    `air stop`. Kept apart from the test so that the selftest can show it tells the defect from the fix."""
+    if radio is None:
+        return 'skip', 'firmware without the radio= field of air status'
+    if not radio:
+        return 'skip', 'this wake did not raise the radio (radio=0): the check needs a telemetry wake'
+    if web_before is not None:
+        return 'skip', f'the web server already answered ({web_before}) before air stop: nothing to tell the fix apart'
+    if web_after is None:
+        return 'fail', 'air stop on a telemetry wake (radio=1) left the web server down: port 80 gave no answer for 20 s after the stop'
+    return 'pass', f'the web server answered {web_after} after air stop (nothing answered before it)'
+
+
 def host_ip_toward(target_ip):
     if os.environ.get('SIMUT_COLLECTOR_IP'):
         return os.environ['SIMUT_COLLECTOR_IP']
@@ -1011,6 +1040,7 @@ class Suite:
             ('T15', 'wip_writes_per_cycle', self.t15_wip_writes_per_cycle, None, {'target'}),
             ('T16', 'wake_writes_no_preamble', self.t16_wake_writes_no_preamble, None, {'target'}),
             ('T17', 'admin_reset_persists', self.t17_admin_reset_persists, None, {'target', 'web'}),
+            ('T18', 'air_stop_web_on_telemetry_wake', self.t18_air_stop_web_on_telemetry_wake, None, {'target', 'web'}),
         ]
 
     def selected(self):
@@ -2372,6 +2402,47 @@ class Suite:
 
     # ---- runner -----------------------------------------------------------
 
+    def t18_air_stop_web_on_telemetry_wake(self):
+        """`air stop` on a wake that raised the radio must bring the web server up, not only the network.
+
+        A telemetry wake has the radio (radio=1) and, by design, no listener (T10: the web server is M0's, the boot skips it on every
+        wake). `air stop` used to start the network and the web server only under `if (!_airRadioUp)`, which a telemetry wake has already
+        set, so on one it started nothing: M0 came back with the Wi-Fi up and port 80 refused, against docs/_manual/cap19-air.md (the
+        console "liga o radio e a interface web") and F13 of the plan ("air stop num wake continua subindo a web sozinho"), both of which
+        held only for a reading-only wake. _airWebUp is the flag that makes them true on every wake (2026-11-04).
+
+        The wake is made a telemetry one with a minimum batch of 1 (point_telemetry_here), so every wake is due and carries the radio; the
+        collector this suite runs takes the send, so the failure back-off (AIR_TEL_FAIL_SKIP_WAKES) does not turn the next wake into a
+        reading-only one. The device answers GET /api/status with 401 to a client with no session, which is as good as 200: any code is a
+        listener. Fails before the fix, passes after it."""
+        if not self.host:
+            raise TestSkip('no host IP')
+        self.need_web()
+        self.point_telemetry_here(min_batch=1)
+        seen = {}
+
+        def on_wake(row):
+            self.target.open(30)
+            st = self.target.air_status(retry_s=25)
+            seen['radio'] = st.get('radio')
+            seen['web_before'] = http_status(self.host, '/api/status', 2.0)
+            if seen['radio'] and seen['web_before'] is None:
+                seen['stop_reply'] = self.target.cmd('air stop', 8).strip()[-120:]
+                deadline = time.time() + 20       # begin( ) opens the listener inside the command; the allowance is for the first SYN
+                seen['web_after'] = None
+                while seen['web_after'] is None and time.time() < deadline:
+                    seen['web_after'] = http_status(self.host, '/api/status', 2.0)
+                    if seen['web_after'] is None:
+                        time.sleep(1.0)
+
+        self.hibernate_and_observe(stop_on_wake=True, on_wake=on_wake)
+        outcome, text = air_stop_web_verdict(seen.get('radio'), seen.get('web_before'), seen.get('web_after'))
+        if outcome == 'skip':
+            raise TestSkip(text)
+        if outcome == 'fail':
+            raise TestFail(f"{text}; reply to air stop: {seen.get('stop_reply')!r}")
+        return text
+
     def run(self):
         selected = self.selected()
         # Every test that talks to the device assumes M0: a live console, a web
@@ -2628,6 +2699,13 @@ def selftest():
     # file that no pattern in the secret gate was looking at (V-02, 2026-09-07).
     check('sha256 latin-1', sha256_frontend('Str1ngDeTeste') == hashlib.sha256(b'Str1ngDeTeste').hexdigest())
     check('by-id paths', by_id_path('X', True).endswith('Pico_W_X-if00') and by_id_path('Y', False).endswith('Pico_Y-if00'))
+    # T18's verdict tells the defect from the fix, and does not call a wake that cannot show it a pass.
+    check('T18 verdict: air stop brings the web up on a telemetry wake -> pass', air_stop_web_verdict(1, None, 401)[0] == 'pass'
+          and air_stop_web_verdict(1, None, 200)[0] == 'pass')
+    check('T18 verdict: radio up, no web after air stop (the defect) -> fail', air_stop_web_verdict(1, None, None)[0] == 'fail')
+    check('T18 verdict: a reading-only wake, a web already up, a firmware without radio= -> skip',
+          air_stop_web_verdict(0, None, 200)[0] == 'skip' and air_stop_web_verdict(1, 200, 200)[0] == 'skip'
+          and air_stop_web_verdict(None, None, None)[0] == 'skip')
     try:
         import history_v5  # noqa: F401
         check('history_v5 importable', True)
