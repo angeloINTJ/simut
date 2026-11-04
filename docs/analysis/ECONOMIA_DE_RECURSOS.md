@@ -6,7 +6,9 @@ do que ainda não tem chave, em 2026-09-30 contra `main` `7b948e7` (v2.8.0); o
 piso, medido de novo sem o enchimento do banco do BTstack, em 2026-10-22 contra
 `main` `25e169df`, e sem todo enchimento do linker, medido em 2026-10-29 e gravado em
 2026-10-30 contra `main` `e7768221`; o do `tft_graph`, que desce 68 B com a UI como
-driver, medido e gravado em 2026-10-30 contra o ramo `feat/ui-drivers-s11` (`7d550359`) ·
+driver, medido e gravado em 2026-10-30 contra o ramo `feat/ui-drivers-s11` (`7d550359`);
+e de novo o do `tft_graph`, que desce 230 B com a caixa dos limites de alarme do
+#307, medido e gravado em 2026-11-04 contra `main` `e2fef36c` ·
 **Pergunta:** ao desligar um driver ou qualquer funcionalidade, quanto de flash
 e de RAM a imagem realmente devolve — e o que hoje **não** devolve o que deveria?
 
@@ -592,6 +594,115 @@ mecanismo acima é o que serve a todos os números, não um experimento. Medido 
 máquina, `pico_w_release`, sem prova no ferro. Qualquer mudança nessas cinco
 funções ou nos membros do objeto move o número de novo por dezenas de bytes, e a
 decodificação se refaz (o kit, fora do repositório, é o `nm -S` das duas imagens somado por nome).
+
+### O piso do `tft_graph` depois da caixa dos limites de alarme (2026-11-04)
+
+O job noturno ficou vermelho em 2026-11-01, 2026-11-02 e 2026-11-03, sempre na
+`main` `7b851812`, com uma linha só: o `tft_graph` economizava 20 135 B, 230 B
+abaixo do piso de 20 365 B (issue #314, aberta pelo próprio job). Na
+execução de 2026-10-31, na `ae87f6d6`, tinha passado. Não vazou código do gráfico. O
+conserto do editor de limites (#307, o F3) pôs no objeto `DisplayManager` uma
+caixa de 68 B, e na imagem sem gráfico isso encareceu o acesso a dezenas de
+membros que vêm depois dela. O piso desce porque a conta de bytes do código
+sempre presente mudou, não porque o recurso deixou de sumir.
+
+**Medido em 2026-11-04** (`pico_w_release` e `_sav_tft_graph_off`, a ferramenta
+de cada árvore, o enchimento do linker lido do mapa). Na `7b851812` a medida é a
+do CI, número a número (20 135 B, RAM 2 232 B, enchimento 683 / 682 B), e o
+`.bin` da base é o da `main` byte a byte:
+
+| Árvore | `used` ligada | `used` desligada | Enchimento | Economia |
+|---|---:|---:|---:|---:|
+| `main` `ae87f6d6`, o último verde (as mesmas contas da ponta da S11, `7d550359`, na seção acima) | 1 024 060 | 1 003 692 | 685 / 682 | 20 365 |
+| `aaccce35`, o merge do #307 (F3, a caixa dos limites) | 1 024 164 | 1 004 020 | 687 / 682 | 20 139 |
+| `96f503aa`, o merge do #308 (o alinhamento da tela) | 1 024 380 | 1 004 244 | 683 / 682 | 20 135 |
+| `7b851812`, até o #313 (o #311 e o #312 não mudam nenhuma das duas imagens; a `e2fef36c` só mudou um workflow) | 1 024 380 | 1 004 244 | 683 / 682 | 20 135 |
+
+O F3 custa 104 B à imagem com o gráfico e 328 B à imagem sem ele: a economia
+cai 226 B. O alinhamento tira mais 4 B, dentro da tolerância de 8 B.
+
+**Por seção e por símbolo** (o mapa e o `nm -S` das duas imagens de `ae87f6d6` e
+de `aaccce35`). Tudo está na `.text`; a `.rodata` e a `.data` não mudam. Dos
+−226 B, o código que a chave tira por inteiro cresce 12 B, em seis funções
+(`drawGraphDetailScreen( )` passa de 3 068 para 3 076 B): o gráfico continua
+saindo todo. A queda está no código sempre presente que a chave muda: −238 B no
+líquido de 65 funções, 62 do `DisplayManager` e três de 4 B cada fora dele
+(`AppManager::setup( )` e duas rotas de toque do `WebManager`). Delas, 45
+descem 328 B e 20 sobem 90 B. As maiores quedas são `loopCore1( )` −56,
+`handleTouch( )` −28, `pinSubmit( )` −16, `drawAlarmEdit( )` −16,
+`showSettingsPassword( )` −12 e `drawMelodySelect( )` −12; 29 descem 4 B e 16
+sobem 4 B. Na imagem sem gráfico, `loopCore1( )` passa de 5 260 para 5 300 B
+(+40); na imagem com gráfico, encolhe 16 B (5 696 para 5 680).
+
+**Por quê.** A caixa (`AlarmLimitsSnap _limitsSaved`, 68 B, no bloco da tela
+TFT de `src/DisplayManager.h`) fica no meio do objeto, antes de `_sharedState`
+e de tudo o que vem depois. Cada um desses membros passa a morar 68 B adiante.
+O pacote do gráfico também vem depois da caixa, e é ele que separa as duas
+imagens: com a chave desligada, os membros que vêm depois dele ficam perto do
+começo do objeto. Nessa faixa baixa, o Cortex-M0+ monta o deslocamento com um
+par `movs` + `lsls` ou com uma palavra de literal, conforme o valor, e andar
+68 B muda essa escolha em dezenas de funções. O membro mais usado de
+`loopCore1( )` mostra o caminho. Na imagem sem gráfico ele estava em `0x4dc`
+(1 244), valor que um `movs` de 8 bits deslocado não alcança: vinha de uma
+palavra de literal, em 28 cargas (`ldr` de `pc`) e 4 palavras nas ilhas de
+literais. O F3 o levou a `0x520` (1 312 = 164 × 8), que o compilador monta com
+`movs #164` e `lsls #3`, sem literal: as 28 cargas viraram 27 pares, de 4 B
+cada. Na função inteira são 23 cargas de literal a menos e 24 pares a mais. Na
+imagem com o gráfico, o mesmo membro passou de `0x1bcc` para `0x1c14`, e os dois
+valores vêm de palavras de literal: ali, andar 68 B quase não muda o código
+(`loopCore1( )` tem 4 cargas de literal a menos). A distância entre as duas
+imagens é o pacote do gráfico: 5 872 B antes do F3 (`0x1bcc` − `0x4dc`) e
+5 876 B depois (`0x1c14` − `0x520`). É o mecanismo da seção acima, e o mesmo
+que o servidor web mostrou em 2026-10-14
+([`tools/arduino_pico_overrides/README.md`](../../tools/arduino_pico_overrides/README.md)):
+um vetor no meio da classe empurrou os membros seguintes para fora dos
+deslocamentos curtos do Cortex-M0+, e a release cresceu 1 152 B, contra 352 B com
+o mesmo código atrás de um ponteiro.
+
+**O experimento.** Numa cópia descartável da `7b851812`, a caixa foi movida para
+o fim da classe, e, numa segunda cópia, para logo antes dos membros do driver de
+UI (`#include "ui/UiDriverMembers.h"`). Nos dois casos a economia volta a
+20 369 B, a imagem sem gráfico encolhe 224 B e a RAM fica igual. Mas as imagens
+publicadas crescem (tamanho do `.bin`, B):
+
+| Imagem | `main` `7b851812` | Caixa no fim | Diferença | Caixa antes do driver | Diferença |
+|---|---:|---:|---:|---:|---:|
+| `pico_w_release` | 1 036 412 | 1 036 420 | +8 | 1 036 420 | +8 |
+| `pico_w_test` | 1 037 196 | 1 037 212 | +16 | 1 037 212 | +16 |
+| `pico_w_test_https` | 1 041 540 | 1 041 556 | +16 | 1 041 556 | +16 |
+| `pico_w_asserts` | 1 038 716 | 1 038 724 | +8 | 1 038 724 | +8 |
+| `pico_wiretft` | 788 136 | 788 104 | −32 | 788 104 | −32 |
+| `pico_wiretft_angulo` | 828 984 | 829 000 | +16 | 829 000 | +16 |
+| `pico2_w_release` | 1 038 144 | 1 038 288 | +144 | 1 038 280 | +136 |
+| `pico2_w_original` | 1 000 376 | 1 000 448 | +72 | 1 000 448 | +72 |
+| `pico_w_air`, `pico_w_alpha`, `pico_wire` (sem tela TFT, sem a caixa) | | | iguais byte a byte | | não medidas |
+
+A coluna da `main` é o `"bin"` de `tools/flash_budget.json` em cada imagem que o
+registra. Na `pico2_w_release` (RP2350, a Ângulo), a caixa no fim muda 31
+funções do `DisplayManager`, +144 B no líquido, exatamente o que o `.bin`
+cresce (`uiPass( )` +32, `handleTouch( )` +26, `uaMontarMenus( )` +24, o
+construtor +16; `redrawTopPanel( )` −14). Na `pico_w_release` muda 53 seções:
++10 B de código e −2 B de enchimento, os 8 B da imagem.
+
+**A decisão** (do mantenedor, 2026-11-04): o piso desce. Mover a caixa
+devolveria 224 B a quem desliga o gráfico, variante que nenhuma release publica,
+e custaria 8 B à `pico_w_release` e 144 B à `pico2_w_release`, as duas imagens
+publicadas com tela. O `tft_graph` desce de 20 365 para 20 135 B
+(`--only tft_graph --update`); a RAM fica em 2 232 B. Os outros 15 pisos não se mexem: no `--check` sobre a
+`e2fef36c`, 11 medem o piso exato, 3 medem acima (`tel_mqtt` +2 B,
+`web_history` +4 B e `syslog` +3 B, como em 2026-10-30) e o `cli_full` mede 4 B
+abaixo, dentro da tolerância. Esses 4 B são novos (em 2026-10-30 o `cli_full`
+media o piso exato) e não foram decodificados: com mais 5 B, ele reprova a
+noite.
+
+**O que não está provado.** Como na seção acima, não há mapa membro a membro do
+`DisplayManager` (o C++ é construído sem `-g`). A troca de cargas de literal por
+pares `movs` + `lsls` foi contada só em `loopCore1( )`; em `handleTouch( )` os
+mnemônicos mostram a mesma troca (31 `ldr` a menos, 24 `movs` e 24 `lsls` a
+mais), e as outras 63 funções, de −16 a +8 B, não foram decodificadas uma a
+uma. O
+experimento prova a causa (a posição da caixa), não cada instrução. Medido na
+máquina; nenhuma imagem muda com este piso, então não há o que provar no ferro.
 
 ## O que ainda não tem chave — o rastreio de 2026-09-30
 
