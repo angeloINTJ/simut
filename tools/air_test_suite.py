@@ -12,7 +12,8 @@ code review of 2026-09-06 (docs/analysis/SIMUT_AIR_PLANO_FIX.md) said must hold:
   * offline wakes are stamped with the real elapsed time (F04);
   * `air idle` rejects what the uint16 field cannot hold (F09);
   * `air stop` on a wake that raised the radio brings the web server up too (T18);
-  * `ap` while the sleep cycle is active is refused, with `air stop` as the way out (T19).
+  * `ap` while the sleep cycle is active is refused, with `air stop` as the way out (T19);
+  * `system history_interval abc` names the history interval, not the minimum batch (T20).
 
 Three instruments, all optional except the target's USB CDC:
 
@@ -810,6 +811,24 @@ def ap_refusal_verdict(reply, armed_before, armed_after, slept):
     return 'pass', f'ap refused with the `air stop` hint; the cycle went on (armed={armed_after}, slept again)'
 
 
+# What `system history_interval abc` answers in config mode (src/AppManager_Commands.cpp): the history interval is named, and the minimum batch,
+# whose text the case was copied with, is not (92103fb5).
+HIST_ERR_RE = re.compile(r'Invalid number for history interval|Numero invalido para intervalo do historico')
+HIST_ERR_OLD_RE = re.compile(r'Invalid number for minimum batch|Numero invalido para lote minimo')
+
+
+def history_interval_verdict(reply, hist_before, hist_after):
+    """T20's verdict: ('pass' | 'fail', text). `reply` is the console's answer, hist_* the `hist=` of `air status` before and after it."""
+    reply = reply or ''
+    if HIST_ERR_OLD_RE.search(reply):
+        return 'fail', f'the answer names the minimum batch, not the history interval: {reply.strip()[-100:]!r}'
+    if not HIST_ERR_RE.search(reply):
+        return 'fail', f'no answer naming the history interval: {reply.strip()[-120:]!r}'
+    if hist_before != hist_after:
+        return 'fail', f'hist= changed from {hist_before} to {hist_after} s: the refused command saved something'
+    return 'pass', f'the answer names the history interval; hist={hist_after} s unchanged'
+
+
 def http_status(host, path, timeout=2.0):
     """The status code of an unauthenticated GET on port 80, or None when nothing answered (refused, timed out).
 
@@ -1064,6 +1083,7 @@ class Suite:
             ('T17', 'admin_reset_persists', self.t17_admin_reset_persists, None, {'target', 'web'}),
             ('T18', 'air_stop_web_on_telemetry_wake', self.t18_air_stop_web_on_telemetry_wake, None, {'target', 'web'}),
             ('T19', 'ap_refused_in_the_cycle', self.t19_ap_refused_in_the_cycle, None, {'target', 'web'}),
+            ('T20', 'history_interval_names_the_interval', self.t20_history_interval_names_the_interval, None, {'target'}),
         ]
 
     def selected(self):
@@ -2498,6 +2518,23 @@ class Suite:
             raise TestFail(text)
         return text
 
+    def t20_history_interval_names_the_interval(self):
+        """`system history_interval abc` in config mode names the history interval, not the minimum batch (92103fb5).
+
+        The case was copied from the telemetry interval's, whose text ("Invalid number for minimum batch") is right there and wrong here. Runs in M0, over
+        serial, on the Air's full console: `enable`, `configure terminal`, the command, `end`. Nothing may be saved: `hist=` of `air status` is read before
+        and after. Fails before 92103fb5 with the minimum batch's text."""
+        before = self.target.air_status()
+        self.target.cmd('enable', 4)
+        self.target.cmd('configure terminal', 4)
+        reply = self.target.cmd('system history_interval abc', 6)
+        self.target.cmd('end', 4)
+        after = self.target.air_status()
+        outcome, text = history_interval_verdict(reply, before.get('hist'), after.get('hist'))
+        if outcome == 'fail':
+            raise TestFail(text)
+        return text
+
     def run(self):
         selected = self.selected()
         # Every test that talks to the device assumes M0: a live console, a web
@@ -2772,6 +2809,15 @@ def selftest():
     ok_reply = refusal[1] if refusal else 'AP mode is unavailable while the sleep cycle is active. Send \'air stop\' first.'
     check('T19 verdict: refused, armed unchanged, slept again -> pass', ap_refusal_verdict(ok_reply, 1, 1, True)[0] == 'pass')
     check('T19 verdict: an AP opened (the defect) -> fail', ap_refusal_verdict(started[0], 1, 1, True)[0] == 'fail')
+    # T20: the patterns against the firmware's own two strings (read from the source), and the verdict against the defect
+    cmds_src = open(os.path.join(HERE, '..', 'src', 'AppManager_Commands.cpp'), encoding='utf-8').read()
+    hist_texts = ['Numero invalido para intervalo do historico', 'Invalid number for history interval']
+    check('T20 patterns read the two history-interval texts the firmware has', all(('"' + t + '"') in cmds_src and HIST_ERR_RE.search(t) for t in hist_texts))
+    check('T20 verdict: names the interval, hist unchanged -> pass', history_interval_verdict(hist_texts[1], 60, 60)[0] == 'pass')
+    check('T20 verdict: the minimum batch (the defect), no answer, a changed hist -> fail',
+          history_interval_verdict('Invalid number for minimum batch', 60, 60)[0] == 'fail'
+          and history_interval_verdict('Numero invalido para lote minimo', 60, 60)[0] == 'fail'
+          and history_interval_verdict('', 60, 60)[0] == 'fail' and history_interval_verdict(hist_texts[0], 60, 120)[0] == 'fail')
     check('T19 verdict: no refusal text, a changed cycle, a device that stayed awake -> fail',
           ap_refusal_verdict('', 1, 1, True)[0] == 'fail' and ap_refusal_verdict(ok_reply, 1, 0, True)[0] == 'fail'
           and ap_refusal_verdict(ok_reply, 1, 1, False)[0] == 'fail')

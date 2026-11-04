@@ -175,7 +175,7 @@ The slack under the over-the-air ceiling moves only on the Ângulo's images: the
 - **What was wrong.** In config mode, `system history_interval abc` answered "Invalid number for minimum batch" ("Numero invalido para lote minimo"): the case was copied from the telemetry interval's, where that text is right, and kept it. The range message after it already named the interval.
 - **What changed.** It answers "Invalid number for history interval" ("Numero invalido para intervalo do historico"). The images with the full console are `pico_w_test`, `pico_w_test_https` and `pico_w_air`.
 - **How it was proved.** Not by a test case: the host cannot run `AppManager`. The parser's half, `parseIntStrict( )` refusing "abc" so that this branch is the one that answers, is unchanged. On `pico_w_air` built from zero with and without the change: 88 B of code and text once the linker fill is taken out, `used` +8 B, `firmware.bin` unchanged.
-- **Not checked on a board.** The bench check (over serial: `enable`, `configure terminal`, `system history_interval abc`; the answer names the history interval, nothing is saved) runs before the PR.
+- **Not checked on a board.** The bench check (over serial: `enable`, `configure terminal`, `system history_interval abc`; the answer names the history interval, nothing is saved) runs before the PR. It is T20 of `tools/air_test_suite.py`, written and not run: it reads `hist=` before and after, and fails on the minimum batch's text.
 
 ### The alpha's language name and code
 
@@ -200,7 +200,7 @@ The slack under the over-the-air ceiling moves only on the Ângulo's images: the
 
 ### Tests (the small fixes)
 
-Nine new cases in the `native` suite (`test_validators`): **371 to 380** there and **780 to 789** in the eleven suites, all passing on 2026-11-04 at `2128deb1`; the three cases `native_network` gained with the AP address and the unknown path (48 to 51) are inside the 780. Two host scripts run in CI's `gates` job: `tools/tft_ui/test_zona_minmax.py` and `tools/tft_ui/test_ap_progress.py`. `tools/check_air_consistency.py` has C9 and C10 for the two Air fixes, whose `AppManager` the host cannot run, and `tools/air_test_suite.py` has T18 and T19 for the board, written and not run.
+Nine new cases in the `native` suite (`test_validators`): **371 to 380** there and **780 to 789** in the eleven suites, all passing on 2026-11-04 at `2128deb1`; the three cases `native_network` gained with the AP address and the unknown path (48 to 51) are inside the 780. Two host scripts run in CI's `gates` job: `tools/tft_ui/test_zona_minmax.py` and `tools/tft_ui/test_ap_progress.py`. `tools/check_air_consistency.py` has C9 and C10 for the two Air fixes, whose `AppManager` the host cannot run, and `tools/air_test_suite.py` has T18, T19 and T20 for the board, written and not run.
 
 ### Flash (the small fixes)
 
