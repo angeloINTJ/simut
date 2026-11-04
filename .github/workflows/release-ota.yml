@@ -230,7 +230,7 @@ jobs:
         # with `gh attestation verify <file> --repo angeloINTJ/simut`. After the
         # upload on purpose: a failure here must not hold the images back.
         # Added 2026-10-01; first exercised by the next tag.
-        uses: actions/attest-build-provenance@v2
+        uses: actions/attest-build-provenance@v4
         with:
           subject-path: |
             release/ota/*.bin
