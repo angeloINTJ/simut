@@ -2542,6 +2542,8 @@ class Suite:
             self.target.cmd('enable', 4)
             seen['reply'] = self.target.cmd('ap', 10)
             seen['after'] = self.target.air_status(retry_s=10)
+            # No `disable` here, unlike T20: this is a wake, a wake is a boot, and a boot starts the console in user EXEC again; one more write into a
+            # window that closes would turn a wake that closed in between into an error raised from on_wake( ).
 
         self.hibernate_and_observe(stop_on_wake=False, on_wake=on_wake)
         self.target.close()
@@ -2559,13 +2561,14 @@ class Suite:
         """`system history_interval abc` in config mode names the history interval, not the minimum batch (92103fb5).
 
         The case was copied from the telemetry interval's, whose text ("Invalid number for minimum batch") is right there and wrong here. Runs in M0, over
-        serial, on the Air's full console: `enable`, `configure terminal`, the command, `end`. Nothing may be saved: `hist=` of `air status` is read before
+        serial, on the Air's full console: `enable`, `configure terminal`, the command, `end`, `disable` (the console is left in the user EXEC it was found in). Nothing may be saved: `hist=` of `air status` is read before
         and after. Fails before 92103fb5 with the minimum batch's text."""
         before = self.target.air_status()
         self.target.cmd('enable', 4)
         self.target.cmd('configure terminal', 4)
         reply = self.target.cmd('system history_interval abc', 6)
         self.target.cmd('end', 4)
+        self.target.cmd('disable', 4)           # `end` leaves the console at privileged EXEC; back to the user EXEC it was found in (RAM only, nothing saved)
         after = self.target.air_status()
         outcome, text = history_interval_verdict(reply, before.get('hist'), after.get('hist'))
         if outcome == 'fail':
@@ -2886,6 +2889,34 @@ def selftest():
           history_interval_verdict('system history_interval abc\r\nERROR: Invalid number for minimum batch\r\nSIMUT(config)# ', 60, 60)[0] == 'fail'
           and history_interval_verdict('system history_interval abc\r\nERROR: ' + hist_texts[1] + '\r\nSIMUT(config)# ', 60, 60)[0] == 'pass'
           and history_interval_verdict('system history_interval abc\r\n', 60, 60)[0] == 'fail')
+    # T20 raises the console's mode (`enable`, `configure terminal`, `end` leave it at privileged EXEC: CMD_ENABLE, CMD_CONFIGURE and CMD_END of
+    # src/AppManager_Commands.cpp, RAM only) and must put it back: run through its own method against a console that follows those rules.
+    class ModeConsole:
+        def __init__(self):
+            self.mode, self.sent = 'user', []
+
+        def cmd(self, text, timeout=6.0):
+            self.sent.append(text)
+            if text == 'enable':
+                self.mode = 'priv'
+            elif text == 'disable':
+                self.mode = 'user'
+            elif text == 'configure terminal' and self.mode == 'priv':
+                self.mode = 'config'
+            elif text == 'end':
+                self.mode = 'priv'
+            elif text == 'exit':
+                self.mode = {'config': 'priv', 'priv': 'user'}.get(self.mode, 'user')
+            return text + '\r\n' + ('ERROR: Invalid number for history interval\r\n' if text.startswith('system history_interval') else '') + 'SIMUT# '
+
+        def air_status(self, retry_s=12):
+            return {'hist': 60}
+
+    t20_suite = Suite.__new__(Suite)
+    t20_suite.target = ModeConsole()
+    t20_suite.t20_history_interval_names_the_interval()
+    check('T20 leaves the console in the mode it found (user EXEC): `disable` after `end`',
+          t20_suite.target.mode == 'user' and 'disable' in t20_suite.target.sent and t20_suite.target.sent.index('disable') > t20_suite.target.sent.index('end'))
     try:
         import history_v5  # noqa: F401
         check('history_v5 importable', True)
