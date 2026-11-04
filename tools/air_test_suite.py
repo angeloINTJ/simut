@@ -882,7 +882,10 @@ def air_stop_web_verdict(radio, web_before, web_after, stop_reply):
     if web_before is not None:
         return 'skip', f'the web server already answered ({web_before}) before air stop: nothing to tell the fix apart'
     if not AIR_STOP_ACK_RE.search(stop_reply or ''):
-        return 'skip', (f'air stop was not acknowledged (reply {console_answer(stop_reply, 'air stop')[-100:]!r}): the wake closed before the command ran, '
+        # Computed apart and not inside the f-string: a quote of the f-string's own kind inside its braces is
+        # Python 3.12 syntax (PEP 701), and CI's gates job runs 3.11, where the whole file failed to parse.
+        answer = console_answer(stop_reply, 'air stop')
+        return 'skip', (f'air stop was not acknowledged (reply {answer[-100:]!r}): the wake closed before the command ran, '
                         'or the console did not answer, so the web server says nothing about the fix')
     if web_after is None:
         return 'fail', 'air stop on a telemetry wake (radio=1) left the web server down: port 80 gave no answer for 20 s after the stop'
