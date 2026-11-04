@@ -11,7 +11,8 @@ code review of 2026-09-06 (docs/analysis/SIMUT_AIR_PLANO_FIX.md) said must hold:
   * the M0 idle timer is reset by web activity, not only by the CLI (F21);
   * offline wakes are stamped with the real elapsed time (F04);
   * `air idle` rejects what the uint16 field cannot hold (F09);
-  * `air stop` on a wake that raised the radio brings the web server up too (T18).
+  * `air stop` on a wake that raised the radio brings the web server up too (T18);
+  * `ap` while the sleep cycle is active is refused, with `air stop` as the way out (T19).
 
 Three instruments, all optional except the target's USB CDC:
 
@@ -788,6 +789,27 @@ def tcp_open(host, port, timeout=2.0):
         return False
 
 
+# What `ap` answers while the sleep cycle is active (src/AppManager_Commands.cpp, case CMD_AP:), in both CLI languages, and what it
+# answered before (startApMode( )). --selftest holds the first to the firmware's own two strings.
+AP_REFUSED_RE = re.compile(r'(?:AP mode is unavailable|Modo AP indisponivel)[^\r\n]*air stop')
+AP_STARTED_RE = re.compile(r'AP mode started|Modo AP iniciado')
+
+
+def ap_refusal_verdict(reply, armed_before, armed_after, slept):
+    """T19's verdict over what the bench saw: ('pass' | 'fail', text). `reply` is the console's answer to `ap` on a wake, armed_* the
+    `armed=` of `air status` before and after it, `slept` whether the device went back to sleep by itself afterwards."""
+    reply = reply or ''
+    if AP_STARTED_RE.search(reply):
+        return 'fail', f'ap OPENED an access point during the sleep cycle: {reply.strip()[-100:]!r}'
+    if not AP_REFUSED_RE.search(reply):
+        return 'fail', f'ap during the sleep cycle was not refused with the `air stop` hint: {reply.strip()[-120:]!r}'
+    if armed_before != armed_after:
+        return 'fail', f'the refusal changed the cycle: armed={armed_before} before, {armed_after} after'
+    if not slept:
+        return 'fail', 'the device did not go back to sleep after the refusal: the cycle was not left alone'
+    return 'pass', f'ap refused with the `air stop` hint; the cycle went on (armed={armed_after}, slept again)'
+
+
 def http_status(host, path, timeout=2.0):
     """The status code of an unauthenticated GET on port 80, or None when nothing answered (refused, timed out).
 
@@ -1041,6 +1063,7 @@ class Suite:
             ('T16', 'wake_writes_no_preamble', self.t16_wake_writes_no_preamble, None, {'target'}),
             ('T17', 'admin_reset_persists', self.t17_admin_reset_persists, None, {'target', 'web'}),
             ('T18', 'air_stop_web_on_telemetry_wake', self.t18_air_stop_web_on_telemetry_wake, None, {'target', 'web'}),
+            ('T19', 'ap_refused_in_the_cycle', self.t19_ap_refused_in_the_cycle, None, {'target', 'web'}),
         ]
 
     def selected(self):
@@ -2443,6 +2466,38 @@ class Suite:
             raise TestFail(f"{text}; reply to air stop: {seen.get('stop_reply')!r}")
         return text
 
+    def t19_ap_refused_in_the_cycle(self):
+        """`ap` while the sleep cycle is active is refused, says what to do, and leaves the cycle alone.
+
+        The AP needs the radio and the web server, and a wake has neither to keep: the SLEEP phase powers the radio down, so the AP that
+        `ap` used to open on a wake died with it, announced ("Join the AP and open http://192.168.4.1") and serving nothing, because
+        startApMode( ) touches neither _airActive nor the web server. The maintainer decided on 2026-11-04 to refuse, with no implicit
+        `air stop` (it would disarm the cycle in flash as a side effect). The wake is made a telemetry one (minimum batch 1, the suite's
+        collector taking the sends) only to make it long enough to type into. Catches a wake, sends `enable` and `ap`, and checks the answer
+        (it names `air stop`; no "AP mode started"), that `armed=` did not change, and that the device goes back to sleep by itself
+        afterwards instead of staying awake in an AP. Fails before the fix: the answer is "AP mode started (WPA2). Key: ...".
+        Nothing here is run against the Air's M0, where `ap` works as ever: the refusal is the cycle's."""
+        self.need_web()
+        self.point_telemetry_here(min_batch=1)
+        seen = {}
+
+        def on_wake(row):
+            self.target.open(30)
+            seen['before'] = self.target.air_status(retry_s=25)
+            self.target.cmd('enable', 4)
+            seen['reply'] = self.target.cmd('ap', 10)
+            seen['after'] = self.target.air_status(retry_s=10)
+
+        self.hibernate_and_observe(stop_on_wake=False, on_wake=on_wake)
+        self.target.close()
+        slept = self.target.usb.wait(False, self.args.flush_cap + 60) is not None
+        self.ensure_m0()
+        outcome, text = ap_refusal_verdict(seen.get('reply'), (seen.get('before') or {}).get('armed'),
+                                           (seen.get('after') or {}).get('armed'), slept)
+        if outcome == 'fail':
+            raise TestFail(text)
+        return text
+
     def run(self):
         selected = self.selected()
         # Every test that talks to the device assumes M0: a live console, a web
@@ -2706,6 +2761,20 @@ def selftest():
     check('T18 verdict: a reading-only wake, a web already up, a firmware without radio= -> skip',
           air_stop_web_verdict(0, None, 200)[0] == 'skip' and air_stop_web_verdict(1, 200, 200)[0] == 'skip'
           and air_stop_web_verdict(None, None, None)[0] == 'skip')
+    # `ap` in the cycle: the bench's regexes held to the firmware's own two strings, which C10 of check_air_consistency.py cuts out of case CMD_AP:
+    import check_air_consistency as cac
+    refusal = cac.ap_refusal_texts()
+    check('the firmware refuses `ap` in the cycle in both CLI languages (C10 finds the two texts)', refusal is not None)
+    if refusal:
+        check('T19 reads both refusals of the firmware', all(AP_REFUSED_RE.search(t) for t in refusal))
+    started = ['AP mode started (WPA2). Key: abc', 'Modo AP iniciado (WPA2). Senha: abc']
+    check('T19 tells a started AP from a refusal', all(AP_STARTED_RE.search(t) and not AP_REFUSED_RE.search(t) for t in started))
+    ok_reply = refusal[1] if refusal else 'AP mode is unavailable while the sleep cycle is active. Send \'air stop\' first.'
+    check('T19 verdict: refused, armed unchanged, slept again -> pass', ap_refusal_verdict(ok_reply, 1, 1, True)[0] == 'pass')
+    check('T19 verdict: an AP opened (the defect) -> fail', ap_refusal_verdict(started[0], 1, 1, True)[0] == 'fail')
+    check('T19 verdict: no refusal text, a changed cycle, a device that stayed awake -> fail',
+          ap_refusal_verdict('', 1, 1, True)[0] == 'fail' and ap_refusal_verdict(ok_reply, 1, 0, True)[0] == 'fail'
+          and ap_refusal_verdict(ok_reply, 1, 1, False)[0] == 'fail')
     try:
         import history_v5  # noqa: F401
         check('history_v5 importable', True)

@@ -1062,6 +1062,21 @@ void AppManager::executeCommand(CliDemand cmd) {
 
 #if SIMUT_NET_WIFI
  case CMD_AP:
+#if SIMUT_AIR
+ /* The AP needs the radio and the web server, and a wake has neither to keep:
+  * the cycle goes on under the command (the M1 loop still reads it), its SLEEP
+  * phase powers the radio down, and startApMode( ) touches neither _airActive
+  * nor the web server, so the AP this opened died with the wake, announced and
+  * serving nothing. Refused, with the way out, and not an implicit `air stop`:
+  * that would disarm the operator's cycle in flash as a side effect of another
+  * command (the maintainer's decision, 2026-11-04). */
+ if (_airActive) {
+  _cmdMgr->printError(_cmdMgr->isPt( )
+   ? "Modo AP indisponivel com o ciclo de hibernacao ativo: o radio desliga ao fim do despertar. Envie 'air stop' antes."
+   : "AP mode is unavailable while the sleep cycle is active: the radio goes down when the wake ends. Send 'air stop' first.");
+  break;
+ }
+#endif
  startApMode( );
  break;
 #endif
