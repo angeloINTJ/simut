@@ -1753,6 +1753,62 @@ void test_langident_terminates_and_respects_cap(void) {
 }
 
 /* ===========================================================================
+ *  THE ALPHA'S PACK HEADER — langHeaderIdent (SystemDefs_Validate.h)
+ *
+ *  The alpha reads the first 255 bytes of a pack for @NAME and @CODE, which
+ *  /api/perms serves. It copied the two lines as they were, so the quote that
+ *  langIdentSanitize( ) strips (V-04) reached the page on the alpha's build, and
+ *  the 15- and 7-byte fields could end inside a UTF-8 sequence, a lead byte at
+ *  the end of a JSON string.
+ * =========================================================================== */
+static std::string packIdent(const char* head, const char* tag, size_t cap) {
+    std::vector<char> out(cap, 'X');
+    langHeaderIdent(head, tag, out.data( ), cap);
+    return std::string(out.data( ));
+}
+
+void test_langheader_strips_what_json_cannot_hold(void) {
+    /* a quote, a control byte and a backslash in @NAME; @CODE follows it and is found all the same */
+    const char* head = "# SIMUT\n@NAME Po\"rt\x01" "\\\n@CODE pt\"-BR\n@DICT\nx\n";
+    TEST_ASSERT_EQUAL_STRING("Port", packIdent(head, "@NAME ", 16).c_str( ));
+    TEST_ASSERT_EQUAL_STRING("pt-BR", packIdent(head, "@CODE ", 8).c_str( ));
+    /* the shipped packs' lines, untouched */
+    TEST_ASSERT_EQUAL_STRING("Portugues", packIdent("@NAME Portugues\r\n@CODE pt-BR\r\n", "@NAME ", 16).c_str( ));
+    TEST_ASSERT_EQUAL_STRING("pt-BR", packIdent("@NAME Portugues\r\n@CODE pt-BR\r\n", "@CODE ", 8).c_str( ));
+}
+
+void test_langheader_ends_on_a_whole_character(void) {
+    /* the field holds 15 bytes; a sequence that would be cut by it is left out whole */
+    TEST_ASSERT_EQUAL_STRING("Abcdefghijklmn", packIdent("@NAME Abcdefghijklmn\xC3\xA9\n", "@NAME ", 16).c_str( ));     /* 14 + 2: cut after the lead */
+    TEST_ASSERT_EQUAL_STRING("Abcdefghijklm\xC3\xA9", packIdent("@NAME Abcdefghijklm\xC3\xA9\n", "@NAME ", 16).c_str( )); /* 13 + 2 = 15: whole */
+    TEST_ASSERT_EQUAL_STRING("Abcdefghijklm", packIdent("@NAME Abcdefghijklm\xE2\x82\xAC\n", "@NAME ", 16).c_str( ));   /* 13 + 3: cut after 2 of 3 */
+    TEST_ASSERT_EQUAL_STRING("Abcdefghijkl", packIdent("@NAME Abcdefghijkl\xF0\x9F\x98\x80\n", "@NAME ", 16).c_str( )); /* 12 + 4: cut after 3 of 4 */
+    TEST_ASSERT_EQUAL_STRING("Abcdefghijk\xF0\x9F\x98\x80", packIdent("@NAME Abcdefghijk\xF0\x9F\x98\x80\n", "@NAME ", 16).c_str( )); /* 11 + 4 = 15: whole */
+    /* the code field holds 7 */
+    TEST_ASSERT_EQUAL_STRING("pt-BR\xC3\xA9", packIdent("@CODE pt-BR\xC3\xA9\n", "@CODE ", 8).c_str( )); /* 5 + 2 = 7: whole */
+    TEST_ASSERT_EQUAL_STRING("pt-BRx", packIdent("@CODE pt-BRx\xC3\xA9\n", "@CODE ", 8).c_str( )); /* 6 + 2 = 8: cut after the lead */
+    /* the head ends inside a sequence, with no newline after it */
+    TEST_ASSERT_EQUAL_STRING("Port", packIdent("@NAME Port\xC3", "@NAME ", 16).c_str( ));
+}
+
+void test_langheader_missing_tag_leaves_the_field_empty(void) {
+    TEST_ASSERT_EQUAL_STRING("", packIdent("# no name here\n@CODE x\n", "@NAME ", 16).c_str( ));
+    TEST_ASSERT_EQUAL_STRING("", packIdent("", "@NAME ", 16).c_str( ));
+    TEST_ASSERT_EQUAL_STRING("", packIdent("@NAME \n", "@NAME ", 16).c_str( ));
+}
+
+void test_utf8_whole_len(void) {
+    TEST_ASSERT_EQUAL_UINT32(0, utf8WholeLen("", 0));
+    TEST_ASSERT_EQUAL_UINT32(3, utf8WholeLen("abc", 3));
+    TEST_ASSERT_EQUAL_UINT32(2, utf8WholeLen("\xC3\xA9", 2));
+    TEST_ASSERT_EQUAL_UINT32(0, utf8WholeLen("\xC3", 1));
+    TEST_ASSERT_EQUAL_UINT32(1, utf8WholeLen("a\xE2\x82", 3));
+    TEST_ASSERT_EQUAL_UINT32(1, utf8WholeLen("a\xF0\x9F\x98", 4));
+    TEST_ASSERT_EQUAL_UINT32(4, utf8WholeLen("\xF0\x9F\x98\x80", 4));
+    TEST_ASSERT_EQUAL_UINT32(3, utf8WholeLen("\xE2\x82\xAC", 3));
+}
+
+/* ===========================================================================
  *  LANGUAGE-PACK INDEX — LangPackScanner (LangPackIndex.h)
  *
  *  The loader used to read every byte before @WEBDICT into one malloc just to
@@ -6108,6 +6164,10 @@ int main(int /*argc*/, char** /*argv*/) {
     RUN_TEST(test_langident_strips_json_breakers);
     RUN_TEST(test_langident_keeps_legitimate_names);
     RUN_TEST(test_langident_terminates_and_respects_cap);
+    RUN_TEST(test_langheader_strips_what_json_cannot_hold);
+    RUN_TEST(test_langheader_ends_on_a_whole_character);
+    RUN_TEST(test_langheader_missing_tag_leaves_the_field_empty);
+    RUN_TEST(test_utf8_whole_len);
     RUN_TEST(test_langidx_finds_every_section);
     RUN_TEST(test_langidx_section_before_webdict_stops_at_the_marker);
     RUN_TEST(test_langidx_chunking_does_not_matter);

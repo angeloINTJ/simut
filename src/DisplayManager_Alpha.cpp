@@ -6,6 +6,7 @@
 #include "display/AlphaMarquee.h"
 #include "display/PendingLabel.h"
 #include "Utf8Fold.h"
+#include "SystemDefs_Validate.h"   /* langHeaderIdent: the pack's @NAME and @CODE */
 #include "sensors/SensorHelpers.h"
 #include <LittleFS.h>
 #include <string.h>
@@ -677,27 +678,14 @@ bool DisplayManager::findAndLoadLangFile( ) {
 		f.close( );
 		if (n > 0) {
 			head[n] = '\0';
-			/* Bounded copy, no in-place mutation of head: nulling the @NAME
-			 * newline would otherwise hide @CODE from strstr and leave the web
-			 * selector EN-only. */
-			const char* p = strstr(head, "@NAME ");
-			if (p) {
-				p += 6;
-				const char* e = strpbrk(p, "\r\n");
-				size_t len = e ? (size_t)(e - p) : strlen(p);
-				if (len >= sizeof(_alphaLangName)) len = sizeof(_alphaLangName) - 1;
-				memcpy(_alphaLangName, p, len);
-				_alphaLangName[len] = '\0';
-			}
-			p = strstr(head, "@CODE ");
-			if (p) {
-				p += 6;
-				const char* e = strpbrk(p, "\r\n");
-				size_t len = e ? (size_t)(e - p) : strlen(p);
-				if (len >= sizeof(_alphaLangCode)) len = sizeof(_alphaLangCode) - 1;
-				memcpy(_alphaLangCode, p, len);
-				_alphaLangCode[len] = '\0';
-			}
+			/* langHeaderIdent( ) (SystemDefs_Validate.h) reads the head without
+			 * changing it: nulling the @NAME newline would otherwise hide @CODE
+			 * from strstr and leave the web selector EN-only. Both values are
+			 * sanitised the way the TFT build's loader does (langIdentSanitize( ),
+			 * V-04: /api/perms serves them) and end on a whole UTF-8 character;
+			 * until 2026-11-04 the bytes were copied as they were. */
+			langHeaderIdent(head, "@NAME ", _alphaLangName, sizeof(_alphaLangName));
+			langHeaderIdent(head, "@CODE ", _alphaLangCode, sizeof(_alphaLangCode));
 		}
 	}
 	return true;
