@@ -130,6 +130,18 @@ jobs:
       - name: Air consistency gate
         run: python3 tools/check_air_consistency.py
 
+      # The bench suite's own selftest (tools/air_test_suite.py --selftest): no board,
+      # no network, standard library only (requests and pyserial are optional imports
+      # there). It holds the patterns the bench uses for what `ap` answers during the
+      # sleep cycle, what `air stop` answers and what `system history_interval abc`
+      # answers to the strings the firmware has, read from the source. C10 above only
+      # needs the refusal to name `air stop` and to be ASCII, so a rewording that still
+      # does passes it, and the bench's T19 would then fail on a correct firmware: only
+      # this step sees that on the host (REPORT_B F1, the review of the Air fixes,
+      # 2026-11-04).
+      - name: Air bench suite selftest
+        run: python3 tools/air_test_suite.py --selftest
+
       # The feature model (docs/analysis/MODELO_DE_RECURSOS.md, P1): tools/
       # features.toml is the single source, gen_features.py derives the eleven
       # firmware environments into tools/generated/profiles.ini, and

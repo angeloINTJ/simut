@@ -136,7 +136,7 @@ step in a bench procedure. Run by hand, but with instructions somewhere.
 | script | what it does | last touched |
 |---|---|---|
 | `PicoHand/pico_hand.sh` | Bash wrapper for the "robotic hand" (pico_hand firmware). | 2026-09-06 |
-| `air_test_suite.py` | SIMUT Air — hardware-in-the-loop test suite (serial CLI + web + PicoHand). | 2026-09-09 |
+| `air_test_suite.py` | SIMUT Air — hardware-in-the-loop test suite (serial CLI + web + PicoHand). CI runs only `--selftest`, in the `gates` job (no board, no network, standard library only): it holds the suite's patterns for the console's answers to the strings the firmware has. The tests themselves need the bench. | 2026-11-04 |
 | `alarm_mqtt_test.py` | SIMUT v21 — Teste em hardware da 2ª linha de telemetria sobre MQTT com | 2026-08-23 |
 | `arduino_pico_overrides/restore.sh` | restore.sh — reverte overrides SIMUT do framework arduino-pico. | 2026-08-20 |
 | `build9.sh` | Builds the nine product images one by one (or the environments named), keeps each `firmware.bin`, `firmware.elf` and build log in `<out>/<env>/` and writes `<out>/sha256.txt` (`hash  size  env`, or `FALHOU(rc)`): the V-SHA proof of the UI-driver stages (`docs/analysis/UI_DRIVERS.md`) is `diff <base>/sha256.txt <out>/sha256.txt` printing nothing. It exits 0 even when a build failed, so read the file. For sizes equal to CI's, build with a private `PLATFORMIO_CORE_DIR` patched by `arduino_pico_overrides/patch.sh`, never the shared `~/.platformio` (on 2026-10-14 it lacked override 2n: `pico_w_release` came out 328 B under CI's 1,034,500 B). | 2026-10-14 |
