@@ -17,13 +17,21 @@ stamped again at every step of the hold: the flicker the comment beside it says 
      hold's frame. The fix must keep `fullRedraw` true there.
   4. The hold's block itself (`if (state.apProgressPct >= 0) { ... }`, cut by its braces with the comments taken out): the screen is
      cleared exactly once in it, by the first statement under `if (enterAp) {`; the bar is painted after that block closes, so on every
-     frame; and the block ends in `return;`, so a hold frame never falls through to the boot terminal's painting (whose `fullRedraw` is
-     true at every step). The expressions alone said nothing of what they guard: until 2026-11-04 the guard could read
-     `if (fullRedraw) {` or `if (true) {` and this script still passed (the review of the small-bugs branch).
+     frame; the frame is recorded (`_lastRenderedState = state;`) after that block and before the `return;`; and the block ends in
+     `return;`, so a hold frame never falls through to the boot terminal's painting (whose `fullRedraw` is true at every step). The
+     expressions alone said nothing of what they guard: until 2026-11-04 the guard could read `if (fullRedraw) {` or `if (true) {` and this
+     script still passed (the review of the small-bugs branch); and without the record `_lastRenderedState` keeps the boot terminal's state
+     (percentage -1), so `enterAp` is true at every step, the defect again with both expressions intact, and the script still passed
+     (the third review, 2026-11-04).
   5. The mutants, each of which must fail 1-4: M1 `enterAp` back to `fullRedraw || prev < 0` (the defect), M2 without `langJustChanged`,
      M3 without the not-booting term, M4 `fullRedraw` without the percentage term (a cancel would leave the hold's frame on screen),
      M5 the clear guarded by `fullRedraw`, M6 by `true`, M7 a second clear before the bar, M8 the block's `return;` gone, M9 the bar
-     never painted.
+     never painted, M10 the frame never recorded (`_lastRenderedState = state;` gone).
+
+What it cannot see, written here because a list of names would not close it: the clear is recognised by its spelling, `fastClearScreen(`,
+counted once in the hold's block. Another call that clears the whole panel under another name, a `fillScreen( )` before the bar, is not
+seen, and any drawing call that covers the screen is a clear: the bench's look at the hold (the caption steady, only the bar growing) is the
+check for that. This script holds the two expressions and what they guard.
 
 While the defect stands the base run is red and the mutants are not run.
 
@@ -93,8 +101,13 @@ def body_checks(body):
     after = body[guard.end() + len(inner) + 1:]
     if 'fillRoundRect(' not in after:
         bad.append('4: the bar is not painted after the `if (enterAp)` block (it must grow on every frame)')
-    if not re.search(r'return\s*;\s*$', body):
+    ret = re.search(r'return\s*;\s*$', body)
+    if not ret:
         bad.append('4: the hold block does not end in `return;`: a hold frame falls through to the boot terminal, cleared at every step')
+    between = body[guard.end() + len(inner) + 1:ret.start() if ret else len(body)]
+    if not re.search(r'\b_lastRenderedState\s*=\s*state\s*;', between):
+        bad.append('4: the hold block does not record the frame (`_lastRenderedState = state;`) after the `if (enterAp)` block and before `return;`: '
+                   'the previous state would stay the boot terminal\'s and `enterAp` would be true at every step')
     return bad
 
 
@@ -167,7 +180,7 @@ def main():
         print(f'test_ap_progress: {len(bad)} failure(s); the mutants are not run against a red base')
         return 1
     print('PASS 1-3: one clear over the hold, again on a language and on a first frame, a full redraw on a cancel')
-    print('PASS 4: the hold block clears once, under `if (enterAp) {`, paints the bar on every frame and ends in `return;`')
+    print('PASS 4: the hold block clears once, under `if (enterAp) {`, paints the bar on every frame, records the frame and ends in `return;`')
     mutants = {
         'M1 enterAp = fullRedraw || prev < 0 (the defect)': (full_expr, 'fullRedraw || (_lastRenderedState.apProgressPct < 0)', body),
         'M2 without langJustChanged': (full_expr, re.sub(r'\|\|\s*langJustChanged', '', enter_expr), body),
@@ -180,6 +193,7 @@ def main():
                                                                                count=1)),
         'M8 the block without its return': (full_expr, enter_expr, re.sub(r'return\s*;(\s*)$', r'\1', body, count=1)),
         'M9 the bar never painted': (full_expr, enter_expr, re.sub(r'_driver\.tft->fillRoundRect\([^;]*\);', '', body, count=1)),
+        'M10 the frame never recorded': (full_expr, enter_expr, re.sub(r'_lastRenderedState\s*=\s*state\s*;', '', body, count=1)),
     }
     survived = 0
     for name, (f, e, bd) in mutants.items():
