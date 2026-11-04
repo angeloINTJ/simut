@@ -101,12 +101,19 @@ struct AlphaFrameIn {
 	explicit AlphaFrameIn(AlphaScreen s = ALPHA_SCREEN_CLEAR) : screen(s) {}
 };
 
+/* pendingLabel( ) and alphaMarqueeWindow( ) are small `inline` functions of headers the TFT shares, and the loop had each inlined at its one
+ * call. With the calls inside the always_inline copies of alphaDrawFrame( ) below, GCC 14.3 at -Os left both out of line in pico_w_alpha (56
+ * and 108 B of code, loopCore1 104 B smaller: 60 B more in all, measured 2026-11-04). These two wrappers are flattened, which inlines the one
+ * callee they hold and nothing else, and the loop is 28 B larger than before instead (see the commit that moved the loop onto this file). */
+inline __attribute__((always_inline, flatten)) void alphaPendingLabelInline(uint16_t n, char* out, size_t cap) { pendingLabel(n, out, cap); }
+inline __attribute__((always_inline, flatten)) void alphaMarqueeWindowInline(const char* s, uint16_t step, char* out) { alphaMarqueeWindow(s, step, out); }
+
 /* Write one window of `s` on `row`. The arithmetic and the reason for it are
  * in display/AlphaMarquee.h, where a host test can reach them. */
 template <typename LCD>
 inline __attribute__((always_inline)) void alphaMarquee(LCD &lcd, uint8_t row, const char* s, uint16_t step) {
 	char win[ALPHA_LCD_COLS + 1];
-	alphaMarqueeWindow(s, step, win);
+	alphaMarqueeWindowInline(s, step, win);
 	lcd.setCursor(0, row);
 	lcd.print(win);
 }
@@ -231,7 +238,7 @@ inline __attribute__((always_inline)) void alphaDrawFrame(LCD &lcd, BigFont_HD44
 				lcd.print(id);
 			} else if (in.pending > 0) {
 				char pend[PENDING_LABEL_MAX];
-				pendingLabel(in.pending, pend, sizeof(pend));
+				alphaPendingLabelInline(in.pending, pend, sizeof(pend));
 				lcd.setCursor(0, 1);
 				lcd.print(pend);
 			}

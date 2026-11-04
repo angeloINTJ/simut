@@ -90,7 +90,7 @@ de recebê-la pelo ar: o aparelho a recusa no stage, na validação e no aplicad
 | `pico2_w_release` | 1.038.385 | 530.383 |
 | `pico_w_test` | 1.037.437 | 2.947 |
 | `pico_w_asserts` | 1.038.957 | 1.427 |
-| `pico_wire` | 604.673 | 435.711 |
+| `pico_wire` | 604.697 | 435.687 |
 | `pico_wiretft` | 788.377 | 252.007 |
 | `pico_wiretft_angulo` | 829.225 | 211.159 |
 | `pico2_w_original` | 1.000.617 | 568.151 |

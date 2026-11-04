@@ -3,8 +3,8 @@
 #include "LogManager.h"
 #include "display/HD44780_16x2.h"
 #include "display/BigFont_HD44780.h"
+#include "display/AlphaFrame.h"
 #include "display/AlphaMarquee.h"
-#include "display/PendingLabel.h"
 #include "Utf8Fold.h"
 #include "sensors/SensorHelpers.h"
 #include <LittleFS.h>
@@ -14,6 +14,10 @@ static Hd44780_16x2   _lcd;
 static BigFont_HD44780 _big;
 static SystemStatusData _netStatus;
 static uint32_t _lt = 0;
+
+/* Row 0 of the splash and of the boot screens: "SIMUT " and the version, as ONE literal as the loop has always had it
+ * (display/AlphaFrame.h takes it as data, so a host test and the manual's figures choose their own version). */
+#define ALPHA_BANNER "SIMUT " SIMUT_VERSION
 
 /* Alpha: lightweight .lng locator (web translations only). No TFT UI means
  * @DICT/@HELP/@LOGCODES/@TRL are never needed in RAM — only the file
@@ -64,17 +68,6 @@ static float alphaChannelValue(const SlotSnapshot& s, uint8_t ch) {
 	}
 }
 
-#if SIMUT_NET_WIFI   /* the setup AP's page is its only caller */
-/* Write one window of `s` on `row`. The arithmetic and the reason for it are
- * in display/AlphaMarquee.h, where a host test can reach them. */
-static void alphaMarquee(Hd44780_16x2 &lcd, uint8_t row, const char* s, uint16_t step) {
-	char win[ALPHA_LCD_COLS + 1];
-	alphaMarqueeWindow(s, step, win);
-	lcd.setCursor(0, row);
-	lcd.print(win);
-}
-#endif
-
 /* Core 0 hands the setup network over once, when it comes up. */
 void DisplayManager::setApInfo(const char* ssid, const char* psk) {
 	mutex_enter_blocking(&_stateMutex);
@@ -87,13 +80,13 @@ void DisplayManager::core1Entry( ){ if (_instance) _instance->loopCore1(); }
 void DisplayManager::loopCore1( ) {
 	_lcd.begin( );
 	_big.begin(_lcd);  /* load CGRAM custom characters */
-	_lcd.clear( );
 
-	/* Splash screen */
-	_lcd.setCursor(0, 0);
-	_lcd.print("SIMUT " SIMUT_VERSION);
-	_lcd.setCursor(0, 1);
-	_lcd.print("  Inicializando ");
+	/* Splash screen: the screen clears first (display/AlphaFrame.h). */
+	{
+		AlphaFrameIn in(ALPHA_SCREEN_SPLASH);
+		in.banner = ALPHA_BANNER;
+		alphaDrawFrame(_lcd, _big, in);
+	}
 	_lcd.blit( );
 	delay(1200);
 
@@ -139,11 +132,7 @@ void DisplayManager::loopCore1( ) {
 		_lastHeartbeat = millis( );
 
 		/* Update WiFi signal icon (slot 7) based on RSSI */
-#if SIMUT_NET_LAN
-		_big.showWired(_lcd, _sharedState.wifiRssi > -100);
-#else
-		_big.showWiFi(_lcd, _sharedState.wifiRssi);
-#endif
+		alphaLoadLinkGlyph(_lcd, _big, _sharedState.wifiRssi);
 
 		/* ── FIRMWARE UPDATE (OtaScreen.h) ───────────────────────────
 		 * Ahead of every screen but a reboot's. Core 0 publishes each step
@@ -159,14 +148,16 @@ void DisplayManager::loopCore1( ) {
 				const uint32_t hold = otaHoldMs(otaPh);
 				if (hold && timeSince(__atomic_load_n(&_otaShownMs, __ATOMIC_ACQUIRE), hold)) {
 					(void)otaEnd(otaSt);
-					_lcd.clear( );
+					alphaDrawFrame(_lcd, _big, AlphaFrameIn(ALPHA_SCREEN_CLEAR));
 					_lt = millis( );
 					continue;
 				}
-				char row0[17], row1[17];
-				otaLcdLines(otaPh, otaWhyOf(otaSt), row0, row1);
-				_lcd.setCursor(0, 0); _lcd.print(row0);
-				_lcd.setCursor(0, 1); _lcd.print(row1);
+				{
+					AlphaFrameIn in(ALPHA_SCREEN_OTA);
+					in.otaPhase = otaPh;
+					in.otaWhy   = otaWhyOf(otaSt);
+					alphaDrawFrame(_lcd, _big, in);
+				}
 				_lcd.blit( );
 				__atomic_store_n(&_otaDrawnSeq, otaSeqOf(otaSt), __ATOMIC_RELEASE);
 				sleepUnlessParking(100);
@@ -176,9 +167,6 @@ void DisplayManager::loopCore1( ) {
 
 		if (_sharedState.isBooting) {
 			/* ── BOOT SCREEN ──────────────────────────────────── */
-			_lcd.setCursor(0, 0);
-			_lcd.print("SIMUT " SIMUT_VERSION);
-
 			/* Detect new boot stages → advance bar */
 			bool newStage = false;
 			for (int i = 0; i < 5; i++) {
@@ -194,11 +182,12 @@ void DisplayManager::loopCore1( ) {
 			}
 
 			/* Render bar: [############      ] */
-			_lcd.setCursor(0, 1);
-			_lcd.write('[');
-			for (uint8_t i = 0; i < 14; i++)
-				_lcd.write(i < bootBar ? '#' : ' ');
-			_lcd.write(']');
+			{
+				AlphaFrameIn in(ALPHA_SCREEN_BOOT);
+				in.banner  = ALPHA_BANNER;
+				in.bootBar = bootBar;
+				alphaDrawFrame(_lcd, _big, in);
+			}
 
 		} else if (!bootDone) {
 			/* ── BOOT → NETWORK → SENSOR TRANSITION ──────────────── */
@@ -206,12 +195,11 @@ void DisplayManager::loopCore1( ) {
 				if (bootBar < 14 && fullBarCnt < 6) {
 					/* Fill remaining bar segments */
 					if (fullBarCnt == 0) { bootBar = 14; }
-					_lcd.setCursor(0, 0);
-					_lcd.print("SIMUT " SIMUT_VERSION);
-					_lcd.setCursor(0, 1);
-					_lcd.write('[');
-					for (uint8_t i = 0; i < 14; i++) _lcd.write('#');
-					_lcd.write(']');
+					{
+						AlphaFrameIn in(ALPHA_SCREEN_BOOT_FULL);
+						in.banner = ALPHA_BANNER;
+						alphaDrawFrame(_lcd, _big, in);
+					}
 					fullBarCnt++;
 				} else {
 					showNetwork = true;
@@ -227,25 +215,12 @@ void DisplayManager::loopCore1( ) {
 				static bool hadIp = false;
 				if (hasIp && !hadIp) { showNetCnt = 0; hadIp = true; }
 
-				_lcd.setCursor(0, 0);
-				if (online && hasIp) {
-					_lcd.print(" Conectado!     ");
-					_lcd.setCursor(0, 1);
-					_lcd.print("                ");
-					_lcd.setCursor(0, 1);
-					_lcd.print(_netStatus.ip);
-				} else if (online && !hasIp) {
-					_lcd.print(" Conectado!     ");
-					_lcd.setCursor(0, 1);
-					_lcd.print("  Obtendo IP... ");
-				} else {
-#if SIMUT_NET_LAN
-					_lcd.print(" Sem rede       ");
-#else
-					_lcd.print(" Sem WiFi       ");
-#endif
-					_lcd.setCursor(0, 1);
-					_lcd.print("    Offline     ");
+				{
+					AlphaFrameIn in(ALPHA_SCREEN_NET);
+					in.online = online;
+					in.hasIp  = hasIp;
+					in.ip     = _netStatus.ip;
+					alphaDrawFrame(_lcd, _big, in);
 				}
 
 				showNetCnt++;
@@ -254,7 +229,7 @@ void DisplayManager::loopCore1( ) {
 				uint8_t maxCnt = (online && !hasIp) ? 20u : 6u;
 				if (showNetCnt >= maxCnt) {
 					bootDone = true;
-					_lcd.clear( );
+					alphaDrawFrame(_lcd, _big, AlphaFrameIn(ALPHA_SCREEN_CLEAR));
 					_lt  = millis( );
 					_cycleSlot = -1;
 				}
@@ -303,14 +278,13 @@ void DisplayManager::loopCore1( ) {
 				_lt = millis( ); apPage = (apPage + 1) % 3; apStep = 0;
 			}
 
-			_lcd.setCursor(0, 0);
-			switch (apPage) {
-				case 0: _lcd.print("Modo AP  1 de 3"); break;
-				case 1: _lcd.print("Rede:    2 de 3"); break;
-				default: _lcd.print("Senha:   3 de 3"); break;
+			{
+				AlphaFrameIn in(ALPHA_SCREEN_AP);
+				in.apPage  = apPage;
+				in.apValue = apVal;
+				in.apStep  = apStep;
+				alphaDrawFrame(_lcd, _big, in);
 			}
-			_lcd.write(' ');
-			alphaMarquee(_lcd, 1, apVal, apStep);
 			apStep++;
 			_lcd.blit( );
 			sleepUnlessParking(AP_SCROLL_MS);
@@ -345,81 +319,19 @@ void DisplayManager::loopCore1( ) {
 				alphaCycleNext(snap, active, n, _cycleSlot, _cycleCh);
 			}
 
-			_lcd.clear( );
-			/* Status top-left: "AP" in Access Point mode, else WiFi icon. A
-			 * wired build has no AP, and its cell is the cable glyph, no "W". */
-			_lcd.setCursor(0, 0);
-#if SIMUT_NET_LAN
-			_lcd.write(' ');
-			_lcd.write(BFS_WIFI);
-#else
-			if (_sharedState.apMode) {
-				_lcd.print("AP");
-			} else {
-				_lcd.write('W');
-				_lcd.write(BFS_WIFI);
-			}
-#endif
-
-			if (n == 0) {
-				/* No active sensors — show big ERRO. */
-				_big.showError(_lcd);
-			} else {
-				/* Line 1, columns 0-2: the only cells no screen below draws on
-				 * (the big digits start at column 3 or 4, "ERRO" at 3). With
-				 * more than one slot they say which slot is on screen; with one
-				 * there is nothing to identify, and they carry the pending
-				 * telemetry count instead, the way the TFT top bar does —
-				 * nothing when the queue is empty, "Nk" past a thousand. */
-				if (n > 1) {
-					char id[8];
-					snprintf(id, sizeof(id), "S%d", (int)_cycleSlot);
-					_lcd.setCursor(0, 1);
-					_lcd.print(id);
-				} else if (_sharedState.pendingPkts > 0) {
-					char pend[PENDING_LABEL_MAX];
-					pendingLabel(_sharedState.pendingPkts, pend, sizeof(pend));
-					_lcd.setCursor(0, 1);
-					_lcd.print(pend);
+			{
+				AlphaFrameIn in(ALPHA_SCREEN_SENSOR);
+				in.slots   = n;
+				in.slot    = _cycleSlot;
+				in.channel = _cycleCh;
+				in.apMode  = _sharedState.apMode;
+				in.pending = _sharedState.pendingPkts;
+				if (n != 0) {
+					const SlotSnapshot &cs = snap[_cycleSlot];
+					in.valid = cs.valid;
+					in.value = alphaChannelValue(cs, _cycleCh);
 				}
-
-				const SlotSnapshot &cs = snap[_cycleSlot];
-				float v = alphaChannelValue(cs, _cycleCh);
-
-				if (!cs.valid || isnan(v)) {
-					/* Sensor in error — big ERRO (avgValue may be stale). */
-					_big.showError(_lcd);
-				} else switch (_cycleCh) {
-				case CH_TEMP: {
-					int raw = (int)(v * 10.0f);
-					_big.showNumber(_lcd, raw);
-					_lcd.setCursor(14, 0); _lcd.write('o');
-					_lcd.setCursor(15, 1); _lcd.write('C');
-					break;
-				}
-				case CH_HUM: {
-					int hum = (int)v;
-					_big.showInteger(_lcd, hum, 13, '%');
-					_lcd.setCursor(14, 1); _lcd.print("UR");
-					break;
-				}
-				case CH_PRESS: {
-					/* Pressão em caracteres normais, montada com aritmética
-					 * inteira — o %f do printf corrompia o LCD no Core 1.
-					 * Dígitos grandes ficam para uma etapa futura. */
-					char b[16];
-					int tenths = (int)(v * 10.0f + 0.5f);
-					int ip = tenths / 10;
-					int dp = tenths % 10;
-					snprintf(b, sizeof(b), "%d.%d hPa", ip, dp);
-					_lcd.setCursor(3, 0);
-					_lcd.print(b);
-					break;
-				}
-				default:
-					_big.showError(_lcd);
-					break;
-				}
+				alphaDrawFrame(_lcd, _big, in);
 			}
 		}
 
