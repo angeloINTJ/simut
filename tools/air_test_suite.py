@@ -798,20 +798,33 @@ AIR_STOP_ACK_RE = re.compile(r'Hibernation cancelled|Hibernacao cancelada')
 AP_STARTED_RE = re.compile(r'AP mode started|Modo AP iniciado')
 
 
-def console_answer(reply):
-    """What a console command answered, without blank lines and without the prompt: '' when nothing came back, or only the prompt did.
+PROMPT_PREFIX_RE = re.compile(r'^SIMUT(?:\([a-z0-9-]+\))?\s*[#>]\s*')
 
-    Target.cmd( ) returns what it read before the port went away, so a wake that closed between the write and the answer gives '' (or the
-    prompt alone). That is a condition of the instrument, which a verdict must read neither as the defect nor as the fix."""
-    return '\n'.join(line.strip() for line in (reply or '').splitlines() if line.strip() and not PROMPT_RE.search(line.strip()))
+
+def console_answer(reply, command=None):
+    """What a console command answered, without blank lines, without the prompt and without the echo of the line that was typed: '' when nothing came
+    back, or only those did.
+
+    Target.cmd( ) returns what it read before the port went away, so a wake that closed between the write and the answer gives '' (or the prompt
+    alone). The firmware also echoes every character it reads (CommandManager::processInput( ), unconditional), so the transcript starts with the typed
+    line, and a wake that closes after the echo and before the answer gives that line alone: with `command` given, the first line that is the command
+    (a prompt in front of it allowed) is the echo and is dropped. Both are conditions of the instrument, which a verdict must read neither as the
+    defect nor as the fix."""
+    lines = [line.strip() for line in (reply or '').splitlines() if line.strip() and not PROMPT_RE.search(line.strip())]
+    if command is not None:
+        for i, line in enumerate(lines):
+            if PROMPT_PREFIX_RE.sub('', line).strip() == command.strip():
+                del lines[i]
+                break
+    return '\n'.join(lines)
 
 
 def ap_refusal_verdict(reply, armed_before, armed_after, slept):
     """T19's verdict over what the bench saw: ('pass' | 'fail' | 'skip', text). `reply` is the console's answer to `ap` on a wake, armed_* the
     `armed=` of `air status` before and after it, `slept` whether the device went back to sleep by itself afterwards. No answer at all
     (the wake closed before the command ran, or the console did not answer) is a skip: not a pass, and not the defect either."""
-    if not console_answer(reply):
-        return 'skip', 'no answer to ap (nothing, or only the prompt): the wake closed before the command ran, or the console did not answer'
+    if not console_answer(reply, 'ap'):
+        return 'skip', 'no answer to ap (nothing, only the prompt, or only the echo of the line): the wake closed before the command ran, or the console did not answer'
     reply = reply or ''
     if AP_STARTED_RE.search(reply):
         return 'fail', f'ap OPENED an access point during the sleep cycle: {reply.strip()[-100:]!r}'
@@ -869,7 +882,7 @@ def air_stop_web_verdict(radio, web_before, web_after, stop_reply):
     if web_before is not None:
         return 'skip', f'the web server already answered ({web_before}) before air stop: nothing to tell the fix apart'
     if not AIR_STOP_ACK_RE.search(stop_reply or ''):
-        return 'skip', (f'air stop was not acknowledged (reply {console_answer(stop_reply)[-100:]!r}): the wake closed before the command ran, '
+        return 'skip', (f'air stop was not acknowledged (reply {console_answer(stop_reply, 'air stop')[-100:]!r}): the wake closed before the command ran, '
                         'or the console did not answer, so the web server says nothing about the fix')
     if web_after is None:
         return 'fail', 'air stop on a telemetry wake (radio=1) left the web server down: port 80 gave no answer for 20 s after the stop'
@@ -2859,6 +2872,20 @@ def selftest():
           ap_refusal_verdict('ERROR: Command not available in this mode.', 1, 1, True)[0] == 'fail')
     check('T19 verdict: no answer at all (nothing, blanks, only the prompt) -> skip, never a pass and not the defect',
           all(ap_refusal_verdict(reply, 1, 1, True)[0] == 'skip' for reply in ('', None, '  \r\n', 'SIMUT# ', '\r\nSIMUT> \r\n')))
+    # The firmware echoes every character it reads (CommandManager::processInput( ), unconditional), so the transcript Target.cmd( ) returns starts with the typed line:
+    # a reply that holds only that line is no answer either (a wake that closes after the echo and before the answer), and an answer behind the echo is still read.
+    check('T19 verdict: only the echo of `ap` (the answer never came) -> skip, never the defect',
+          all(ap_refusal_verdict(reply, 1, 1, True)[0] == 'skip' for reply in ('ap\r\n', 'ap\r\n\r\nSIMUT> \r\n', 'SIMUT> ap\r\n', ' ap \r\n')))
+    check('T19 verdict: the echo in front of an answer does not hide it (refusal -> pass, an AP opened -> fail, another error -> fail)',
+          ap_refusal_verdict('ap\r\n' + ok_reply + '\r\nSIMUT> ', 1, 1, True)[0] == 'pass'
+          and ap_refusal_verdict('ap\r\n' + started[0] + '\r\nSIMUT> ', 1, 1, True)[0] == 'fail'
+          and ap_refusal_verdict('ap\r\nERROR: Command not available in this mode.\r\nSIMUT> ', 1, 1, True)[0] == 'fail')
+    check('T18 verdict: only the echo of `air stop` is no acknowledgement -> skip (the web server says nothing about the fix)',
+          all(air_stop_web_verdict(1, None, web, 'air stop\r\n')[0] == 'skip' for web in (None, 401)))
+    check('T20 verdict: with the echo in front, the defect still fails, the fix passes and an echo alone fails',
+          history_interval_verdict('system history_interval abc\r\nERROR: Invalid number for minimum batch\r\nSIMUT(config)# ', 60, 60)[0] == 'fail'
+          and history_interval_verdict('system history_interval abc\r\nERROR: ' + hist_texts[1] + '\r\nSIMUT(config)# ', 60, 60)[0] == 'pass'
+          and history_interval_verdict('system history_interval abc\r\n', 60, 60)[0] == 'fail')
     try:
         import history_v5  # noqa: F401
         check('history_v5 importable', True)
