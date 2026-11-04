@@ -793,12 +793,25 @@ def tcp_open(host, port, timeout=2.0):
 # What `ap` answers while the sleep cycle is active (src/AppManager_Commands.cpp, case CMD_AP:), in both CLI languages, and what it
 # answered before (startApMode( )). --selftest holds the first to the firmware's own two strings.
 AP_REFUSED_RE = re.compile(r'(?:AP mode is unavailable|Modo AP indisponivel)[^\r\n]*air stop')
+# What `air stop` answers (case CMD_AIR_STOP: of src/AppManager_Commands.cpp), in both CLI languages: the proof that the command ran at all.
+AIR_STOP_ACK_RE = re.compile(r'Hibernation cancelled|Hibernacao cancelada')
 AP_STARTED_RE = re.compile(r'AP mode started|Modo AP iniciado')
 
 
+def console_answer(reply):
+    """What a console command answered, without blank lines and without the prompt: '' when nothing came back, or only the prompt did.
+
+    Target.cmd( ) returns what it read before the port went away, so a wake that closed between the write and the answer gives '' (or the
+    prompt alone). That is a condition of the instrument, which a verdict must read neither as the defect nor as the fix."""
+    return '\n'.join(line.strip() for line in (reply or '').splitlines() if line.strip() and not PROMPT_RE.search(line.strip()))
+
+
 def ap_refusal_verdict(reply, armed_before, armed_after, slept):
-    """T19's verdict over what the bench saw: ('pass' | 'fail', text). `reply` is the console's answer to `ap` on a wake, armed_* the
-    `armed=` of `air status` before and after it, `slept` whether the device went back to sleep by itself afterwards."""
+    """T19's verdict over what the bench saw: ('pass' | 'fail' | 'skip', text). `reply` is the console's answer to `ap` on a wake, armed_* the
+    `armed=` of `air status` before and after it, `slept` whether the device went back to sleep by itself afterwards. No answer at all
+    (the wake closed before the command ran, or the console did not answer) is a skip: not a pass, and not the defect either."""
+    if not console_answer(reply):
+        return 'skip', 'no answer to ap (nothing, or only the prompt): the wake closed before the command ran, or the console did not answer'
     reply = reply or ''
     if AP_STARTED_RE.search(reply):
         return 'fail', f'ap OPENED an access point during the sleep cycle: {reply.strip()[-100:]!r}'
@@ -841,17 +854,23 @@ def http_status(host, path, timeout=2.0):
         return None
 
 
-def air_stop_web_verdict(radio, web_before, web_after):
+def air_stop_web_verdict(radio, web_before, web_after, stop_reply):
     """T18's verdict over what the bench saw on a wake: ('pass' | 'fail' | 'skip', text).
 
     radio is the `radio=` field of `air status`, web_before and web_after the status code of GET /api/status (or None) before and after
-    `air stop`. Kept apart from the test so that the selftest can show it tells the defect from the fix."""
+    `air stop`, stop_reply the console's answer to it. Without the acknowledgement of `air stop` (Hibernation cancelled / Hibernacao
+    cancelada) the command may not have run (a wake that closed before it, a console that did not answer), and what the web server did
+    says nothing about the fix: a skip, never a pass and never the defect. Kept apart from the test so that the selftest can show it
+    tells the defect from the fix."""
     if radio is None:
         return 'skip', 'firmware without the radio= field of air status'
     if not radio:
         return 'skip', 'this wake did not raise the radio (radio=0): the check needs a telemetry wake'
     if web_before is not None:
         return 'skip', f'the web server already answered ({web_before}) before air stop: nothing to tell the fix apart'
+    if not AIR_STOP_ACK_RE.search(stop_reply or ''):
+        return 'skip', (f'air stop was not acknowledged (reply {console_answer(stop_reply)[-100:]!r}): the wake closed before the command ran, '
+                        'or the console did not answer, so the web server says nothing about the fix')
     if web_after is None:
         return 'fail', 'air stop on a telemetry wake (radio=1) left the web server down: port 80 gave no answer for 20 s after the stop'
     return 'pass', f'the web server answered {web_after} after air stop (nothing answered before it)'
@@ -2457,7 +2476,9 @@ class Suite:
         The wake is made a telemetry one with a minimum batch of 1 (point_telemetry_here), so every wake is due and carries the radio; the
         collector this suite runs takes the send, so the failure back-off (AIR_TEL_FAIL_SKIP_WAKES) does not turn the next wake into a
         reading-only one. The device answers GET /api/status with 401 to a client with no session, which is as good as 200: any code is a
-        listener. Fails before the fix, passes after it."""
+        listener. Fails before the fix, passes after it. An `air stop` the console did not acknowledge (Hibernation cancelled / Hibernacao
+        cancelada) is a skip and not a verdict: a wake that closes before the command runs leaves an empty reply, and that condition of the
+        instrument must not read as the defect (REPORT_B F2 of the review of the Air fixes)."""
         if not self.host:
             raise TestSkip('no host IP')
         self.need_web()
@@ -2470,7 +2491,7 @@ class Suite:
             seen['radio'] = st.get('radio')
             seen['web_before'] = http_status(self.host, '/api/status', 2.0)
             if seen['radio'] and seen['web_before'] is None:
-                seen['stop_reply'] = self.target.cmd('air stop', 8).strip()[-120:]
+                seen['stop_reply'] = self.target.cmd('air stop', 8)
                 deadline = time.time() + 20       # begin( ) opens the listener inside the command; the allowance is for the first SYN
                 seen['web_after'] = None
                 while seen['web_after'] is None and time.time() < deadline:
@@ -2479,11 +2500,11 @@ class Suite:
                         time.sleep(1.0)
 
         self.hibernate_and_observe(stop_on_wake=True, on_wake=on_wake)
-        outcome, text = air_stop_web_verdict(seen.get('radio'), seen.get('web_before'), seen.get('web_after'))
+        outcome, text = air_stop_web_verdict(seen.get('radio'), seen.get('web_before'), seen.get('web_after'), seen.get('stop_reply'))
         if outcome == 'skip':
             raise TestSkip(text)
         if outcome == 'fail':
-            raise TestFail(f"{text}; reply to air stop: {seen.get('stop_reply')!r}")
+            raise TestFail(f"{text}; reply to air stop: {(seen.get('stop_reply') or '').strip()[-120:]!r}")
         return text
 
     def t19_ap_refused_in_the_cycle(self):
@@ -2496,7 +2517,8 @@ class Suite:
         collector taking the sends) only to make it long enough to type into. Catches a wake, sends `enable` and `ap`, and checks the answer
         (it names `air stop`; no "AP mode started"), that `armed=` did not change, and that the device goes back to sleep by itself
         afterwards instead of staying awake in an AP. Fails before the fix: the answer is "AP mode started (WPA2). Key: ...".
-        Nothing here is run against the Air's M0, where `ap` works as ever: the refusal is the cycle's."""
+        Nothing here is run against the Air's M0, where `ap` works as ever: the refusal is the cycle's. No answer to `ap` at all (the wake
+        closed before it ran) is a skip, not a verdict (REPORT_B F2)."""
         self.need_web()
         self.point_telemetry_here(min_batch=1)
         seen = {}
@@ -2514,6 +2536,8 @@ class Suite:
         self.ensure_m0()
         outcome, text = ap_refusal_verdict(seen.get('reply'), (seen.get('before') or {}).get('armed'),
                                            (seen.get('after') or {}).get('armed'), slept)
+        if outcome == 'skip':
+            raise TestSkip(text)
         if outcome == 'fail':
             raise TestFail(text)
         return text
@@ -2792,12 +2816,23 @@ def selftest():
     check('sha256 latin-1', sha256_frontend('Str1ngDeTeste') == hashlib.sha256(b'Str1ngDeTeste').hexdigest())
     check('by-id paths', by_id_path('X', True).endswith('Pico_W_X-if00') and by_id_path('Y', False).endswith('Pico_Y-if00'))
     # T18's verdict tells the defect from the fix, and does not call a wake that cannot show it a pass.
-    check('T18 verdict: air stop brings the web up on a telemetry wake -> pass', air_stop_web_verdict(1, None, 401)[0] == 'pass'
-          and air_stop_web_verdict(1, None, 200)[0] == 'pass')
-    check('T18 verdict: radio up, no web after air stop (the defect) -> fail', air_stop_web_verdict(1, None, None)[0] == 'fail')
+    # the firmware's own answers to `air stop`, cut from the source, and the bench's pattern for them
+    stop_src = open(os.path.join(HERE, '..', 'src', 'AppManager_Commands.cpp'), encoding='utf-8').read()
+    ack_texts = re.findall(r'"((?:Hibernation cancelled|Hibernacao cancelada)[^"]*)"', stop_src)
+    check('T18 reads both answers of the firmware to `air stop` (the proof that the command ran)',
+          len(ack_texts) == 2 and all(AIR_STOP_ACK_RE.search(t) for t in ack_texts))
+    ack = ack_texts[-1] if ack_texts else 'Hibernation cancelled. Returning to operational mode (M0)...'
+    check('T18 verdict: air stop, acknowledged, brings the web up on a telemetry wake -> pass',
+          air_stop_web_verdict(1, None, 401, ack)[0] == 'pass' and air_stop_web_verdict(1, None, 200, ack)[0] == 'pass')
+    check('T18 verdict: radio up, no web after an acknowledged air stop (the defect) -> fail', air_stop_web_verdict(1, None, None, ack)[0] == 'fail')
     check('T18 verdict: a reading-only wake, a web already up, a firmware without radio= -> skip',
-          air_stop_web_verdict(0, None, 200)[0] == 'skip' and air_stop_web_verdict(1, 200, 200)[0] == 'skip'
-          and air_stop_web_verdict(None, None, None)[0] == 'skip')
+          air_stop_web_verdict(0, None, 200, None)[0] == 'skip' and air_stop_web_verdict(1, 200, 200, ack)[0] == 'skip'
+          and air_stop_web_verdict(None, None, None, None)[0] == 'skip')
+    # a wake that closed before the command ran leaves an empty reply (Target.cmd returns what it read before the port went): that is the
+    # instrument, not the defect and not the fix, so it is a skip, whatever the web did
+    check('T18 verdict: no acknowledgement of air stop (nothing, blanks, only the prompt, an error) -> skip, never a pass and not the defect',
+          all(air_stop_web_verdict(1, None, web, reply)[0] == 'skip'
+              for web in (None, 401) for reply in ('', None, '  \r\n', 'SIMUT# ', 'ERROR: Command not available in this mode.')))
     # `ap` in the cycle: the bench's regexes held to the firmware's own two strings, which C10 of check_air_consistency.py cuts out of case CMD_AP:
     import check_air_consistency as cac
     refusal = cac.ap_refusal_texts()
@@ -2818,9 +2853,12 @@ def selftest():
           history_interval_verdict('Invalid number for minimum batch', 60, 60)[0] == 'fail'
           and history_interval_verdict('Numero invalido para lote minimo', 60, 60)[0] == 'fail'
           and history_interval_verdict('', 60, 60)[0] == 'fail' and history_interval_verdict(hist_texts[0], 60, 120)[0] == 'fail')
-    check('T19 verdict: no refusal text, a changed cycle, a device that stayed awake -> fail',
-          ap_refusal_verdict('', 1, 1, True)[0] == 'fail' and ap_refusal_verdict(ok_reply, 1, 0, True)[0] == 'fail'
-          and ap_refusal_verdict(ok_reply, 1, 1, False)[0] == 'fail')
+    check('T19 verdict: a changed cycle, a device that stayed awake -> fail',
+          ap_refusal_verdict(ok_reply, 1, 0, True)[0] == 'fail' and ap_refusal_verdict(ok_reply, 1, 1, False)[0] == 'fail')
+    check('T19 verdict: an answer that is not the refusal (an error, anything else) -> fail',
+          ap_refusal_verdict('ERROR: Command not available in this mode.', 1, 1, True)[0] == 'fail')
+    check('T19 verdict: no answer at all (nothing, blanks, only the prompt) -> skip, never a pass and not the defect',
+          all(ap_refusal_verdict(reply, 1, 1, True)[0] == 'skip' for reply in ('', None, '  \r\n', 'SIMUT# ', '\r\nSIMUT> \r\n')))
     try:
         import history_v5  # noqa: F401
         check('history_v5 importable', True)
