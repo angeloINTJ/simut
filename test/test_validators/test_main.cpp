@@ -35,6 +35,7 @@
 #include "display/PendingLabel.h"    /* pending count as both displays print it */
 #include "display/BigFont_HD44780.h" /* the alpha LCD glyphs */
 #include "alpha_frame_cases.h"      /* what the alpha LCD's screens write, cell by cell (display/AlphaFrame.h) */
+void test_alpha_fake_lcd_leaves_the_glass_the_real_driver_leaves(void);   /* alpha_driver_twin.cpp: the fake LCD those cases run on, against the real driver */
 #include "TelemetryCursor.h"  /* what the telemetry cursor may advance to */
 #include "TelemetryPosition.h" /* the cursor as a write position (A-04) */
 #include <algorithm>
@@ -6276,6 +6277,7 @@ int main(int /*argc*/, char** /*argv*/) {
     RUN_TEST(test_alpha_frame_ap_draws_the_title_and_the_value_it_is_given);
     RUN_TEST(test_alpha_frame_ap_scrolls_a_value_wider_than_the_screen);
     RUN_TEST(test_alpha_frame_ota_lines);
+    RUN_TEST(test_alpha_fake_lcd_leaves_the_glass_the_real_driver_leaves);
     RUN_TEST(test_tel_cursor_stops_at_what_the_payload_kept);
     RUN_TEST(test_tel_cursor_nothing_delivered_keeps_the_floor);
     RUN_TEST(test_tel_cursor_takes_the_newest_and_clamps_the_future);

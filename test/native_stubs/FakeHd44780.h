@@ -11,7 +11,8 @@
  *              comment on createChar( ), "LSB = top row", leaves that ambiguous.
  *          The framebuffer methods are the driver's, line for line, because the expected rows of a test are read from
  *          the original code and what that code does with a cursor past the edge, a control character or a clear is
- *          part of it. Keep them equal to HD44780_16x2.h's.
+ *          part of it. test_validators/alpha_driver_twin.cpp holds them equal to HD44780_16x2.h's: it runs the real driver on the
+ *          host against a model of the controller and the same random operations through this class, and compares the glass.
  *
  * @project SIMUT
  * @license MIT License
