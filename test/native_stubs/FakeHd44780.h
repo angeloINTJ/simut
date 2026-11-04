@@ -13,6 +13,12 @@
  *          the original code and what that code does with a cursor past the edge, a control character or a clear is
  *          part of it. test_validators/alpha_driver_twin.cpp holds them equal to HD44780_16x2.h's: it runs the real driver on the
  *          host against a model of the controller and the same random operations through this class, and compares the glass.
+ *          It keeps what the other core would read, too: the driver's shadow of the glass (display/LcdGlass.h, the same code
+ *          the driver runs) is published at each blit( ) and each createChar( ), and readGlass( ) is the driver's reader with a
+ *          clock of its own, so that a test of the route that serves the glass, and of the formatter behind it, runs on the
+ *          host without a board. `nowMs` is the time blit( ) stamps (the driver stamps millis( ), which a test of this class
+ *          does not need to move); `clock` counts the microseconds the reader waited, and `glass` is public so that a test
+ *          can put the shadow in the states the other core can find it in (a count left odd: the reader says busy).
  *
  * @project SIMUT
  * @license MIT License
@@ -21,6 +27,7 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <string.h>
+#include "display/LcdGlass.h"
 
 struct FakeHd44780 {
 	bool initialized = false;
@@ -35,6 +42,17 @@ struct FakeHd44780 {
 	unsigned blits = 0;
 	unsigned glyphLoads[8];   /**< createChar( ) calls per slot: a glyph is not reloaded when it did not change */
 
+	/* What the other core reads: the shadow, the time blit( ) stamps into it, and the reader's clock. */
+	LcdGlassShadow glass;
+	uint32_t nowMs = 0;
+	struct Clock {
+		uint32_t t = 0;        /**< microseconds: one per look at the clock, and the whole of each wait */
+		uint32_t waited = 0;   /**< what the reader spent in pause( ), for the test that holds it to its limit */
+		uint32_t now( ) { return t++; }
+		void pause(uint32_t us) { t += us; waited += us; }
+	};
+	mutable Clock clock;
+
 	FakeHd44780( ) {
 		memset(line, ' ', sizeof(line));
 		memset(ddram, ' ', sizeof(ddram));
@@ -47,6 +65,7 @@ struct FakeHd44780 {
 		if (initialized) return;
 		memset(line[0], ' ', 16); line[0][16] = '\0';
 		memset(line[1], ' ', 16); line[1][16] = '\0';
+		glass.putBlank( );
 		initialized = true;
 	}
 
@@ -56,6 +75,7 @@ struct FakeHd44780 {
 			for (uint8_t col = 0; col < 16; col++)
 				ddram[row][col] = (uint8_t)line[row][col];
 		blits++;
+		glass.putFrame(line, nowMs);
 	}
 
 	/* Character output: the driver's, verbatim. */
@@ -90,5 +110,9 @@ struct FakeHd44780 {
 		if (!initialized) return;
 		memcpy(cgram[num & 0x07], bitmap, 8);
 		glyphLoads[num & 0x07]++;
+		glass.putGlyph(num, bitmap);
 	}
+
+	/* The driver's readGlass( ): one consistent copy of the shadow, LCD_GLASS_OK, LCD_GLASS_NONE or LCD_GLASS_BUSY. */
+	int8_t readGlass(LcdGlass &out) const { return glass.read(out, clock); }
 };

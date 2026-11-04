@@ -339,6 +339,8 @@ void DisplayManager::loopCore1( ) {
 		sleepUnlessParking(500);
 	}
 }
+/* The glass for Core 0, from the driver's shadow (display/LcdGlass.h). Nothing here waits on Core 1 but the reader's 2 ms. */
+int8_t DisplayManager::lcdGlass(LcdGlass &out) const { return _lcd.readGlass(out); }
 /* The update screen is this core's to print (the branch at the top of the loop). */
 bool DisplayManager::otaPaintFromCore0( ) { return false; }
 void DisplayManager::handleTouch( ){}
