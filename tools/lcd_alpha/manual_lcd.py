@@ -119,7 +119,8 @@ D_ENTRE_LINHAS = 20         # between the two rows of cells
 
 # What v2.7.1 drew for the six levels: BF_WIFI0 to BF_WIFI5 of src/display/BigFont_HD44780.h at the tag v2.7.1 (a14e7aaa8f, 2026-09-22), one more full row
 # for each level, from the bottom. No code at HEAD draws them, so they are history and are kept here; test_manual_lcd.py compares them with the tag when the
-# clone has it (CI's shallow checkout has no tags: the control then says it was skipped).
+# clone has it. CI's checkout is shallow and has no tags, so there the control says it was skipped and the bottom row is held by the committed PNG alone: an
+# edit of these rows followed by --write passes CI and fails a local run in a full clone (the review of 2026-11-04 showed it with one dot of level 3).
 WIFI_V271 = (
     (0b00000, 0b10001, 0b01010, 0b00100, 0b01010, 0b10001, 0b00000, 0b00000),
     (0b00000, 0b00000, 0b00000, 0b00000, 0b00000, 0b11111, 0b00000, 0b00000),
