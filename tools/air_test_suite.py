@@ -2470,7 +2470,7 @@ class Suite:
         A telemetry wake has the radio (radio=1) and, by design, no listener (T10: the web server is M0's, the boot skips it on every
         wake). `air stop` used to start the network and the web server only under `if (!_airRadioUp)`, which a telemetry wake has already
         set, so on one it started nothing: M0 came back with the Wi-Fi up and port 80 refused, against docs/_manual/cap19-air.md (the
-        console "liga o radio e a interface web") and F13 of the plan ("air stop num wake continua subindo a web sozinho"), both of which
+        console "liga o rádio e a interface web") and F13 of the plan ("`air stop` num wake continua subindo a web sozinho"), both of which
         held only for a reading-only wake. _airWebUp is the flag that makes them true on every wake (2026-11-04).
 
         The wake is made a telemetry one with a minimum batch of 1 (point_telemetry_here), so every wake is due and carries the radio; the
