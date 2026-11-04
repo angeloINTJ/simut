@@ -2,6 +2,18 @@
 
 O que cada versão da linha 2.x trouxe para quem usa o aparelho, da mais nova para a mais antiga. O registro completo, com as medições de cada mudança, está no `CHANGELOG.pt-BR.md` do repositório.
 
+## Linha 2.13 — estável
+
+| Versão | Data | O que trouxe |
+|---|---|---|
+| v2.13.0 | 31/10/2026 | O Pico 2 W passa a desenhar o painel Ângulo: telas próprias, um tema que é um modo mais uma cor de destaque (18 escolhas) e os três idiomas do aparelho pelos pacotes de idioma ([capítulo 11A](#cap-11a)). O Pico W continua com o painel original. Os pacotes de idioma crescem para cerca de 53 KB e 55 KB, e o maior arquivo de idioma que o aparelho carrega sobe de 48 KiB para 64 KiB: instale o firmware antes dos pacotes novos. A barra de status do Ângulo mostra o sinal do Wi-Fi em quatro níveis, e o `/license` e a tela Licença listam as fontes e os ícones dele. O configurador oferece a escolha do visual. O manual ganha o capítulo 11A e conta as quatro imagens publicadas e os dois slots do Pico 2 W. |
+
+## Linha 2.12 — estável
+
+| Versão | Data | O que trouxe |
+|---|---|---|
+| v2.12.0 | 29/10/2026 | O barramento do painel do Pico W passa a ser ajustado a 66,5 MHz, onde rodava a 24 MHz. Um rádio que para de responder não é mais associado às cegas: o aparelho reinicia pelo caminho planejado, e o log registra `SYS_WIFI_CONNECT` com contexto 4 ([capítulo 9](#cap-09-mudo)). Um ponto de acesso que some enquanto o aparelho espera a hora é notado. Uma resposta da web não chega mais com pedaços faltando, e uma aba `http://` esquecida na porta HTTPS não reinicia o aparelho. Depois de um boot em inglês, a tela **Idioma** lista o pacote de `/lang` ([capítulo 11](#cap-11-menu)), e a página **Arquivos** diz o motivo de um arquivo recusado ([capítulo 17](#cap-17-enviar)). A página web mostra os nomes dos temas no idioma do aparelho. |
+
 ## Linha 2.11 — estável
 
 | Versão | Data | O que trouxe |

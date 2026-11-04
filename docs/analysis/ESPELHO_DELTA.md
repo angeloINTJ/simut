@@ -218,7 +218,8 @@ ou se corta de dentro do firmware.
 - **Espelhar o canvas em vez de ler a GRAM.** Elimina a leitura inteira, mas
   passa a mostrar o que o firmware *pretendia* desenhar, não o que o painel
   mostra — e o `/api/screenshot` existe justamente para provar que a fiação
-  aguenta 62,5 MHz. Uma sombra parcial do framebuffer também não cabe: 153.600 B
+  aguenta o clock de escrita (66,5 MHz desde 15/10/2026; até lá o barramento rodava a
+  24 MHz de fato, não aos 62,5 MHz configurados: R-H18 do MODELO_DE_RECURSOS). Uma sombra parcial do framebuffer também não cabe: 153.600 B
   contra ~63 kB de heap livre.
 
 ## 8. A alavanca independente — FEITA, e valeu 2,5×
@@ -253,7 +254,7 @@ Mais um soak de 30 quadros a 6 MHz e 30 a 12 MHz: **zero pixels errados nos
 dois**. O default ficou em 6 MHz porque o ciclo de leitura serial do ILI9341 dá
 ~6,6 MHz e isso fica dentro dele; 12 MHz mediu igualmente limpo **neste módulo e
 nesta fiação** e está a uma constante de distância (`SIMUT_TFT_READ_HZ`), com o
-mesmo trato que o clock de escrita de 62,5 MHz já documenta.
+mesmo trato que o clock de escrita (`SIMUT_TFT_SPI_HZ`, 66,5 MHz desde 15/10/2026) já documenta.
 
 ### 9.2 A "transferência em bloco" do framework não é em bloco
 

@@ -1,0 +1,51 @@
+# The texts the Ângulo panel may draw cut with "…", read by tools/tft_ui/host_telas.py.
+#
+# A cut stays on the glass and inside its box, so the other checks never see it; at the
+# 9 pt floor (2026-10-15) the PIN screen's hint and four error messages lost their ends
+# that way. Every other cut fails: fixed copy must fit, and so must data of an ordinary
+# length (a 10-character account name cut in a sentence is a layout to fix, not a line
+# here). A line here accepts the cut of data a sample makes long on purpose, and says how
+# long. A line whose cut no longer happens fails too, so the list does not rot.
+#
+# <group> | <sample glob> | <start of the drawn text> | <why the cut is right>
+#
+# The start is one text for every language, or three separated by " ¦ ", in the order pt-BR, English, Spanish: a cut that begins with a label
+# of the screen ("Conta: maria.a") begins with another word in each language, and a long name cut one letter earlier in one language must
+# fail there. Each language's run (host_telas.py --idioma) holds its cuts to its own start.
+
+painel | painel_nome_31* | Refrig | a 31-character sensor name (the most the device stores) on a card
+painel | acao_nome_longo | Refrigerado | a 31-character sensor name; the sentence's fixed part, "acima do limite", is whole
+painel | acao_erro_nome_longo | Refrige | a 31-character sensor name; "com erro no sensor" is whole
+painel | painel_web_ocupada_nome_longo | joao. | a 22-character account name; the sentence's fixed ending ("lê registros pela web." in pt-BR) is whole
+painel | painel_aviso_web_nome_31 | Web: maria.apa | a 31-character account name in the status bar's badge (the device keeps 15 bytes); "Web: " is whole
+painel | painel_aviso_web_nome_15_pendentes_3k | Web: maria.ap… | the 15 characters the device keeps, with 3k records waiting: 140 px of words against the 183 of "Web: maria.aparecida"; "Web: " is whole
+painel | painel_aviso_web_nome_31_pendentes_150 | Web: maria.a… | a 31-character account name beside a three-character count, the narrowest room (130 px of words); "Web: " is whole
+painel | boot*_textos_longos | Acesse no celular | boot steps of 69 to 71 characters, made long on purpose; a step is one line
+painel | boot*_textos_longos | Iniciando Servidor | boot steps of 69 to 71 characters, made long on purpose; a step is one line
+painel | boot*_textos_longos | Carregando cache | boot steps of 69 to 71 characters, made long on purpose; a step is one line
+painel | boot*_textos_longos | Sincronizando Rel | boot steps of 69 to 71 characters, made long on purpose; a step is one line
+
+menus | alarmes_nome_longo | Camara fria | 31-character sensor names in the alarm list
+menus | alarmes_nome_longo | WWWWWWW ¦ WWWWWWWWWW ¦ WWWWWW | 31 of the widest letter in the alarm list: 7, 10 and 6 W, beside the badge "Desligado", "Off" or "Desactivado"
+menus | sensor_nome_longo | Camara fria | a 31-character sensor name in the sensor menu's title
+menus | sensor_nome_largo | WWWWWWW | 31 of the widest letter in the sensor menu's title
+menus | menu_conta_longa | Conta: maria.a ¦ Account: maria. ¦ Cuenta: maria. | a 31-character account name, after the label "Conta:" in the language's word
+menus | status_sensores_5 | Camara fria | 31-character sensor names in the status list
+menus | status_sensores_5 | WWWWWWW | 31 of the widest letter in the status list
+menus | status_sistema_limites | Camara fria | a 31-character sensor name in the limits row
+menus | status_rede_wifi | HOSP-IOT-Bloco | a 36-character network name
+menus | status_telemetria | https://telemetria | a 53-character collector URL
+menus | status_telemetria_mqtt | mqtt.hospital | a 28-character broker host
+
+identidade | conta_nome_31 | administradora | a 31-character account name
+identidade | pin_nome_31 | PIN de administr ¦ PIN for administr ¦ PIN de administr | a 31-character account name in the title, after the language's word for "PIN of"
+identidade | quem_nomes_longos | administradora | 31-character account names in the account picker
+identidade | usuarios_nomes_longos | administradora | 31-character account names in the user list
+
+ajustes | limites_nome_31 | Sala de coleta | a 31-character sensor name in the title
+ajustes | limites_nome_largo | WWWWWWW | 31 of the widest letter in the title
+ajustes | manut_nome_31 | Manutenção · Sala de ¦ Maintenance · Sala de c ¦ Mantenim. · Sala de c | a 31-character sensor name in the title, after the screen's word in the language
+ajustes | manut_nome_largo | Manutenção · WWW ¦ Maintenance · WWWW ¦ Mantenim. · WWWW | 31 of the widest letter in the title, after the screen's word, beside the bar's back button ("Voltar", "Back" and "Volver" differ in width)
+
+graficos | carregando_nome_31 | Geladeira de vacinas | a 31-character sensor name; the period is whole
+graficos | grafico_nome_31 | Geladeira de | a 31-character sensor name in the title

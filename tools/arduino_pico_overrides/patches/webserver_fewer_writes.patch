@@ -1,0 +1,302 @@
+--- a/libraries/WebServer/src/HTTPServer.h
++++ b/libraries/WebServer/src/HTTPServer.h
+@@ -260,8 +260,10 @@
+     size_t streamFile(T &file, const String& contentType, const int code = 200) {
+         _streamFileCore(file.size(), file.name(), contentType, code);
+         /* SIMUT override — no body after a header cut short, and a body cut
+-         * short ends the response like any other short write (_writeAll). */
+-        if (_writeBroken) {
++         * short ends the response like any other short write (_writeAll).
++         * The body goes straight to the client, so whatever _out holds goes
++         * first (_outAppend). */
++        if (!_outFlush()) {
+             return 0;
+         }
+         const size_t sent = _currentClient->write(file);
+@@ -302,6 +304,11 @@
+     bool _writeAll(const char* b, size_t l);
+     bool _writeAll_P(PGM_P b, size_t l);
+     void _shortWrite();
++    /* SIMUT override — a response's small writes leave together, a segment at
++     * a time (see _outAppend in HTTPServer.cpp). */
++    bool _outAppend(const char* b, size_t l);
++    bool _outFlush();
++    void _outBodySent(size_t l);
+     /* SIMUT override — see stopClient( ); WebServerTemplate stops the client
+      * as its real type. */
+     virtual bool _currentClientStop(unsigned int maxWaitMs) {
+@@ -381,4 +388,14 @@
+     String           _srealm;  // Store the Auth realm between Calls
+ 
+     HookFunction     _hook;
++
++    /* SIMUT override — the response's next bytes (see _outAppend). One
++     * segment: TCP_MSS, which HTTPServer.cpp checks against lwipopts.h. On
++     * the heap and last in the class: as an array among the members it pushed
++     * every member after it past the Cortex-M0+'s short load/store offsets. */
++    static constexpr size_t OUT_BUF_SIZE = 1460;
++    char*            _out;
++    size_t           _outLen = 0;
++    size_t           _outBodyLeft = 0;  /* bytes of a body with a Content-Length still to come */
++    bool             _outHold = false;  /* inside _handleRequest( ): writes collect in _out */
+ };
+--- a/libraries/WebServer/src/HTTPServer.cpp
++++ b/libraries/WebServer/src/HTTPServer.cpp
+@@ -28,6 +28,7 @@
+ #include "FS.h"
+ #include "detail/RequestHandlersImpl.h"
+ #include <MD5Builder.h>
++#include <lwip/opt.h>  /* SIMUT override — TCP_MSS, for _outAppend( ) */
+ 
+ #ifndef log_e
+ #define log_e(...)
+@@ -62,9 +63,13 @@
+     , _clientContentLength(0)
+     , _chunked(false) {
+     log_v("HTTPServer::HTTPServer()");
++    /* SIMUT override — once, at boot, for as long as the server lives. Without
++     * it, writes go straight out as upstream wrote them (see _outAppend). */
++    _out = static_cast<char*>(malloc(OUT_BUF_SIZE));
+ }
+ 
+ HTTPServer::~HTTPServer() {
++    free(_out);  /* SIMUT override */
+     if (_currentHeaders) {
+         delete[]_currentHeaders;
+     }
+@@ -369,6 +374,10 @@
+         sendHeader(String(F("Accept-Ranges")), String(F("none")));
+         sendHeader(String(F("Transfer-Encoding")), String(F("chunked")));
+     }
++    /* SIMUT override — a body streamed after a setContentLength( ) leaves with
++     * its last byte (see _outBodySent). */
++    _outBodyLeft = (_contentLength != CONTENT_LENGTH_NOT_SET && _contentLength != CONTENT_LENGTH_UNKNOWN)
++                   ? _contentLength : 0;
+     /* SIMUT override — CORS restrito a UMA origem (setCorsOrigin).
+      *
+      * Sai daqui, e nao de um hook por requisicao, porque _prepareHeader e o
+@@ -423,10 +432,13 @@
+         log_w("content length is zero");
+     }
+     _prepareHeader(header, code, content_type, content.length());
+-    _writeAll(header.c_str(), header.length());
++    _outAppend(header.c_str(), header.length());
+     if (content.length()) {
+         sendContent(content);
+     }
++    if (!_chunked) {
++        _outFlush();  /* SIMUT override — the whole response, out before returning (_outAppend) */
++    }
+ }
+ 
+ void HTTPServer::send(int code, char* content_type, const String& content) {
+@@ -444,10 +456,13 @@
+ void HTTPServer::send(int code, const char* content_type, const char* content, size_t contentLength) {
+     String header;
+     _prepareHeader(header, code, content_type, contentLength);
+-    _writeAll(header.c_str(), header.length());
++    _outAppend(header.c_str(), header.length());
+     if (contentLength) {
+         sendContent(content, contentLength);
+     }
++    if (!_chunked) {
++        _outFlush();  /* SIMUT override — see send( ) above */
++    }
+ }
+ 
+ void HTTPServer::send_P(int code, PGM_P content_type, PGM_P content) {
+@@ -459,15 +474,23 @@
+ 
+     String header;
+     _prepareHeader(header, code, content_type, contentLength);
+-    _writeAll(header.c_str(), header.length());
++    _outAppend(header.c_str(), header.length());
+     sendContent_P(content);
++    if (!_chunked) {
++        _outFlush();  /* SIMUT override — see send( ) above */
++    }
+ }
+ 
+ void HTTPServer::send_P(int code, PGM_P content_type, PGM_P content, size_t contentLength) {
+     String header;
+     _prepareHeader(header, code, content_type, contentLength);
+-    sendContent(header);
++    /* SIMUT override — as the other send( )s: through sendContent( ) the
++     * header counted as body (_outBodySent), and was framed as a chunk. */
++    _outAppend(header.c_str(), header.length());
+     sendContent_P(content, contentLength);
++    if (!_chunked) {
++        _outFlush();  /* SIMUT override — see send( ) above */
++    }
+ }
+ 
+ void HTTPServer::sendContent(const String& content) {
+@@ -527,25 +550,101 @@
+     return false;
+ }
+ 
++/* SIMUT override — a response's small writes leave together, a segment at a time.
++ *
++ * With LWIP_NETIF_TX_SINGLE_PBUF (lwipopts.h), tcp_write( ) gives every new
++ * segment a pbuf of a whole MSS, about 1.5 KB of lwIP's 16 KB heap however
++ * few bytes it carries, and the server's setNoDelay(true) (WebServerTemplate)
++ * sends every write as a segment of its own. Upstream wrote a response as one
++ * write for the header and three for each chunk: SIMUT's /api/status, a
++ * header, 7 chunks and the terminator in 1,039 B, went out as 24 segments, and
++ * the heap holds about ten of 1,540 B. Measured on the bench (2026-10-14, Pico
++ * W, GET /api/status every 0.2 s on one keep-alive connection, 1,000 replies):
++ * 24.2 segments sent and 4.4 tcp_write( ) refusals for want of memory
++ * (tcp.memerr) per reply, the TCP_SEG pool at a peak of 11 of 32 and never
++ * short. A refused write waits for the client's ACKs to free room, and in 3
++ * of those replies a wait outlasted the write timeout and cut the reply
++ * (shortWrites( )); what held the ACKs back was not measured, and a lost
++ * segment waiting for lwIP to retransmit it would. With this override, 6,000
++ * replies on the same bench took 1.2 segments each, and no write was refused
++ * or cut.
++ *
++ * Inside _handleRequest( ) the writes collect in _out instead, and leave when
++ * it is full and when a response is whole: at the end of send( ) (some
++ * handlers reboot right after it returns), with the last byte of a body sent
++ * after a setContentLength( ) (SIMUT's safeStreamFile( ) drains the socket
++ * right after it), and at the end of the response (the terminating chunk,
++ * _finalizeResponse( )). The bytes on the wire are the same, chunk for chunk;
++ * a reply the size of /api/status is one write. A write of a segment or more,
++ * with nothing held, goes straight out: lwIP cuts it into whole segments
++ * itself. Outside _handleRequest( ), in an upload handler or a hook, writes go
++ * straight out as upstream wrote them. A write to client( ) behind the
++ * server's back would overtake what _out holds: streamFile( ) flushes first,
++ * and SIMUT writes only through the server. SIMUT's tools/test_webserver_out.py
++ * runs these rules against this file on the host, each with a mutant that
++ * takes it out. */
++bool HTTPServer::_outAppend(const char* b, size_t l) {
++    static_assert(OUT_BUF_SIZE <= TCP_MSS, "one flush of _out must fit one TCP segment");
++    if (_writeBroken) {
++        return false;
++    }
++    if (!_outHold) {
++        return _writeAll(b, l);
++    }
++    while (l) {
++        if (_outLen == 0 && l >= OUT_BUF_SIZE) {
++            /* A segment's worth or more and nothing held: no copy to make. */
++            return _writeAll(b, l);
++        }
++        const size_t n = (l < OUT_BUF_SIZE - _outLen) ? l : OUT_BUF_SIZE - _outLen;
++        memcpy(_out + _outLen, b, n);
++        _outLen += n;
++        b += n;
++        l -= n;
++        if (_outLen == OUT_BUF_SIZE && !_outFlush()) {
++            return false;
++        }
++    }
++    return true;
++}
++
++bool HTTPServer::_outFlush() {
++    const size_t n = _outLen;
++    _outLen = 0;
++    return _writeAll(_out, n);
++}
++
++void HTTPServer::_outBodySent(size_t l) {
++    if (_outBodyLeft) {
++        _outBodyLeft -= (l < _outBodyLeft) ? l : _outBodyLeft;
++        if (!_outBodyLeft) {
++            _outFlush();
++        }
++    }
++}
++
+ void HTTPServer::sendContent(const char* content, size_t contentLength) {
+     const char * footer = "\r\n";
+     if (_chunked) {
+         char chunkSize[11];
+         sprintf(chunkSize, "%x%s", (unsigned int)contentLength, footer);
+-        if (!_writeAll(chunkSize, strlen(chunkSize))) {
++        if (!_outAppend(chunkSize, strlen(chunkSize))) {
+             return;
+         }
+     }
+-    if (!_writeAll(content, contentLength)) {
++    if (!_outAppend(content, contentLength)) {
+         return;
+     }
+     if (_chunked) {
+-        if (!_writeAll(footer, 2)) {
++        if (!_outAppend(footer, 2)) {
+             return;
+         }
+         if (contentLength == 0) {
+             _chunked = false;
++            _outFlush();  /* SIMUT override — the response ended (_outAppend) */
+         }
++    } else {
++        _outBodySent(contentLength);  /* SIMUT override */
+     }
+ }
+ 
+@@ -558,20 +657,26 @@
+     if (_chunked) {
+         char chunkSize[11];
+         sprintf(chunkSize, "%x%s", (unsigned int)size, footer);
+-        if (!_writeAll(chunkSize, strlen(chunkSize))) {
++        if (!_outAppend(chunkSize, strlen(chunkSize))) {
+             return;
+         }
+     }
+-    if (!_writeAll_P(content, size)) {
++    /* SIMUT override — PROGMEM is flash the RP2040 and RP2350 map into memory
++     * (XIP): memcpy( ) reads it, and _currentClientWrite_P( ) is
++     * _currentClientWrite( ). */
++    if (!_outAppend(content, size)) {
+         return;
+     }
+     if (_chunked) {
+-        if (!_writeAll(footer, 2)) {
++        if (!_outAppend(footer, 2)) {
+             return;
+         }
+         if (size == 0) {
+             _chunked = false;
++            _outFlush();  /* SIMUT override — the response ended (_outAppend) */
+         }
++    } else {
++        _outBodySent(size);  /* SIMUT override */
+     }
+ }
+ 
+@@ -703,6 +808,14 @@
+ 
+ void HTTPServer::_handleRequest() {
+     _writeBroken = false;  /* SIMUT override — a new request, a new response (see _writeAll) */
++    /* SIMUT override — writes collect in _out until the response ends (see
++     * _outAppend). _out is empty here already: every request ends in
++     * _finalizeResponse( ), which empties it, and nothing collects outside a
++     * request. Emptied anyway, so that no byte of one response can reach
++     * another without both of those breaking. */
++    _outLen = 0;
++    _outBodyLeft = 0;
++    _outHold = (_out != nullptr);
+     bool handled = false;
+     if (!_currentHandler) {
+         log_e("request handler not found");
+@@ -722,8 +835,9 @@
+         handled = true;
+     }
+     if (handled) {
+-        _finalizeResponse();
++        _finalizeResponse();  /* always: the 404 above handles what nobody did */
+     }
++    _outHold = false;
+     _currentUri = "";
+ }
+ 
+@@ -732,6 +846,7 @@
+     if (_chunked) {
+         sendContent("");
+     }
++    _outFlush();  /* SIMUT override — a response streamed with a Content-Length (_outAppend) */
+ }
+ 
+ String HTTPServer::_responseCodeToString(int code) {

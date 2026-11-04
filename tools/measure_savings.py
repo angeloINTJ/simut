@@ -25,6 +25,7 @@ economia cai e o portao reprova: o recurso vazou para o caminho sempre-ligado.
   tools/measure_savings.py --matrix        # custos POR PRODUTO p/ o configurador
   tools/measure_savings.py --matrix --only tel_mqtt   # so as inversoes desta chave
   tools/measure_savings.py --matrix --only net        # so as trocas de rede (net=<id>)
+  tools/measure_savings.py --matrix --only ui         # so as trocas de visual da tela touch (ui=<id>)
   tools/measure_savings.py --checks        # so as combinacoes de conferencia
 
 --matrix mede, para cada produto publicado, o que muda ao inverter CADA chave a
@@ -37,13 +38,19 @@ anotada; inversao que estoura o flash registra o excesso que o linker da.
 A rede e uma escolha de driver, nao um interruptor (2026-10-13): alem das chaves,
 a matriz troca o driver de cada produto por cada outro [net.<id>] do manifesto, e
 a chave da inversao e `net=<id>` (um texto com "=", que nenhum interruptor tem).
+O visual da tela touch e outra escolha (2026-10-29, S10c C1c): a matriz troca o [ui.<id>] de
+cada produto por cada outro, e a chave e `ui=<id>`. Onde uma regra proibe (a Angulo no Pico W
+com Wi-Fi, ou sem a tela touch), a inversao fica anotada com a regra, sem build.
 Depois das inversoes, compila as combinacoes de CHECKS de verdade: a pagina
 soma as diferencas, e e contra estas builds que ela mede o quanto a soma erra.
 
 Metrica: o `used` que o proprio PlatformIO reporta (ELF), nao o .bin — e o numero
-consistente entre base e variante, e o que importa aqui e a DIFERENCA. O flash e o
-numero travado (deterministico); a RAM entra com tolerancia (ruido de alinhamento
-do linker) — ver RAM_TOL.
+consistente entre base e variante, e o que importa aqui e a DIFERENCA. A RAM entra com
+tolerancia (ruido de alinhamento do linker) — ver RAM_TOL. O piso (--check, --update) mede
+o flash SEM o enchimento do linker, todo `*fill*` das secoes .boot2, .text, .rodata e .data do
+mapa — ver flash_fill( ) — e deixa passar uma queda de FLASH_TOL bytes, o que sobra de
+mudanca de verdade no codigo. A --matrix mede o `used` inteiro, porque ali o custo e o
+que a imagem ocupa, e o enchimento ocupa o slot (e tools/feature_costs.json guarda isso).
 
 @project SIMUT — Integrated Universal Monitoring and Telemetry System
 @license MIT License
@@ -68,8 +75,109 @@ COSTS_PATH = os.path.join(ROOT, "tools", "feature_costs.json")
 OVERFLOW_RE = re.compile(r"region `?FLASH'? overflowed by (\d+) bytes")
 
 # RAM estatica pode oscilar poucos bytes por alinhamento do linker mesmo quando a
-# RAM do recurso nao muda; o piso de RAM aceita essa folga. O flash nao tem folga.
+# RAM do recurso nao muda; o piso de RAM aceita essa folga. O flash tem a propria (FLASH_TOL).
 RAM_TOL = 64
+
+# O piso de flash deixa passar uma queda de FLASH_TOL bytes. Tirado todo o enchimento do linker, o
+# que sobra e mudanca de verdade no codigo que a chave guarda ou toca, e anda pouco. Medido em
+# 2026-10-29, em seis commits da main (6adf1023..229d5d59): oito dos nove recursos do #296 nao se
+# mexeram; o tft_graph perdeu 4 B (a chave tirava 104 B de AppManager::core0Yield( ), 100 B no #294,
+# 104 B de novo no #295). Os outros sete, em tres commits, andaram 12 B (cli_full, +12 no #294), 8 B
+# (sound_buzzer, -4 no #294 e +8 de la ate o #300) e 1 B (web_history): e esse residuo que 8 B cobrem. A
+# menor queda que o piso ja registrou foi de 24 B (sound_buzzer, #234, uma mudanca de codigo, medida em
+# 2026-10-22 com o enchimento ainda dentro: docs/analysis/ECONOMIA_DE_RECURSOS.md); o #234 sozinho tira 38 B
+# da economia do buzzer (4.999 -> 4.961 B, 2026-10-30, sem o enchimento), bem acima dos 8 B. Com o enchimento
+# dentro, a mesma conta andou 8-16 B por commit sem simbolo nenhum mudar de lugar, e ficou abaixo do piso em
+# nove de dezesseis recursos.
+FLASH_TOL = 8
+
+# O flash do piso e o `used` sem o enchimento do linker. Entre duas secoes de entrada o linker poe um
+# `*fill*` para alinhar a seguinte, e a imagem e empurrada ate secoes alinhadas a 8 (a `.fini.__stub` de
+# 688 B no .text, as tabelas `time_t[]` atras dos pools de strings no .rodata): o enchimento antes delas
+# anda 0-7 B com o tamanho de TUDO que vem antes, e a base e a variante, de cadeias diferentes, andam
+# diferente. Medido em 2026-10-29 (#296): a economia de nove recursos andou 8-16 B por commit com removed,
+# added e merged identicos, so os `*fill*` mexendo, e a troca de um caractere da versao ("2.12.0" por
+# "2.12.1", nenhum codigo) subiu seis delas 8 B. O maior desses enchimentos e o do banco do BTstack
+# (__bluetooth_tlv, 8 KB de .rodata que o framework alinha a um setor de 4 KB, em toda imagem com
+# Bluetooth: a pico_w_alpha e a pico_w_air): o linker enche ate 4.095 B na frente dele, e em 2026-10-22
+# (#285) a economia do bluetooth tinha caido 2.912 B em tres semanas enquanto o codigo que a chave tira
+# crescia 8 B, e a do tel_tls tinha subido 4.096 B entre duas arvores com os mesmos simbolos removidos
+# (docs/analysis/ECONOMIA_DE_RECURSOS.md). O piso desconta todos: o do banco e so o maior.
+# $BUILD_DIR e do SCons: o mapa sai ao lado do firmware.elf de cada ambiente. Muda o
+# checksum do projeto, como os ambientes temporarios ja mudam (AGENTS.md).
+MAP_FLAG = "-Wl,-Map,$BUILD_DIR/firmware.map"
+# As secoes de saida que o PlatformIO soma no `used` do flash: .boot2 + .text + .rodata + .data do
+# `size -A` do ELF, sem .ota nem .partition (ficam entre elas no flash e o `used` nao os conta).
+# Conferido em 2026-10-29 na pico_w_release de 229d5d59: 1.023.860 B = 256 + 601.520 + 414.408 + 7.676.
+# Outro chip soma outras secoes, e flash_fill( ) recusa em vez de ler um enchimento que nao e o do `used`.
+FLASH_SECTIONS = (".boot2", ".text", ".rodata", ".data")
+_MAP_HEADER_RE = re.compile(r"^(\.\S+)(?:\s+0x([0-9a-fA-F]+)\s+0x([0-9a-fA-F]+))?")
+_MAP_FILL_RE = re.compile(r"^ \*fill\*\s+0x([0-9a-fA-F]+)\s+0x([0-9a-fA-F]+)")
+_MAP_ADDR_RE = re.compile(r"^\s+0x([0-9a-fA-F]+)\s+0x([0-9a-fA-F]+)")
+
+
+def flash_fill(map_text, used):
+    """Bytes de `*fill*` que o linker poe dentro das secoes que o `used` soma (FLASH_SECTIONS), lidos do
+    mapa. ValueError, nunca 0, se o mapa nao fecha com o `used`.
+
+    So conta a parte "Linker script and memory map": o que vem antes ("Discarded input sections") nao
+    ocupa flash. Uma linha sem recuo e o cabecalho de uma secao de saida e os `*fill*` de baixo dela sao
+    dela; os de uma secao fora do `used` (.ota, .partition, .bss ...) nao entram. As strings mescladas
+    (.str1.1) dividem enderecos e a soma das entradas da .rodata passa do cabecalho, entao o fecho que se
+    confere e o dos cabecalhos com o `used`, nao o das entradas. Recusa: o texto que nao e um mapa; o
+    mapa sem uma das quatro secoes ou com uma duas vezes; os cabecalhos que nao somam o `used` (outro
+    chip, outra conta do PlatformIO: o enchimento lido nao seria o do `used`); um `*fill*` fora de
+    qualquer secao, com uma linha que este leitor nao entende, maior que a propria secao ou fora dela.
+    Um enchimento que ninguem leu nao e um enchimento de zero."""
+    start = map_text.find("Linker script and memory map")
+    if start < 0:
+        raise ValueError("mapa do linker sem 'Linker script and memory map'")
+    lines = map_text[start:].splitlines()
+    sections = {}                      # secao do `used` -> (endereco, tamanho) do cabecalho
+    fills = {name: [] for name in FLASH_SECTIONS}      # (endereco, tamanho) de cada *fill* dela
+    cur = None                         # a secao de saida de que as linhas de baixo fazem parte
+    seen = read = 0                    # linhas `*fill*` do mapa / as que este leitor entendeu
+    for i, ln in enumerate(lines):
+        if ln and not ln[0].isspace():
+            m = _MAP_HEADER_RE.match(ln)
+            cur = m.group(1) if m else None
+            if cur in FLASH_SECTIONS:
+                addr, size = m.group(2), m.group(3)
+                if addr is None and i + 1 < len(lines):   # nome longo: os numeros vem na linha de baixo
+                    m2 = _MAP_ADDR_RE.match(lines[i + 1])
+                    if m2:
+                        addr, size = m2.group(1), m2.group(2)
+                if addr is None:
+                    raise ValueError(f"a secao {cur} do mapa sem endereco e tamanho")
+                if cur in sections:
+                    raise ValueError(f"a secao {cur} aparece duas vezes no mapa")
+                sections[cur] = (int(addr, 16), int(size, 16))
+        elif ln.lstrip().startswith("*fill*"):
+            seen += 1
+            m = _MAP_FILL_RE.match(ln)
+            if m:
+                read += 1
+                if cur is None:
+                    raise ValueError("um `*fill*` fora de qualquer secao de saida")
+                if cur in FLASH_SECTIONS:
+                    fills[cur].append((int(m.group(1), 16), int(m.group(2), 16)))
+    if seen != read:
+        raise ValueError(f"{seen - read} linha(s) `*fill*` que este leitor nao entende")
+    missing = [name for name in FLASH_SECTIONS if name not in sections]
+    if missing:
+        raise ValueError(f"o mapa nao tem a secao {', '.join(missing)}")
+    total = sum(size for _, size in sections.values())
+    if total != used:
+        raise ValueError(f"as secoes {' + '.join(FLASH_SECTIONS)} do mapa somam {total} B e o `used` e {used} B")
+    out = 0
+    for name in FLASH_SECTIONS:
+        lo, size = sections[name]
+        for addr, sz in fills[name]:
+            if addr < lo or addr + sz > lo + size:
+                raise ValueError(f"um `*fill*` de {sz} B em {addr:#x} fora da secao {name} ({lo:#x} + {size:#x})")
+            out += sz
+    return out
+
 
 # Interruptores do manifesto: (recurso, perfil-base onde esta LIGADO). Desligar =
 # virar a chave no dicionario do perfil e recompor — compose() cuida de flag,
@@ -168,12 +276,29 @@ def parse_sizes(text):
     return out
 
 
-def pio_run(env):
-    pio = os.path.expanduser("~/.platformio/penv/bin/pio")
-    if not os.path.exists(pio):
-        pio = "pio"
+def pio_run(env, linker_map=False):
+    """`linker_map`: pede o mapa do linker (MAP_FLAG) somado a qualquer
+    PLATFORMIO_BUILD_FLAGS que ja esteja no ambiente. SIMUT_SAVINGS_PIO, quando definido, e o
+    pio que roda, na frente do penv: nesta maquina o penv quebrou com o python 3.14 em 2026-10-24
+    ("No module named 'platformio'") e a matriz de 2026-10-29 morreu na primeira base por causa
+    dele; o CI nao define a variavel e segue no penv. Nao "SIMUT_PIO": o build.yml tem um
+    SIMUT_PIO_SOURCES que e outra coisa. Um caminho que nao existe para aqui, com o nome e o que fazer."""
+    pio = os.environ.get("SIMUT_SAVINGS_PIO")
+    if pio:
+        if not os.path.exists(pio):
+            sys.exit(f"measure_savings: SIMUT_SAVINGS_PIO={pio} nao existe. Aponte-a para um pio que exista "
+                     "ou tire-a do ambiente (unset SIMUT_SAVINGS_PIO) para usar o do penv.")
+    else:
+        pio = os.path.expanduser("~/.platformio/penv/bin/pio")
+        if not os.path.exists(pio):
+            pio = "pio"
+    run_env = None
+    if linker_map:
+        run_env = dict(os.environ)
+        run_env["PLATFORMIO_BUILD_FLAGS"] = \
+            (run_env.get("PLATFORMIO_BUILD_FLAGS", "") + " " + MAP_FLAG).strip()
     return subprocess.run([pio, "run", "-e", env],
-                          cwd=ROOT, capture_output=True, text=True)
+                          cwd=ROOT, capture_output=True, text=True, env=run_env)
 
 
 # build_webui_gz.py cai para gzip -9 quando o python do PlatformIO nao tem o
@@ -185,6 +310,9 @@ NO_ZOPFLI = "WARN zopfli not installed"
 def pio_build_full(env, echo=False):
     """Constroi e devolve {'used','bin','ram','sha256'}; se o linker estoura o
     flash, {'overflow': N} (o excesso que ELE mede); senao {'error': a 1a linha}.
+    O `used` e o inteiro, com o enchimento do linker: e o que a --matrix grava em
+    tools/feature_costs.json, porque o custo de uma chave e o que a imagem ocupa no slot.
+    O piso mede outra coisa, de proposito (pio_build, gate_flash: sem o enchimento).
     O sha256 do .bin e o que prova que uma chave nao muda nada num produto.
     `echo` repassa a saida inteira do PlatformIO: no CI e o log da build."""
     r = pio_run(env)
@@ -212,15 +340,39 @@ def pio_build_full(env, echo=False):
 
 
 def pio_build(env):
-    """Constroi um env e devolve {'flash':N,'ram':M}, ou None se falhou."""
-    r = pio_run(env)
+    """Constroi um env com o mapa do linker e devolve {'flash':N,'ram':M,'fill':F},
+    ou None se falhou. F e o enchimento do linker nas secoes do `used` (flash_fill).
+    Recusa, como a pio_build_full, a build sem zopfli; e recusa a build sem mapa e a
+    de mapa que nao fecha com o `used`, porque um enchimento que nao foi lido nao e
+    um enchimento zero."""
+    r = pio_run(env, linker_map=True)
     sizes = parse_sizes(r.stdout)
     if r.returncode != 0 or sizes is None:
         sys.stderr.write(f"[falha ao construir {env}]\n")
         tail = "\n".join(r.stdout.splitlines()[-8:] + r.stderr.splitlines()[-8:])
         sys.stderr.write(tail + "\n")
         return None
+    if NO_ZOPFLI in r.stdout:
+        sys.stderr.write(f"[{env}: zopfli ausente no python do PlatformIO: medida recusada]\n")
+        return None
+    map_path = os.path.join(ROOT, ".pio", "build", env, "firmware.map")
+    if not os.path.exists(map_path):
+        sys.stderr.write(f"[{env}: a build nao deixou {map_path}: medida recusada]\n")
+        return None
+    with open(map_path, encoding="utf-8", errors="replace") as fh:
+        try:
+            sizes["fill"] = flash_fill(fh.read(), sizes["flash"])
+        except ValueError as e:
+            sys.stderr.write(f"[{env}: {e}: medida recusada]\n")
+            return None
     return sizes
+
+
+def gate_flash(sizes):
+    """O flash que o piso compara: o `used` sem o enchimento do linker (flash_fill). A --matrix nao
+    passa por aqui: mede o `used` inteiro (pio_build_full), porque o custo de uma chave e o que a imagem
+    ocupa no slot, enchimento incluido."""
+    return sizes["flash"] - sizes["fill"]
 
 
 class TempEnvs:
@@ -263,10 +415,12 @@ def measure(features):
                 continue
             results[f] = {
                 "base": base,
-                "flash_saved": bs["flash"] - vs["flash"],
+                "flash_saved": gate_flash(bs) - gate_flash(vs),
                 "ram_saved":   bs["ram"] - vs["ram"],
                 "flash_base":  bs["flash"],
                 "flash_off":   vs["flash"],
+                "fill_base":   bs["fill"],
+                "fill_off":    vs["fill"],
             }
     return results
 
@@ -285,6 +439,9 @@ def print_table(results):
         if r.get("error"):
             print(f"{f:<20} {r['base']:<16} {'ERRO':>10} {'':>8}  {note}")
             continue
+        if r.get("fill_base") or r.get("fill_off"):
+            note = (note + "; " if note else "") + \
+                f"sem o enchimento do linker (base {r['fill_base']} B, off {r['fill_off']} B)"
         print(f"{f:<20} {r['base']:<16} {r['flash_saved']:>10} "
               f"{r['ram_saved']:>8}  {note}")
     skipped = [f for f in COUPLED if f not in results]
@@ -335,9 +492,9 @@ def cmd_check(results, targets):
         if not r or r.get("error"):
             bad.append(f"{f}: nao medido (build falhou)")
             continue
-        if r["flash_saved"] < floor["flash_saved"]:
+        if r["flash_saved"] < floor["flash_saved"] - FLASH_TOL:
             bad.append(f"{f}: flash economiza {r['flash_saved']} B < piso "
-                       f"{floor['flash_saved']} B (o recurso vazou p/ o sempre-ligado)")
+                       f"{floor['flash_saved']} B, tolerancia {FLASH_TOL} B (o recurso vazou p/ o sempre-ligado)")
         if r["ram_saved"] < floor["ram_saved"] - RAM_TOL:
             bad.append(f"{f}: RAM economiza {r['ram_saved']} B < piso "
                        f"{floor['ram_saved']} B (tol {RAM_TOL})")
@@ -381,6 +538,10 @@ CHECKS = [
     # Bluetooth com a linha de comando completa, que no slot dele cabem.
     ("pico2_w_release", {"mdns": False, "sound_buzzer": False, "sensor_bme280": False}),
     ("pico2_w_release", {"bluetooth": True, "cli_full": True}),
+    # O visual numa combinacao: sem ela nenhuma conferencia leva `ui=`, e a margem de "No limite" da pagina nao cobria a linha (a revisao do C1c/C1d, 2026-10-29, com o Angulo
+    # como a mudanca). Desde S10c C3 (2026-10-30) a base do Pico 2 W e o Angulo e a mudanca e `ui=original`: o `set` de uma conferencia so tem mudancas, e `ui=angulo` ja
+    # nao e uma inversao do produto (a conferencia que o punha derrubou o fim da matriz de 2026-10-30 em print_checks( ) com KeyError, e a soma da pagina leria o mesmo arquivo).
+    ("pico2_w_release", {"ui": "original", "mdns": False, "sound_buzzer": False}),
 ]
 
 
@@ -397,7 +558,10 @@ def measure_checks():
         if bad:
             sys.exit(f"measure_savings: a conferencia {i} quebra a regra {bad[0]['id']}")
         env = f"_check_{i}"
-        blocks.append(gf.emit_env(env, gf.compose(prof, M)))
+        text, why = env_text(env, prof, M)
+        if text is None:
+            sys.exit(f"measure_savings: a conferencia {i} nao tem como ser construida: {why}")
+        blocks.append(text)
         plan.append((p, changes, env))
     out = []
     with TempEnvs(blocks):
@@ -428,7 +592,7 @@ def print_checks(doc):
                 return region + f["overflow"] - base["bin"]
             return 0
         est = base["used"] + sum(delta(flips[flip_key(k, v)]) for k, v in c["set"].items())
-        what = ", ".join(flip_key(k, v) if k == "net" else f"{k}={'on' if v else 'off'}"
+        what = ", ".join(flip_key(k, v) if k in CHOICES else f"{k}={'on' if v else 'off'}"
                          for k, v in c["set"].items())
         if "used" in c:
             print(f"  {c['base']:<15} {what}: real {c['used']}, soma {est}, erro {c['used'] - est:+} B")
@@ -448,32 +612,42 @@ def cmd_checks():
     return 0
 
 
+# As chaves que sao escolhas, nao interruptores: a rede (2026-10-13) e o visual da tela touch
+# (2026-10-29). A pagina monta a mesma chave para todo valor que nao e booleano (flipKey de
+# docs/configurador/logic.js).
+CHOICES = ("net", "ui")
+
+
 def flip_key(key, value):
     """A chave de `flips` (tools/feature_costs.json) de uma mudanca de `set`, a de um perfil ou a
-    de CHECKS: um interruptor e o proprio nome, e a rede e `net=<id>`, um texto com "=" que
-    nenhum interruptor tem, entao os dois nunca colidem."""
-    return f"{key}={value}" if key == "net" else key
+    de CHECKS: um interruptor e o proprio nome, e uma escolha e `<chave>=<id>` (`net=<id>`,
+    `ui=<id>`), um texto com "=" que nenhum interruptor tem, entao os dois nunca colidem."""
+    return f"{key}={value}" if key in CHOICES else key
 
 
 def cost_env(product, key):
     """O ambiente temporario que mede uma inversao. O PlatformIO so aceita letras, digitos, "_" e
     "-" num nome de ambiente (ENVNAME_RE de platformio/project/config.py, conferido na fonte em
     2026-10-13), e `validate( )` olha TODOS os [env:*] a cada `pio run`: um "=" no nome
-    derrubaria a medicao inteira, nao so a dele. A chave da rede, `net=<id>`, tem um."""
+    derrubaria a medicao inteira, nao so a dele. As chaves das escolhas, `net=<id>` e `ui=<id>`, tem um."""
     return f"_cost_{product}_{key}".replace("=", "_")
 
 
 def flips_of(prof, M, names=None):
     """As mudancas simples que a matriz mede a partir de um produto: [(chave em `flips`, o perfil
     com ela)]. Um interruptor vira ao contrario; a rede vira para cada [net.<id>] do manifesto
-    que nao e o do produto (flip_key: `net=<id>`). `names`: so estas (interruptores e/ou "net"),
-    na ordem dada; sem elas, todas, na ordem da pagina."""
+    que nao e o do produto (flip_key: `net=<id>`), e o visual da tela touch para cada [ui.<id>]
+    que nao e o dele (`ui=<id>`). `names`: so estas (interruptores, "net" e/ou "ui"), na ordem
+    dada; sem elas, todas, na ordem da pagina."""
     if names is None:
-        names = [*gf.TOGGLE_ORDER, "net"]
+        names = [*gf.TOGGLE_ORDER, "net", "ui"]
     out = []
     for name in names:
         if name == "net":
             out += [(flip_key("net", n), dict(prof, net=n)) for n in M["net"] if n != prof["net"]]
+        elif name == "ui":
+            own = prof.get("ui", gf.DEFAULT_UI)
+            out += [(flip_key("ui", u), dict(prof, ui=u)) for u in M["ui"] if u != own]
         else:
             out.append((name, dict(prof, **{name: not bool(prof.get(name, False))})))
     return out
@@ -493,8 +667,33 @@ def plan_flip(blocks, plan, p, key, flipped, M):
         plan.append((p, key, None, {"unsupported": bad[0]["detail"]}))
     else:
         env = cost_env(p, key)
-        blocks.append(gf.emit_env(env, gf.compose(flipped, M)))
+        text, why = env_text(env, flipped, M)
+        if text is None:
+            plan.append((p, key, None, {"unsupported": why}))
+            return
+        blocks.append(text)
         plan.append((p, key, env, None))
+
+
+def env_text(env, prof, M):
+    """(o texto do [env:<env>] temporario de `prof`, None) ou (None, por que nao ha build).
+
+    O que o gerador escreve para qualquer perfil e, num perfil que leva o Angulo, a opcao que diz
+    ao portao de RAM estatica do Angulo (tools/check_ui_ram.py, um extra_script) de que ambiente de
+    verdade vem o orcamento. O portao exige de todo ambiente uma entrada em tools/ui_ram_budget.json,
+    e um ambiente temporario nao tem: a matriz de 2026-10-29 perdeu a inversao do Angulo no fim do
+    link ("[ui-ram] FATAL: no static-RAM budget for _cost_pico2_w_release_ui_angulo"). A mesma
+    resposta que o build_custom.py da ao _custom: o ambiente de verdade com o Angulo neste
+    hardware, como teto; sem um, nao ha build. Importado aqui, nao no topo: o build_custom
+    importa este modulo."""
+    text = gf.emit_env(env, gf.compose(prof, M))
+    if prof.get("ui", gf.DEFAULT_UI) != "angulo":
+        return text, None
+    import build_custom as bc
+    ram_env, why = bc.ui_ram_env(prof, M)
+    if ram_env is None:
+        return None, why
+    return text + f"{bc.cur.OPCAO_ORCAMENTO} = {ram_env}\n", None
 
 
 def measure_matrix():
@@ -535,18 +734,21 @@ def measure_matrix():
 
 def cmd_matrix_partial(toggles):
     """So as inversoes de `toggles`, gravadas no feature_costs.json que existe.
-    Cada nome e uma chave do TOGGLE_ORDER ou "net", que vale por toda troca de
-    rede de cada produto (as chaves `net=<id>` de flips_of).
+    Cada nome e uma chave do TOGGLE_ORDER, "net", que vale por toda troca de
+    rede de cada produto (as chaves `net=<id>` de flips_of), ou "ui", por toda
+    troca de visual da tela touch (`ui=<id>`).
 
     Vale quando a chave nova nasce desligavel sem mudar nada ligada: as bases
     e as outras inversoes continuam as mesmas imagens. Isso nao se supoe — as
     bases sao reconstruidas e comparadas com o que o arquivo guarda (used,
     bin, ram); qualquer diferenca recusa, e a matriz inteira e o caminho. Custa
     uma build de base e uma por chave em cada produto publicado (quatro desde
-    que o Pico 2 W entrou, 2026-10-05), contra 69 e mais 12 conferencias da
-    matriz inteira; `net` custa uma por driver que nao e o do produto."""
+    que o Pico 2 W entrou, 2026-10-05), contra 70 e mais 13 conferencias da
+    matriz inteira (2026-10-29); `net` custa uma por driver que nao e o do
+    produto, e `ui` uma por visual que nao e o do produto e que as regras
+    deixam construir (hoje so a do Angulo no Pico 2 W: 5 builds)."""
     M = gf.load_manifest()
-    unknown = [t for t in toggles if t != "net" and t not in gf.TOGGLE_ORDER]
+    unknown = [t for t in toggles if t not in CHOICES and t not in gf.TOGGLE_ORDER]
     if unknown:
         sys.exit(f"measure_savings: chave desconhecida: {', '.join(unknown)}")
     with open(COSTS_PATH, encoding="utf-8") as fh:
@@ -624,7 +826,8 @@ def cmd_matrix():
             "`flips.net=<id>` e a mesma coisa para a rede, que e uma escolha de driver e",
             "nao um interruptor: a MESMA imagem com o driver de rede trocado para <id>,",
             "uma entrada por driver que nao e o do produto, medida ou anotada do mesmo",
-            "jeito.",
+            "jeito. `flips.ui=<id>` e o mesmo para o visual da tela touch (2026-10-29): a",
+            "MESMA imagem com o [ui.<id>] trocado, ou a regra que proibe a troca.",
             "`same: true` diz que a imagem saiu identica a base, byte a byte: a chave nao",
             "tem consumidor naquele produto, e a pagina diz isso em vez de mostrar +0 B.",
             "A pagina SOMA as diferencas quando mais de uma chave muda: estimativa, e ela",

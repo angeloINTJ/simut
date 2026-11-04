@@ -32,5 +32,9 @@
    * default-constructed empty driver; every driver-touching code path is
    * compiled out under #if SIMUT_DISPLAY_* guards. */
   struct DisplayDriver {
+    /* No panel, so no pixels: the same 0 the character LCD answers, so that the shared
+     * headers' DisplayDriver::W and ::H compile here (nothing in this image reads them). */
+    static constexpr int16_t W = 0;
+    static constexpr int16_t H = 0;
   };
 #endif

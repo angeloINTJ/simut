@@ -24,6 +24,7 @@
 #include <unity.h>
 #include <stdlib.h>
 #include "SystemDefs_Validate.h"
+#include "ui/original/PinKeypadLayout.h"   /* PinKb's original-only layout (keyX, popupCardY, popupKeyAt, FOOT_Y, DOTS_Y ...), which left PinKeypad.h in S10c, C8 and S12, A3 (keyAt stays there) */
 #include "display/AlphaMarquee.h"
 #include "ParseFloat.h"
 #include "SystemDefs_Time.h"
@@ -41,6 +42,8 @@
 #include "WebJsonSlice.h"               /* depth-aware JSON slicing */
 #include "SimutTime.h"                 /* fixed-offset localtime/mktime */
 #include "LangPackIndex.h"             /* where each section of a .lng is */
+#include "ThemeApiRow.h"              /* one row of GET /api/themes */
+#include <string.h>
 #include "Utf8Fold.h"                  /* UTF-8 to what the 5x7 font draws */
 #include "WebDictValue.h"              /* one string out of a pack's @WEBDICT */
 #include "TextWrap.h"                  /* the License screen's line layout */
@@ -48,7 +51,14 @@
 #include <string>
 #include <vector>
 #include "display/ClockEntry.h"         /* the date and time set at the panel */
+#include "display/DashHold.h"          /* the dashboard's 3 s hold and page button */
+#include "display/GraphNav.h"           /* the calendar's day test */
+#include "display/GraphAnchor.h"        /* where the chart's window ends */
+#include "display/ListPager.h"         /* the list screens' page arithmetic */
 #include "display/SettingsMenu.h"       /* the panel's Settings menu: rows, order */
+#include "display/SettingsSteps.h"       /* the settings screens' steps: volumes, the alignment, the language slots */
+#include "display/LangChoice.h"         /* the Idioma screen: rows, opening row, what waits for a boot */
+#include "display/AlarmLimitsSnap.h"    /* the limits editor's Salvar: the copy Core 0 takes out */
 #include "PasswordCheck.h"             /* one derivation per password check */
 #include "SessionCheck.h"              /* a session against its live account */
 #include "display/CountInText.h"        /* a number inside a translated line */
@@ -62,6 +72,9 @@
 #include "PromMetrics.h"                /* Prometheus text exposition formatters */
 #include "Syslog5424.h"                 /* RFC 5424 syslog line formatter */
 #include "ScreenRle.h"                  /* palette RLE for the TFT mirror */
+#include <cstdio>
+#include "display/Pl022Baud.h"         /* what an SPI block runs at for a request, from its clock */
+#include "simut_config.h"              /* SIMUT_TFT_SPI_HZ and SIMUT_TFT_READ_HZ: the real constants */
 
 /* ----- Define obrigatório de simut_native::fake_millis_value ----- */
 namespace simut_native {
@@ -556,6 +569,30 @@ void test_timeSince_basic(void) {
     TEST_ASSERT_FALSE(timeSince(4500, 1000));    /* só 500ms decorreu */
 }
 
+/* An injected touch ends on its own clock: simTouchExpired( ), which loopCore1( ) calls on
+ * every pass (mapTouchPoint( ) used to, and two screens never reach it for an injection;
+ * 2026-10-16). Strictly greater than the hold: a 100 ms tap is still down AT 100 ms and
+ * released at 101. */
+void test_simTouchExpired_tap_and_hold(void) {
+    TEST_ASSERT_FALSE(simTouchExpired(5000, 5000, 100));    /* the pass that first sees it */
+    TEST_ASSERT_FALSE(simTouchExpired(5100, 5000, 100));    /* exactly the hold: still down */
+    TEST_ASSERT_TRUE(simTouchExpired(5101, 5000, 100));     /* one past it: released */
+    TEST_ASSERT_FALSE(simTouchExpired(8000, 5000, 3000));   /* 'touch hold 3000': down at 3 s */
+    TEST_ASSERT_TRUE(simTouchExpired(8001, 5000, 3000));
+}
+
+/* The same test across the millis( ) wrap (~49.7 days of uptime): a touch set 256 ms before
+ * it ends on time before the wrap and after it, and one set 50 ms before it ends 50 ms after. */
+void test_simTouchExpired_wrap_safe(void) {
+    const uint32_t set = 0xFFFFFF00u;                           /* 256 ms before the wrap */
+    TEST_ASSERT_FALSE(simTouchExpired(0xFFFFFF64u, set, 100));  /* before it: exactly the hold */
+    TEST_ASSERT_TRUE(simTouchExpired(0xFFFFFF65u, set, 100));   /* before it: one past */
+    TEST_ASSERT_TRUE(simTouchExpired(5, set, 100));             /* after it: 261 ms in */
+    const uint32_t straddle = 0xFFFFFFCEu;                      /* 50 ms before the wrap */
+    TEST_ASSERT_FALSE(simTouchExpired(50, straddle, 100));      /* exactly the hold, across it */
+    TEST_ASSERT_TRUE(simTouchExpired(51, straddle, 100));
+}
+
 
 /* =========================================================================== */
 /*  dallasCrc8                                                                 */
@@ -668,8 +705,11 @@ void test_parseFloat_edge(void) {
  * v1.5.6 answered TAG_SENSOR for "SEC" (both share tag[1] == 'E'), so all 36
  * security/audit call sites were persisted under the sensor tag and TAG_SEC
  * was unreachable; "OTA" had no case at all and landed on TAG_UNKNOWN. Both
- * were invisible because nothing exercised this mapping. Every tag literal
- * actually used by LOG_CODE in the firmware is asserted here. */
+ * were invisible because nothing exercised this mapping. This file then listed
+ * every tag literal LOG_CODE used, by hand, and the list went stale: the
+ * language pack's "I18N" was persisted as "?" and "AIR" as APP (#283). The
+ * build checks every literal now (LOG_TAG_CHECK in LogManager.h); these cases
+ * pin the mapping that check relies on. */
 
 void test_tag_sec_is_not_sensor(void) {
     TEST_ASSERT_EQUAL(TAG_SEC, tagStringToId("SEC"));
@@ -691,6 +731,50 @@ void test_tag_all_literals_used_in_firmware(void) {
     TEST_ASSERT_EQUAL(TAG_HIST,   tagStringToId("HIST"));
     TEST_ASSERT_EQUAL(TAG_SYS,    tagStringToId("SYS"));
     TEST_ASSERT_EQUAL(TAG_DSP,    tagStringToId("DSP"));
+    TEST_ASSERT_EQUAL(TAG_OTA,    tagStringToId("OTA"));
+    TEST_ASSERT_EQUAL(TAG_SEC,    tagStringToId("SEC"));
+    TEST_ASSERT_EQUAL(TAG_SENSOR, tagStringToId("SENSOR"));
+    TEST_ASSERT_EQUAL(TAG_I18N,   tagStringToId("I18N"));
+}
+
+void test_tag_i18n_has_its_own_id(void) {
+    /* The language pack's four records: TAG_UNKNOWN until #283, shown as "?"
+     * by the CLI, the CSV and the web viewer. */
+    TEST_ASSERT_EQUAL(TAG_I18N, tagStringToId("I18N"));
+    TEST_ASSERT_EQUAL_STRING("I18N", tagIdToString(TAG_I18N));
+}
+
+void test_tag_every_name_maps_back_to_its_id(void) {
+    /* A name added to the table without a case in tagStringToId( ) would be
+     * persisted under another id or none; this walks the whole table. */
+    int named = 0;
+    for (uint8_t id = 0; id < 16; id++) {
+        const char* name = tagIdToString(id);
+        if (strcmp(name, "?") == 0) continue;
+        named++;
+        TEST_ASSERT_EQUAL_MESSAGE(id, tagStringToId(name), name);
+        TEST_ASSERT_TRUE_MESSAGE(logTagIsKnown(name), name);
+    }
+    TEST_ASSERT_EQUAL(14, named);
+}
+
+/* What LOG_TAG_CHECK asserts, evaluated by the compiler: if logTagIsKnown( )
+ * stopped being a constant expression, this file would not build either. */
+static_assert(logTagIsKnown("I18N"), "I18N is a tag");
+static_assert(!logTagIsKnown("AIR"), "AIR maps to APP and is not its name");
+
+void test_tag_check_refuses_a_name_the_table_lacks(void) {
+    /* "AIR" maps to TAG_APP through its first letter: persisted as APP, which
+     * is what AppManager_Air.cpp did until #283. "I18" and "SE" map to a tag
+     * whose name is longer; "?" is the unknown tag's display, not a name. */
+    TEST_ASSERT_FALSE(logTagIsKnown("AIR"));
+    TEST_ASSERT_FALSE(logTagIsKnown("I18"));
+    TEST_ASSERT_FALSE(logTagIsKnown("SE"));
+    TEST_ASSERT_FALSE(logTagIsKnown("SPI"));
+    TEST_ASSERT_FALSE(logTagIsKnown("ZZZ"));
+    TEST_ASSERT_FALSE(logTagIsKnown("?"));
+    TEST_ASSERT_FALSE(logTagIsKnown(""));
+    TEST_ASSERT_FALSE(logTagIsKnown(nullptr));
 }
 
 void test_tag_unknown_inputs(void) {
@@ -707,6 +791,8 @@ void test_tag_id_to_string_roundtrip(void) {
     TEST_ASSERT_EQUAL_STRING("SEC", tagIdToString(TAG_SEC));
     TEST_ASSERT_EQUAL_STRING("OTA", tagIdToString(TAG_OTA));
     TEST_ASSERT_EQUAL_STRING("SENSOR", tagIdToString(TAG_SENSOR));
+    TEST_ASSERT_EQUAL_STRING("I18N", tagIdToString(TAG_I18N));
+    TEST_ASSERT_EQUAL_STRING("?", tagIdToString(TAG_UNKNOWN));
 }
 
 /* ===========================================================================
@@ -1872,6 +1958,186 @@ void test_langidx_end_of_file(void) {
     const char* u = "@DICT\na\n@NAME X ";
     ix = langIndex(u);
     TEST_ASSERT_EQUAL_STRING("X", langRange(u, ix, LANG_SEC_NAME).c_str());
+}
+
+/* ===========================================================================
+ *  THE LIMITS EDITOR'S SAVE - display/AlarmLimitsSnap.h
+ *
+ *  Salvar queues EVT_SAVE_ALARMS and leaves the editor live. Core 0 used to read
+ *  the limits from Core 1's working copy when it got to the event, so an arrow
+ *  step in between saved a crossed pair (MIN 10.0 and MAX 10.0, the state that
+ *  arms an alarm that never clears), and a Voltar plus the editor on another
+ *  sensor in between wrote that sensor's limits into the first one. Found by
+ *  reading the code on 2026-10-31, never seen on a board (F3 of the v2.13.0
+ *  Known list). Core 1 now posts a copy at Salvar into a box of one entry, and
+ *  Core 0 takes it out for the slot of the event. The box is plain data, so
+ *  each rule is a case here; the lock around it is DisplayManager's, and the
+ *  host's mutex stub does nothing, so that part is checked by reading.
+ * =========================================================================== */
+/* What the box reads of a SensorRecord: the two limit arrays, in a packed struct that puts them where the real record does. This suite cannot
+ * include SystemDefs_Records.h (its extern dallasCrc8 and its HIST_NAN_SENTINEL clash with the copies above), so the box is a template on the record
+ * type and this stands in for it: 66 bytes of head as in the real record (active, sensorType, pins[4], rom[8], hwId[16], friendlyName[32],
+ * provisionEpoch), which leaves the floats unaligned, and 139 B in all, the size SystemDefs_Records.h asserts for SensorRecord. */
+struct __attribute__((packed)) RecordLike {
+    uint8_t head[66];
+    float chMin[MAX_SENSOR_CHANNELS];
+    float chMax[MAX_SENSOR_CHANNELS];
+    uint8_t tail[1 + MAX_SENSOR_CHANNELS];   /* alarmsActive, channelBitWidth[] */
+};
+static_assert(sizeof(RecordLike) == 139, "RecordLike has to stay the size of SensorRecord (SystemDefs_Records.h)");
+
+static void limitsSetPair(RecordLike& r, int c, float mn, float mx) {
+    r.chMin[c] = mn;   /* packed: assigned, never bound to a float& */
+    r.chMax[c] = mx;
+}
+
+void test_limits_snap_keeps_what_salvar_posted_when_the_editor_moves_on(void) {
+    RecordLike edited; memset(&edited, 0, sizeof edited);
+    limitsSetPair(edited, 0, 10.0f, 20.0f);
+    AlarmLimitsSnap box, out;
+    limitsSnapPost(box, edited, 3);
+    /* The arrow step that lands before Core 0 reads: MAX comes down onto MIN. */
+    limitsSetPair(edited, 0, 10.0f, 10.0f);
+    TEST_ASSERT_TRUE(limitsSnapTake(box, 3, out));
+    TEST_ASSERT_EQUAL_FLOAT(10.0f, out.chMin[0]);
+    TEST_ASSERT_EQUAL_FLOAT(20.0f, out.chMax[0]);
+}
+
+void test_limits_snap_a_take_for_another_slot_fails_and_leaves_the_box_for_its_own(void) {
+    RecordLike edited; memset(&edited, 0, sizeof edited);
+    limitsSetPair(edited, 0, 10.0f, 20.0f);
+    AlarmLimitsSnap box, out;
+    limitsSnapPost(box, edited, 3);
+    TEST_ASSERT_FALSE(limitsSnapTake(box, 5, out));
+    TEST_ASSERT_TRUE(limitsSnapTake(box, 3, out));
+    TEST_ASSERT_EQUAL_INT(3, out.slot);
+}
+
+void test_limits_snap_a_second_take_of_the_same_salvar_fails(void) {
+    RecordLike edited; memset(&edited, 0, sizeof edited);
+    limitsSetPair(edited, 0, 10.0f, 20.0f);
+    AlarmLimitsSnap box, out;
+    limitsSnapPost(box, edited, 3);
+    TEST_ASSERT_TRUE(limitsSnapTake(box, 3, out));
+    TEST_ASSERT_FALSE(limitsSnapTake(box, 3, out));
+}
+
+void test_limits_snap_a_new_box_gives_nothing(void) {
+    AlarmLimitsSnap box, out;
+    /* Every slot, 0 included: a box that starts at slot 0 would hand out limits nobody saved. */
+    for (int s = 0; s < MAX_SENSORS; s++) TEST_ASSERT_FALSE(limitsSnapTake(box, s, out));
+    TEST_ASSERT_FALSE(limitsSnapTake(box, -1, out));
+}
+
+void test_limits_snap_all_eight_channels_of_both_arrays_come_through(void) {
+    RecordLike edited; memset(&edited, 0, sizeof edited);
+    for (int c = 0; c < MAX_SENSOR_CHANNELS; c++) limitsSetPair(edited, c, 1.5f + (float)c, 100.25f + (float)c);
+    AlarmLimitsSnap box, out;
+    limitsSnapPost(box, edited, 0);   /* slot 0 is a slot like any other */
+    TEST_ASSERT_TRUE(limitsSnapTake(box, 0, out));
+    TEST_ASSERT_EQUAL_INT(8, MAX_SENSOR_CHANNELS);
+    for (int c = 0; c < MAX_SENSOR_CHANNELS; c++) {
+        TEST_ASSERT_EQUAL_FLOAT(1.5f + (float)c, out.chMin[c]);
+        TEST_ASSERT_EQUAL_FLOAT(100.25f + (float)c, out.chMax[c]);
+    }
+}
+
+/* ===========================================================================
+ *  THE IDIOMA SCREEN — display/LangChoice.h, and the one rule for a usable pack
+ *
+ *  After a boot in English the screen listed English alone: the pack loads only
+ *  at a boot in another language, and the row count asked whether it was LOADED.
+ *  It now asks whether it was FOUND in /lang (2026-10-24), and a choice made
+ *  while the pack is not in RAM waits for the next boot. The functions are plain
+ *  ints, so each state of the screen is a line here; the mutation that breaks
+ *  each one is recorded with the change.
+ * =========================================================================== */
+void test_langchoice_english_boot_with_a_pack_in_lang_lists_two_rows(void) {
+    /* The fix: found at boot, not loaded, and the row is there. */
+    TEST_ASSERT_EQUAL_INT(2, langRowsListed(false, true));
+}
+
+void test_langchoice_english_boot_without_a_pack_lists_one_row(void) {
+    TEST_ASSERT_EQUAL_INT(1, langRowsListed(false, false));
+}
+
+void test_langchoice_pt_boot_with_the_pack_loaded_lists_two_rows(void) {
+    TEST_ASSERT_EQUAL_INT(2, langRowsListed(true, true));
+    /* A pack in RAM is listed whatever the scan of /lang said. */
+    TEST_ASSERT_EQUAL_INT(2, langRowsListed(true, false));
+}
+
+void test_langchoice_pt_boot_that_loaded_nothing_opens_on_row_zero(void) {
+    /* Saved in the pack (1), but the load failed or the file is gone: one row.
+     * The screen used to open on the row that was not there and highlight
+     * nothing; it opens on English. */
+    const int rows = langRowsListed(false, false);
+    TEST_ASSERT_EQUAL_INT(1, rows);
+    TEST_ASSERT_EQUAL_INT(0, langRowAtOpen(1, rows));
+}
+
+void test_langchoice_the_screen_opens_on_the_saved_row_when_it_is_listed(void) {
+    TEST_ASSERT_EQUAL_INT(0, langRowAtOpen(0, 2));
+    TEST_ASSERT_EQUAL_INT(1, langRowAtOpen(1, 2));
+    TEST_ASSERT_EQUAL_INT(0, langRowAtOpen(0, 1));
+}
+
+void test_langchoice_a_saved_row_that_does_not_exist_opens_on_row_zero(void) {
+    TEST_ASSERT_EQUAL_INT(0, langRowAtOpen(-1, 2));
+    TEST_ASSERT_EQUAL_INT(0, langRowAtOpen(2, 2));
+    TEST_ASSERT_EQUAL_INT(0, langRowAtOpen(255, 2));
+}
+
+void test_langchoice_valid_choices(void) {
+    TEST_ASSERT_TRUE(langChoiceValid(0, 1));
+    TEST_ASSERT_TRUE(langChoiceValid(0, 2));
+    TEST_ASSERT_TRUE(langChoiceValid(1, 2));
+}
+
+void test_langchoice_refuses_a_row_that_is_not_listed(void) {
+    /* Core 0 does not take the screen's word: id 1 with one row, a row past
+     * the end, a byte that is no row at all, a negative. */
+    TEST_ASSERT_FALSE(langChoiceValid(1, 1));
+    TEST_ASSERT_FALSE(langChoiceValid(2, 2));
+    TEST_ASSERT_FALSE(langChoiceValid(255, 2));
+    TEST_ASSERT_FALSE(langChoiceValid(-1, 2));
+}
+
+void test_langchoice_a_pack_chosen_while_not_loaded_waits_for_the_boot(void) {
+    TEST_ASSERT_TRUE(langAppliesAtBoot(1, false));
+}
+
+void test_langchoice_english_applies_live(void) {
+    TEST_ASSERT_FALSE(langAppliesAtBoot(0, false));
+    TEST_ASSERT_FALSE(langAppliesAtBoot(0, true));
+}
+
+void test_langchoice_a_pack_chosen_while_loaded_applies_live(void) {
+    TEST_ASSERT_FALSE(langAppliesAtBoot(1, true));
+}
+
+void test_langusable_accepts_a_shipped_like_pack(void) {
+    TEST_ASSERT_TRUE(langPackIndexUsable(langIndex(kLangPack)));
+    TEST_ASSERT_TRUE(langPackIndexUsable(langIndex("@DICT\na\n")));
+}
+
+void test_langusable_refuses_a_directive_after_webdict(void) {
+    /* The one refusal that comes from the tail and from nothing else: the
+     * dictionary is there and has a body. */
+    TEST_ASSERT_FALSE(langPackIndexUsable(langIndex("@DICT\na\n@WEBDICT\n{}\n@HELP\nx\n")));
+}
+
+void test_langusable_refuses_a_pack_without_a_dict(void) {
+    TEST_ASSERT_FALSE(langPackIndexUsable(langIndex("@NAME X\n@HELP\nh\n")));
+    /* Offsets that look like a body do not rescue an index that never saw @DICT. */
+    LangPackIndex ix = langIndex("@DICT\na\n");
+    ix.present[LANG_SEC_DICT] = false;
+    TEST_ASSERT_TRUE(ix.end[LANG_SEC_DICT] > ix.start[LANG_SEC_DICT]);
+    TEST_ASSERT_FALSE(langPackIndexUsable(ix));
+}
+
+void test_langusable_refuses_an_empty_dict(void) {
+    TEST_ASSERT_FALSE(langPackIndexUsable(langIndex("@DICT\n@HELP\nh\n")));
 }
 
 /* ===========================================================================
@@ -4831,6 +5097,779 @@ static void test_tel_content_type_per_mode(void) {
     TEST_ASSERT_EQUAL_STRING("application/json", telContentTypeFor(TEL_CT_MODE_CUSTOM, ct, sizeof(ct), buf, sizeof(buf)));
 }
 
+/* ─────────────────────────────────────────────────────────────────────────
+ * The dashboard's 3 s hold on the upper card and its page button
+ * (display/DashHold.h).
+ *
+ * 2026-10-15 (S5 of the UI drivers): the clock of the hold and the turn of the
+ * page left the touch handler, where only a panel could run them, for a header
+ * with no hardware in it. The firmware's touch actions call these same
+ * functions (they are the code the handler ran, moved), so these cases pin
+ * what the panel does.
+ *
+ * The review of S5 (C10, the same day) found three mutants of dashHoldStep( ) alive in the first six cases: `==` for `>=` in the
+ * fire test, no `fired = false` in the restart, and no `start != 0` in front of the gap test. Every cadence of those six is a
+ * multiple of 15 ms and 3000 is 200 of them, and none meets a gap with no hold running. The last three cases kill them (m4 to
+ * m6); each was seen to fail with its mutant applied.
+ * ───────────────────────────────────────────────────────────────────────── */
+
+/* DisplayManager.h's DASH_HOLD_MS and DASH_HOLD_GAP_MS: the test cannot include that header. */
+static const uint32_t DASH_TEST_HOLD_MS = 3000;
+static const uint32_t DASH_TEST_GAP_MS  = 120;
+
+struct DashRun { uint32_t start; uint32_t seen; bool fired; uint8_t region; };
+
+/* The first sample of a press starts the hold, as the action does with firstTouch. */
+static DashRun dash_first(uint32_t now, uint8_t region) {
+    DashRun r; r.start = now; r.seen = now; r.fired = false; r.region = region;
+    return r;
+}
+
+/* A later sample: through dashHoldStep( ), and a hold that fired is marked, as the action does. */
+static bool dash_sample(DashRun &r, uint32_t now) {
+    bool fire = dashHoldStep(now, r.start, r.seen, r.fired, r.region, DASH_TEST_HOLD_MS, DASH_TEST_GAP_MS);
+    if (fire) r.fired = true;
+    return fire;
+}
+
+void test_dash_hold_fires_at_three_seconds_and_not_before(void) {
+    const uint32_t t0 = 1000000;
+    DashRun r = dash_first(t0, 0);
+    uint32_t firedAfter = 0;
+    for (uint32_t k = 1; k <= 400 && !firedAfter; k++)             /* samples every 15 ms */
+        if (dash_sample(r, t0 + 15 * k)) firedAfter = 15 * k;
+    TEST_ASSERT_EQUAL_UINT32(DASH_TEST_HOLD_MS, firedAfter);       /* 3000 ms = the 200th sample */
+
+    DashRun s = dash_first(t0, 0);
+    for (uint32_t k = 1; k <= 199; k++) dash_sample(s, t0 + 15 * k);   /* up to +2985 */
+    TEST_ASSERT_FALSE(dash_sample(s, t0 + DASH_TEST_HOLD_MS - 1));     /* +2999 */
+    TEST_ASSERT_TRUE(dash_sample(s, t0 + DASH_TEST_HOLD_MS));          /* +3000 */
+}
+
+void test_dash_hold_fires_once(void) {
+    DashRun r = dash_first(5000, 0);
+    int fires = 0;
+    for (uint32_t k = 1; k <= 1000; k++) fires += dash_sample(r, 5000 + 15 * k) ? 1 : 0;   /* 15 s of a held finger */
+    TEST_ASSERT_EQUAL_INT(1, fires);
+}
+
+void test_dash_hold_gap_of_121_ms_restarts_and_120_does_not(void) {
+    const uint32_t t0 = 10000;
+    /* a loop that was slow for 120 ms is not a lift: the hold goes on and the start stays */
+    DashRun a = dash_first(t0, 0);
+    uint32_t t = t0;
+    for (uint32_t k = 1; k <= 99; k++) { t = t0 + 15 * k; dash_sample(a, t); }   /* up to +1485 */
+    t += DASH_TEST_GAP_MS;
+    dash_sample(a, t);
+    TEST_ASSERT_EQUAL_UINT32(t0, a.start);
+    /* 121 ms is: the three seconds count again from that sample */
+    DashRun b = dash_first(t0, 0);
+    uint32_t u = t0;
+    for (uint32_t k = 1; k <= 99; k++) { u = t0 + 15 * k; dash_sample(b, u); }
+    u += DASH_TEST_GAP_MS + 1;
+    dash_sample(b, u);
+    TEST_ASSERT_EQUAL_UINT32(u, b.start);
+    TEST_ASSERT_FALSE(b.fired);
+    const uint32_t restart = u;
+    uint32_t firedAt = 0;
+    for (uint32_t k = 1; k <= 400 && !firedAt; k++)
+        if (dash_sample(b, restart + 15 * k)) firedAt = restart + 15 * k;
+    TEST_ASSERT_EQUAL_UINT32(restart + DASH_TEST_HOLD_MS, firedAt);
+}
+
+void test_dash_hold_never_fires_for_another_region_or_without_a_start(void) {
+    DashRun r = dash_first(2000, 1);                               /* the press began somewhere else */
+    bool any = false;
+    for (uint32_t k = 1; k <= 2000; k++) any = dash_sample(r, 2000 + 15 * k) || any;
+    TEST_ASSERT_FALSE(any);
+    DashRun z = dash_first(0, 0);                                  /* start == 0: no hold is running (the lift cleared it) */
+    bool anyz = false;
+    for (uint32_t k = 1; k <= 2000; k++) anyz = dash_sample(z, 15 * k) || anyz;
+    TEST_ASSERT_FALSE(anyz);
+}
+
+/* "It has lasted holdMs" is at least that long: a cadence that never lands on +3000 must still fire, on the first sample past it.
+ * 3000 is 176 samples of 17 ms and 8 ms over, so the 177th, +3009, is the one. With `==` where the header has `>=` the cases at
+ * 15 ms all pass, and this one never fires (mutant m4). */
+void test_dash_hold_fires_on_the_first_sample_past_three_seconds(void) {
+    const uint32_t t0 = 1000000;
+    DashRun r = dash_first(t0, 0);
+    uint32_t firedAfter = 0;
+    for (uint32_t k = 1; k <= 400 && !firedAfter; k++)             /* samples every 17 ms */
+        if (dash_sample(r, t0 + 17 * k)) firedAfter = 17 * k;
+    TEST_ASSERT_EQUAL_UINT32(3009, firedAfter);                    /* +2992 does not fire, +3009 does */
+}
+
+/* A hold that fired and then met a gap is a new hold, so the restart clears the mark of the old one. Left set, the second three
+ * seconds would run out and nothing would happen: a press that went on past one pause of the loop would be dead for good after
+ * its first firing (mutant m5). */
+void test_dash_hold_fires_again_after_a_gap_restart(void) {
+    const uint32_t t0 = 20000;
+    DashRun r = dash_first(t0, 0);
+    uint32_t t = t0;
+    int fires = 0;
+    for (uint32_t k = 1; k <= 200; k++) { t = t0 + 15 * k; fires += dash_sample(r, t) ? 1 : 0; }   /* +3000: the first firing */
+    TEST_ASSERT_EQUAL_INT(1, fires);
+    TEST_ASSERT_TRUE(r.fired);
+    t += DASH_TEST_GAP_MS + 1;                                     /* the finger was lifted, or the loop was paused */
+    TEST_ASSERT_FALSE(dash_sample(r, t));                          /* the restart sample starts the count, it does not fire */
+    TEST_ASSERT_EQUAL_UINT32(t, r.start);
+    TEST_ASSERT_FALSE(r.fired);                                    /* and the new hold has not fired yet */
+    const uint32_t restart = t;
+    uint32_t firedAt = 0;
+    for (uint32_t k = 1; k <= 400 && !firedAt; k++)
+        if (dash_sample(r, restart + 15 * k)) firedAt = restart + 15 * k;
+    TEST_ASSERT_EQUAL_UINT32(restart + DASH_TEST_HOLD_MS, firedAt);
+}
+
+/* `start == 0` says that no hold is running. A gap restarts a hold that exists; it does not make one. Without the `start != 0`
+ * in front of the gap test, the first sample after a pause would stamp a start, and three seconds later a press that began no
+ * hold would fire one (mutant m6). The cases above sample every 15 ms, so none of them meets a gap with start == 0. */
+void test_dash_hold_a_gap_with_no_hold_running_does_not_start_one(void) {
+    DashRun z = dash_first(0, 0);                                  /* start == 0, seen == 0 */
+    const uint32_t t = DASH_TEST_GAP_MS + 1;                       /* 121 ms after the last sample seen */
+    TEST_ASSERT_FALSE(dash_sample(z, t));
+    TEST_ASSERT_EQUAL_UINT32(0, z.start);
+    TEST_ASSERT_EQUAL_UINT32(t, z.seen);                           /* the sample is noted all the same */
+    bool any = false;
+    for (uint32_t k = 1; k <= 400 && !any; k++) any = dash_sample(z, t + 15 * k);   /* six seconds of a held finger */
+    TEST_ASSERT_FALSE(any);
+    TEST_ASSERT_EQUAL_UINT32(0, z.start);
+}
+
+void test_dash_hold_survives_the_wrap_of_the_millisecond_counter(void) {
+    const uint32_t t0 = 0u - 1500u;                                /* 1500 ms before the counter wraps: the hold crosses it */
+    DashRun r = dash_first(t0, 0);
+    uint32_t firedAfter = 0;
+    for (uint32_t k = 1; k <= 400 && !firedAfter; k++)
+        if (dash_sample(r, t0 + 15 * k)) firedAfter = 15 * k;
+    TEST_ASSERT_EQUAL_UINT32(DASH_TEST_HOLD_MS, firedAfter);
+}
+
+void test_dash_next_page_goes_to_the_first_after_the_last(void) {
+    TEST_ASSERT_EQUAL_INT(1, dashNextPage(0, 3));
+    TEST_ASSERT_EQUAL_INT(0, dashNextPage(2, 3));
+    TEST_ASSERT_EQUAL_INT(0, dashNextPage(4, 3));                  /* the layout shrank under the page */
+    TEST_ASSERT_EQUAL_INT(0, dashNextPage(0, 1));
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
+ * The list screens' page arithmetic (display/ListPager.h)
+ *
+ * 2026-10-15 (S6 of the UI drivers): how many pages a list makes, where a page index is held when the list shrank under it, and one
+ * step of a pager arrow were copies in the Ângulo's glue: the frame and the touch of the settings list and of the alarms list each
+ * spelled the arithmetic out, and when the look moved to three rows a page both copies had to be edited by hand. They are three
+ * functions with no hardware in them now and the glue calls them, so these cases pin what the panel does. Each case names the
+ * mutants it kills; each mutant was seen to fail that case, and no other, when applied to the header.
+ * ───────────────────────────────────────────────────────────────────────── */
+
+/* Rounded up, and a last page that is not full still counts. Plain n / perPage drops it ((1,5) is 0); adding perPage and not
+ * perPage - 1 counts a full page twice ((5,5) is 2); a wrong constant shows at (6,5). */
+void test_list_pages_rounds_up_and_a_short_last_page_counts(void) {
+    TEST_ASSERT_EQUAL_INT(0, listPages(0, 5));                     /* no rows, no page */
+    TEST_ASSERT_EQUAL_INT(1, listPages(1, 5));
+    TEST_ASSERT_EQUAL_INT(1, listPages(5, 5));                     /* a full page is one */
+    TEST_ASSERT_EQUAL_INT(2, listPages(6, 5));
+    TEST_ASSERT_EQUAL_INT(2, listPages(6, 3));
+    TEST_ASSERT_EQUAL_INT(3, listPages(7, 3));
+}
+
+/* A page held to the list that exists. `>` for `>=` leaves the page one past the last at (3,3); a dropped `pages > 0` leaves -1 at
+ * (5,0); a dropped clamp below leaves -1 at (-1,3). `page <= 0` for `page < 0` is equivalent (0 stays 0) and no case can kill it. */
+void test_list_clamp_page_holds_a_page_to_the_list_that_exists(void) {
+    TEST_ASSERT_EQUAL_INT(2, listClampPage(3, 3));                 /* one past the last: the last */
+    TEST_ASSERT_EQUAL_INT(2, listClampPage(2, 3));                 /* the last stays */
+    TEST_ASSERT_EQUAL_INT(0, listClampPage(5, 0));                 /* no pages: the first, not -1 */
+    TEST_ASSERT_EQUAL_INT(0, listClampPage(-1, 3));
+    TEST_ASSERT_EQUAL_INT(0, listClampPage(0, 0));
+}
+
+/* One step of an arrow, held at the ends. `>=` for `>` going back walks off the first page at (0,3,-1); `<=` for `<` going forward
+ * walks off the last at (2,3,+1); a wrap puts (0,3,-1) on the last page; an ignored sign steps (1,3,-1) forward. A page off the list
+ * stays where it was, as the header promises (listClampPage( ) brings it back): holding the last page forward (`: pages - 1` for
+ * `: page`) moves (5,3,+1), holding the first back (`: 0`) moves (-1,3,-1), and clamping before the step lands (5,3,-1) on page 1
+ * (the review of C8, 2026-10-15, found those three mutants alive). */
+void test_list_page_step_stops_at_the_ends_and_does_not_wrap(void) {
+    TEST_ASSERT_EQUAL_INT(0, listPageStep(0, 3, -1));              /* the first page, back: it stays */
+    TEST_ASSERT_EQUAL_INT(0, listPageStep(1, 3, -1));
+    TEST_ASSERT_EQUAL_INT(2, listPageStep(1, 3, +1));
+    TEST_ASSERT_EQUAL_INT(2, listPageStep(2, 3, +1));              /* the last page, forward: it stays */
+    TEST_ASSERT_EQUAL_INT(0, listPageStep(0, 0, +1));              /* no pages */
+    TEST_ASSERT_EQUAL_INT(0, listPageStep(0, 1, +1));              /* one page */
+    TEST_ASSERT_EQUAL_INT(5, listPageStep(5, 3, +1));              /* past the end, forward: it stays */
+    TEST_ASSERT_EQUAL_INT(4, listPageStep(5, 3, -1));              /* past the end, back: one step, not pulled in */
+    TEST_ASSERT_EQUAL_INT(-1, listPageStep(-1, 3, -1));            /* before the first, back: it stays */
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
+ * The calendar's day test (display/GraphNav.h)
+ *
+ * 2026-10-15 (S7 of the UI drivers): whether a day of the calendar has history was spelled out inside the original's handleTouch( ) and
+ * again in the Ângulo's glue. It is one function with no hardware in it now and both drivers call it, so these cases pin what the panel
+ * does. Each case names the mutants it kills; stages/s7_c7 holds the run of each mutant applied to the header and the cases it failed.
+ * ───────────────────────────────────────────────────────────────────────── */
+
+/* The ends of a month, with every bit set so that only the range decides: `>= 0` or a dropped lower bound makes day 0 true; `> 1` makes
+ * day 1 false; `< 31` makes day 31 false; a mask narrowed to 16 bits makes day 31 false. Day 32 is false by the range, but no case can show
+ * that the upper bound is there: unsigned long is 64 bits on the host, so a dropped or widened `<= 31` reads bit 32 of a 32-bit mask, which
+ * is clear. On the RP2040 that shift is undefined, and the bound is what keeps it out. */
+void test_cal_day_has_history_holds_the_first_and_last_day_of_a_month(void) {
+    const uint32_t all = 0xFFFFFFFFu;
+    TEST_ASSERT_FALSE(calDayHasHistory(all, 0));                   /* bit 0 is set and is not a day */
+    TEST_ASSERT_TRUE(calDayHasHistory(all, 1));
+    TEST_ASSERT_TRUE(calDayHasHistory(all, 31));
+    TEST_ASSERT_FALSE(calDayHasHistory(all, 32));
+}
+
+/* The bit is the day's number and the mask decides. With only bit 5 set, day 5 is true and its neighbours are not: a shift of `day - 1`
+ * reads bit 4 for day 5, one of `day + 1` reads bit 5 for day 4. An ignored mask, `|` or `&&` for `&`, `||` for the first or the second `&&`
+ * make day 4 or day 15 true. A shift of `day % 16` finds bit 15 for day 31 and misses the one that is set. */
+void test_cal_day_has_history_reads_the_bit_of_that_day_and_nothing_else(void) {
+    const uint32_t five = 1u << 5;
+    TEST_ASSERT_TRUE(calDayHasHistory(five, 5));
+    TEST_ASSERT_FALSE(calDayHasHistory(five, 4));
+    TEST_ASSERT_FALSE(calDayHasHistory(five, 6));
+    TEST_ASSERT_FALSE(calDayHasHistory(0, 15));                    /* no history at all */
+    TEST_ASSERT_TRUE(calDayHasHistory(1u << 31, 31));              /* the last bit, and only it */
+    TEST_ASSERT_FALSE(calDayHasHistory(1u << 31, 30));
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
+ * Where the chart's window ends (display/GraphAnchor.h)
+ *
+ * 2026-10-15 (fix/ui-angulo-historico): Core 0 judged the window after the arrows' taps against a clock it read later than the one it had
+ * anchored on, and never dropped the anchor when the chart was opened from another screen. Each decision is a function with no hardware in
+ * it, and the Ângulo's image calls them. The window is the present again when the taps bring it back to where they left the live window
+ * (the base), or when it ends at or after the clock; a calendar window has no base and keeps its alignment. Each case names the mutants it
+ * kills; stages/hist_fix2 holds the run of each mutant applied to the header and the cases it failed.
+ * ───────────────────────────────────────────────────────────────────────── */
+
+static const time_t GA_H = 3600;
+static const time_t GA_D = 86400;
+static const time_t GA_M = 1791936000;                                       /* a midnight (a multiple of 86400): the calendar cases need one */
+static const time_t GA_NOW = GA_M + 10 * GA_H;                               /* 10:00 on that day; nothing else depends on the value */
+static const time_t GA_STEP[5] = { 3600, 21600, 43200, 86400, 604800 };      /* 1 h, 6 h, 12 h, 24 h, 7 d: the five periods of the chart */
+
+static void ga_expect(time_t anchorEnd, time_t liveBase, int offset, const GraphAnchorPlace &got) {
+    TEST_ASSERT_EQUAL_INT64((long long)anchorEnd, (long long)got.anchorEnd);
+    TEST_ASSERT_EQUAL_INT64((long long)liveBase, (long long)got.liveBase);
+    TEST_ASSERT_EQUAL_INT(offset, got.offset);
+}
+
+static void ga_live(const GraphAnchorPlace &got) { ga_expect(0, 0, 0, got); }   /* the live window: no anchor, no base, ▶ disabled */
+
+/* A tap back from the live window is whole periods in the past, for each of the five, and the base is the clock it left at: a sign taken wrong or
+ * a `step` left out puts the end elsewhere, an anchor that does not start at the clock puts it near 1970, an offset left at 0 says the past is the
+ * present, and a base that is not set (or not kept) leaves the way back with nothing to measure against. */
+void test_graph_anchor_back_from_the_present_is_whole_periods_in_the_past(void) {
+    for (int i = 0; i < 5; i++) {
+        const time_t s = GA_STEP[i];
+        ga_expect(GA_NOW - s, GA_NOW, -1, graphAnchorStep(0, 0, GA_NOW, -1, s));
+        ga_expect(GA_NOW - 3 * s, GA_NOW, -1, graphAnchorStep(0, 0, GA_NOW, -3, s));
+    }
+}
+
+/* The defect: one period back, then one forward, is the present, however long the wait between the taps: the window the forward tap reaches ends
+ * where the back tap started, and that is where the live window ended when it was left. The old code judged it against a later clock and read the
+ * past (▶ still enabled). The gaps run from none to three periods, with 10 minutes on the 1 h period among them; the half of a period and the whole
+ * one are there because an earlier version of the rule had a bound at the half. A rule that ignores the base, a `>` in place of the `>=` (the window
+ * ends exactly at the base), a base never set and one that is kept when the live window returns each fail here. */
+void test_graph_anchor_back_then_forward_is_the_present_however_long_the_wait(void) {
+    for (int i = 0; i < 5; i++) {
+        const time_t s = GA_STEP[i];
+        const GraphAnchorPlace back = graphAnchorStep(0, 0, GA_NOW, -1, s);
+        const time_t gaps[] = { 0, 1, 5, 30, 600, s / 2 - 1, s / 2, s / 2 + 1, s, 3 * s };
+        for (time_t d : gaps) ga_live(graphAnchorStep(back.anchorEnd, back.liveBase, GA_NOW + d, +1, s));
+    }
+}
+
+/* Two taps back and one forward is one period back: the forward does not jump to the present, and the base is the one the first tap set, not a
+ * later clock. */
+void test_graph_anchor_two_backs_then_one_forward_is_one_period_back(void) {
+    for (int i = 0; i < 5; i++) {
+        const time_t s = GA_STEP[i];
+        const GraphAnchorPlace b1 = graphAnchorStep(0, 0, GA_NOW, -1, s);
+        const GraphAnchorPlace b2 = graphAnchorStep(b1.anchorEnd, b1.liveBase, GA_NOW + 2, -1, s);
+        ga_expect(GA_NOW - 2 * s, GA_NOW, -1, b2);
+        ga_expect(GA_NOW - s, GA_NOW, -1, graphAnchorStep(b2.anchorEnd, b2.liveBase, GA_NOW + 5, +1, s));
+    }
+}
+
+/* Forward from the present stays there: no window after the clock, whatever the number of taps, and nothing frozen at a clock (the second ▶ of
+ * the old code left the anchor at the moment it was pressed). A calendar window left a few seconds short of the clock reaches it by one step. */
+void test_graph_anchor_forward_from_the_present_stays_at_the_present(void) {
+    for (int i = 0; i < 5; i++) {
+        const time_t s = GA_STEP[i];
+        ga_live(graphAnchorStep(0, 0, GA_NOW, +1, s));
+        ga_live(graphAnchorStep(0, 0, GA_NOW, +3, s));
+        ga_live(graphAnchorStep(GA_NOW - 7, 0, GA_NOW, +1, s));
+    }
+}
+
+/* The finding that moved the rule from a distance to a base. The calendar's today ends at the next midnight, and a step back from it is yesterday,
+ * [M - 1 d, M], at any hour after midnight: the half-step version called it the present until 12:00, because M was then under half a period behind
+ * the clock. The base is stale on purpose (left the live window the evening before): graphAnchorDay( ) must drop it. On 12 h the same step ends at
+ * noon, which is ahead of the clock until noon (the old clamp: the live window) and the past after it; on 6 h at 18:00. At the stroke of midnight
+ * yesterday's window ends at the clock, and that is the live one. A `>` in place of the `>=` against the clock, the clock test dropped, the half-step
+ * bound back, a base used where there is none and a day that keeps the base fail here. */
+void test_graph_anchor_a_calendar_today_steps_back_to_yesterday_not_to_the_present(void) {
+    const time_t hours[] = { 1, 10, 11, 12, 13, 15, 23 };
+    for (time_t h : hours) {
+        time_t a = 0, b = GA_M - 5 * GA_H;
+        graphAnchorDay(GA_M, a, b);
+        ga_expect(GA_M, 0, -1, graphAnchorStep(a, b, GA_M + h * GA_H, -1, GA_D));
+    }
+    time_t a = 0, b = GA_M - 5 * GA_H;
+    graphAnchorDay(GA_M, a, b);
+    ga_live(graphAnchorStep(a, b, GA_M, -1, GA_D));
+    ga_live(graphAnchorStep(a, b, GA_M + 10 * GA_H, -1, 12 * GA_H));                          /* noon is ahead of 10:00 */
+    ga_expect(GA_M + 12 * GA_H, 0, -1, graphAnchorStep(a, b, GA_M + 15 * GA_H, -1, 12 * GA_H));
+    ga_live(graphAnchorStep(a, b, GA_M + 10 * GA_H, -1, 6 * GA_H));                           /* 18:00 is ahead of 10:00 */
+    ga_live(graphAnchorStep(a, b, GA_M + 15 * GA_H, -1, 6 * GA_H));
+    ga_expect(GA_M + 18 * GA_H, 0, -1, graphAnchorStep(a, b, GA_M + 20 * GA_H, -1, 6 * GA_H));
+}
+
+/* Forward from a window that ends at M - 1 d (the day before yesterday, picked in the calendar) is yesterday, [M - 1 d, M], at 10:00 and at 15:00,
+ * and one more is today's, which ends ahead of the clock: the live window. */
+void test_graph_anchor_a_calendar_window_stepped_forward_keeps_its_alignment(void) {
+    const time_t hours[] = { 10, 15 };
+    for (time_t h : hours) {
+        time_t a = 0, b = GA_NOW;
+        graphAnchorDay(GA_M - 2 * GA_D, a, b);   /* a = M - 1 d */
+        ga_expect(GA_M, 0, -1, graphAnchorStep(a, b, GA_M + h * GA_H, +1, GA_D));
+        ga_live(graphAnchorStep(GA_M, 0, GA_M + h * GA_H, +1, GA_D));
+    }
+}
+
+/* A calendar day ten days back, stepped forward a day at a time, stays in the past until its window reaches the clock: M - 8 d, M - 7 d ... M, and the
+ * tenth step ends at M + 1 d, ahead of the clock, which is the live window. */
+void test_graph_anchor_a_calendar_day_ten_days_back_stays_in_the_past_until_it_reaches_the_clock(void) {
+    time_t a = 0, b = GA_NOW;
+    graphAnchorDay(GA_M - 10 * GA_D, a, b);
+    ga_expect(GA_M - 9 * GA_D, 0, -1, GraphAnchorPlace{ a, b, -1 });
+    for (int k = 1; k <= 9; k++) {
+        const GraphAnchorPlace p = graphAnchorStep(a, b, GA_NOW, +1, GA_D);
+        ga_expect(GA_M - 9 * GA_D + k * GA_D, 0, -1, p);
+        a = p.anchorEnd;
+        b = p.liveBase;
+    }
+    ga_live(graphAnchorStep(a, b, GA_NOW, +1, GA_D));
+}
+
+/* A period chosen in between does not lose the way back to the present. Three 24 h steps back and then 1 h steps: 71 forwards are still the past,
+ * the 72nd is the live window. One 1 h step back and then one 24 h step forward is the live window. */
+void test_graph_anchor_a_period_switch_keeps_the_way_back_to_the_present(void) {
+    time_t a = 0, b = 0;
+    for (int i = 0; i < 3; i++) {
+        const GraphAnchorPlace p = graphAnchorStep(a, b, GA_NOW + i, -1, GA_D);
+        a = p.anchorEnd;
+        b = p.liveBase;
+    }
+    ga_expect(GA_NOW - 3 * GA_D, GA_NOW, -1, GraphAnchorPlace{ a, b, -1 });
+    for (int k = 1; k <= 71; k++) {
+        const GraphAnchorPlace p = graphAnchorStep(a, b, GA_NOW + 10 + k, +1, GA_H);
+        ga_expect(GA_NOW - 72 * GA_H + k * GA_H, GA_NOW, -1, p);
+        a = p.anchorEnd;
+        b = p.liveBase;
+    }
+    ga_live(graphAnchorStep(a, b, GA_NOW + 100, +1, GA_H));
+    const GraphAnchorPlace one = graphAnchorStep(0, 0, GA_NOW, -1, GA_H);
+    ga_live(graphAnchorStep(one.anchorEnd, one.liveBase, GA_NOW + 3, +1, GA_D));
+}
+
+/* A window that ends at the clock or after it is the live window, with no base (the old clamp against the future): the calendar's today stepped
+ * forward, a back that is still ahead, a step that lands exactly on the clock (a `>` in place of the `>=` fails here), and the test dropped. A
+ * calendar window one second short of the clock is the past: there is no tolerance left in the rule. And a window 100 s ahead, one hour back, is
+ * 3,500 s behind: placed from the anchor, not from the clock. The test of the clock holds with a base too: the live window left one day back, then
+ * the clock set back three days (NTP replacing a provisional clock that ran ahead, or a manual time), and one more day back ends a day after the
+ * clock, so it is the live window. Tested only without a base, a `liveBase == 0` added to that test passed all 316 cases and drew that window as
+ * the past (review of d2bf3cd, 2026-10-15). */
+void test_graph_anchor_stepping_to_or_past_the_clock_is_the_live_window(void) {
+    for (int i = 0; i < 5; i++) {
+        const time_t s = GA_STEP[i];
+        ga_live(graphAnchorStep(GA_NOW + 50000, 0, GA_NOW, +2, s));
+        ga_live(graphAnchorStep(GA_NOW + 2 * s, 0, GA_NOW, -1, s));
+        ga_live(graphAnchorStep(GA_NOW - s, 0, GA_NOW, +1, s));
+        ga_expect(GA_NOW - 1, 0, -1, graphAnchorStep(GA_NOW - 1 - s, 0, GA_NOW, +1, s));
+    }
+    ga_expect(GA_NOW - 3500, 0, -1, graphAnchorStep(GA_NOW + 100, 0, GA_NOW, -1, 3600));
+    const GraphAnchorPlace b1 = graphAnchorStep(0, 0, GA_NOW, -1, GA_D);
+    ga_expect(GA_NOW - GA_D, GA_NOW, -1, b1);
+    ga_live(graphAnchorStep(b1.anchorEnd, b1.liveBase, GA_NOW - 3 * GA_D, -1, GA_D));
+}
+
+/* A window well in the past moves by whole periods, with a base and without one: ten periods back, +1 is nine, -2 is twelve, +9 is one, and +10 or
+ * +11 is the live window. With the base, +10 ends exactly at it. This is the part the old code did the same way. */
+void test_graph_anchor_a_window_well_in_the_past_moves_by_whole_periods(void) {
+    for (int i = 0; i < 5; i++) {
+        const time_t s = GA_STEP[i];
+        const time_t w = GA_NOW - 10 * s;
+        ga_expect(GA_NOW - 9 * s, 0, -1, graphAnchorStep(w, 0, GA_NOW, +1, s));
+        ga_expect(GA_NOW - 12 * s, 0, -1, graphAnchorStep(w, 0, GA_NOW, -2, s));
+        ga_expect(GA_NOW - s, 0, -1, graphAnchorStep(w, 0, GA_NOW, +9, s));
+        ga_live(graphAnchorStep(w, 0, GA_NOW, +10, s));
+        ga_live(graphAnchorStep(w, 0, GA_NOW, +11, s));
+        ga_expect(GA_NOW - s, GA_NOW - 5, -1, graphAnchorStep(w, GA_NOW - 5, GA_NOW, +9, s));
+        ga_live(graphAnchorStep(w, GA_NOW - 5, GA_NOW, +10, s));
+        ga_expect(w + s, GA_NOW - 5, -1, graphAnchorStep(w, GA_NOW - 5, GA_NOW, +1, s));
+    }
+}
+
+/* A calendar day is its own window and forgets any base: the live window was left at 03:00 and yesterday picked, and a 6 h step forward from
+ * [M - 1 d, M] is [M, M + 6 h], in the past at 10:00. A base kept from 03:00 would call it the present (06:00 is after it), and a base set to
+ * anything else is as wrong. */
+void test_graph_anchor_a_calendar_day_is_not_the_live_window_and_forgets_its_base(void) {
+    time_t a = GA_M + 2 * GA_H, b = GA_M + 3 * GA_H;
+    graphAnchorDay(GA_M - GA_D, a, b);
+    TEST_ASSERT_EQUAL_INT64((long long)GA_M, (long long)a);
+    TEST_ASSERT_EQUAL_INT64(0LL, (long long)b);
+    ga_expect(GA_M + 6 * GA_H, 0, -1, graphAnchorStep(a, b, GA_NOW, +1, 6 * GA_H));
+}
+
+/* Opened from any other screen the chart starts at the present: the 28 modes of UiMode that are not the chart, from the dashboard (0) to the
+ * firmware-update screen (30), and any value past them, since a mode appended later is another screen. The three graph modes, 1 to 3, are
+ * the next case's. */
+void test_graph_open_from_any_other_screen_starts_at_the_present(void) {
+    for (int m = -1; m <= 40; m++) {
+        if (m >= 1 && m <= 3) continue;
+        TEST_ASSERT_TRUE(graphOpenClearsAnchor(m));
+    }
+}
+
+/* Inside the chart the window is kept: the loading screen (1), the chart (2) and its detail (3), each of them. A mode dropped from the rule
+ * makes its opening start at the present, and the way back from the detail would lose the day the user chose. */
+void test_graph_open_inside_the_chart_keeps_the_window(void) {
+    TEST_ASSERT_FALSE(graphOpenClearsAnchor(1));    /* MODE_GRAPH_LOADING */
+    TEST_ASSERT_FALSE(graphOpenClearsAnchor(2));    /* MODE_GRAPH_VIEW */
+    TEST_ASSERT_FALSE(graphOpenClearsAnchor(3));    /* MODE_GRAPH_DETAIL */
+    TEST_ASSERT_EQUAL_INT(1, GRAPH_SCREEN_LOADING);
+    TEST_ASSERT_EQUAL_INT(2, GRAPH_SCREEN_VIEW);
+    TEST_ASSERT_EQUAL_INT(3, GRAPH_SCREEN_DETAIL);
+}
+
+/* What the opening does to the pair, for every mode: from another screen the anchor and its base both go (a base left behind would be measured
+ * from a window nobody can see); inside the chart both stay as they were. */
+void test_graph_open_from_another_screen_clears_the_anchor_and_its_base(void) {
+    for (int m = -1; m <= 40; m++) {
+        time_t a = GA_NOW - GA_H, b = GA_NOW;
+        graphAnchorOpen(m, a, b);
+        if (m >= 1 && m <= 3) {
+            TEST_ASSERT_EQUAL_INT64((long long)(GA_NOW - GA_H), (long long)a);
+            TEST_ASSERT_EQUAL_INT64((long long)GA_NOW, (long long)b);
+        } else {
+            TEST_ASSERT_EQUAL_INT64(0LL, (long long)a);
+            TEST_ASSERT_EQUAL_INT64(0LL, (long long)b);
+        }
+    }
+}
+
+/* ------------------------------------------------------------------------------------------------------------------------------
+ * The settings screens' steps (display/SettingsSteps.h)
+ *
+ * 2026-10-15 (S8a of the UI drivers): the sounds list's volume rows, the display alignment's arrows and the language list's bound were spelled out
+ * in the original's handleTouch( ) and again in the Angulo's glue. They are pure functions now and the core's actions call them, so these cases pin
+ * what the panel does. Each case names the mutants it kills; stages/s8a_c8 holds the run of each mutant applied to the header and the cases it failed.
+ * ------------------------------------------------------------------------------------------------------------------------------ */
+
+/* A volume step, called as the sounds list's two volume rows call it. */
+static uint8_t volumeStepped( uint8_t v, bool down ) {
+    volumeStep( v, down );
+    return v;
+}
+
+/* Down from under ten stays where it is: 0 and 9 keep their value. `>= 9` (9 - 10 wraps to 255) and a dropped guard (0 wraps to 246) fail here. */
+void test_volume_step_down_holds_at_zero_and_below_ten(void) {
+    TEST_ASSERT_EQUAL_UINT8(0, volumeStepped(0, true));
+    TEST_ASSERT_EQUAL_UINT8(9, volumeStepped(9, true));
+}
+
+/* Down from ten or more takes exactly ten off: 10 reaches 0 (`> 10` fails), 11 reaches 1 (a step that sets the floor fails), and a step of 1 fails
+ * every row. */
+void test_volume_step_down_takes_ten_off(void) {
+    TEST_ASSERT_EQUAL_UINT8(0, volumeStepped(10, true));
+    TEST_ASSERT_EQUAL_UINT8(1, volumeStepped(11, true));
+    TEST_ASSERT_EQUAL_UINT8(90, volumeStepped(100, true));
+    TEST_ASSERT_EQUAL_UINT8(245, volumeStepped(255, true));
+}
+
+/* Up from 90 or less puts exactly ten on: 90 reaches 100 (`< 90` fails), 89 reaches 99 (a step that sets the ceiling fails), and a step of 1 fails
+ * every row. */
+void test_volume_step_up_puts_ten_on(void) {
+    TEST_ASSERT_EQUAL_UINT8(10, volumeStepped(0, false));
+    TEST_ASSERT_EQUAL_UINT8(99, volumeStepped(89, false));
+    TEST_ASSERT_EQUAL_UINT8(100, volumeStepped(90, false));
+}
+
+/* Up from over 90 stays where it is: 91 (`<= 91` fails), 100 and 255 (a dropped guard fails both). */
+void test_volume_step_up_holds_at_the_top(void) {
+    TEST_ASSERT_EQUAL_UINT8(91, volumeStepped(91, false));
+    TEST_ASSERT_EQUAL_UINT8(100, volumeStepped(100, false));
+    TEST_ASSERT_EQUAL_UINT8(255, volumeStepped(255, false));
+}
+
+/* An alignment step on one axis, checked as the arrows use it: the value after it and whether it moved. */
+static void assert_offset_step(int8_t from, int dir, int8_t want, bool wantMoved) {
+    int8_t v = from;
+    const bool moved = offsetStep(v, dir);
+    TEST_ASSERT_EQUAL_INT8(want, v);
+    TEST_ASSERT_EQUAL_INT(wantMoved ? 1 : 0, moved ? 1 : 0);
+}
+
+/* At an end the arrow toward it does nothing: -4 down and +4 up. `>= -4` and `<= 4` move past the end, a return that is always true fails both. */
+void test_offset_step_holds_at_the_ends(void) {
+    assert_offset_step(-4, -1, -4, false);
+    assert_offset_step(4, +1, 4, false);
+}
+
+/* One step toward an end moves by one and says so: -3 down and +3 up (`> -3` and `< 3` stop one short), 0 either way. */
+void test_offset_step_moves_one_toward_each_end(void) {
+    assert_offset_step(-3, -1, -4, true);
+    assert_offset_step(3, +1, 4, true);
+    assert_offset_step(0, -1, -1, true);
+    assert_offset_step(0, +1, 1, true);
+}
+
+/* From an end the other arrow comes back: -4 up and +4 down. A step that never moves, or one that moves and says it did not, fails here. */
+void test_offset_step_comes_back_from_either_end(void) {
+    assert_offset_step(-4, +1, -3, true);
+    assert_offset_step(4, -1, 3, true);
+}
+
+/* A value already past an end (the panel never stores one) is left alone, which `!= -4` and `!= 4` would not do. */
+void test_offset_step_leaves_a_value_beyond_the_end_alone(void) {
+    assert_offset_step(-5, -1, -5, false);
+    assert_offset_step(5, +1, 5, false);
+}
+
+/* The ramp of a limit's arrow. At the top of each arm (0, 2000, 4000 and 6000 ms) the arm below still answers: `>=` at any threshold, two arms swapped and an arm dropped fail here. */
+void test_limit_step_mag_holds_each_arm_up_to_its_threshold(void) {
+    TEST_ASSERT_EQUAL_FLOAT(0.1f, limitStepMag(0));
+    TEST_ASSERT_EQUAL_FLOAT(0.1f, limitStepMag(2000));
+    TEST_ASSERT_EQUAL_FLOAT(0.5f, limitStepMag(4000));
+    TEST_ASSERT_EQUAL_FLOAT(1.0f, limitStepMag(6000));
+}
+
+/* One millisecond past a threshold the next arm answers, and a held arrow never leaves the last one (the largest count included): two arms swapped and an arm dropped fail here. */
+void test_limit_step_mag_moves_to_the_next_arm_one_millisecond_past(void) {
+    TEST_ASSERT_EQUAL_FLOAT(0.5f, limitStepMag(2001));
+    TEST_ASSERT_EQUAL_FLOAT(1.0f, limitStepMag(4001));
+    TEST_ASSERT_EQUAL_FLOAT(10.0f, limitStepMag(6001));
+    TEST_ASSERT_EQUAL_FLOAT(10.0f, limitStepMag(0xFFFFFFFFu));
+}
+
+/* =========================================================================== */
+/*  PL022 BAUD LADDER — display/Pl022Baud.h (2026-10-15)                       */
+/* =========================================================================== */
+/* The panel's SPI asked for 62.5 MHz and ran at 24 MHz: the framework's clock
+ * setup had moved clk_peri to the 48 MHz USB PLL, and the block divides clk_peri
+ * by an even prescale times a post-divider, so its ceiling there is 24 MHz. These
+ * cases pin the arithmetic that says so, at the clocks the firmware has had and
+ * the requests it makes. The model is the SDK's spi_set_baudrate( ); it was held
+ * to the SDK's own code over a grid when it was written (the PR of 2026-10-15). */
+
+static void expect_rung(uint32_t peri, uint32_t want, uint32_t prescale, uint32_t postdiv, uint32_t baud) {
+    const pl022::Rung r = pl022::rung(peri, want);
+    char msg[96];
+    snprintf(msg, sizeof msg, "clk_peri %lu asked %lu", (unsigned long)peri, (unsigned long)want);
+    TEST_ASSERT_EQUAL_UINT32_MESSAGE(prescale, r.prescale, msg);
+    TEST_ASSERT_EQUAL_UINT32_MESSAGE(postdiv, r.postdiv, msg);
+    TEST_ASSERT_EQUAL_UINT32_MESSAGE(baud, r.baud, msg);
+}
+
+void test_pl022_a_48_mhz_peri_clock_runs_the_panel_at_24_mhz(void) {
+    /* Bench, 2026-10-15: clk_peri 48 MHz, SPI0 24 MHz after a push, for 62.5 MHz asked. */
+    expect_rung(48000000u, 62500000u, 2, 1, 24000000u);
+    /* 31.25 MHz, what v2.1.5 asked, got the same: v2.1.6's 62.5 never reached the wire. */
+    expect_rung(48000000u, 31250000u, 2, 1, 24000000u);
+}
+
+void test_pl022_a_125_mhz_peri_clock_reaches_62_5_mhz(void) {
+    /* The clock the old comments assumed. */
+    expect_rung(125000000u, 62500000u, 2, 1, 62500000u);
+    expect_rung(125000000u, 31250000u, 2, 2, 31250000u);
+}
+
+void test_pl022_62_5_mhz_asked_of_a_133_mhz_clock_gets_33_25(void) {
+    expect_rung(133000000u, 62500000u, 2, 2, 33250000u);
+}
+
+void test_pl022_the_panel_constant_is_the_ceiling_of_a_133_mhz_clock(void) {
+    TEST_ASSERT_EQUAL_UINT32(66500000u, (uint32_t)SIMUT_TFT_SPI_HZ);
+    expect_rung(133000000u, SIMUT_TFT_SPI_HZ, 2, 1, 66500000u);
+    /* The next rung down, where a panel that shows stray pixels falls back to. */
+    expect_rung(133000000u, 33250000u, 2, 2, 33250000u);
+    /* The manual's old fallback is no rung of this clock: it runs at 22.17 MHz. */
+    expect_rung(133000000u, 31250000u, 2, 3, 22166666u);
+}
+
+void test_pl022_the_same_request_gets_37_5_mhz_on_the_rp2350(void) {
+    /* pico2_w_release: clk_sys = clk_peri = 150 MHz, the ladder is 75 / 37.5 / 25. */
+    expect_rung(150000000u, SIMUT_TFT_SPI_HZ, 2, 2, 37500000u);
+    expect_rung(150000000u, 62500000u, 2, 2, 37500000u);   /* the Pico 2 W does not change */
+    expect_rung(150000000u, 75000000u, 2, 1, 75000000u);
+}
+
+void test_pl022_the_touch_asks_2_mhz_and_gets_a_hair_less(void) {
+    /* XPT2046_Touchscreen: SPISettings(2000000, MSBFIRST, SPI_MODE0). */
+    expect_rung(48000000u, 2000000u, 2, 12, 2000000u);
+    expect_rung(133000000u, 2000000u, 2, 34, 1955882u);
+}
+
+void test_pl022_the_panel_read_slows_to_11_08_mhz_at_133_mhz(void) {
+    TEST_ASSERT_EQUAL_UINT32(12000000u, (uint32_t)SIMUT_TFT_READ_HZ);
+    expect_rung(48000000u, SIMUT_TFT_READ_HZ, 2, 2, 12000000u);
+    expect_rung(133000000u, SIMUT_TFT_READ_HZ, 2, 6, 11083333u);
+    expect_rung(150000000u, SIMUT_TFT_READ_HZ, 2, 7, 10714285u);
+}
+
+void test_pl022_the_read_clock_sweep_of_2026_09_19_ran_on_the_48_mhz_ladder(void) {
+    /* simut_config.h, SIMUT_TFT_READ_HZ: 10 MHz "same PL022 rung as 8", 16 and 20 "same rung as 12". */
+    TEST_ASSERT_EQUAL_UINT32(pl022::baud(48000000u, 8000000u), pl022::baud(48000000u, 10000000u));
+    TEST_ASSERT_EQUAL_UINT32(12000000u, pl022::baud(48000000u, 16000000u));
+    TEST_ASSERT_EQUAL_UINT32(12000000u, pl022::baud(48000000u, 20000000u));
+    /* At the 125 MHz the comment assumed, none of the three would have held. */
+    TEST_ASSERT_TRUE(pl022::baud(125000000u, 8000000u) != pl022::baud(125000000u, 10000000u));
+    TEST_ASSERT_TRUE(pl022::baud(125000000u, 12000000u) != pl022::baud(125000000u, 16000000u));
+    TEST_ASSERT_TRUE(pl022::baud(125000000u, 12000000u) != pl022::baud(125000000u, 20000000u));
+}
+
+static const uint32_t kPl022Peri[] = { 48000000u, 125000000u, 133000000u, 150000000u };
+
+void test_pl022_prescale_is_even_and_in_range(void) {
+    for (uint32_t p : kPl022Peri) {
+        for (uint32_t want = 10000u; want <= p; want += 99991u) {   /* runs past the ceiling on purpose */
+            const pl022::Rung r = pl022::rung(p, want);
+            char msg[96];
+            snprintf(msg, sizeof msg, "clk_peri %lu asked %lu", (unsigned long)p, (unsigned long)want);
+            TEST_ASSERT_EQUAL_UINT32_MESSAGE(0u, r.prescale % 2u, msg);
+            TEST_ASSERT_TRUE_MESSAGE(r.prescale >= 2u && r.prescale <= 254u, msg);
+            TEST_ASSERT_TRUE_MESSAGE(r.postdiv >= 1u && r.postdiv <= 256u, msg);
+        }
+    }
+}
+
+void test_pl022_a_request_that_is_a_rung_gets_that_rung(void) {
+    /* The boundary of the `>`: asking for exactly what a divider makes must not drop a rung. */
+    for (uint32_t p : kPl022Peri) {
+        for (uint32_t pre = 2; pre <= 8; pre += 2) {
+            for (uint32_t pd = 1; pd <= 12; pd++) {
+                if (p % (pre * pd)) continue;
+                const uint32_t want = p / (pre * pd);
+                char msg[96];
+                snprintf(msg, sizeof msg, "clk_peri %lu asked %lu (%lu x %lu)", (unsigned long)p,
+                         (unsigned long)want, (unsigned long)pre, (unsigned long)pd);
+                TEST_ASSERT_EQUAL_UINT32_MESSAGE(want, pl022::baud(p, want), msg);
+            }
+        }
+    }
+}
+
+void test_pl022_the_baud_never_exceeds_the_request_and_is_the_fastest_that_does(void) {
+    for (uint32_t p : kPl022Peri) {
+        for (uint32_t want = 100000u; want <= p / 2u; want += 100003u) {
+            const pl022::Rung r = pl022::rung(p, want);
+            char msg[96];
+            snprintf(msg, sizeof msg, "clk_peri %lu asked %lu", (unsigned long)p, (unsigned long)want);
+            TEST_ASSERT_TRUE_MESSAGE(r.baud <= want, msg);
+            if (r.postdiv > 1u) {
+                /* The next faster rung would be above the request. */
+                TEST_ASSERT_TRUE_MESSAGE(p / (r.prescale * (r.postdiv - 1u)) > want, msg);
+            }
+        }
+        /* Above the ceiling, the ceiling answers. */
+        TEST_ASSERT_EQUAL_UINT32(p / 2u, pl022::baud(p, p));
+    }
+}
+
+void test_pl022_a_request_below_what_the_divider_makes_is_refused(void) {
+    /* Prescale 254 x post-divider 256 at 48 MHz is 738 Hz. */
+    TEST_ASSERT_EQUAL_UINT32(0u, pl022::rung(48000000u, 700u).baud);
+    TEST_ASSERT_EQUAL_UINT32(0u, pl022::rung(48000000u, 0u).baud);
+    TEST_ASSERT_TRUE(pl022::rung(48000000u, 800u).baud > 0u);
+    /* The prescale loop's two edges (review of 2026-10-15; each was a surviving mutant): the product
+     * prescale x 256 x request passes 2^32 at 2 x 256 x 8,391,750, so a 32-bit product wraps and lands on
+     * another prescale (the SDK multiplies in 64 bits); and the last prescale, 254, still answers 186 Hz
+     * at 12 MHz, which a `>= 254` refusal would turn away. */
+    expect_rung(12000000u, 8391750u, 2, 1, 6000000u);
+    expect_rung(12000000u, 186u, 254, 253, 186u);
+}
+
+/* ---- ThemeApiRow.h: one row of GET /api/themes (2026-10-28) -------------------
+ * The stock names are English and each row carries the theme's code, which the
+ * page turns into the @WEBDICT key thm_<code> (tools/test_webui_theme_names.py).
+ * WebManager::handleApiThemes( ) formats every row with formatThemeRow( ), so
+ * these cases run the code that ships. */
+static void theme_fill(char* dst, size_t len, char c) { memset(dst, c, len); dst[len] = '\0'; }
+
+void test_theme_row_carries_the_id_the_code_and_the_name(void) {
+    char row[THEME_ROW_MAX];
+    int n = formatThemeRow(row, sizeof(row), 3, "cafe", "Coffee with milk");
+    TEST_ASSERT_EQUAL_STRING(",{\"id\":3,\"code\":\"cafe\",\"name\":\"Coffee with milk\"}", row);
+    TEST_ASSERT_EQUAL_INT((int)strlen(row), n);
+}
+
+void test_theme_row_the_first_row_has_no_leading_comma(void) {
+    char row[THEME_ROW_MAX];
+    formatThemeRow(row, sizeof(row), 0, "simut_def", "Simut Default");
+    TEST_ASSERT_EQUAL_STRING("{\"id\":0,\"code\":\"simut_def\",\"name\":\"Simut Default\"}", row);
+}
+
+void test_theme_row_drops_quotes_backslashes_and_control_bytes_and_keeps_utf8(void) {
+    char row[THEME_ROW_MAX];
+    formatThemeRow(row, sizeof(row), 1, "a\"b\\c", "N\"a\\m\ne\tx\x1f" "y Caf\xc3\xa9");
+    TEST_ASSERT_EQUAL_STRING(",{\"id\":1,\"code\":\"abc\",\"name\":\"Namexy Caf\xc3\xa9\"}", row);
+}
+
+void test_theme_row_cuts_the_name_at_31_bytes_and_the_code_at_15(void) {
+    char code[64], name[128], row[THEME_ROW_MAX], want[THEME_ROW_MAX];
+    theme_fill(code, 20, 'c');
+    theme_fill(name, 40, 'n');
+    formatThemeRow(row, sizeof(row), 4, code, name);
+    snprintf(want, sizeof(want), ",{\"id\":4,\"code\":\"%.15s\",\"name\":\"%.31s\"}", code, name);
+    TEST_ASSERT_EQUAL_STRING(want, row);
+}
+
+void test_theme_row_the_longest_row_is_76_bytes_and_fits_the_buffer(void) {
+    char code[16], name[32], row[THEME_ROW_MAX];
+    theme_fill(code, 15, 'c');
+    theme_fill(name, 31, 'n');
+    int n = formatThemeRow(row, sizeof(row), 99, code, name);
+    TEST_ASSERT_EQUAL_INT(76, n);                      /* ,{"id":99,"code":"<15>","name":"<31>"} */
+    TEST_ASSERT_TRUE(n + 1 <= (int)THEME_ROW_MAX);     /* with its NUL */
+    TEST_ASSERT_EQUAL_INT(n, (int)strlen(row));
+}
+
+void test_theme_row_no_id_code_or_name_length_truncates_the_row(void) {
+    const int ids[] = {0, 1, 9, 10, 99, 100, 999};
+    const size_t codeLens[] = {0, 1, 15, 16, 40};
+    const size_t nameLens[] = {0, 1, 31, 32, 100};
+    char code[64], name[128], row[THEME_ROW_MAX];
+    for (int id : ids) for (size_t cl : codeLens) for (size_t nl : nameLens) {
+        theme_fill(code, cl, 'c');
+        theme_fill(name, nl, 'n');
+        int n = formatThemeRow(row, sizeof(row), id, code, name);
+        TEST_ASSERT_TRUE(n > 0 && n < (int)THEME_ROW_MAX);
+        TEST_ASSERT_EQUAL_INT(n, (int)strlen(row));
+        TEST_ASSERT_EQUAL_CHAR('}', row[n - 1]);
+    }
+}
+
+void test_theme_row_an_empty_missing_or_all_stripped_name_becomes_theme_n(void) {
+    char row[THEME_ROW_MAX];
+    formatThemeRow(row, sizeof(row), 7, "x", "");
+    TEST_ASSERT_EQUAL_STRING(",{\"id\":7,\"code\":\"x\",\"name\":\"Theme 7\"}", row);
+    formatThemeRow(row, sizeof(row), 8, "x", NULL);
+    TEST_ASSERT_EQUAL_STRING(",{\"id\":8,\"code\":\"x\",\"name\":\"Theme 8\"}", row);
+    formatThemeRow(row, sizeof(row), 9, "x", "\"\\\n");
+    TEST_ASSERT_EQUAL_STRING(",{\"id\":9,\"code\":\"x\",\"name\":\"Theme 9\"}", row);
+}
+
+void test_theme_row_a_missing_code_is_an_empty_code(void) {
+    char row[THEME_ROW_MAX];
+    formatThemeRow(row, sizeof(row), 2, NULL, "Mine");
+    TEST_ASSERT_EQUAL_STRING(",{\"id\":2,\"code\":\"\",\"name\":\"Mine\"}", row);
+}
+
 int main(int /*argc*/, char** /*argv*/) {
     UNITY_BEGIN();
 
@@ -4879,6 +5918,8 @@ int main(int /*argc*/, char** /*argv*/) {
     RUN_TEST(test_timeReached_basic);
     RUN_TEST(test_timeReached_wrap_safe);
     RUN_TEST(test_timeSince_basic);
+    RUN_TEST(test_simTouchExpired_tap_and_hold);
+    RUN_TEST(test_simTouchExpired_wrap_safe);
 
     /* dallasCrc8 */
     RUN_TEST(test_dallasCrc8_known_vectors);
@@ -4909,6 +5950,9 @@ int main(int /*argc*/, char** /*argv*/) {
     RUN_TEST(test_tag_all_literals_used_in_firmware);
     RUN_TEST(test_tag_unknown_inputs);
     RUN_TEST(test_tag_id_to_string_roundtrip);
+    RUN_TEST(test_tag_i18n_has_its_own_id);
+    RUN_TEST(test_tag_every_name_maps_back_to_its_id);
+    RUN_TEST(test_tag_check_refuses_a_name_the_table_lacks);
 
     /* calibration curves — the engine every corrected reading passes through */
     RUN_TEST(test_calibcurve_build_sorts_input);
@@ -5017,6 +6061,26 @@ int main(int /*argc*/, char** /*argv*/) {
     RUN_TEST(test_langidx_last_occurrence_wins);
     RUN_TEST(test_langidx_absent_and_empty_sections);
     RUN_TEST(test_langidx_end_of_file);
+    RUN_TEST(test_limits_snap_keeps_what_salvar_posted_when_the_editor_moves_on);
+    RUN_TEST(test_limits_snap_a_take_for_another_slot_fails_and_leaves_the_box_for_its_own);
+    RUN_TEST(test_limits_snap_a_second_take_of_the_same_salvar_fails);
+    RUN_TEST(test_limits_snap_a_new_box_gives_nothing);
+    RUN_TEST(test_limits_snap_all_eight_channels_of_both_arrays_come_through);
+    RUN_TEST(test_langchoice_english_boot_with_a_pack_in_lang_lists_two_rows);
+    RUN_TEST(test_langchoice_english_boot_without_a_pack_lists_one_row);
+    RUN_TEST(test_langchoice_pt_boot_with_the_pack_loaded_lists_two_rows);
+    RUN_TEST(test_langchoice_pt_boot_that_loaded_nothing_opens_on_row_zero);
+    RUN_TEST(test_langchoice_the_screen_opens_on_the_saved_row_when_it_is_listed);
+    RUN_TEST(test_langchoice_a_saved_row_that_does_not_exist_opens_on_row_zero);
+    RUN_TEST(test_langchoice_valid_choices);
+    RUN_TEST(test_langchoice_refuses_a_row_that_is_not_listed);
+    RUN_TEST(test_langchoice_a_pack_chosen_while_not_loaded_waits_for_the_boot);
+    RUN_TEST(test_langchoice_english_applies_live);
+    RUN_TEST(test_langchoice_a_pack_chosen_while_loaded_applies_live);
+    RUN_TEST(test_langusable_accepts_a_shipped_like_pack);
+    RUN_TEST(test_langusable_refuses_a_directive_after_webdict);
+    RUN_TEST(test_langusable_refuses_a_pack_without_a_dict);
+    RUN_TEST(test_langusable_refuses_an_empty_dict);
     RUN_TEST(test_fold_keeps_ascii_and_latin_letters);
     RUN_TEST(test_fold_drops_spanish_opening_marks);
     RUN_TEST(test_fold_punctuation_to_ascii);
@@ -5115,6 +6179,44 @@ int main(int /*argc*/, char** /*argv*/) {
     RUN_TEST(test_clock_entry_round_trips_at_the_device_offset);
     RUN_TEST(test_clock_entry_packs_into_one_panel_event);
     RUN_TEST(test_clock_prompt_only_without_a_network_or_a_real_clock);
+    RUN_TEST(test_dash_hold_fires_at_three_seconds_and_not_before);
+    RUN_TEST(test_dash_hold_fires_once);
+    RUN_TEST(test_dash_hold_gap_of_121_ms_restarts_and_120_does_not);
+    RUN_TEST(test_dash_hold_never_fires_for_another_region_or_without_a_start);
+    RUN_TEST(test_dash_hold_fires_on_the_first_sample_past_three_seconds);
+    RUN_TEST(test_dash_hold_fires_again_after_a_gap_restart);
+    RUN_TEST(test_dash_hold_a_gap_with_no_hold_running_does_not_start_one);
+    RUN_TEST(test_dash_hold_survives_the_wrap_of_the_millisecond_counter);
+    RUN_TEST(test_dash_next_page_goes_to_the_first_after_the_last);
+    RUN_TEST(test_list_pages_rounds_up_and_a_short_last_page_counts);
+    RUN_TEST(test_list_clamp_page_holds_a_page_to_the_list_that_exists);
+    RUN_TEST(test_list_page_step_stops_at_the_ends_and_does_not_wrap);
+    RUN_TEST(test_cal_day_has_history_holds_the_first_and_last_day_of_a_month);
+    RUN_TEST(test_cal_day_has_history_reads_the_bit_of_that_day_and_nothing_else);
+    RUN_TEST(test_volume_step_down_holds_at_zero_and_below_ten);
+    RUN_TEST(test_volume_step_down_takes_ten_off);
+    RUN_TEST(test_volume_step_up_puts_ten_on);
+    RUN_TEST(test_volume_step_up_holds_at_the_top);
+    RUN_TEST(test_offset_step_holds_at_the_ends);
+    RUN_TEST(test_offset_step_moves_one_toward_each_end);
+    RUN_TEST(test_offset_step_comes_back_from_either_end);
+    RUN_TEST(test_offset_step_leaves_a_value_beyond_the_end_alone);
+    RUN_TEST(test_limit_step_mag_holds_each_arm_up_to_its_threshold);
+    RUN_TEST(test_limit_step_mag_moves_to_the_next_arm_one_millisecond_past);
+    RUN_TEST(test_graph_anchor_back_from_the_present_is_whole_periods_in_the_past);
+    RUN_TEST(test_graph_anchor_back_then_forward_is_the_present_however_long_the_wait);
+    RUN_TEST(test_graph_anchor_two_backs_then_one_forward_is_one_period_back);
+    RUN_TEST(test_graph_anchor_forward_from_the_present_stays_at_the_present);
+    RUN_TEST(test_graph_anchor_a_calendar_today_steps_back_to_yesterday_not_to_the_present);
+    RUN_TEST(test_graph_anchor_a_calendar_window_stepped_forward_keeps_its_alignment);
+    RUN_TEST(test_graph_anchor_a_calendar_day_ten_days_back_stays_in_the_past_until_it_reaches_the_clock);
+    RUN_TEST(test_graph_anchor_a_period_switch_keeps_the_way_back_to_the_present);
+    RUN_TEST(test_graph_anchor_stepping_to_or_past_the_clock_is_the_live_window);
+    RUN_TEST(test_graph_anchor_a_window_well_in_the_past_moves_by_whole_periods);
+    RUN_TEST(test_graph_anchor_a_calendar_day_is_not_the_live_window_and_forgets_its_base);
+    RUN_TEST(test_graph_open_from_any_other_screen_starts_at_the_present);
+    RUN_TEST(test_graph_open_inside_the_chart_keeps_the_window);
+    RUN_TEST(test_graph_open_from_another_screen_clears_the_anchor_and_its_base);
     RUN_TEST(test_settings_menu_item_ids_are_the_historical_ones);
     RUN_TEST(test_settings_menu_order_lists_every_item_once);
     RUN_TEST(test_settings_menu_full_admin_sees_every_item_in_order);
@@ -5174,6 +6276,27 @@ int main(int /*argc*/, char** /*argv*/) {
     RUN_TEST(test_media_type_accepts_what_servers_expect);
     RUN_TEST(test_media_type_refuses_what_would_break_the_header);
     RUN_TEST(test_tel_content_type_per_mode);
+    RUN_TEST(test_pl022_a_48_mhz_peri_clock_runs_the_panel_at_24_mhz);
+    RUN_TEST(test_pl022_a_125_mhz_peri_clock_reaches_62_5_mhz);
+    RUN_TEST(test_pl022_62_5_mhz_asked_of_a_133_mhz_clock_gets_33_25);
+    RUN_TEST(test_pl022_the_panel_constant_is_the_ceiling_of_a_133_mhz_clock);
+    RUN_TEST(test_pl022_the_same_request_gets_37_5_mhz_on_the_rp2350);
+    RUN_TEST(test_pl022_the_touch_asks_2_mhz_and_gets_a_hair_less);
+    RUN_TEST(test_pl022_the_panel_read_slows_to_11_08_mhz_at_133_mhz);
+    RUN_TEST(test_pl022_the_read_clock_sweep_of_2026_09_19_ran_on_the_48_mhz_ladder);
+    RUN_TEST(test_pl022_prescale_is_even_and_in_range);
+    RUN_TEST(test_pl022_a_request_that_is_a_rung_gets_that_rung);
+    RUN_TEST(test_pl022_the_baud_never_exceeds_the_request_and_is_the_fastest_that_does);
+    RUN_TEST(test_pl022_a_request_below_what_the_divider_makes_is_refused);
+
+    RUN_TEST(test_theme_row_carries_the_id_the_code_and_the_name);
+    RUN_TEST(test_theme_row_the_first_row_has_no_leading_comma);
+    RUN_TEST(test_theme_row_drops_quotes_backslashes_and_control_bytes_and_keeps_utf8);
+    RUN_TEST(test_theme_row_cuts_the_name_at_31_bytes_and_the_code_at_15);
+    RUN_TEST(test_theme_row_the_longest_row_is_76_bytes_and_fits_the_buffer);
+    RUN_TEST(test_theme_row_no_id_code_or_name_length_truncates_the_row);
+    RUN_TEST(test_theme_row_an_empty_missing_or_all_stripped_name_becomes_theme_n);
+    RUN_TEST(test_theme_row_a_missing_code_is_an_empty_code);
 
     return UNITY_END();
 }

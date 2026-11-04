@@ -17,32 +17,61 @@ deste manual antes do primeiro estilo ou da primeira frase.** Parte das regras
 
 ## 1. A bancada
 
-Desde 12/10/2026, um Pico 2 W (o **alvo**, que roda o SIMUT, com os cinco
-sensores e o painel TFT) e um Pico W (a **PicoHand**, ou "mão") que aciona as
-linhas RESET (GP0) e BOOTSEL (GP1) do alvo por comando serial, mede a sonda e
-finge o carregador. A mão roda na placa que foi o alvo até 05/10; o Pico comum
-que era a mão foi para outro projeto e pode continuar ligada a este PC: não
-mande nada a ela. O alvo está em `192.168.3.33`, com a web na porta 8080.
+Desde 22/10/2026, um Pico 2 W (o **alvo**, que roda o SIMUT, com o painel TFT
+e três sensores: DS18B20 no GP0, DHT22 no GP3 e no GP10) e um Pico comum (a
+**PicoHand**, ou "mão") que aciona as linhas RESET (GP0) e BOOTSEL (GP1) do alvo
+por comando serial, mede a sonda e finge o carregador. De 12/10 a 22/10 a
+bancada foi outra: o alvo era um Pico W (o SIMUT Wire, com a rede no módulo
+ENC28J60) e a mão era este Pico 2 W. O Pico W saiu do USB; ele voltou para o
+portão da v2.12.0 (28/10 e 29/10/2026) e saiu de novo, com a flash devolvida
+byte a byte à imagem do Wire com painel com que chegou (web pelo cabo, em
+`192.168.3.40:8080`). Voltou de novo para o portão da v2.13.0 (31/10/2026, de
+00:47 a 03:32), quando o mantenedor trocou as placas: o Pico 2 W saiu do USB e o
+Pico W ficou em 3-3.1, na imagem com que chegou (a flash devolvida byte a byte),
+com a mão em 3-3.2 e o carregador em alta impedância (o registro da sessão 2 do
+portão, ao fim dela, 31/10/2026 03:32). O alvo Pico 2 W, fora do USB, está em
+`192.168.3.33`, com a web na porta 8080, pelo Wi-Fi.
 
-**Identifique as portas pelo serial, nunca pela ordem de enumeração:**
+**Em 31/10/2026 o Pico 2 W roda a candidata da v2.13.0 que o CI assinou na
+`main` (`ae87f6d6`, slot B), por escolha do mantenedor, e não a imagem Ângulo de
+desenvolvimento do ramo `feat/ui-drivers` com que o portão começou.** O `GET
+/api/ui` sem sessão dá 401 nela (a candidata desenha o Ângulo) e 302 numa imagem
+com o painel original, como a v2.12.0. O portão da v2.13.0 gravou o `.uf2` de
+fábrica da v2.12.0 e a candidata por cima e não devolveu a imagem Ângulo de
+29/10/2026, então o dump de chegada daquela imagem não descreve mais a flash do
+alvo. Quem gravar o alvo de novo guarda a flash inteira antes, em duas leituras
+iguais, e a devolve no fim (o item sobre a flash inteira, em *O Pico 2 W*, mais
+abaixo).
 
-| Placa | USB | Serial (udev) |
-|---|---|---|
-| PicoHand (mão), num Pico W | `2e8a:f00a` | `ID_SERIAL_SHORT=E6642815E34C1824` |
-| Alvo SIMUT (Pico 2 W) | `2e8a:f00f` | `ID_SERIAL_SHORT=6A73539D612923CA` |
-| A mão antiga, fora da bancada | `2e8a:000a` | `ID_SERIAL_SHORT=E660C062131E3E27` |
+**Identifique as portas pelo serial, nunca pela ordem de enumeração** (lidos do
+udev em 22/10/2026; o alvo em 3-3.1 e a mão em 3-3.2, conferidos de novo em
+29/10/2026; ao fim do portão da v2.13.0, em 31/10/2026, o registro da bancada
+tem o Pico W em 3-3.1 e a mão em 3-3.2):
+
+| Placa | USB | Porta | Serial (udev) |
+|---|---|---|---|
+| Alvo SIMUT (Pico 2 W), fora do USB desde 31/10/2026 | `2e8a:f00f`, `ID_MODEL=Pico_2W` | 3-3.1 até 30/10/2026 | `ID_SERIAL_SHORT=6A73539D612923CA` |
+| PicoHand (mão), num Pico comum | `2e8a:000a`, `ID_MODEL=Pico` | 3-3.2 | `ID_SERIAL_SHORT=E660C062131E3E27` |
+| O Pico W do Wire, no USB desde 31/10/2026 | `2e8a:000a`, `ID_MODEL=Pico` com a imagem do Wire (`2e8a:f00a`, `ID_MODEL=Pico_W` com um firmware SIMUT) | 3-3.1 | `ID_SERIAL_SHORT=E6642815E34C1824` |
+
+Compare o `ID_MODEL` pela linha inteira: `Pico` é o começo de `Pico_2W`, e uma
+comparação por prefixo chama o alvo de mão (o manual da mão, §2). O Pico W com a
+imagem do Wire, que é de Pico comum, enumera como `2e8a:000a`, `Pico`: o ID da
+mão, e só o serial os distingue (28/10/2026, ele em 3-3.1 e a mão em 3-3.2).
 
 **Os roteiros de `tools/` ainda conhecem a bancada de antes.** Dez deles
 procuram o alvo como Pico W, pelo serial `E6642815E34C1824` ou pelo glob
-`usb-Raspberry_Pi_Pico_W_*`, e os dois agora dão na mão: um toque de 1200 bps
-ali põe a mão em BOOTSEL. Três (`air_test_suite.py`, `bt_auth_test.py` e
-`rig_validate_history_clock.py`) procuram a mão pelo serial da mão antiga. Até
-eles aprenderem a bancada nova, não os rode. Definir `SIMUT_TARGET_SERIAL` e
-`PICO_HAND_SERIAL` não basta: eles montam o caminho `by-id` com o modelo de
-antes (`Pico_W_` no alvo, `Pico_` na mão), e o da bancada nova não existe. O
-`pico_hand.sh` acha a mão por `PING` em toda porta, e a mão antiga responde se
-ainda tiver o firmware da mão: fixe `PICO_HAND_PORT` no caminho `by-id` da mão
-nova.
+`usb-Raspberry_Pi_Pico_W_*` (`air_soak.py`, `air_test_suite.py`,
+`factory_reset_manual_wifi.py`, `history_watch.py`, `panel_users_hw_test.py`,
+`rig_reset_admin.py`, `rig_validate_history_clock.py`, `screen_mapper.py`,
+`telemetry_bench/bench.py` e `wifi_scan_hw_test.py`): com o Pico W fora do USB,
+não acham alvo nenhum. Definir `SIMUT_TARGET_SERIAL` não basta: eles montam o
+caminho `by-id` do alvo com o modelo `Pico_W`, e o do alvo é
+`usb-Raspberry_Pi_Pico_2W_6A73539D612923CA-if00`. Até eles aprenderem a
+bancada nova, não os rode. Os três que procuram a mão pelo serial
+`E660C062131E3E27` (`air_test_suite.py`, `bt_auth_test.py` e
+`rig_validate_history_clock.py`) voltam a achá-la. O `pico_hand.sh` acha a mão
+por `PING` em toda porta: fixe `PICO_HAND_PORT` no caminho `by-id` da mão.
 
 **Fiação real** (confirmada em 06/09/2026): DS18B20 no GP0, sem chaveamento de
 energia — a linha GP16 do alvo vai ao GP2 da mão como **sonda** de
@@ -50,25 +79,37 @@ acordado/dormindo, não como power-gating; o GP3 da mão vai ao GP17 do alvo e
 **finge o carregador** (3,3 V direto, sem o divisor da placa real). Detalhes,
 comandos e o analisador lógico: `tools/PicoHand/MANUAL_CLAUDE_CODE.pt-BR.md`.
 
-**Num soak, solte do RUN do alvo o fio RESET da mão.** O RUN é uma entrada de
-alta impedância, segura só pelo pull-up fraco do alvo e pelo `INPUT_PULLUP` da
-mão. Em 04/10/2026, depois de uma troca de placas, o Pico W reiniciou sozinho
-três vezes em duas horas, de 4 a 16 minutos depois de um boot, sem autópsia no
-log e sem nada na serial. Uma imagem de diagnóstico que grava no boot o motivo
-de reset do chip (`CHIP_RESET`) pegou o seguinte como o pino RUN (`HAD_RUN`), e
-com o fio solto foram 60 minutos sem reinício. Religue o fio depois: gravar e o
-RESET dos roteiros precisam dele. O `hand VERIFY` não acusa um pulso que já
-passou, porque só imprime a contagem enquanto a falha está ativa.
+**O fio RESET da mão fica no RUN do alvo, também num soak.** Os reinícios de 04/10
+(três em duas horas) e de 05/10/2026 (quatro em seis horas), que este manual
+atribuía ao fio, vinham da montagem da equipotencialização dos terras das placas,
+que estava errada e foi consertada (palavra do mantenedor, 28/10/2026). Medido
+com o fio no RUN, no Pico W, no portão da v2.12.0 (28 e 29/10/2026): cerca de 10 h
+de bancada, das quais o firmware rodou cerca de 4,8 h (66 + 60 + 164 min); a
+placa passou o resto em BOOTSEL, só com a ROM. Nessas 4,8 h, o soak de 30 min
+incluído, não houve reinício que não fosse nosso. No Pico 2 W da v2.12.0 ninguém
+conferiu onde o fio estava durante o soak dele, e nenhum passo usou a mão: os
+números daquele soak não dizem nada sobre o fio. No portão da v2.13.0 (30/10 a
+31/10/2026) o fio ficou no RUN nas duas placas (o terra comum consta só do
+registro da sessão 1): o soak de 30 min do Pico 2 W (118 leituras) e o do Pico W
+(120 amostras) terminaram sem reinício, e no Pico 2 W a mão deu o RESET do passo
+do envio cortado, de que a placa voltou no mesmo slot. Os dois dias de 04 e
+05/10, o
+diagnóstico que pegou o pino RUN (`HAD_RUN`) e os números do portão estão nas
+seções *A bancada* do `CHANGELOG.md` (v2.11.0, v2.11.1 e v2.12.0). Se os
+reinícios voltarem com o fio no RUN, confira primeiro o terra entre as placas. O
+`hand VERIFY` não acusa um pulso que já passou, porque só imprime a contagem
+enquanto a falha está ativa.
 
-**Não é só no soak.** Em 05/10/2026, no portão da v2.11.1, com o fio ligado, o
-Pico W reiniciou sozinho quatro vezes em seis horas, de 7 minutos a 2,5 horas
-depois de um boot. Uma delas cortou uma atualização pelo ar aos 33,8 s do
-envio: a placa voltou na versão de antes, com a configuração idêntica byte a
-byte, como o passo do corte espera, e o mesmo envio passou na tentativa
-seguinte. Um passo que falha sem a linha `WATCHDOG_REBOOT detected` na serial e
-sem `SYS_BOOT` no log foi reiniciado por fora: repita-o antes de culpar o
-firmware. Com o fio solto, o BOOTSEL vem pelo toque de 1200 bps na serial do
-alvo, e o `picotool reboot` o tira de lá.
+**Um passo que falha sem a linha `WATCHDOG_REBOOT detected` na serial e sem
+`SYS_BOOT` no log foi reiniciado por fora:** repita-o antes de culpar o
+firmware. Sem a mão, o BOOTSEL vem pelo toque de 1200 bps na serial do alvo, e o
+`picotool reboot` o tira de lá. **Uma mão que enumera mas não responde ao `PING`
+com `PONG`** (a serial dela travada) se recupera assim: um reset da porta USB dela
+(`USBDEVFS_RESET` em `/dev/bus/usb/<bus>/<dev>`), sem desligar o cabo e sem
+reiniciar o chip, e `PING` de novo. Em 29/10/2026 isso a trouxe de volta, com as
+linhas dela soltas o tempo todo (`STATUS`: BOOTSEL e RESET soltos); em 28/10/2026
+o mesmo mutismo só passou quando o mantenedor religou o cabo. Peça o cabo se o
+reset da porta não resolver.
 
 **O alvo tem um painel TFT ligado** (ILI9341 + XPT2046, pinagem do
 `simut_config.h`), o que esta lista não dizia até 22/09/2026 — `/api/screenshot`
@@ -132,6 +173,16 @@ picotool load -x <firmware.uf2> || {       # caminho normal: o alvo ainda atende
 hand_release_all
 ```
 
+- **Uma gravação da flash inteira se prova relendo a flash e comparando com o
+  arquivo, byte a byte,** nunca pelo retorno do `picotool load`. Desmonte antes o
+  drive do BOOTSEL (`udisksctl unmount -b <dispositivo>`): em 28 e 29/10/2026 o
+  host zerou o USB da placa três vezes no meio de um `picotool load` (em duas
+  delas, 20 e 31 s depois de o udisks montar o drive; na terceira o intervalo não
+  foi medido), e uma gravação seguinte deixou um byte deslocado dentro de um
+  pacote de 64 B, no setor `0x88000`. Com o drive desmontado e o `automount-open`
+  do GNOME desligado as gravações seguintes passaram, mas a do byte deslocado já
+  tinha as duas medidas: a causa não foi medida. A história da noite está em
+  *A bancada* do `CHANGELOG.md` da v2.12.0.
 - Prefira o toque de 1200 bps (`pio run -t upload`) a `picotool -f`: com dois
   RP2040 no barramento o picotool pega o primeiro que acha — a mão, que não tem
   interface de reset — e `--ser` não salva, porque em BOOTSEL a placa enumera com
@@ -142,6 +193,18 @@ hand_release_all
 - `hand RESET` aciona o pino RUN: é reset global do chip, dá boot frio (M0 no
   Air) e restaura os clocks. Serve para recuperar; **não serve de prova** de que
   o caminho do sono funciona (ver §3).
+- **`pico_w_test` e `pico_w_test_https` levam páginas no LittleFS, não na imagem.**
+  O `custom_fs_pages` de `tools/features.toml` tira `LICENSE_PAGE` da primeira
+  (desde 28/10) e, da segunda, também `ALARMS_PAGE`, `FILE_PAGE` e `TEL_PAGE`. O
+  `pio run` deixa o `.gz` de cada uma em `data/web/` (fora do git) e apaga ali o
+  das páginas que o ambiente construído por último leva no firmware: construa por
+  último o que vai gravar. Depois de gravar, envie os arquivos para `/web/` com
+  `POST /api/upload?uploadDir=/web` (campo `file`); a página Arquivos serve na
+  `pico_w_test`, mas na `pico_w_test_https` ela é uma das que faltam. **Nunca**
+  `uploadfs`: formata a partição e leva histórico, logs e `calib.csv`. Sem o
+  arquivo a rota responde 200 com "Page asset missing", e o `web_test_suite.py`
+  (que abre `/license`) reprova a página. Uma atualização por OTA reformata o
+  LittleFS e leva os arquivos embora: envie de novo.
 
 ### O Pico 2 W (RP2350)
 
@@ -163,6 +226,23 @@ assim:
   do comando.
 - **O `/api/status` diz de que slot ela subiu:** `sys.slot` vale `A`, `B`, ou
   `-` numa placa sem tabela.
+- **Sem picotool:** o toque de 1200 bps na serial do SIMUT põe o RP2350 em
+  BOOTSEL. Ele monta o drive `RP2350`, cujo serial de BOOTSEL é o do chip, e um
+  `cp` do `firmware_factory.uf2` seguido de `sync` grava a tabela e o slot A e
+  reinicia a placa. O `.uf2` de fábrica não leva LittleFS: configuração e
+  pacotes ficam. Em 22/10/2026 a bancada gravou o Pico 2 W assim, e cada imagem
+  se provou por um efeito que só ela tinha (o número de temas em
+  `/api/themes`), não pelo retorno do `cp`.
+- **A flash inteira do Pico 2 W (4 MiB) se guarda e se devolve pelo mesmo toque
+  de 1200 bps,** sem a mão. O RP2350 em BOOTSEL enumera como `2e8a:000f` (o do
+  RP2040 é `2e8a:0003`), com o serial do chip. Antes de gravar:
+  `picotool save -a <arquivo> --ser <serial>` duas vezes, as duas leituras
+  iguais (4.194.304 B). De volta: `picotool load --ignore-partitions -v <arquivo>
+  -t bin -o 0x10000000 --ser <serial>`, que grava no espaço absoluto da flash,
+  depois da tabela de partições que o próprio dump traz, e uma releitura
+  (`save -a`) comparada por sha256 com o arquivo. Em 29/10/2026 foi assim que o
+  alvo voltou à imagem Ângulo: o dump de chegada, a volta e a releitura iguais,
+  byte a byte.
 - **Pelo ar (passo 4),** a página Arquivos grava a imagem no slot de onde a placa
   não subiu e reinicia nele. Do A para o B a ROM apaga o primeiro setor do A
   quando a imagem nova sobe; do B para o A não apaga nada, e o B guarda a
@@ -269,6 +349,14 @@ assim:
   uma lista cujo último cartão era `'56'`. **Leia a grade e a política de
   `GET /api/keypad`** (`grid` = keys, slots, cols, rows, x, y, w, h, pitchX,
   pitchY; `policy` = minLen, maxLen, teclado, alfabeto), nunca de constantes.
+  **Isso vale para o painel original.** Na imagem com o painel Ângulo (o
+  Pico 2 W da release e a `pico_wiretft_angulo`) a resposta não traz `grid`
+  nem `pop`, porque a geometria do original erraria as teclas do Ângulo: traz
+  `faces`, `up`, `kb`, `policy` e `"targets":"/api/ui"`, e as coordenadas das
+  teclas são os alvos dessa rota (`tools/tft_ui/roteiro_ui.py` toca por eles).
+  As duas ferramentas do painel original (`panel_users_hw_test.py` e
+  `panel_fulltable_test.py`) leem a rota por `tools/keypad_answer.py` e
+  recusam essa resposta com uma mensagem que diz onde tocar.
 - **Com 1 glifo por tecla NÃO há sorteio**: o teclado é ORDENADO, porque um
   conjunto de um não esconde nada de quem lê o vidro e embaralhar só custa a
   memória muscular do operador. O campo **`kb`** do `/api/keypad` diz qual
@@ -280,9 +368,9 @@ assim:
   | `groups` | 9 grupos (`0-9 ABC … WXYZ`) + popup | **2** (grupo, caractere) |
   Atenção: num teclado ordenado **não espere re-sorteio** (`fresh_faces` esperaria
   para sempre) e **não descarte faces vazias** — elas são posicionais, e o pad
-  numérico tem duas. A geometria do popup vem em **`pop`** = keyW, keyH, gap,
-  y(1 linha), y(linha 0), y(linha 1); uma linha de `m` teclas começa em
-  `(320 - (m*keyW + (m-1)*gap)) / 2`.
+  numérico tem duas. A geometria do popup vem em **`pop`** (só no painel
+  original) = keyW, keyH, gap, y(1 linha), y(linha 0), y(linha 1); uma linha
+  de `m` teclas começa em `(320 - (m*keyW + (m-1)*gap)) / 2`.
 - **A tela de ESCOLHER um PIN é sempre ordenada**, qualquer que seja a
   política — escolher não é o problema que o embaralhamento resolve. Ela também
   responde ao `/api/keypad` agora, então `pin_exact( )` lê a geometria como
@@ -350,13 +438,13 @@ O CI cobre tudo isto, mas só em pull request — meça antes:
 ```bash
 pio run -e pico_w_release -e pico_w_test -e pico_w_test_https \
         -e pico_w_asserts -e pico_w_alpha -e pico_w_air -e pico2_w_release \
-        -e pico_wire -e pico_wiretft
+        -e pico_wire -e pico_wiretft -e pico_wiretft_angulo -e pico2_w_original
 pio test -e native -e native_history_v5 -e native_cli -e native_lan \
          -e native_logpolicy -e native_alarmqueue -e native_network -e native_air \
          -e native_sensors -e native_wired -e native_otasig
 ./tools/run_fuzz.sh                       # 60 s; NÃO está no pio test e já pegou defeito real
 PLATFORMIO_BUILD_FLAGS="-fsanitize=address,undefined -fno-omit-frame-pointer -fno-sanitize-recover=undefined" \
-  pio test -e native -e native_sensors …  # as dez de novo sob ASan/UBSan (apaga .pio/build); o relatório
+  pio test -e native -e native_sensors …  # as onze de novo sob ASan/UBSan (apaga .pio/build); o relatório
                                           # só aparece rodando .pio/build/<env>/program direto
 python3 tools/check_air_consistency.py
 python3 tools/check_angulo.py             # o padrão de interface (§7): site, marca, READMEs, docs Living
@@ -392,11 +480,20 @@ python3 tools/test_flash_budget.py                   # as duas regras que mantê
   cada chave devolve quando desligada, e `tools/feature_savings.json` guarda o
   piso — um ratchet ao contrário do orçamento (a economia só sobe). O portão
   `measure_savings.py --check` reprova se um recurso vazou para o caminho
-  sempre-ligado e deixou de sumir. Constrói ~13 imagens, então NÃO está no job
-  `gates`: roda em `.github/workflows/savings.yml` (noturno/manual). Ao mexer no
-  que um recurso guarda, confira barato com `--check --only <recurso>`. A tabela
-  e os achados (bluetooth = 140 kB no Alpha; o buzzer, com chave própria desde
-  26/09) estão em
+  sempre-ligado e deixou de sumir. O flash que ele compara é o `used` sem o
+  enchimento do linker, todo `*fill*` de `.boot2`, `.text`, `.rodata` e `.data` lido do mapa
+  (o do banco do BTstack é só o maior deles): contado, o enchimento mexia a economia
+  8 a 16 B por commit sem símbolo nenhum mudar de lugar (nove de dezesseis recursos
+  abaixo do piso em 29/10, #296) e a de toda chave do Alpha e do Air até 4 096 B.
+  Uma queda de até 8 B (`FLASH_TOL`) passa: é o que sobra de mudança de verdade.
+  Constrói 21 imagens, então NÃO está no job `gates`:
+  roda em `.github/workflows/savings.yml` (noturno/manual), e **nenhum PR vê o
+  vermelho dele** — confira com `gh run list --workflow "SIMUT savings
+  watermark"`. Ao mexer no que um recurso guarda, confira barato com `--check
+  --only <recurso>`; uma queda intencional pede `--update` e a causa no
+  commit. A tabela e os achados (bluetooth = 137 kB no Alpha sem o
+  enchimento, 22/10; o enchimento de alinhamento, 30/10; o buzzer, com chave
+  própria desde 26/09) estão em
   [docs/analysis/ECONOMIA_DE_RECURSOS.md](docs/analysis/ECONOMIA_DE_RECURSOS.md).
 - **Build sob medida** (o configurador, P7 de `MODELO_DE_RECURSOS.md`):
   `tools/build_custom.py --profile '{"v":1,"base":"pico_w_air","set":{"bluetooth":false}}'`
@@ -413,8 +510,9 @@ python3 tools/test_flash_budget.py                   # as duas regras que mantê
   o `build_custom.py --finish-signed` refaz o `.uf2` do Pico 2 W a partir do
   `.bin` assinado, como a release faz. A estimativa da página vem de
   `tools/feature_costs.json`, que envelhece com o código: quando uma mudança
-  mexe no tamanho de um recurso, rode `measure_savings.py --matrix` (69 builds
-  e 12 conferências nos quatro produtos publicados, cada uma completa) e depois
+  mexe no tamanho de um recurso, rode `measure_savings.py --matrix` (70 builds
+  e 13 conferências nos quatro produtos publicados, cada uma completa, contadas
+  em 2026-10-29) e depois
   `gen_features.py`, que leva os números ao `docs/configurador/model.json`.
 - `PLATFORMIO_BUILD_FLAGS` muda o checksum do projeto e **apaga `.pio/build`
   inteiro**, todos os ambientes. Cada experimento por flag é uma build completa.
@@ -469,7 +567,21 @@ Antes de publicar, no rig, com os números no PR:
    - o `.uf2` de fábrica da candidata arrastado para a unidade do BOOTSEL dessa
      placa, que é A2 e tem tabela, pelo mantenedor (errata RP2350-E10). O
      artefato não traz o `.uf2`; ele sai do artefato com
-     `python3 tools/release_manifest.py --build-dir <artefato> --out <pasta>`.
+     `python3 tools/release_manifest.py --build-dir <artefato> --out <pasta>`;
+   - **A cópia do `.uf2` de fábrica (o arrasto) só prova que gravou se a candidata
+     estiver no slot B antes dela.** Depois da cópia, a placa subindo do slot A é o sinal de
+     que o `.uf2` gravou; com a placa já no A antes, uma cópia que a ROM ignorou dá
+     a mesma leitura. O `.uf2` de fábrica da versão anterior deixa a placa no A, e
+     a atualização da candidata sobre ela mesma troca de slot a cada vez, então o
+     slot em que a placa chega à cópia depende de quantas atualizações vieram
+     antes: em 29/10/2026 ela chegou no A, e ler o slot depois da cópia não provou
+     nada. Antes de copiar, leia o slot (`sys.slot` no `/api/status`); se não for o
+     B, repita a atualização da candidata sobre ela mesma até ser. Faça o controle
+     negativo (BOOTSEL pelo toque de 1200 bps sem gravar nada, e `picotool reboot`:
+     a placa tem de ficar no B), copie, e o slot lido depois tem de ser o A. Em
+     30/10/2026 (portão da v2.13.0) foi essa a ordem: a atualização da candidata
+     sobre ela mesma duas vezes (de B para A e de A para B), o controle (a placa
+     ficou no B) e a cópia (a placa subiu no A).
 
    O passo 3 não se aplica do mesmo jeito: no Pico 2 W a imagem vai para o slot
    inativo, e o LittleFS fica intocado.
@@ -712,10 +824,12 @@ ficar na fila e executar vários inputs depois.
   armado em `LogManager::begin( )` só quando `_airActive && _airSleptSec != 0`,
   desarmado no fim do `setup( )`). Os oito códigos da lista `BOOT_PREAMBLE` em
   INFO somem; medido: 8,38 → 1,25 registros por wake. A janela fecha no fim do
-  `setup( )` porque dois desses códigos também são ação de operador (`441`
-  idioma, `407` calibração). **`412 APP_AIR_COLD_BOOT`** é a linha que um wake
-  nunca escreve: `ctx=1` boot limpo, `ctx=0` watchdog. **T16 é o portão** (teto 1
-  — o segundo `STO_H5_WIP` do flush do ciclo é legítimo).
+  `setup( )` porque um desses códigos também é ação de operador (`407`
+  calibração). O pacote de idioma carregado no boot, medido ali como `441`, é
+  o `620` desde o #283; o `441` é a troca de idioma de uma pessoa e saiu da
+  lista. **`412 APP_AIR_COLD_BOOT`** é a linha que um wake nunca escreve:
+  `ctx=1` boot limpo, `ctx=0` watchdog. **T16 é o portão** (teto 1 — o segundo
+  `STO_H5_WIP` do flush do ciclo é legítimo).
 - A contabilidade horária de `SYS_LOG_SUPPRESSED` **não vale num Air**: o
   `millis( )` reinicia a cada wake e o relatório de 1 h nunca sai. Limitação
   conhecida, e barata — a lista suprimida é fixa.
@@ -788,7 +902,7 @@ ficar na fila e executar vários inputs depois.
 `ANGULO.md`.** Não é gosto da ocasião: é o padrão de todos os sistemas do dono,
 e a casa dele é o repo `simut-rx` — lá fica a fonte da verdade dos valores, e o
 `ANGULO.md` daqui é cópia idêntica do de lá, com os anexos §11–§13. Vale para a
-UI web do aparelho, o site e a landing em
+UI web do aparelho, o painel de toque desenhado por `src/ui/angulo/` (o da release do Pico 2 W desde a v2.13.0; a v2.12.0 e as anteriores desenhavam o painel original nele), o site e a landing em
 `docs/`, o manual, os três READMEs, os documentos Living, a marca e as
 mensagens que o usuário lê no console. Antes de escrever, leia o §2 (as oito
 regras), o §7 (microcopy) e o §8 (o checklist) do guia.
@@ -876,12 +990,18 @@ calado é.
   abre. Dois desvios que nenhum anexo registrava: o traço dos ícones é 1,75 (o
   §6 pede 1,5) e, sem escolha guardada, o tema é o escuro (o §3.1 diz claro),
   guardado em `simut_ui_theme` e não em `angulo:tema`.
-- **Painel TFT — não é Ângulo.** As cores vêm do tema ativo (`.thm`, 24 campos,
+- **Painel TFT original — não é Ângulo.** É o painel da release do Pico W. As cores vêm do tema ativo (`.thm`, 24 campos,
   11 em `data/themes/`), e o de fábrica usa acento azul
-  (`RGB565(0, 150, 255)`, `src/Themes.cpp`). Levar o painel ao Ângulo é decisão
-  de produto em aberto. Enquanto isso, o que não depende de cor vale lá também:
+  (`RGB565(0, 150, 255)`, `src/ui/original/Themes.cpp`). Levar o painel ao Ângulo é decisão
+  de produto: feita na Pico 2 W, onde a `pico2_w_release` o leva desde 2026-10-30 (S10c C3; em 2026-10-21 o mantenedor decidiu que
+  o Ângulo sai primeiro nela; CLAUDE.md), e em aberto na Pico W (a regra `angulo-cyw43-needs-rp2350` do manifesto o recusa no RP2040 com Wi-Fi). Enquanto isso, o que não depende de cor
+  vale no painel original também:
   microcopy, a área segura e a grade de 4 px, todo estado desenhado — e emoji
-  nem existe na fonte CP437.
+  nem existe na fonte CP437. **Em 2026-10-28, no ramo `feat/ui-drivers`:** isso vale
+  para a UI original, que mantém os temas. A UI Ângulo existe nas imagens
+  `pico2_w_release` e `pico_wiretft_angulo` (a `pico2_w_release` a leva desde a v2.13.0 (S10c C3, 2026-10-30); a v2.12.0 e as anteriores desenhavam o painel original no Pico 2 W, que hoje é a `pico2_w_original`), com o
+  tema dela (modo e acento) em `docs/analysis/UI_DRIVERS.md` §2.16 e os desvios
+  registrados em §2.18 (a cor de perigo).
 - **LCD 16×2 do alpha:** vale a microcopy.
 - **Documentos Snapshot** (campanhas, auditorias, análises datadas — ver
   `docs/README.md`) **não se editam** para seguir o padrão: um registro editado

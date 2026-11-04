@@ -203,7 +203,11 @@ Até a v2.8.0, uma recusa prendia o aparelho por até 15 s dentro do pedido, e o
 
 ### Quando o rádio não responde à busca {#cap-09-mudo}
 
-A escada mede quanto tempo o pedido de busca leva para voltar. Num rádio que responde, ele volta em milissegundos. Num rádio que parou de responder, só volta depois do tempo-limite do driver, perto de 1 s. Uma busca assim que passa do prazo de 15 s é de um rádio mudo, e depois dela a escada não tenta entrar na rede às cegas: num rádio mudo, esse pedido de conexão prendia o aparelho além dos 8,4 s do watchdog.
+A escada mede quanto tempo o pedido de busca leva para voltar. Num rádio que responde, ele volta em milissegundos. Num rádio que parou de responder, só volta depois do tempo-limite do driver, perto de 1 s. Uma busca assim que passa do prazo de 15 s é de um rádio mudo.
+
+Logo depois de o rádio emudecer, os primeiros pedidos ainda voltam em milissegundos, com erro. Por isso, quando uma busca que voltou rápido passa do prazo, o aparelho faz uma leitura curta ao rádio. Se o rádio responde, a busca só se perdeu e a escada segue como sempre. Se não responde, é um rádio mudo.
+
+Depois de uma busca de rádio mudo, a escada não tenta entrar na rede às cegas: num rádio mudo, esse pedido de conexão prendia o aparelho além dos 8,4 s do watchdog.
 
 Duas buscas seguidas de um rádio mudo, com o aparelho ligado há mais de 30 min, fazem o aparelho reiniciar para recuperar o rádio. Antes, ele grava o evento 10 com contexto 4. Nos primeiros 30 min depois de um boot, ele segue buscando, sem reiniciar e sem tentar entrar na rede.
 
@@ -211,7 +215,7 @@ Até a v2.11.1, a escada tentava entrar às cegas depois de duas buscas sem resp
 
 ### Outros motivos para reconectar {#cap-09-vigilancia}
 
-Conectado, o aparelho confere o sinal uma vez por minuto. Um sinal impossível, 0 dBm ou mais, ou abaixo de −120 dBm, indica que o rádio parou de responder de verdade, mesmo que o Wi-Fi ainda se diga conectado. Duas leituras impossíveis seguidas fazem o aparelho derrubar a conexão e entrar na escada, com o evento **Implausible RSSI twice — link presumed dead, reconnecting**.
+Conectado, o aparelho confere o sinal uma vez por minuto. Um sinal impossível, 0 dBm ou mais, ou abaixo de −120 dBm, ou uma leitura que o rádio não responde, indica que o rádio parou de responder de verdade, mesmo que o Wi-Fi ainda se diga conectado. Duas leituras assim seguidas fazem o aparelho derrubar a conexão e entrar na escada, com o evento **Implausible RSSI twice — link presumed dead, reconnecting**.
 
 ### Como ler a escada no log de eventos {#cap-09-log}
 
@@ -233,8 +237,8 @@ A página **Histórico e Logs** mostra os eventos ([capítulo 16](#cap-16)). Os 
 | 526 | `Dormancy over — back to fast retries` | Fim das três dormências |
 | 14 | `IP: <endereço>` | Entrou na rede |
 | 11 | `WiFi signal lost, entering stealth scan` | A conexão caiu |
-| 11 | `Implausible RSSI twice — link presumed dead, reconnecting` | O rádio parou de responder; o contexto é a leitura |
-| 12 | `Scan never finished — abandoning it (start took <n> ms)` | Uma busca passou do prazo de 15 s; o tempo é o que o pedido da busca levou para voltar |
+| 11 | `Implausible RSSI twice — link presumed dead, reconnecting` | O rádio parou de responder; o contexto é a leitura, ou −999 quando o rádio não respondeu à leitura |
+| 12 | `Scan never finished — abandoning it (start took <n> ms, read <r>)` | Uma busca passou do prazo de 15 s; o tempo é o que o pedido da busca levou para voltar, e a leitura, quando houve, é a resposta do rádio: 0 quando respondeu |
 | 403 | **AP iniciado** | O AP de configuração abriu ([O AP durante a operação](#cap-09-ap)) |
 
 O log de eventos não grava cada repetição. Uma falha que se repete, como `Retry in <n>s`, é gravada na primeira vez e depois só a cada hora, enquanto durar. A volta da rede (`IP: ...`) é gravada porque encerra a falha. Por isso, uma escada longa aparece no log como poucas linhas. O filtro está explicado no [capítulo 16](#cap-16).
@@ -275,9 +279,9 @@ O AP só abre quando alguém pede:
 
 | Quem pede | Quando abre |
 |---|---|
-| [release]{.img} Item 12 do menu do painel, **Modo de Configuração**, com a permissão **Rede** no painel ([capítulo 11](#cap-11-ap)) | Na hora |
+| [release]{.img} Item 8 do menu do painel, **Modo de Configuração** (no painel Ângulo, a linha **Modo de configuração**), com a permissão **Rede** no painel ([capítulo 11](#cap-11-ap), [capítulo 11A](#cap-11a-ap)) | Na hora |
 | Comando `ap` no console, pelo USB ou pelo Bluetooth ([capítulo 14](#cap-14-ap)) | Na hora |
-| [release]{.img} Gesto de toque no boot ([capítulo 11](#cap-11-boot-ap)) | No boot |
+| [release]{.img} Gesto de toque no boot ([capítulo 11](#cap-11-boot-ap), [capítulo 11A](#cap-11a-boot)) | No boot |
 
 O aparelho nunca troca a rede dele pelo AP sozinho. Sem rede configurada, ele liga, mede e grava como sempre, e a release pergunta a data e a hora no fim do boot ([capítulo 10](#cap-10-painel)). Com a rede fora do ar, ele segue a escada de reconexão até ela voltar ([Quando a rede cai](#cap-09-reconexao)).
 
@@ -330,7 +334,7 @@ O aparelho também se anuncia como um serviço `_simut._tcp`, para que um progra
 | Campo | Conteúdo |
 |---|---|
 | `uid` | Identidade do chip, 16 algarismos hexadecimais |
-| `ver` | Versão do firmware, como `2.11.1` |
+| `ver` | Versão do firmware, como `2.13.0` |
 | `env` | Imagem: `release` |
 | `tls` | `1` com HTTPS, `0` com HTTP |
 
@@ -491,7 +495,7 @@ Depois de voltar para HTTP, o primeiro acesso pelo mesmo navegador pode voltar d
 
 ### O par e a atualização de firmware {#cap-09-https-ota}
 
-A atualização de firmware reformata o sistema de arquivos e só preserva a configuração principal (`/config/system.bin`). O par de certificados não é preservado pela atualização: depois dela, o aparelho volta a atender em HTTP.
+No Pico W, a atualização de firmware reformata o sistema de arquivos e só preserva a configuração principal (`/config/system.bin`). O par de certificados não é preservado pela atualização: depois dela, o aparelho volta a atender em HTTP. No Pico 2 W o sistema de arquivos fica intocado, e o par de certificados fica com ele ([capítulo 26](#cap-26-ota)).
 
 O backup `.bkp`, que a página **Arquivos** baixa antes de atualizar, contém todos os arquivos, inclusive o par. Para voltar ao HTTPS depois de atualizar, restaure esse backup ou instale o par de novo ([capítulo 17](#cap-17)).
 
@@ -551,4 +555,4 @@ Os limites de sinal que o aparelho usa:
 | 0 dBm ou mais, ou abaixo de −120 dBm | Leitura impossível. Duas seguidas, com um minuto entre elas, forçam uma reconexão |
 | Sem conexão | O sinal é informado como −100 dBm |
 
-As barras de sinal do painel usam limites próprios ([capítulo 11](#cap-11)), e o ícone do LCD, os seus ([capítulo 12](#cap-12)).
+As barras de sinal do painel usam limites próprios ([capítulo 11](#cap-11), [capítulo 11A](#cap-11a-barra)), e o ícone do LCD, os seus ([capítulo 12](#cap-12)).

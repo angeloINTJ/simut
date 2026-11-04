@@ -224,6 +224,9 @@ public:
 	 * residual soft-panics. Streaming pauses that work; it resumes on the
 	 * next loop tick after the handler returns. */
 	bool isStreamingNow( ) const { return _inHistoryHandler; }
+	/* Responses the framework ended because a write came back short
+	 * (override 2m): `show net status`, metr.cgw and /metrics. */
+	uint32_t shortWrites( ) const { return _server ? _server->shortWrites( ) : 0; }
 private:
 	volatile bool _inExportLogsHandler = false; /**< Separate guard for /api/export/logs.bin */
 
@@ -241,7 +244,10 @@ private:
 			return true;
 		}
 		if (!_server->client( ).connected( )) {
-			_cgDisconnHits++;
+			/* A response the framework ended for a short write (override 2m)
+			 * reads as a closed client too. The framework counts that one, so
+			 * it stays out of the disconnects: the two call for opposite fixes. */
+			if (_server->shortWrites( ) == _shortWritesAtStart) _cgDisconnHits++;
 			return true;
 		}
 		return false;
@@ -278,6 +284,8 @@ private:
 	 * setContentLength(CONTENT_LENGTH_UNKNOWN), cleared per request in
 	 * update( ). The abort policy branches on it: see dropAbortedStream. */
 	bool _chunkedResponse = false;
+	/* The framework's short-write count when this request began (see isClientGone). */
+	uint32_t _shortWritesAtStart = 0;
 	uint32_t _abortDrops = 0; /**< aborted chunked streams hard-closed (metr.ad) */
 	void dropAbortedStream(const char* origin);
 
@@ -490,6 +498,8 @@ private:
 	 * exists. docs/analysis/MODELO_DE_RECURSOS.md, P2 (costura das rotas). */
 	void registerScreenRoutes( ); /**< the 5 panel-mirror routes; WebManager_History.cpp */
 	void registerTlsRoutes( );    /**< POST /api/tls; WebManager_Tls.cpp */
+	/* The UI driver's routes, if it has any: the Ângulo's GET /api/ui (src/ui/UiDriverWeb.h). */
+#include "ui/UiDriverWeb.h"
 #if SIMUT_DISPLAY_TFT
 	void handleApiScreenshot( );
 	void handleApiScreenshotChunk( ); /**< /chunked with CRC32 */

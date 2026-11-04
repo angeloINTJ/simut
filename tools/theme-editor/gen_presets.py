@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Regenerates presets.js from src/Themes.cpp — the single source of truth.
+"""Regenerates presets.js from src/ui/original/Themes.cpp — the single source of truth.
 
 Parses the palette table (THM_STATE_* macro-aware), prepends the diagnostic
 theme (24 unique colors used by the editor's screenshot region-mapper), and
@@ -13,7 +13,7 @@ import re
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-CPP = ROOT / "src" / "Themes.cpp"
+CPP = ROOT / "src" / "ui" / "original" / "Themes.cpp"
 OUT = Path(__file__).resolve().parent / "presets.js"
 
 FIELDS = ["bgMain","cardBg","textMain","textSub","textOff","accent","accentHigh","barBg",
@@ -62,7 +62,7 @@ def js_colors(pal):
     return "{" + ",".join(f"{f}:[{r},{g},{b}]" for f, (r, g, b) in pal.items()) + "}"
 
 lines = [
-    f"// Auto-gerado de src/Themes.cpp por gen_presets.py ({len(FIELDS)} cores). NAO editar na mao.",
+    f"// Auto-gerado de src/ui/original/Themes.cpp por gen_presets.py ({len(FIELDS)} cores). NAO editar na mao.",
     "",
     "window.PRESET_THEMES = [",
     f'  {{ id: "diagnostic", name: "\\ud83d\\udd2c Diagnostic ({len(FIELDS)} cores \\u00fanicas)", '

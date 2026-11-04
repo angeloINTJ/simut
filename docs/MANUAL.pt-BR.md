@@ -1,6 +1,6 @@
 # SIMUT — Manual do Usuário
 
-**Firmware:** v2.11.1 · **Hardware:** Raspberry Pi Pico W (RP2040 + CYW43439) · **Licença:** MIT
+**Firmware:** v2.13.0 · **Hardware:** Raspberry Pi Pico W (RP2040 + CYW43439) · **Licença:** MIT
 **Repositório:** https://github.com/angeloINTJ/simut
 
 [English](MANUAL.md) | **Português**
@@ -59,15 +59,17 @@ existe, mas vem desligada, e o dispositivo é plenamente utilizável sem que
 nunca lhe tenham dado um.
 
 **O que ele não é.** Não é certificado para armazenamento regulado, não tem
-sensoriamento redundante e não guarda um segundo slot de firmware para o qual
-recuar. As seções abaixo são explícitas sobre cada um desses limites onde eles
-importam.
+sensoriamento redundante, e o Pico W não guarda um segundo slot de firmware
+para o qual recuar (o Pico 2 W tem dois: veja [Rollback](#rollback)). As
+seções abaixo são explícitas sobre cada um desses limites onde eles importam.
 
 ### Os três builds
 
-A mesma árvore de fontes produz três imagens. Elas compartilham o modelo de
-sensores, o formato do histórico, a interface web e as permissões; o que muda é
-o que está ligado e quanto tempo o aparelho fica acordado.
+A mesma árvore de fontes produz três imagens para o Pico W e, desde a v2.11.0,
+a release de novo para o Pico 2 W (`pico2_w_release`, publicada como
+`releasetwo`). Elas compartilham o modelo de sensores, o formato do histórico, a
+interface web e as permissões; o que muda é o que está ligado e quanto tempo o
+aparelho fica acordado.
 
 | Build | Display | Acordado | Para quê |
 |---|---|---|---|
@@ -258,9 +260,9 @@ corrigido.
 
 A calibração exige a permissão `CALIB` e precisa do NTP sincronizado.
 
-> **O `/calib.csv` não sobrevive a uma atualização de firmware.** Veja a
+> **No Pico W, o `/calib.csv` não sobrevive a uma atualização de firmware.** Veja a
 > [§12](#12-atualizações-de-firmware) para o que uma atualização preserva e o
-> que ela não preserva.
+> que ela não preserva. No Pico 2 W a atualização não mexe no sistema de arquivos.
 
 ### Pipeline de leitura
 
@@ -981,13 +983,17 @@ diante.
 
 ### O que uma atualização destrói
 
-O staging divide a partição de flash com o sistema de arquivos, então uma
+No Pico W, o staging divide a partição de flash com o sistema de arquivos, então uma
 atualização **o reformata**. Um snapshot leva o `/config/system.bin` para o
 outro lado — credenciais de Wi-Fi, usuários e slots de sensores sobrevivem
 automaticamente, e o dispositivo volta para a rede sem assistência.
 
 Nada mais sobrevive. **Pacotes de idioma, o `/calib.csv` e todo o histórico
 armazenado se perdem.** Baixe um backup antes.
+
+No Pico 2 W a atualização vai para o outro slot e não mexe no sistema de arquivos: não há
+snapshot nem nada a restaurar, e os pacotes de idioma, o `/calib.csv` e o histórico ficam
+(veja [Rollback](#rollback)).
 
 Desde a v2.8.0 o snapshot é gravado quando o envio **começa** e vale uma vez: o
 boot seguinte o restaura se não encontrar o `/config/system.bin`, e o apaga. Um
@@ -1002,12 +1008,19 @@ atualizações feitas *a partir* da v2.8.0. Ao atualizar da v2.7.4 ou anterior,
 use uma porta web que a sua rede não corte em transferências longas, e guarde o
 backup.
 
-### Não existe rollback
+### Rollback
 
-O slot de aplicação é único. A imagem é validada antes de ser gravada e
-verificada de novo no boot seguinte, mas se uma imagem ruim bootar mal não há
+No Pico W o slot de aplicação é único. A imagem é validada antes de ser gravada
+e verificada de novo no boot seguinte, mas se uma imagem ruim bootar mal não há
 um segundo slot para o qual recuar — a recuperação é o botão BOOTSEL e um cabo
 USB. Veja [RECOVERY.md](RECOVERY.md).
+
+O Pico 2 W (`releasetwo`, desde a v2.11.0) tem dois slots de programa. A
+atualização vai para o slot de onde ele não deu boot e entra em teste. A imagem
+nova se mantém depois de rodar saudável por um minuto; um reset, uma queda de
+energia ou o watchdog antes disso, ou cinco minutos sem esse minuto, trazem de
+volta a imagem que ela substituiu, que registra o código 613 e o informa em
+`sys.reverted`.
 
 ### O procedimento
 
@@ -1356,7 +1369,7 @@ Permissões entre colchetes.
 | `/api/screenshot_chunk` | GET | Um bloco de 16 linhas com um CRC32, para transferência verificável |
 | `/api/screen_stream` | GET | Um quadro do painel em faixas com RLE de paleta (espelho ao vivo) |
 | `/api/touch` | POST | Toca o painel em `x` (0..319) e `y` (0..239) — coordenadas do painel; com `ms` (100..15000), segura o toque esse tempo |
-| `/api/keypad` | GET | O teclado do PIN **como está no vidro agora**: `faces` (uma por tecla, POSICIONAL — o pad numérico ordenado tem duas VAZIAS), `kb` (`cards`, `num` ou `groups`), `grid`, `policy` e `pop` para o popup do alfanumérico de dois toques. Descreve o vidro, não o segredo: num teclado sorteado nunca diz qual casa do cartão é o caractere |
+| `/api/keypad` | GET | O teclado do PIN **como está no vidro agora**: `faces` (uma por tecla, POSICIONAL — o pad numérico ordenado tem duas VAZIAS), `kb` (`cards`, `num` ou `groups`), `policy` e, no painel original, `grid` e `pop` para o popup do alfanumérico de dois toques. No Ângulo a resposta traz `"targets":"/api/ui"` no lugar de `grid` e `pop`: onde as teclas estão é nos alvos dessa rota. Descreve o vidro, não o segredo: num teclado sorteado nunca diz qual casa do cartão é o caractere |
 
 ---
 

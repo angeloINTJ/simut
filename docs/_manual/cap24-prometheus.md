@@ -8,7 +8,7 @@ O aparelho oferece a rota `GET /metrics`, na porta da interface web, no formato 
 
 - **É uma foto do agora.** O aparelho responde com os valores do momento e não guarda nada para depois. Se o Prometheus não consultar, aquele instante se perde; o aparelho não reenvia nada.
 - **Não precisa de configuração no aparelho.** Não há opção para ligar ou desligar a rota. Basta uma conta com a permissão certa.
-- **Existe nas três imagens.** Na imagem release, a rota segue o protocolo da interface web: HTTP, ou só HTTPS com certificado instalado. Nas imagens alpha e Air, só HTTP. No Air, só com o aparelho acordado ([No SIMUT Air](#cap-24-air)).
+- **Existe em todas as imagens.** Na imagem release, a rota segue o protocolo da interface web: HTTP, ou só HTTPS com certificado instalado. Nas imagens alpha e Air, só HTTP. No Air, só com o aparelho acordado ([No SIMUT Air](#cap-24-air)).
 
 Para guardar as medições com a hora exata de cada registro, sem buracos, use a telemetria ([capítulo 21](#cap-21)). O Prometheus serve para painéis, tendências e alertas.
 
@@ -224,7 +224,7 @@ Estas métricas acompanham a gravação na flash, o segundo núcleo do processad
 | `simut_core1_heartbeat_age_seconds` | gauge | — | Tempo desde o último sinal de vida do segundo núcleo |
 | `simut_core1_launches_total` | counter | — | Partidas do segundo núcleo |
 | `simut_core1_kills_total` | counter | `cause`: `lockout`, `health`, `quiet` | Paradas forçadas do segundo núcleo, por motivo |
-| `simut_web_aborts_total` | counter | `cause`: `deadline`, `guard`, `disconnect` | Respostas web interrompidas, por motivo |
+| `simut_web_aborts_total` | counter | `cause`: `deadline`, `guard`, `disconnect`, `short_write` | Respostas web interrompidas, por motivo. `short_write` é um envio que não terminou dentro do prazo |
 
 ### Medições por slot {#cap-24-m-medicoes}
 
@@ -343,6 +343,7 @@ simut_core1_kills_total{cause="quiet"} 0
 simut_web_aborts_total{cause="deadline"} 0
 simut_web_aborts_total{cause="guard"} 0
 simut_web_aborts_total{cause="disconnect"} 0
+simut_web_aborts_total{cause="short_write"} 0
 # TYPE simut_sensor_ok gauge
 simut_sensor_ok{slot="0",hwid="STM0001",name="Câmara 1"} 1
 simut_sensor_ok{slot="1",hwid="BME28001",name="Sala"} 1

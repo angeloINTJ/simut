@@ -1,6 +1,6 @@
 # SIMUT — User Manual
 
-**Firmware:** v2.11.1 · **Hardware:** Raspberry Pi Pico W (RP2040 + CYW43439) · **License:** MIT
+**Firmware:** v2.13.0 · **Hardware:** Raspberry Pi Pico W (RP2040 + CYW43439) · **License:** MIT
 **Repository:** https://github.com/angeloINTJ/simut
 
 > **This is not a certified metrological instrument.** It is tested on real
@@ -56,14 +56,17 @@ exists but is off by default, and the device is fully usable having never been
 given one.
 
 **What it is not.** It is not certified for regulated storage, it has no
-redundant sensing, and it holds no second firmware slot to fall back on. The
-sections below are explicit about each of those limits where they matter.
+redundant sensing, and the Pico W holds no second firmware slot to fall back on
+(the Pico 2 W has two: see [Rollback](#rollback)). The sections below are
+explicit about each of those limits where they matter.
 
 ### The three builds
 
-The same source tree produces three images. They share the sensor model, the
-history format, the web interface and the permissions; what differs is what is
-attached and how much of the time the device is awake.
+The same source tree produces three images for the Pico W and, since v2.11.0,
+the release again for the Pico 2 W (`pico2_w_release`, published as
+`releasetwo`). They share the sensor model, the history format, the web
+interface and the permissions; what differs is what is attached and how much of
+the time the device is awake.
 
 | Build | Display | Awake | For |
 |---|---|---|---|
@@ -246,8 +249,9 @@ display, history, alarms, telemetry — sees the corrected value.
 
 Calibration requires the `CALIB` permission and needs NTP synced.
 
-> **`/calib.csv` does not survive a firmware update.** See
+> **On the Pico W, `/calib.csv` does not survive a firmware update.** See
 > [§12](#12-firmware-updates) for what an update preserves and what it does not.
+> On the Pico 2 W the update leaves the filesystem alone.
 
 ### Reading pipeline
 
@@ -942,13 +946,17 @@ then on.
 
 ### What an update destroys
 
-Staging shares the flash partition with the filesystem, so an update
+On the Pico W, staging shares the flash partition with the filesystem, so an update
 **reformats it**. A snapshot carries `/config/system.bin` across — Wi-Fi
 credentials, users and sensor slots survive automatically, and the device
 rejoins the network unattended.
 
 Nothing else does. **Language packs, `/calib.csv` and all stored history are
 lost.** Download a backup first.
+
+On the Pico 2 W the update goes into the other slot and leaves the filesystem alone: no snapshot,
+nothing to restore, and the language packs, `/calib.csv` and the history stay (see
+[Rollback](#rollback)).
 
 Since v2.8.0 the snapshot is written when the upload **starts** and is used
 once: the next boot restores it if it finds no `/config/system.bin`, and erases
@@ -963,12 +971,18 @@ protection holds for updates made *from* v2.8.0 on. Updating from v2.7.4 or
 older, use a web port your network does not cut on long transfers, and keep the
 backup.
 
-### There is no rollback
+### Rollback
 
-The application slot is single. The image is validated before it is committed
-and verified again on the next boot, but if a bad image boots badly there is no
-second slot to fall back to — recovery is the BOOTSEL button and a USB cable.
-See [RECOVERY.md](RECOVERY.md).
+On the Pico W the application slot is single. The image is validated before it
+is committed and verified again on the next boot, but if a bad image boots badly
+there is no second slot to fall back to — recovery is the BOOTSEL button and a
+USB cable. See [RECOVERY.md](RECOVERY.md).
+
+The Pico 2 W (`releasetwo`, since v2.11.0) has two program slots. An update goes
+into the slot the board did not boot from and boots on trial. The new image
+keeps itself once it has run healthy for a minute; a reset, a power cut or the
+watchdog before that, or five minutes without that minute, bring back the image
+it replaced, which logs code 613 and reports it in `sys.reverted`.
 
 ### The procedure
 
@@ -1254,7 +1268,7 @@ brackets.
 
 | Route | Method | Notes |
 |---|---|---|
-| `/api/status` | GET | Uptime, heap, flash usage, RSSI; `sys.ver`, `sys.env`, `sys.uid`, `sys.mac`, `sys.cfg` identify the device (§ Fleet hooks). `?quiet=1` reads without rearming the Air timer |
+| `/api/status` | GET | Uptime, heap, flash usage, RSSI; `sys.ver`, `sys.env`, `sys.uid`, `sys.mac`, `sys.cfg` identify the device (§ Fleet hooks). `?quiet=1` reads without rearming the Air timer. On the panel images `sys.clk_peri`, the peripheral clock, and `sys.tft_hz`, the baud the panel's SPI runs at, are there, both in Hz |
 | `/metrics` | GET | Prometheus text exposition [DASHBOARD]. Session cookie **or** HTTP Basic (username + raw password) — see §10 |
 | `/api/sensors` | GET | Slot map and drivers (not readings — those are in `/api/status`) |
 | `/api/config` | GET | Device configuration |
@@ -1331,7 +1345,7 @@ What a manager of many devices (the SIMUT-RX app, or any client) relies on:
 | `/api/screenshot_chunk` | GET | One 16-row chunk with a CRC32, for verifiable transfer |
 | `/api/screen_stream` | GET | One frame of the panel in palette-RLE strips (live mirror) |
 | `/api/touch` | POST | Taps the panel at `x` (0..319), `y` (0..239) — panel coordinates; with `ms` (100..15000) it holds the touch that long |
-| `/api/keypad` | GET | The PIN keypad **as it is on the glass right now**: `faces` (one per key, positional — the ordered numeric pad has two EMPTY ones), `kb` (`cards`, `num` or `groups`), `grid`, `policy`, and `pop` for the two-tap alphanumeric popup. It describes the glass, not the secret: on a dealt keypad it never says which slot of a card is the character |
+| `/api/keypad` | GET | The PIN keypad **as it is on the glass right now**: `faces` (one per key, positional — the ordered numeric pad has two EMPTY ones), `kb` (`cards`, `num` or `groups`), `policy`, and, on the original panel, `grid` and `pop` for the two-tap alphanumeric popup. On the Ângulo the answer has `"targets":"/api/ui"` in place of `grid` and `pop`: where the keys are is in the targets of that route. It describes the glass, not the secret: on a dealt keypad it never says which slot of a card is the character |
 
 ---
 

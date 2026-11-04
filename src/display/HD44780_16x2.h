@@ -52,6 +52,12 @@ struct Hd44780_16x2 {
 	static constexpr int16_t width  = 16;
 	static constexpr int16_t height = 2;
 
+	/* Pixels: none. The shared headers size things by DisplayDriver::W and ::H (the TFT's,
+	 * display/ILI9341_320x240.h); a character LCD answers 0 so that they compile in this
+	 * image, and nothing here reads them. */
+	static constexpr int16_t W = 0;
+	static constexpr int16_t H = 0;
+
 	/* No pixel framebuffer — void* in alpha (GFX excluded). */
 #if SIMUT_DISPLAY_TFT
 	Adafruit_GFX* tft        = nullptr;

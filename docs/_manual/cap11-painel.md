@@ -1,6 +1,6 @@
-# O painel {#cap-11}
+# O painel original (Pico W) {#cap-11}
 
-[release]{.img} Este capítulo percorre o painel de toque da imagem `release`, tela por tela: a tela inicial, os gestos, o gráfico, o menu de configurações, as telas de boot e as mensagens. É para quem opera o aparelho na bancada ou no laboratório.
+[release]{.img} Este capítulo percorre o painel de toque original da imagem `release`, a do Pico W, tela por tela: a tela inicial, os gestos, o gráfico, o menu de configurações, as telas de boot e as mensagens. Ele vale também para um Pico 2 W montado com **Visual original** (*Original look*) no [configurador](#cap-03-sob-medida). A imagem `releasetwo`, a do Pico 2 W, desenha o painel Ângulo, que está no [capítulo 11A](#cap-11a). É para quem opera o aparelho na bancada ou no laboratório.
 
 ## O painel em resumo {#cap-11-visao}
 
@@ -55,10 +55,10 @@ A telemetria está no [capítulo 21](#cap-21).
 | Barras acesas | RSSI |
 |---|---|
 | 4 | acima de −55 dBm |
-| 3 | de −65 a −55 dBm |
-| 2 | de −75 a −65 dBm |
-| 1 | abaixo de −75 dBm |
-| Nenhuma | Sem conexão, ou leitura de sinal impossível |
+| 3 | de −64 a −55 dBm |
+| 2 | de −74 a −65 dBm |
+| 1 | de −99 a −75 dBm |
+| Nenhuma | −100 dBm ou menos; também sem conexão, ou com leitura de sinal impossível |
 
 **O que substitui a data e a hora.** Dois avisos ocupam o lugar do relógio enquanto duram:
 
@@ -302,7 +302,7 @@ Quando a conta vê os 13 itens, eles aparecem numerados, de `1.` a `13.`. Com o 
 | 12 | **Alinhamento da Tela** (*Display Alignment*) | **Sistema** | [Alinhamento](#cap-11-alinhamento) |
 | 13 | **Licença** (*License*) | Nenhuma | [Licença](#cap-11-licenca) |
 
-As três permissões de painel do item 1 são **Limites (painel)** [PERM_ALARM_LIMITS]{.perm}, **Bloqueio (painel)** [PERM_ALARM_BLOCK]{.perm} e **Manut. (painel)** [PERM_MAINT]{.perm}. O aparelho confere a permissão de novo quando recebe o pedido do painel: esconder o item é só conforto.
+As três permissões de painel do item 1 são **Limites (painel)** [PERM_ALARM_LIMITS]{.perm}, **Bloqueio (painel)** [PERM_ALARM_BLOCK]{.perm} e **Manut. (painel)** [PERM_MAINT]{.perm}. O aparelho confere a permissão de novo quando recebe o pedido do painel: esconder o item é só conforto. Há quatro exceções, que gravam a configuração sem essa conferência: salvar os sons (**Sons de Alarme**), salvar a sensibilidade do toque e salvar a calibração do toque (**Calibrar Touch**) e aplicar o alinhamento (**Alinhamento da Tela**). Para elas, a única guarda é a permissão **Sistema** do item do menu, que o painel só mostra a quem a tem, e quem perde a permissão com a tela aberta ainda consegue salvar. Estão registradas como desvios (decisão do mantenedor de 28/10/2026). Os pedidos são os mesmos nos dois painéis, então o desvio vale também para o [painel Ângulo](#cap-11a-menu).
 
 ::: {.figura #fig-11-menu tipo="tft" arquivo="11-menu.png" captura="screen set; a ferramenta entra como administrador; primeira página, item 1 selecionado"}
 O menu completo, primeira página: Limites de Alarme, Sons de Alarme, Status do Sistema e Data e hora, numerados de 1 a 4.
@@ -429,12 +429,16 @@ A tela **Configurações > Idioma** (*Settings > Language*) tem até duas linhas
 | Linha | Código | Quando aparece |
 |---|---|---|
 | **English** | `EN` | Sempre |
-| O nome do pacote de idioma instalado, como **Portugues** | O código do pacote, como `pt-BR` | Só com um pacote `.lng` carregado |
+| O nome do pacote de idioma, como **Portugues** | O código do pacote, como `pt-BR` | Com um pacote `.lng` na pasta `/lang`. Num boot em inglês o pacote não é carregado: o painel só lê o nome e o código do arquivo, e nada fica na memória |
 
 1. Toque no idioma.
 2. Toque em **APLICAR**.
 
-O painel toca o som de confirmação e volta à tela inicial no idioma novo. O aparelho grava na hora, e o log registra o código 441, **Idioma alterado via UI**. O console serial passa a usar o mesmo idioma a partir do próximo reinício. De fábrica, o idioma é o do pacote; sem pacote carregado, o painel fica em inglês.
+**Com o painel em português**, que é o pacote carregado, o painel toca o som de confirmação e volta à tela inicial no idioma novo. O aparelho grava na hora, e o log registra o código 441, **Idioma alterado via UI**. O console serial passa a usar o mesmo idioma a partir do próximo reinício.
+
+**Com o painel em inglês**, escolher o pacote grava o idioma, toca o som de confirmação e mostra **Reboot required** (*Reinício necessário*). O painel continua em inglês até o próximo reinício; nele o pacote é carregado, e o painel, o console, o log e a página web passam a usar o idioma dele. O log registra o código 441 quando o idioma é gravado. Se a gravação falhar, o painel mostra **Error** e o idioma continua o que era. O aparelho não reinicia sozinho, porque o reinício interrompe a medição e os alarmes.
+
+De fábrica, o idioma é o do pacote. Sem pacote em `/lang`, o painel fica em inglês e a tela lista só **English**. A lista é a do boot: um pacote enviado depois dele só aparece depois do próximo reinício.
 
 Algumas telas não seguem o idioma escolhido: o aviso de web ocupada, o calendário e o LCD do alpha estão sempre em português, e as linhas da tela [Status do Sistema](#cap-11-status) estão sempre em inglês.
 
@@ -586,7 +590,7 @@ Os motivos de uma recusa são os da página **Arquivos** ([capítulo 17](#cap-17
 
 A conferência roda de novo quando a página pede a instalação; se a imagem guardada não confere mais, a tela mostra a recusa com o motivo, e a instalação não começa. **Interrompida** aparece quando o envio para no meio, quando a gravação na memória falha ou quando a instalação não chega a começar. Nos dois casos o aparelho segue na versão que tinha.
 
-Depois da instalação, quando a imagem gravada confere com a recebida, a caixa do boot mostra **Update installed:** e a versão nova, em inglês: o envio da imagem apaga o pacote de idioma junto com os outros arquivos ([O que sobrevive e o que se perde](#cap-17-sobrevive)).
+Depois da instalação, quando a imagem gravada confere com a recebida, a caixa do boot mostra **Update installed:** e a versão nova, em inglês: no Pico W, o envio da imagem apaga o pacote de idioma junto com os outros arquivos ([O que sobrevive e o que se perde](#cap-17-sobrevive)). No Pico 2 W o pacote de idioma fica, porque o sistema de arquivos fica intocado ([capítulo 26](#cap-26-ota)).
 
 ::: {.figura #fig-11-ota-recebendo tipo="tft" arquivo="11-ota-recebendo.png" captura="screen otarx: a etapa Recebendo com a barra em 42 %; pacote pt-BR"}
 O envio da imagem: a barra, a porcentagem e o aviso para não desligar.

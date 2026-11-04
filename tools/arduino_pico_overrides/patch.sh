@@ -96,6 +96,14 @@ fi
 echo "[patch] aplicando patched lwipopts.h"
 cp -v "$OVR/patched_headers/lwipopts.h" "$FW/include/"
 
+# Do 2b em diante, cada passo é guardado por um grep numa MARCA que o PRÓPRIO
+# patch acrescenta ao arquivo: uma linha "SIMUT override — ..." entre as linhas
+# `+` dele. Marca que o patch não acrescenta não quebra a primeira execução, só
+# a segunda: o grep não acha, o `patch` reencontra o patch já aplicado (pergunta
+# "Assume -R?" e rejeita) e, com `set -e`, o script morre ali, sem chegar nos
+# passos seguintes nem na invalidação do cache. Foi o caso do 2b-ter (#274),
+# achado em 16/10/2026. tools/check_patch_sentinels.py (job `gates`) confere cada guarda.
+
 # 2b. Patch cirúrgico no handshake TLS (WiFiClientSecureBearSSL.cpp)
 #
 #   O upstream só tem prazo dentro de _run_until(), que reinicia o próprio
@@ -116,6 +124,30 @@ if grep -q "SIMUT override — bound the handshake as a whole" "$BEARSSL"; then
 else
     echo "[patch] aplicando prazo global no handshake TLS"
     patch -p1 -d "$FW" < "$BEARSSL_PATCH"
+fi
+
+# 2b-ter. Recusa não-TLS na porta TLS antes do handshake (WiFiServerSecureBearSSL.cpp) — #274
+#
+#   Uma aba http:// esquecida na porta TLS (depois que o HTTPS entrou) manda GET
+#   em claro, entra no handshake BearSSL do servidor e no teardown dele. Com o
+#   painel TFT desenhando no Core 1 (busca XIP na flash), esse caminho trava o
+#   árbitro QSPI e o watchdog reinicia o aparelho. Medido na bancada em
+#   15/10/2026: autópsia C0=[WEB_POLL] C1=[DISPLAY] em 5 de 6 reinícios; a mesma
+#   carga numa build sem o painel (pico_wire) não reinicia (0 em 5 min).
+#
+#   O primeiro byte de um ClientHello TLS é 0x16. Chegado um byte que não é 0x16,
+#   o accept entrega a conexão a WiFiServer::accept() (que a reivindica como
+#   cliente comum, anda na fila E libera a vaga de backlog — o accept TLS nunca
+#   liberava) e a fecha, antes de montar o contexto TLS de ~16 KB. Sem byte
+#   ainda: cai no handshake como antes, então um cliente TLS lento não é afetado.
+WSSECURE="$FW/libraries/WiFi/src/WiFiServerSecureBearSSL.cpp"
+WSSECURE_PATCH="$OVR/patches/wifiserversecure_drop_plaintext.patch"
+save_original "$WSSECURE" "WiFiServerSecureBearSSL.cpp"
+if grep -q "SIMUT override — tell a non-TLS client from a TLS one by its FIRST BYTE" "$WSSECURE"; then
+    echo "[patch] recusa não-TLS na porta TLS já aplicada — nada a fazer"
+else
+    echo "[patch] aplicando recusa não-TLS na porta TLS (#274)"
+    patch -p1 -d "$FW" < "$WSSECURE_PATCH"
 fi
 
 # 2b-bis. Poda das suites TLS (WiFiClientSecureBearSSL.cpp)
@@ -465,6 +497,61 @@ if grep -q "SIMUT override — a connection this server accepted is not killed" 
 else
     echo "[patch] aplicando prioridade das conexoes aceitas (WiFiServer + ClientContext)"
     patch -p1 -d "$FW" < "$EVICT_PATCH"
+fi
+
+# 2m. Escrita curta encerra a resposta (HTTPServer.h + HTTPServer.cpp) — #189
+#
+#   O write( ) do cliente desiste quando o par nao confirma (ACK) dentro do
+#   prazo do cliente, e devolve o que levou. O upstream jogava esse numero fora
+#   em toda escrita da resposta, o cabecalho e a linha de tamanho, os dados e o
+#   CRLF de cada chunk, e seguia com a proxima: o que uma escrita nao levou
+#   virava um buraco no meio do fluxo, enquadrado como se nada tivesse havido.
+#   Medido na bancada (14/10/2026, release 2.11.1, GET /api/status a cada
+#   0,2 s numa conexao keep-alive): 24 de 2.000 respostas chegaram sem uma ou
+#   duas escritas inteiras, e cada uma levou 1,2 a 1,8 s a mais que os 0,04 s
+#   de uma resposta boa.
+#
+#   O patch: a primeira escrita curta encerra a resposta. Nada mais dela sai, a
+#   conexao fecha e shortWrites( ) conta. O cliente ve uma resposta cortada,
+#   que todo cliente HTTP reporta como tal, onde antes recebia um fluxo que
+#   mentia. Escrita para um par que ja foi embora nao conta: e desconexao, e o
+#   sketch conta essas. O fechamento e stopClient(1), que o WebServerTemplate
+#   faz pelo tipo real do cliente: WiFiClient::stop(unsigned) nao e virtual e,
+#   pelo WiFiClient* do servidor, nao fechava nada sobre TLS.
+WSRV_DIR="$FW/libraries/WebServer/src"
+SW_PATCH="$OVR/patches/webserver_short_write.patch"
+save_original "$WSRV_DIR/HTTPServer.h"        "HTTPServer.h"
+save_original "$WSRV_DIR/HTTPServer.cpp"      "HTTPServer.cpp"
+save_original "$WSRV_DIR/WebServerTemplate.h" "WebServerTemplate.h"
+if grep -q "SIMUT override — a short write ends the response" "$WSRV_DIR/HTTPServer.cpp"; then
+    echo "[patch] WebServer ja encerra a resposta na escrita curta — nada a fazer"
+else
+    echo "[patch] aplicando fim da resposta na escrita curta (WebServer)"
+    patch -p1 -d "$FW" < "$SW_PATCH"
+fi
+
+# 2n. Menos escritas por resposta (HTTPServer.h + HTTPServer.cpp) — #189
+#
+#   Com LWIP_NETIF_TX_SINGLE_PBUF (lwipopts.h), o tcp_write( ) da a cada
+#   segmento novo um pbuf de um MSS inteiro, ~1,5 KB do heap de 16 KB do lwIP,
+#   por menos bytes que leve, e o setNoDelay(true) do servidor manda cada
+#   escrita num segmento proprio. O upstream escrevia o cabecalho numa escrita e
+#   cada chunk em tres: o /api/status saia em 24 segmentos, e o heap comporta
+#   uns dez. Medido na bancada (14/10/2026, Pico W, 1.000 GET /api/status a
+#   cada 0,2 s): 4,4 recusas do tcp_write( ) por falta de memoria a cada
+#   resposta, e 3 respostas cortadas pelo prazo da escrita (2m).
+#
+#   O patch: dentro do _handleRequest( ), as escritas se juntam num buffer de
+#   um segmento (1.460 B) e saem quando ele enche, quando o send( ) escreveu
+#   uma resposta inteira (ha handlers que reiniciam logo depois dele) e quando
+#   a resposta termina. Os bytes no fio sao os mesmos, chunk por chunk. Aplica
+#   sobre o 2m: os dois mexem nas mesmas linhas.
+FEW_PATCH="$OVR/patches/webserver_fewer_writes.patch"
+if grep -q "SIMUT override — a response's small writes leave together" "$WSRV_DIR/HTTPServer.cpp"; then
+    echo "[patch] WebServer ja junta as escritas pequenas da resposta — nada a fazer"
+else
+    echo "[patch] aplicando menos escritas por resposta (WebServer)"
+    patch -p1 -d "$FW" < "$FEW_PATCH"
 fi
 
 # 3. Invalida cache PIO (lwip src + lib WiFi)

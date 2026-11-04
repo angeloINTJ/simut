@@ -53,8 +53,12 @@ USAGE
     # the OTA headroom table against the record, no build needed
     python3 tools/check_flash_budget.py --table
 
-Exit status is 0 when the image is within budget, 1 when it is over or when the
-log carries no size line to check.
+Exit status is 0 when the image is within budget, 1 when it is over, and 1 when
+the gate cannot look: a log with no size line, no firmware.bin under
+.pio/build/<env>/ to hold to the OTA ceiling, or an ota_layout.h it cannot read.
+Until 2026-10-24 the last two were a NOTE and exit 0, so a run after .pio/build
+was cleaned passed without reading any .bin (found in S10c D5's review,
+2026-10-23). An image under "ota_exempt" needs no .bin.
 
 Project: SIMUT
 License: MIT
@@ -83,7 +87,7 @@ def ota_safe_max():
     here, for the reason check_lang_packs gives about the pack limits: a gate
     holding its own copy of a number is a gate that can disagree with the code
     it guards. Returns None if the header stops looking like this, and the
-    caller then says so instead of pretending to check."""
+    caller then fails instead of pretending to check."""
     with open(os.path.join(ROOT, "src", "ota", "ota_layout.h"),
               encoding="utf-8") as fh:
         src = fh.read()
@@ -270,9 +274,10 @@ def check_ota_bin(env, ceiling, exempt=None, recorded_bin=None):
         return
     path = os.path.join(ROOT, ".pio", "build", env, "firmware.bin")
     if not os.path.exists(path):
-        print(f"[flash-budget] NOTE {env}: no firmware.bin next to the log, "
-              f"so the OTA ceiling was not checked.")
-        return
+        fail(f"{env}: no {os.path.relpath(path, ROOT)}, so neither the OTA "
+             f"ceiling nor the recorded size (\"bin\") was checked. The log "
+             f"does not carry the .bin: run this in the tree that built the "
+             f"image, before .pio/build is cleaned.")
     # What goes over the air is the .bin with the signature trailer after it
     # (docs/analysis/OTA_ASSINADA.md), so that is what has to fit.
     trailer = sig_trailer_len()
@@ -397,12 +402,11 @@ def main():
 
     safe_max = ota_safe_max()
     if safe_max is None:
-        print(f"[flash-budget] NOTE {env}: could not read OTA_APP_SAFE_MAX_SIZE "
-              f"out of src/ota/ota_layout.h — the OTA ceiling was not checked.")
-    else:
-        check_ota_bin(env, ota_ceiling(cfg["envs"][env], safe_max),
-                      cfg.get("ota_exempt", {}).get(env),
-                      cfg["envs"][env].get("bin"))
+        fail(f"{env}: could not read OTA_APP_SAFE_MAX_SIZE out of "
+             f"src/ota/ota_layout.h, so the OTA ceiling cannot be checked.")
+    check_ota_bin(env, ota_ceiling(cfg["envs"][env], safe_max),
+                  cfg.get("ota_exempt", {}).get(env),
+                  cfg["envs"][env].get("bin"))
 
 
 if __name__ == "__main__":

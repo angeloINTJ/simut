@@ -45,10 +45,22 @@ SRC = os.path.join(ROOT, "src")
 sys.path.insert(0, os.path.join(ROOT, "tools"))
 import gen_features as gf  # noqa: E402
 
-# A biblioteca no commit que o mantenedor fixou em 2026-10-12 (a main de entao, 14 commits
-# depois da v1.2.0). Quando o driver do Wire a puser no lib_deps, este numero sai de la.
 LIB_URL = "https://github.com/angeloINTJ/pico-enc28j60.git"
-LIB_SHA = "fb16ec132baab989b5921075dd1f1503dd8149d4"
+
+
+def _lib_sha():
+    """O commit em que o tools/features.toml fixa a biblioteca para a pico_wire: a bancada roda o
+    que a build linka. Ate 2026-10-15 era uma copia do commit aqui, que nao acompanhava o
+    lib_deps: o driver entrou nele em 2026-10-12 e a copia ficou."""
+    M = gf.load_manifest()
+    composed = gf.compose(gf.resolve_profile("pico_wire", M["profiles"]), M)
+    pins = [d.split("#", 1)[1] for d in composed["lib_deps"] if d.startswith(LIB_URL + "#")]
+    if len(pins) != 1:
+        sys.exit(f"wire_enc_bench: o lib_deps da pico_wire devia fixar {LIB_URL} uma vez, e fixa {pins}")
+    return pins[0]
+
+
+LIB_SHA = _lib_sha()
 CACHE = os.path.expanduser("~/.cache/simut/pico-enc28j60")
 # O Pico comum. Num Pico W a imagem roda igual: o radio fica desligado, porque nada sobe o
 # WL_ON (GP23), e os pinos do modulo nao encostam nos do radio (GP23, 24, 25 e 29).

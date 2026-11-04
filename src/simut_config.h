@@ -84,6 +84,21 @@
 #error "SIMUT_TFT_GRAPH draws on the touch panel: it needs SIMUT_DISPLAY_TFT"
 #endif
 
+// Which UI driver the touch panel has (2026-10-14): the original, the default, or
+// Angulo (-DSIMUT_UI_ANGULO=1, the manifest's `ui = "angulo"`). The identity and
+// what it can do are settled in src/ui/UiCaps.h, as the network's are in
+// src/net/NetCaps.h, and only the identity is ever passed with -D.
+#include "ui/UiCaps.h"
+
+// Angulo is a panel UI: it draws on the ILI9341 and reads the XPT2046. On an image
+// whose display is the 16x2 LCD or none, its units would have nothing to draw on, and
+// the manifest refuses the combination before a build starts (tools/features.toml,
+// rule angulo-needs-tft). This is the same refusal where the compiler can see it, for
+// a hand-written -D line. After the display macros above, which UiCaps.h cannot see.
+#if SIMUT_UI_ANGULO && !SIMUT_DISPLAY_TFT
+#error "SIMUT_UI_ANGULO needs SIMUT_DISPLAY_TFT"
+#endif
+
 /* =========================================================================
  * SECTION 2: TFT DISPLAY PINS
  *
@@ -116,17 +131,35 @@
  * Adafruit library begin( ) and the DMA blit transactions) — they must
  * agree or the DMA path silently runs at a different speed.
  *
- * The RP2040 PL022 divider only yields clk_peri / even ratios; with
- * clk_peri at 125 MHz the reachable ladder is 62.5 / 31.25 / 20.83 MHz —
- * there is nothing between the top two rungs. 62.5 MHz is well beyond the
- * ILI9341 datasheet figure (which real modules routinely exceed), so it
- * MUST be validated by reading pixels back (GET /api/screenshot reads the
- * panel GRAM): stray pixels in flat regions mean the wiring cannot carry
- * it — drop back to 31250000u. Touch and panel READS are unaffected
- * (they run their own transactions: the touch at 2 MHz, the read-back at
- * SIMUT_TFT_READ_HZ below). */
+ * The SPI block (a PL022) divides clk_peri by an even prescale (>= 2) times a
+ * post-divider, so a request lands on a rung of a ladder: the largest baud that
+ * does not exceed it, and clk_peri / 2 at the most (display/Pl022Baud.h models
+ * the SDK's spi_set_baudrate( ), and the native cases pin it).
+ *
+ * clk_peri is clk_sys on the images with the panel since 2026-10-15: setup( ) in
+ * main.cpp puts it there. Before, the framework's set_sys_clock_khz( ) at F_CPU
+ * 133 MHz had moved it to the 48 MHz USB PLL, where the ceiling is 24 MHz and
+ * every request from 24 to 62.5 MHz ran at 24: read on the bench that day,
+ * clk_sys 133 MHz, clk_peri 48 MHz, SPI0 24 MHz after a push. The "31.25 ->
+ * 62.5 MHz" of v2.1.6 never reached the wire, and the comment that said
+ * "clk_peri at 125 MHz" was never true on these boards.
+ *
+ * At clk_peri = 133 MHz the ladder is 66.5 / 33.25 / 22.17 / 16.6 MHz, and
+ * 66.5 MHz, this constant, is its ceiling. It is far beyond the ILI9341
+ * datasheet figure (which real modules routinely exceed), so it MUST be
+ * validated by reading pixels back (GET /api/screenshot reads the panel GRAM):
+ * on the bench's module and wiring, 2026-10-15, 60 strips rewritten at 66.5 MHz
+ * read back with 0 wrong pixels. Stray pixels in flat regions on another module
+ * mean its wiring cannot carry it — drop back to
+ * 33250000u, the next rung (31250000u is no rung of this clock: it runs at
+ * 22.17). The Pico 2 W (RP2350, clk_sys = clk_peri = 150 MHz, no clock change)
+ * gets 37.5 MHz from the same request (prescale 2, post-divider 2), as it did
+ * from 62.5; its ceiling would be 75000000u, not tried. Touch and panel READS
+ * run their own transactions (the touch at 2 MHz, the read-back at
+ * SIMUT_TFT_READ_HZ below), and the clock change moves them a little: 1.956 and
+ * 11.08 MHz at 133 MHz. */
 #ifndef SIMUT_TFT_SPI_HZ
-#define SIMUT_TFT_SPI_HZ 62500000u
+#define SIMUT_TFT_SPI_HZ 66500000u
 #endif
 
 /* TFT SPI READ clock, in Hz — the GRAM read-back, which is a different and much
@@ -159,6 +192,13 @@
  * error is deterministic — on 2026-09-24 the PicoHand holding TOUCH_CS low
  * zeroed bits 6, 5 and 2 of every byte, in every capture alike (AGENTS.md §1).
  * With the hand released, 12 MHz read the theme back exactly.
+ *
+ * 2026-10-15: that sweep ran with clk_peri at 48 MHz, not at the 125 MHz the
+ * ladder above implies: 10 = 8 and 16 = 20 = 12 are the rungs of 48 / (2 x n)
+ * (test_pl022_the_read_clock_sweep_of_2026_09_19_ran_on_the_48_mhz_ladder).
+ * With clk_peri on clk_sys (133 MHz) the same 12 MHz request reads at 11.08 MHz,
+ * a little slower than what was validated, and 16 and 20 are no longer the same
+ * rung as 12 (13.3 and 16.6 MHz).
  * A wrong clock here does not corrupt the panel; it corrupts what the mirror
  * reports, which looks like a display fault. */
 #ifndef SIMUT_TFT_READ_HZ

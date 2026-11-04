@@ -1,0 +1,233 @@
+--- a/libraries/WebServer/src/HTTPServer.h
++++ b/libraries/WebServer/src/HTTPServer.h
+@@ -213,6 +213,20 @@
+         return _responseKeepAlive;
+     }
+ 
++    /* SIMUT override — a short write ends the response (see _writeAll in
++     * HTTPServer.cpp). The responses ended that way since boot. */
++    uint32_t shortWrites() const {
++        return _shortWrites;
++    }
++    /* SIMUT override — close the current client, its flush capped at
++     * maxWaitMs, as the client's own type. WiFiClient::stop(unsigned) is not
++     * virtual, and a WiFiClientSecure keeps its connection in its own context
++     * with the base's left empty, so stop(1) through the WiFiClient* this
++     * class holds closed nothing over TLS. */
++    bool stopClient(unsigned int maxWaitMs) {
++        return _currentClient ? _currentClientStop(maxWaitMs) : true;
++    }
++
+     void setContentLength(const size_t contentLength);
+     void sendHeader(const String& name, const String& value, bool first = false);
+     void sendContent(const String& content);
+@@ -245,7 +259,16 @@
+     template<typename T>
+     size_t streamFile(T &file, const String& contentType, const int code = 200) {
+         _streamFileCore(file.size(), file.name(), contentType, code);
+-        return _currentClient->write(file);
++        /* SIMUT override — no body after a header cut short, and a body cut
++         * short ends the response like any other short write (_writeAll). */
++        if (_writeBroken) {
++            return 0;
++        }
++        const size_t sent = _currentClient->write(file);
++        if (sent != file.size()) {
++            _shortWrite();
++        }
++        return sent;
+     }
+ 
+     // Hook
+@@ -274,6 +297,16 @@
+     virtual size_t _currentClientWrite_P(PGM_P b, size_t l) {
+         return _currentClient->write(b, l);
+     }
++    /* SIMUT override — send( ) and sendContent( ) write through these two,
++     * streamFile( ) checks its own count, and a short write calls _shortWrite( ). */
++    bool _writeAll(const char* b, size_t l);
++    bool _writeAll_P(PGM_P b, size_t l);
++    void _shortWrite();
++    /* SIMUT override — see stopClient( ); WebServerTemplate stops the client
++     * as its real type. */
++    virtual bool _currentClientStop(unsigned int maxWaitMs) {
++        return _currentClient->stop(maxWaitMs);
++    }
+     void _addRequestHandler(RequestHandler* handler);
+     bool _removeRequestHandler(RequestHandler *handler);
+     void _handleRequest();
+@@ -308,6 +341,10 @@
+     bool        _reqConnKeepAlive = false;  /* request carried Connection: keep-alive */
+     bool        _responseKeepAlive = false; /* decision taken by _prepareHeader */
+ 
++    /* SIMUT override — short-write state (see _writeAll). */
++    bool        _writeBroken = false;  /* this response lost a write: nothing more goes out */
++    uint32_t    _shortWrites = 0;
++
+     WiFiClient  *_currentClient;
+     HTTPMethod  _currentMethod;
+     String      _currentUri;
+--- a/libraries/WebServer/src/HTTPServer.cpp
++++ b/libraries/WebServer/src/HTTPServer.cpp
+@@ -344,6 +344,9 @@
+ }
+ 
+ void HTTPServer::_prepareHeader(String& response, int code, const char* content_type, size_t contentLength) {
++    /* SIMUT override — a response starts here, so a hole the last one left
++     * (see _writeAll) does not silence this one. */
++    _writeBroken = false;
+     response = String(F("HTTP/1.")) + String(_currentVersion) + ' ';
+     response += String(code);
+     response += ' ';
+@@ -420,7 +423,7 @@
+         log_w("content length is zero");
+     }
+     _prepareHeader(header, code, content_type, content.length());
+-    _currentClientWrite(header.c_str(), header.length());
++    _writeAll(header.c_str(), header.length());
+     if (content.length()) {
+         sendContent(content);
+     }
+@@ -441,7 +444,7 @@
+ void HTTPServer::send(int code, const char* content_type, const char* content, size_t contentLength) {
+     String header;
+     _prepareHeader(header, code, content_type, contentLength);
+-    _currentClientWrite(header.c_str(), header.length());
++    _writeAll(header.c_str(), header.length());
+     if (contentLength) {
+         sendContent(content, contentLength);
+     }
+@@ -456,7 +459,7 @@
+ 
+     String header;
+     _prepareHeader(header, code, content_type, contentLength);
+-    _currentClientWrite(header.c_str(), header.length());
++    _writeAll(header.c_str(), header.length());
+     sendContent_P(content);
+ }
+ 
+@@ -471,16 +474,75 @@
+     sendContent(content.c_str(), content.length());
+ }
+ 
++/* SIMUT override — a short write ends the response.
++ *
++ * The client's write( ) gives up when it cannot hand all its bytes to lwIP
++ * within the client's timeout, waiting for the peer's ACKs to free room, and
++ * returns what it took. Upstream dropped that count on every write of a
++ * response, the header and each chunk's size line, data and CRLF alike, and
++ * went on with the next one: the bytes a write did not take left a hole in
++ * the middle of the stream, framed as if nothing had happened.
++ * Measured on the bench (2026-10-14, SIMUT release 2.11.1, GET /api/status
++ * every 0.2 s on one keep-alive connection): 24 of 2,000 replies came with one
++ * or two whole writes missing, such as a chunk's size line followed directly
++ * by the next chunk's, and each of those replies took 1.2 to 1.8 s more than
++ * the 0.04 s of a good one, the client's timeout and more.
++ *
++ * Now the first write that comes back short ends the response: nothing more
++ * of it is written, the connection is closed (stopClient( ), as the client's
++ * own type, so over TLS too), and shortWrites( ) counts it.
++ * The client sees a reply cut short, which every HTTP client reports as such,
++ * where it used to get a stream that lied. A write to a peer that has already
++ * gone is not counted: that is a disconnect, and the sketch counts those.
++ * A response cut short leaves _chunked set; _parseRequest( ) clears it for the
++ * next request, as it always has. _handleRequest( ) and _prepareHeader( )
++ * clear _writeBroken. */
++void HTTPServer::_shortWrite() {
++    _writeBroken = true;
++    if (_currentClient->connected()) {
++        _shortWrites++;
++        _currentClientStop(1);  /* 1 ms: the flush cannot finish, close now */
++    }
++}
++
++bool HTTPServer::_writeAll(const char* b, size_t l) {
++    if (_writeBroken) {
++        return false;
++    }
++    if (l == 0 || _currentClientWrite(b, l) == l) {
++        return true;
++    }
++    _shortWrite();
++    return false;
++}
++
++bool HTTPServer::_writeAll_P(PGM_P b, size_t l) {
++    if (_writeBroken) {
++        return false;
++    }
++    if (l == 0 || _currentClientWrite_P(b, l) == l) {
++        return true;
++    }
++    _shortWrite();
++    return false;
++}
++
+ void HTTPServer::sendContent(const char* content, size_t contentLength) {
+     const char * footer = "\r\n";
+     if (_chunked) {
+         char chunkSize[11];
+         sprintf(chunkSize, "%x%s", (unsigned int)contentLength, footer);
+-        _currentClientWrite(chunkSize, strlen(chunkSize));
++        if (!_writeAll(chunkSize, strlen(chunkSize))) {
++            return;
++        }
++    }
++    if (!_writeAll(content, contentLength)) {
++        return;
+     }
+-    _currentClientWrite(content, contentLength);
+     if (_chunked) {
+-        _currentClient->write(footer, 2);
++        if (!_writeAll(footer, 2)) {
++            return;
++        }
+         if (contentLength == 0) {
+             _chunked = false;
+         }
+@@ -496,11 +558,17 @@
+     if (_chunked) {
+         char chunkSize[11];
+         sprintf(chunkSize, "%x%s", (unsigned int)size, footer);
+-        _currentClientWrite(chunkSize, strlen(chunkSize));
++        if (!_writeAll(chunkSize, strlen(chunkSize))) {
++            return;
++        }
++    }
++    if (!_writeAll_P(content, size)) {
++        return;
+     }
+-    _currentClientWrite_P(content, size);
+     if (_chunked) {
+-        _currentClient->write(footer, 2);
++        if (!_writeAll(footer, 2)) {
++            return;
++        }
+         if (size == 0) {
+             _chunked = false;
+         }
+@@ -634,6 +702,7 @@
+ }
+ 
+ void HTTPServer::_handleRequest() {
++    _writeBroken = false;  /* SIMUT override — a new request, a new response (see _writeAll) */
+     bool handled = false;
+     if (!_currentHandler) {
+         log_e("request handler not found");
+--- a/libraries/WebServer/src/WebServerTemplate.h
++++ b/libraries/WebServer/src/WebServerTemplate.h
+@@ -51,6 +51,14 @@
+         return *(ClientType*)_currentClient;
+     }
+ 
++protected:
++    /* SIMUT override — stop the client as its real type (see
++     * HTTPServer::stopClient): ClientType::stop(unsigned) is the one that
++     * reaches a WiFiClientSecure's connection. */
++    bool _currentClientStop(unsigned int maxWaitMs) override {
++        return static_cast<ClientType*>(_currentClient)->stop(maxWaitMs);
++    }
++
+ private:
+     ServerType _server;
+ };

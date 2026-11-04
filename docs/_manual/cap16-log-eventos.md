@@ -10,15 +10,15 @@ Cada evento é um registro de 12 bytes gravado na flash, com estes campos:
 |---|---|
 | Data | A hora do aparelho no momento do evento, em segundos. Fica vazia quando o relógio ainda não tinha hora |
 | Tempo | Há quanto tempo o aparelho estava ligado, em segundos, até cerca de 194 dias |
-| Código | O número do evento, como 300 para uma entrada bem-sucedida. São 157 códigos |
+| Código | O número do evento, como 300 para uma entrada bem-sucedida. São 170 códigos |
 | Contexto | Um número que complementa o código, como o número da conta ou uma contagem |
 | Nível | A gravidade do evento |
 | Módulo | A parte do firmware que registrou o evento |
 | Núcleo | Qual dos dois núcleos do processador registrou o evento, 0 ou 1 |
 
-O registro na flash guarda o código e o contexto, e não um texto. A descrição que você lê na página vem de uma tabela no navegador, pelo código. O texto completo de cada evento, com detalhes como o nome de um arquivo, só existe no console, no momento em que o evento acontece, e no syslog ([Onde ler o log](#cap-16-onde)).
+O registro na flash guarda o código e o contexto, e não um texto. A descrição que você lê na página é o nome do código, que a página pede ao aparelho ([Na interface web](#cap-16-pagina)). O texto completo de cada evento, com detalhes como o nome de um arquivo, só existe no console, no momento em que o evento acontece, e no syslog, e sai em inglês ([Onde ler o log](#cap-16-onde)).
 
-A lista completa dos 157 códigos está no [apêndice B](#ap-b).
+A lista completa dos 170 códigos está no [apêndice B](#ap-b).
 
 ### Níveis {#cap-16-niveis}
 
@@ -47,6 +47,7 @@ A lista completa dos 157 códigos está no [apêndice B](#ap-b).
 | `DSP` | Painel e LCD |
 | `SEC` | Segurança: entradas, permissões, mudanças de configuração |
 | `OTA` | Atualização, backup e restauração |
+| `I18N` | Pacote de idioma: o carregamento no boot e os avisos sobre o pacote |
 
 ## O que o log guarda {#cap-16-guarda}
 
@@ -211,7 +212,7 @@ Com `debug on`, o console mostra cada evento no momento em que acontece, inclusi
 [hh:mm:ss][UP hh:mm:ss][C0][INF][SEC] <nome do evento>: <texto> (<contexto>)
 ```
 
-O nome do evento sai no idioma do pacote instalado. O `: <texto>` só aparece quando o evento tem texto, e o `(<contexto>)` só quando o contexto não é zero. Antes de o relógio ter hora, o primeiro campo é `[BOOT+Ns]`. O console está no [capítulo 14](#cap-14).
+O nome do evento e o texto saem em inglês, qualquer que seja o idioma do aparelho. O `: <texto>` só aparece quando o evento tem texto, e o `(<contexto>)` só quando o contexto não é zero. Antes de o relógio ter hora, o primeiro campo é `[BOOT+Ns]`. O console está no [capítulo 14](#cap-14).
 
 ## Como ler um travamento {#cap-16-travamento}
 

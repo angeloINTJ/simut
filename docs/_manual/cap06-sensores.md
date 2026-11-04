@@ -301,6 +301,10 @@ O log de eventos registra a entrada em erro, com o GPIO do sensor ([capítulo 16
 
 ### Como o erro aparece {#cap-06-erro-aparece}
 
+::: nota
+**As telas desta seção são as do painel original (Pico W).** No Pico 2 W, veja o [capítulo 11A](#cap-11a-cartoes).
+:::
+
 - **Painel** [release]{.img}: o cartão do sensor mostra **Erro** (*ERROR*) em letras grandes, no lugar do valor. O alarme de falha deixa o cartão âmbar ([capítulo 7](#cap-07-tipos)).
 - **LCD** [alpha]{.img}: quando o LCD chega ao sensor em erro, mostra `ERRO` em letras grandes. O mesmo `ERRO` aparece quando não há nenhum sensor ativo.
 - **Interface web**: na tabela de sensores do **Painel de Controle**, o ponto fica vermelho e a leitura mostra `Error` ([capítulo 13](#cap-13-tabela-sensores)).
@@ -486,5 +490,5 @@ Uma linha de DS18B20 sem pontos continua no arquivo: ela guarda a associação e
 Você pode enviar um `calib.csv` pela página **Arquivos**. O aparelho só o aceita se o número de `VERSION` for maior que o do arquivo atual; caso contrário, descarta o envio.
 
 ::: perigo
-**A atualização de firmware apaga o calib.csv.** A atualização pela web reformata o sistema de arquivos, e só a configuração é preservada. O arquivo de calibração se perde, e os sensores voltam a ler sem correção. O backup (`.bkp`), que a página de atualização baixa antes de começar, leva o arquivo: restaure-o depois da atualização ([capítulo 17](#cap-17)).
+**No Pico W, a atualização de firmware apaga o calib.csv.** A atualização pela web reformata o sistema de arquivos, e só a configuração é preservada. O arquivo de calibração se perde, e os sensores voltam a ler sem correção. O backup (`.bkp`), que a página de atualização baixa antes de começar, leva o arquivo: restaure-o depois da atualização ([capítulo 17](#cap-17)). No Pico 2 W o arquivo fica, porque o sistema de arquivos fica intocado ([capítulo 26](#cap-26-ota)).
 :::

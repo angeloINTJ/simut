@@ -709,7 +709,7 @@ struct UiEvent {
   * queue entry pays for. */
  EVT_PIN_POLICY,
  /* 2.7.1 — the panel asks for the setup AP. No payload: Core 0 owns the
-  * permission check and the network call, exactly as with every v24 event. */
+  * permission check and the network call (tools/check_authz.py --list). */
  EVT_START_AP,
  /* 2026-10-01 — the date and time set at the panel: id = yyyymmdd, param =
   * hhmm (clockEntryPack). Core 0 checks them, converts at the device's offset

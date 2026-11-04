@@ -16,7 +16,7 @@ Usage: theme_audit.py [--json out.json]
 import re, sys, json
 
 from pathlib import Path as _P
-PATH = str(_P(__file__).resolve().parents[1] / "src" / "Themes.cpp")
+PATH = str(_P(__file__).resolve().parents[1] / "src" / "ui" / "original" / "Themes.cpp")
 
 FIELDS = ["bgMain","cardBg","textMain","textSub","textOff","accent","accentHigh","barBg",
           "tempHot","tempWarm","tempOk","tempCold","humidity",

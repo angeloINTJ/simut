@@ -24,7 +24,9 @@
  * into that buffer, null-terminated in place. Every other section stays on
  * flash as a byte range: @HELP is read when the CLI asks for it,
  * GET /api/lang streams @WEBDICT and GET /api/logcodes scans for @LOGCODES on
- * its own. @TRL is read by nothing on the device. Packs carried a @LICENSE
+ * its own. @TRL is read by nothing on the device. In an Angulo image @ANGULO is
+ * a byte range too, kept in _activeLang and read once at boot by the panel
+ * (src/ui/angulo/DisplayManager_UiA_Textos.cpp). Packs carried a @LICENSE
  * section until 2026-10-02; the License screen draws the firmware's own text
  * now, so in an older pack that section is an unknown directive and skipped.
  *
@@ -38,6 +40,12 @@
  * directive after it, and tools/check_lang_packs.py enforces the same order
  * at build time.
  *
+ * A boot in English loads no pack, but the Idioma screen still has to offer
+ * one (2026-10-24): listLangFile( ) runs the same directory pass and the same
+ * front half of the load, as far as langPackIndexUsable( ), and stops before
+ * the malloc. It keeps @NAME, @CODE and the path in _activeLang, nothing on
+ * the heap, and writes no log record. Panel builds only.
+ *
  * @project SIMUT — Integrated Universal Monitoring and Telemetry System
  * @author Ângelo Moisés Alves
  * @license MIT License
@@ -45,6 +53,7 @@
 
 #include "DisplayManager.h"
 #include "LangPackIndex.h"
+#include "ui/UiCaps.h"   /* SIMUT_UI_PACK_TEXTS, tested in loadLangFile( ) */
 #include "Utf8Fold.h"
 #include "WebDictValue.h"
 #include "LogManager.h"
@@ -57,14 +66,18 @@ bool DisplayManager::_activeLangLoaded = false;
 
 /* Defensive limits */
 static constexpr size_t LANG_FILE_MIN = 64;
-/* LANG_DICT_MAX bounds the one allocation a pack keeps for the whole uptime:
- * its @DICT. es-ES is 2,910 B and pt-BR 2,815 B, so a pack can grow by more
- * than its whole dictionary before this bites, while a hostile one — the pack
- * is a file anyone with PERM_FILE_UPLOAD can put here — can no longer hold the
- * 16 KB the old prefix ceiling allowed. LANG_FILE_MAX only bounds the file on
- * flash: everything outside @DICT is read from there, if at all. */
+/* LANG_DICT_MAX bounds the allocation a pack keeps for the whole uptime, its
+ * @DICT (3,393 B in es-ES and 3,292 B in pt-BR on 2026-10-22), so a hostile
+ * pack, a file anyone with PERM_FILE_UPLOAD can put here, cannot pass it. The
+ * Ângulo images keep a second one, the @ANGULO table, at most 16,390 B (its
+ * bound UA_TEXTOS_MAX, src/ui/angulo/Textos.cpp). LANG_FILE_MAX only bounds the
+ * file on flash: everything outside those is read from there, if at all. */
 static constexpr size_t LANG_DICT_MAX = 6144;
-static constexpr size_t LANG_FILE_MAX = 49152;
+/* 65,536 since 2026-10-22 (S10c B4b-0; 49,152 before): the Ângulo's @ANGULO section took es-ES to 47,697 B, 97 % of the old
+ * ceiling, with three groups of screens still to translate. 64 KiB is the web's text viewer's cap (TV_CAP, WebUI.h's lang.js), which
+ * shows a file up to that size and downloads a bigger one: the largest file the device keeps is a pack, so a pack it accepts stays
+ * one the web can show, and tools/check_lang_packs.py holds the two in that order. */
+static constexpr size_t LANG_FILE_MAX = 65536;
 
 uint32_t DisplayManager::fnv1a32(const char* s) {
  uint32_t h = 0x811c9dc5u;
@@ -100,7 +113,8 @@ static void readLangIdent(File& f, const LangPackIndex& ix, LangSection sec,
  langIdentSanitize(raw, got, out, cap);
 }
 
-bool DisplayManager::loadLangFile(const char* path) {
+template <bool kListOnly>
+bool DisplayManager::loadLangImpl(const char* path) {
  unloadLang( );
  if (!path) return false;
 
@@ -126,12 +140,26 @@ bool DisplayManager::loadLangFile(const char* path) {
  }
  LangPackIndex ix;
  scan.finish(ix);
- if (ix.tailAfterWebDict) {
+ /* One rule says whether a pack can be used at all (LangPackIndex.h): no
+  * directive after @WEBDICT, and a @DICT with a body. The Idioma screen's
+  * list asks the same, so a pack it offers is one the next boot can open. */
+ if (!langPackIndexUsable(ix)) {
  f.close( );
  return false;
  }
 
- /* DICT is mandatory; without it reject the file.
+ if constexpr (kListOnly) {
+  /* Listed, not loaded: the name, the code and where the pack is, and
+   * nothing on the heap. The path is what isLangListed( ) reads. */
+  readLangIdent(f, ix, LANG_SEC_NAME, _activeLang.name, sizeof(_activeLang.name));
+  readLangIdent(f, ix, LANG_SEC_CODE, _activeLang.code, sizeof(_activeLang.code));
+  f.close( );
+  strncpy(_activeLang.path, path, sizeof(_activeLang.path) - 1);
+  _activeLang.path[sizeof(_activeLang.path) - 1] = '\0';
+  return true;
+ }
+
+ /* The @DICT is there and has a body: langPackIndexUsable( ) saw to that above.
   *
   * A body longer than LANG_DICT_MAX is read only up to the ceiling. Lines past
   * TR_KEYS_COUNT were always ignored, and a pack that lost a directive line
@@ -139,12 +167,7 @@ bool DisplayManager::loadLangFile(const char* path) {
   * pack and translated everything, so this one must too. It is refused only
   * when the ceiling cuts into the TR_KEYS_COUNT lines themselves: then the
   * dictionary really is too big. */
- size_t dictSize = ix.present[LANG_SEC_DICT]
- ? ix.end[LANG_SEC_DICT] - ix.start[LANG_SEC_DICT] : 0;
- if (dictSize == 0) {
- f.close( );
- return false;
- }
+ size_t dictSize = ix.end[LANG_SEC_DICT] - ix.start[LANG_SEC_DICT];
  const bool clipped = dictSize > LANG_DICT_MAX;
  if (clipped) dictSize = LANG_DICT_MAX;
 
@@ -215,8 +238,8 @@ bool DisplayManager::loadLangFile(const char* path) {
  }
  for (int k = dictIdx; k < TR_KEYS_COUNT; k++) _activeLang.strings[k] = nullptr;
  if (dictIdx != TR_KEYS_COUNT) {
- LOG_CODE(LOG_WARN, "I18N", SYS_OK, dictIdx,
- TRL("Language pack is older than the firmware — missing strings show in English"));
+ LOG_CODE(LOG_WARN, "I18N", I18N_PACK_OUTDATED, dictIdx,
+ TRL("missing strings show in English"));
  }
 
  /* @HELP: byte range into the file, lazy-read on demand. */
@@ -231,6 +254,14 @@ bool DisplayManager::loadLangFile(const char* path) {
  _activeLang.webDictOffset = ix.start[LANG_SEC_WEBDICT];
  _activeLang.webDictLen = ix.end[LANG_SEC_WEBDICT] - ix.start[LANG_SEC_WEBDICT];
  }
+#if SIMUT_UI_PACK_TEXTS
+ /* @ANGULO: the Angulo panel's texts, a byte range like @HELP's; the panel reads it once, from uiLangLoaded( ), after this returns. Zeroed by
+  * unloadLang( ), so a board in English (no pack) and a pack without the section both read length 0. */
+ if (ix.end[LANG_SEC_ANGULO] > ix.start[LANG_SEC_ANGULO]) {
+ _activeLang.anguloOffset = ix.start[LANG_SEC_ANGULO];
+ _activeLang.anguloLen = ix.end[LANG_SEC_ANGULO] - ix.start[LANG_SEC_ANGULO];
+ }
+#endif
 
  /* Path is kept so /api/lang can reopen the file to stream @WEBDICT. */
  strncpy(_activeLang.path, path, sizeof(_activeLang.path) - 1);
@@ -240,6 +271,34 @@ bool DisplayManager::loadLangFile(const char* path) {
  _activeLang.bufferSize = dictN;
  _activeLangLoaded = true;
  return true;
+}
+
+bool DisplayManager::loadLangFile(const char* path) { return loadLangImpl<false>(path); }
+
+/* The directory pass both entry points share (findAndLoadLangFile below and
+ * listLangFile for the Idioma screen): the alphabetically first
+ * "language_*.lng" in /lang/ is copied to `name`, which the caller zeroed,
+ * and how many there were is returned. */
+static int firstLangName(char* name, size_t cap) {
+ int count = 0;
+ Dir dir = LittleFS.openDir("/lang");
+ while (dir.next( )) {
+ String fn = dir.fileName( );
+ /* Accept "language_*.lng" exactly; case-sensitive intentionally. */
+ if (!fn.startsWith("language_") || !fn.endsWith(".lng")) continue;
+ count++;
+ if (count == 1) {
+ strncpy(name, fn.c_str( ), cap - 1);
+ } else {
+ /* Keep the smallest (alphabetically). LittleFS::openDir does not
+ * guarantee order; manual comparison covers it. */
+ if (strcmp(fn.c_str( ), name) < 0) {
+ strncpy(name, fn.c_str( ), cap - 1);
+ name[cap - 1] = '\0';
+ }
+ }
+ }
+ return count;
 }
 
 /* ─────────────────────────────────────────────────────────────────
@@ -261,44 +320,30 @@ const char* DisplayManager::trlLookup(const char* en) {
  * findAndLoadLangFile: scan /lang/ for "language_*.lng"
  * files, load the first alphabetically. Logs warning
  * if there are extras (more than 1 file found). Core 0 only.
+ * The scan is firstLangName( ), which listLangFile( ) shares.
  * ───────────────────────────────────────────────────────────────── */
 bool DisplayManager::findAndLoadLangFile( ) {
  char firstName[40] = {0};
- int count = 0;
-
- Dir dir = LittleFS.openDir("/lang");
- while (dir.next( )) {
- String fn = dir.fileName( );
- /* Accept "language_*.lng" exactly; case-sensitive intentionally. */
- if (!fn.startsWith("language_") || !fn.endsWith(".lng")) continue;
- count++;
- if (count == 1) {
- strncpy(firstName, fn.c_str( ), sizeof(firstName) - 1);
- } else {
- /* Keep the smallest (alphabetically). LittleFS::openDir does not
- * guarantee order; manual comparison covers it. */
- if (strcmp(fn.c_str( ), firstName) < 0) {
- strncpy(firstName, fn.c_str( ), sizeof(firstName) - 1);
- firstName[sizeof(firstName) - 1] = '\0';
- }
- }
- }
+ const int count = firstLangName(firstName, sizeof(firstName));
 
  if (count == 0) return false;
  if (count > 1) {
- LOG_CODE(LOG_WARN, "I18N", SYS_OK, count,
- TRL("Multiple .lng files in /lang/ — loading first alphabetically"));
+ LOG_CODE(LOG_WARN, "I18N", I18N_PACK_MULTIPLE, count,
+ TRL("loading the first alphabetically"));
  }
 
  char path[64];
  snprintf(path, sizeof(path), "/lang/%s", firstName);
  bool ok = loadLangFile(path);
+ /* The console line is "<code's text>: <this>", so the detail is all these
+  * carry. The codes are the pack's own (#283): a pack loaded at boot used to
+  * be APP_UI_LANG_CHANGED, the record of a person changing the language, and
+  * a pack refused was SYS_STORAGE_FAIL, which LogPolicy counts as a history
+  * fault, so it armed that family's latch. */
  if (ok) {
- LOG_CODE(LOG_INFO, "I18N", APP_UI_LANG_CHANGED, 0,
- String(TRL("Language pack loaded: ")) + _activeLang.name);
+ LOG_CODE(LOG_INFO, "I18N", I18N_PACK_LOADED, 0, _activeLang.name);
  } else {
- LOG_CODE(LOG_ERROR, "I18N", SYS_STORAGE_FAIL, 0,
- String(TRL("Failed to parse language pack: ")) + path);
+ LOG_CODE(LOG_ERROR, "I18N", I18N_PACK_FAILED, 0, path);
  }
  return ok;
 }
@@ -363,6 +408,28 @@ bool DisplayManager::isLangLoaded( ) { return _activeLangLoaded; }
 /* Active .lng metadata for web language selector. */
 const char* DisplayManager::getActiveLangName( ) { return _activeLangLoaded ? _activeLang.name : ""; }
 const char* DisplayManager::getActiveLangCode( ) { return _activeLangLoaded ? _activeLang.code : ""; }
+
+#if SIMUT_DISPLAY_TFT
+/* The Idioma screen's list at a boot in English (2026-10-24): the pack the next
+ * boot in another language would load is found by the same pass and indexed by
+ * the same front half of the load, and the loader stops before it reads @DICT.
+ * What stays is @NAME, @CODE and the path in _activeLang, with _activeLangLoaded
+ * false. Nothing is allocated and nothing is logged: the unit has not changed
+ * language, and the boot that loads the pack says so (I18N_PACK_LOADED). A pack
+ * uploaded or deleted after this boot is seen at the next one. */
+bool DisplayManager::listLangFile( ) {
+ char firstName[40] = {0};
+ if (firstLangName(firstName, sizeof(firstName)) == 0) return false;
+ char path[64];
+ snprintf(path, sizeof(path), "/lang/%s", firstName);
+ return loadLangImpl<true>(path);
+}
+/* Loaded, or only listed. A path is kept in both cases, and only a pack that
+ * passed loadLangImpl keeps one: unloadLang( ) clears it with the rest. */
+bool DisplayManager::isLangListed( ) { return _activeLangLoaded || _activeLang.path[0] != '\0'; }
+const char* DisplayManager::getListedLangName( ) { return isLangListed( ) ? _activeLang.name : ""; }
+const char* DisplayManager::getListedLangCode( ) { return isLangListed( ) ? _activeLang.code : ""; }
+#endif
 
 /* ─────────────────────────────────────────────────────────────────
  * unaccent: UTF-8 (Latin-1 subset) -> ASCII 7-bit.

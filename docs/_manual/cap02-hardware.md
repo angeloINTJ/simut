@@ -25,7 +25,7 @@ Os GPIOs 23, 24, 25 e 29 não saem na borda da placa: o Pico W os usa internamen
 
 ## O mapa de pinos {#cap-02-mapa}
 
-Cada imagem usa os pinos de GP16 em diante para a tela, o toque, a cigarra e, no Air, para o controle de energia. Os pinos de GP0 a GP15 ficam para os sensores nas três imagens.
+Cada imagem usa os pinos de GP16 em diante para a tela, o toque, a cigarra e, no Air, para o controle de energia. Os pinos de GP0 a GP15 ficam para os sensores em todas as imagens.
 
 | GPIO | Pino | release | alpha | Air |
 |---|---|---|---|---|
@@ -82,7 +82,7 @@ O mapa de pinos do Air: só GP16 e GP17 além dos sensores.
 O firmware não controla a luz de fundo: com o pino LED no 3V3, ela fica sempre acesa.
 
 ::: atencao
-**Fios curtos no TFT.** A imagem publicada escreve no TFT a 62,5 MHz e lê a tela de volta, para o espelho da web, a 12 MHz. Fios longos ou ruins aparecem como pontos soltos em áreas lisas da tela ou do espelho. Encurte a fiação. Se não resolver, a saída é compilar o firmware com uma frequência menor ([capítulo 3](#cap-03-fonte)).
+**Fios curtos no TFT.** A imagem publicada tem o barramento do TFT ajustado a 66,5 MHz na escrita e lê a tela de volta, para o espelho da web, a cerca de 11 MHz. Fios longos ou ruins aparecem como pontos soltos em áreas lisas da tela ou do espelho. Encurte a fiação. Se não resolver, a saída é compilar o firmware com uma frequência menor ([capítulo 3](#cap-03-fonte)).
 :::
 
 ### A alpha: LCD 16×2 {#cap-02-lcd}
@@ -141,7 +141,7 @@ O Air: o GP16 corta a energia dos sensores durante o sono, e o GP17 percebe o ca
 
 ## Onde ligar os sensores {#cap-02-livres}
 
-Nas três imagens, os sensores vão nos pinos GP0 a GP15, que são os 16 slots. A página **Configurações** e o console recusam qualquer pino de GP16 em diante. Um pino atende um só slot ativo: dois slots ativos no mesmo GPIO são recusados.
+Em todas as imagens, os sensores vão nos pinos GP0 a GP15, que são os 16 slots. A página **Configurações** e o console recusam qualquer pino de GP16 em diante. Um pino atende um só slot ativo: dois slots ativos no mesmo GPIO são recusados.
 
 | Tipo | GPIOs por sensor | Máximo de sensores |
 |---|---|---|

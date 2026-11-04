@@ -45,7 +45,7 @@ Como o console se comporta:
 
 ```text
 ===========================================
- SIMUT IoT CLI 2.11.1
+ SIMUT IoT CLI 2.13.0
  Digite 'help' (ou 'ajuda', '?')
  For English: 'language en'
 ===========================================
@@ -82,7 +82,7 @@ A senha do console por Bluetooth é a senha da conta `admin` da interface web.
 Senha do admin: **********
 
 ===========================================
- SIMUT IoT CLI 2.11.1
+ SIMUT IoT CLI 2.13.0
  Acesso concedido. Digite 'help'.
  (For English: 'language en')
 ===========================================
@@ -200,7 +200,12 @@ show system info
 
 ### show net status {#cap-14-show-net}
 
-Mostra o endereço IP e o sinal. Sem conexão, o sinal aparece como `-100 dBm`; com o AP aberto, o endereço é `192.168.4.1`. A linha `Abortos de envio` conta respostas da interface web interrompidas desde o boot, por prazo, por trava ou por desconexão do navegador; serve para diagnóstico. O comando também registra o endereço no log (código 527, **Mostrar IP**).
+Mostra o endereço IP e o sinal. Sem conexão, o sinal aparece como `-100 dBm`; com o AP aberto, o endereço é `192.168.4.1`. O comando também registra o endereço no log (código 527, **Mostrar IP**).
+
+As outras linhas servem para diagnóstico e contam desde o boot:
+
+- **PBUF pool** e **Segmentos TCP:** a memória da pilha de rede para receber e para enviar: quanto está em uso, o pico e as falhas de alocação. `tcp_write sem memoria` conta as vezes em que a pilha recusou um envio por falta de memória; o envio espera a confirmação do navegador e tenta de novo. Cada resposta sai em pacotes cheios, e com uma página aberta ele fica em 0: na bancada, 0 em 6.000 respostas. Até a v2.11.1, que mandava cada resposta em dezenas de pacotes pequenos, ele subia aos milhares.
+- **Abortos de envio:** respostas da interface web interrompidas, por prazo, por trava, por desconexão do navegador ou por escrita curta. Escrita curta é um envio que não terminou dentro do prazo: o aparelho encerra a resposta ali, e o navegador a vê cortada. Até a v2.11.1, essas respostas chegavam com um trecho faltando no meio, sem mexer em contador nenhum.
 
 ```text
 SIMUT> show net status
@@ -208,7 +213,9 @@ SIMUT> show net status
 --- Status da Rede ---
  IP: 192.0.2.10
  RSSI: -58 dBm
- Abortos de envio: prazo 0 | latch 0 | desconexao 0
+ PBUF pool: 0 em uso / pico 2 / 24 total, 0 falhas
+ Segmentos TCP: 0 em uso / pico 1 / 32 total, 0 falhas | tcp_write sem memoria 0
+ Abortos de envio: prazo 0 | latch 0 | desconexao 0 | escrita curta 0
 -------------------------------------------
 ```
 
@@ -222,7 +229,7 @@ SIMUT> show system info
  [SISTEMA]
  Dispositivo:
  simut
- Firmware: 2.11.1
+ Firmware: 2.13.0
  Serial: E66138935F2C1A2B
  [SENSORES]
  Precisao DS18: 12-bit
@@ -271,8 +278,10 @@ O log de eventos está no [capítulo 16](#cap-16).
 SIMUT> debug on
 OK: Debug: LIGADO
 Vale para esta sessao; nao persiste apos reiniciar.
-[14:05:12][UP 02:05:40][C0][INF][NET] Mostrar IP: 192.0.2.10
+[14:05:12][UP 02:05:40][C0][INF][NET] Show IP: 192.0.2.10
 ```
+
+A resposta do comando sai no idioma do aparelho; a linha do evento sai em inglês ([capítulo 16](#cap-16-console)).
 
 `debug off` para a transmissão. O log continua sendo gravado com o `debug` ligado ou desligado.
 
@@ -446,7 +455,7 @@ Na configuração (`SIMUT(config)#`), salvo indicação:
 | `dns auto`, `dns manual <ip1> [ip2]` | DNS pelo DHCP ou manual | |
 | `web port <porta>` | Porta do servidor web, depois de `reload` | 1 a 65535 |
 | `system cors <origem>`, `system cors off` | Como no console de emergência | |
-| `system touch reset confirm` | [release]{.img} Descarta a calibração do toque e abre o assistente no painel ([capítulo 11](#cap-11-calibrar)); vale também no privilegiado | |
+| `system touch reset confirm` | [release]{.img} Descarta a calibração do toque e abre o assistente no painel ([capítulo 11](#cap-11-calibrar); no painel Ângulo, [capítulo 11A](#cap-11a-calibrar)); vale também no privilegiado | |
 
 E, no EXEC ou no privilegiado:
 
@@ -592,7 +601,7 @@ Todos os comandos `user` precisam de `write memory` para ficar.
 
 | Comando | Efeito |
 |---|---|
-| `screen <tag>` | Abre uma tela do painel direto, como administrador: `dash`, `set`, `thm`, `lng`, `pwd`, `lic`, `sts`, `alm`, `gra`, `touchcal`, `touchsens`, `offset`, `usr`, `clk`, `pin` ([referência das telas](#cap-11-referencia)) |
+| `screen <tag>` | Abre uma tela do painel direto, como administrador: `dash`, `set`, `thm`, `lng`, `pwd`, `lic`, `sts`, `alm`, `gra`, `touchcal`, `touchsens`, `offset`, `usr`, `clk`, `pin` ([referência das telas](#cap-11-referencia)). Nenhuma imagem com o painel Ângulo tem este comando ([capítulo 11A](#cap-11a-referencia)) |
 | `touch sim <X> <Y>` | Simula um toque no ponto (X de 0 a 319, Y de 0 a 239) |
 | `touch hold <X> <Y> [ms]` | Simula um toque **mantido** por `ms` milissegundos (padrão 3500, de 100 a 15000) e depois solta: alcança os gestos de toque longo, como o de 3 s que fixa o cartão de cima, que o `touch sim` não alcança |
 | `show display keypad` | Mostra o que cada tecla do teclado de PIN embaralhado tem na tela agora |

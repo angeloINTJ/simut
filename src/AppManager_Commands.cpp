@@ -57,9 +57,9 @@ void AppManager::startApMode(uint8_t why) {
 #endif
  if (!_netMgr->beginAP(cfg.deviceName, cfg.wifiSsid)) {
   /* beginAP( ) logged SYS_AP_START -1 and gave the radio back to the
-   * reconnect ladder. _isApMode stays false so the loop keeps measuring: it
-   * used to be set regardless, which left a device with no AP, nothing
-   * measured and "AP mode started" printed on the console. */
+   * reconnect ladder. _isApMode stays false: the loop reads it only to pause
+   * syslog and telemetry (6933dcb3, #204; measuring and alarming go on in AP
+   * mode), and they must not stop for an AP that never opened. */
 #if SIMUT_DISPLAY_TFT
   _displayMgr->endBoot( );
   _displayMgr->showPanelMessage(false, TR_ERROR_LBL, MODE_DASHBOARD);
@@ -408,14 +408,28 @@ void AppManager::executeCommand(CliDemand cmd) {
  _cmdMgr->consolePrintf(" PBUF pool: %u em uso / pico %u / %u total, %u falhas\n",
                         (unsigned)ps->used, (unsigned)ps->max,
                         (unsigned)ps->avail, (unsigned)ps->err);
+ /* #189: what a write cut short by its timeout ran into, if anything: a full
+  * segment pool, or tcp_write( ) refused for memory or queue length
+  * (tcp.memerr). Every segment takes a whole MSS of lwIP's 16 KB heap, so
+  * small writes run it out: 4.4 refusals per /api/status while a reply went
+  * out in 24 writes, 0 once override 2n sent its small writes together (bench,
+  * 2026-10-14). Both still at 0 while writes come back short points at the
+  * peer's ACKs, not at this side. */
+ const struct stats_mem* sg = lwip_stats.memp[MEMP_TCP_SEG];
+ _cmdMgr->consolePrintf(" Segmentos TCP: %u em uso / pico %u / %u total, %u falhas | tcp_write sem memoria %u\n",
+                        (unsigned)sg->used, (unsigned)sg->max, (unsigned)sg->avail,
+                        (unsigned)sg->err, (unsigned)lwip_stats.tcp.memerr);
  }
 #endif
- /* Why chunked responses were cut short. All three surface in the log as
-  * WEB_CLIENT_DISCONNECT but call for opposite fixes, so keep them apart. */
- _cmdMgr->consolePrintf(" Abortos de envio: prazo %lu | latch %lu | desconexao %lu\n",
+ /* Why chunked responses were cut short. The first three surface in the log
+  * as WEB_CLIENT_DISCONNECT but call for opposite fixes, so keep them apart;
+  * the fourth is a write the client's timeout cut short, which the framework
+  * ends the response on (override 2m, #189). */
+ _cmdMgr->consolePrintf(" Abortos de envio: prazo %lu | latch %lu | desconexao %lu | escrita curta %lu\n",
                         (unsigned long)_cgDeadlineHits,
                         (unsigned long)_cgGuardHits,
-                        (unsigned long)_cgDisconnHits);
+                        (unsigned long)_cgDisconnHits,
+                        (unsigned long)_webMgr->shortWrites( ));
  _cmdMgr->printDivider( );
  break;
  }
@@ -1041,7 +1055,7 @@ void AppManager::executeCommand(CliDemand cmd) {
  LOG_CODE(LOG_WARN, "SYS", SYS_REBOOT_USER, 0, TRL("Reboot via CLI"));
  _storageMgr->flushHistoryBatch( ); /* T2.1: don't lose buffered samples */
  _storageMgr->sealHourV5( );        /* V5: the open block is RAM-only */
- delay(100); /* Ensures log is flushed to flash */
+ delay(100); /* the console line out; the record itself is written by safeReboot( ) if it is still in RAM */
  LogManager::instance( ).safeReboot( );
  break;
 

@@ -273,8 +273,11 @@ public:
  /** Defensive reboot that gives USB CDC time to cleanly disconnect
  * on the host. Resolves "ttyACM0 doesn't reappear after reload" on Linux,
  * caused by watchdog_reboot(0,0,10) interrupting USB mid-transmission.
- * Does: markCleanReboot + Serial.flush + Serial.end + delays +
- * watchdog_enable(500ms). Does NOT return. */
+ * Does, unless the pre-reboot hook is suppressed: the log records still in
+ * RAM, then the hook (the open history block and the syslog queue). Then
+ * markCleanReboot, Serial.flush + Serial.end + delays, and a watchdog TRIGGER
+ * with ENABLE cleared (not watchdog_enable( ): see the function). Does NOT
+ * return. */
  [[noreturn]] void safeReboot( );
 #if defined(PICO_RP2350) && PICO_RP2350
  /** safeReboot( ) into the slot an OTA just wrote: the same hook, mark and
@@ -356,13 +359,20 @@ private:
 };
 
 
-#define LOG_DBG(tag, msg) LogManager::instance( ).debug(tag, msg)
-#define LOG_INF(tag, msg) LogManager::instance( ).info(tag, msg)
-#define LOG_WRN(tag, msg) LogManager::instance( ).warn(tag, msg)
-#define LOG_ERR(tag, msg) LogManager::instance( ).error(tag, msg)
-#define LOG_CODE(lvl, tag, code, ctx, msg) LogManager::instance( ).logCode(lvl, tag, code, ctx, msg)
+/* Every tag is a string literal that names its LogTagId (logTagIsKnown( ) in
+ * SystemDefs_Logging.h). The record on flash keeps only the id, so a tag the
+ * table lacks was persisted as "?" and nothing said so (#283); now it does not
+ * build. */
+#define LOG_TAG_CHECK(tag) static_assert(logTagIsKnown(tag), \
+ "log tag " tag " is not the name of a LogTagId (LOG_TAG_NAMES, SystemDefs_Logging.h)")
+#define LOG_DBG(tag, msg) do { LOG_TAG_CHECK(tag); LogManager::instance( ).debug(tag, msg); } while (0)
+#define LOG_INF(tag, msg) do { LOG_TAG_CHECK(tag); LogManager::instance( ).info(tag, msg); } while (0)
+#define LOG_WRN(tag, msg) do { LOG_TAG_CHECK(tag); LogManager::instance( ).warn(tag, msg); } while (0)
+#define LOG_ERR(tag, msg) do { LOG_TAG_CHECK(tag); LogManager::instance( ).error(tag, msg); } while (0)
+#define LOG_CODE(lvl, tag, code, ctx, msg) \
+ do { LOG_TAG_CHECK(tag); LogManager::instance( ).logCode(lvl, tag, code, ctx, msg); } while (0)
 
-/** Select EN inline or translation from .lng (via hash). */
+/** The English literal, in every language: @TRL is not resident (trlLookup( )). */
 #define TRL(en) (LogManager::instance( ).tr(en))
 
 #define TRACE_MOD(core, mod) LogManager::instance( ).setModule(core, mod)

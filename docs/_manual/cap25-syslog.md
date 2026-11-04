@@ -9,7 +9,7 @@ O aparelho manda uma cópia de cada evento do log de eventos ([capítulo 16](#ca
 - **Não é telemetria.** O syslog leva eventos, como uma entrada, uma falha de rede ou uma mudança de configuração. As medições saem pela telemetria ([capítulo 21](#cap-21)).
 - **Não passa pelo filtro de rotina.** O log de eventos só grava um evento de rotina quando o estado muda ([capítulo 16](#cap-16-transicao)). O syslog manda todas as ocorrências: com o nível **Info**, cada envio de telemetria vira uma linha.
 - **Leva o texto do evento.** O registro na flash guarda só o código e o contexto. A linha do syslog traz também a descrição e o detalhe, como o nome da conta numa falha de entrada.
-- **Existe nas três imagens.** No Air, só com o aparelho acordado ([No SIMUT Air](#cap-25-air)).
+- **Existe em todas as imagens.** No Air, só com o aparelho acordado ([No SIMUT Air](#cap-25-air)).
 
 ::: {.figura #fig-25-caminho tipo="diagrama" arquivo="25-caminho.png" captura="Da esquerda para a direita: 'evento (qualquer núcleo)' → 'nível ≥ Nível Mínimo?' → 'fila de 8 linhas na RAM (a mais antiga sai quando enche)' → 'laço principal, núcleo 0: até 8 linhas por passada, só com Wi-Fi conectado e fora do AP' → 'UDP para 192.0.2.10:514' → 'coletor (rsyslog, syslog-ng)'. Marcas vermelhas de perda: 'antes do encaminhamento subir, no boot', 'fila cheia', 'envio falhou', 'datagrama perdido na rede', 'travamento ou falta de energia'. Uma seta lateral: 'reinício pedido (quase todos): esvazia a fila antes de reiniciar'. Embaixo, em paralelo, 'log de eventos na flash (filtro de rotina, só código e contexto)'."}
 Legenda: o caminho de uma linha de syslog e os pontos onde ela pode se perder. O log de eventos local segue por outro caminho e não depende do syslog.
@@ -48,7 +48,7 @@ Os níveis do log viram severidades do syslog assim:
 Detalhes que importam para o coletor:
 
 - **O `MSGID` é a chave.** O código não muda com o idioma, e a lista completa está no [apêndice B](#ap-b). Filtre por ele, não pelo texto.
-- **O texto sai no idioma do aparelho.** Com o pacote pt-BR, a descrição e boa parte dos detalhes saem em português; sem pacote, em inglês ([capítulo 13](#cap-13-idioma)).
+- **O texto sai em inglês.** A descrição e o detalhe saem em inglês, qualquer que seja o idioma do aparelho. Os nomes traduzidos ficam na página de histórico ([capítulo 16](#cap-16-pagina)).
 - **O `HOSTNAME` é um nome, não uma chave.** Espaços, letras acentuadas e qualquer caractere fora do ASCII visível viram `-`: **Câmara 1** sai como `C--mara-1`. Com o **Nome** vazio, sai `-`. O `uid` do aparelho não vai na linha ([capítulo 20](#cap-20-identidade)); dê nomes únicos aos aparelhos ou identifique-os pelo IP de origem.
 - **`simut@32473` é um identificador de exemplo.** O número 32473 é o que a IANA reserva para documentação. Os coletores o aceitam como identificador de dados estruturados válido.
 - **Tamanho.** A linha tem no máximo 255 bytes, e o `MSG`, no máximo 191. Um detalhe mais longo é cortado.
@@ -57,14 +57,14 @@ Detalhes que importam para o coletor:
 
 ### Exemplos {#cap-25-exemplos}
 
-Com o **Nome** `simut` e o pacote pt-BR:
+Com o **Nome** `simut`:
 
 ```text
-<134>1 2026-09-23T13:00:05Z simut TEL - 30 [simut@32473 ctx="200" core="0" up="86412"] Telemetria enviada: HTTP OK: 1834 bytes, code 200
-<132>1 2026-09-23T13:01:00Z simut SEC - 301 [simut@32473 ctx="0" core="0" up="86467"] Falha de login: Falha de login: metricas
-<132>1 2026-09-23T13:02:10Z simut SEC - 303 [simut@32473 ctx="0" core="0" up="86537"] Config alterada: Admin aplicou alterações — reiniciando
-<134>1 2026-09-23T13:04:41Z simut TEL - 548 [simut@32473 ctx="4" core="0" up="42"] Discovery HA atualizado: HA discovery published 4
-<132>1 - simut SEC - 301 [simut@32473 ctx="0" core="0" up="95"] Falha de login: Falha de login: metricas
+<134>1 2026-09-23T13:00:05Z simut TEL - 30 [simut@32473 ctx="200" core="0" up="86412"] Telemetry sent: HTTP OK: 1834 bytes, code 200
+<132>1 2026-09-23T13:01:00Z simut SEC - 301 [simut@32473 ctx="0" core="0" up="86467"] Login failed: Login Failed: metricas
+<132>1 2026-09-23T13:02:10Z simut SEC - 303 [simut@32473 ctx="0" core="0" up="86537"] Config changed: Admin committed changes — rebooting
+<134>1 2026-09-23T13:04:41Z simut TEL - 548 [simut@32473 ctx="4" core="0" up="42"] HA discovery refreshed: HA discovery published 4
+<132>1 - simut SEC - 301 [simut@32473 ctx="0" core="0" up="95"] Login failed: Login Failed: metricas
 ```
 
 - A primeira linha é um envio de telemetria por HTTP; o contexto é o código HTTP da resposta.
@@ -74,7 +74,7 @@ Com o **Nome** `simut` e o pacote pt-BR:
 - A última mostra um aparelho sem hora acertada.
 
 ::: nota
-**Por que a descrição parece repetida.** A descrição vem da tabela de códigos, e o detalhe vem de quem registrou o evento, que às vezes repete a mesma ideia. No código 301, a descrição é **Falha de login** e o detalhe é `Falha de login: <conta>`.
+**Por que a descrição parece repetida.** A descrição vem da tabela de códigos, e o detalhe vem de quem registrou o evento, que às vezes repete a mesma ideia. No código 301, a descrição é `Login failed` e o detalhe é `Login Failed: <conta>`.
 :::
 
 ## Configurar {#cap-25-configurar}

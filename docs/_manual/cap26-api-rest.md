@@ -23,7 +23,8 @@ O aparelho atende um protocolo por vez. Com o par de certificados instalado, a i
 
 | Imagem | Rotas | Diferença |
 |---|---|---|
-| release | 62 | Todas |
+| release | 62 | Todas, menos `GET /api/ui` |
+| releasetwo, com o painel Ângulo | 63 | As da release, mais `GET /api/ui` |
 | alpha | 54 | Sem as 5 rotas do painel, sem `GET /api/themes` e `POST /api/reset_touch_cal`, e sem `POST /api/tls` |
 | Air | 54 | As mesmas da alpha, e só enquanto o Air está acordado em M0 ([capítulo 19](#cap-19)) |
 
@@ -534,8 +535,9 @@ As três operações de `/api/restore` são uma única rota com o parâmetro `op
 | GET | `/api/screen_stream` | [PERM_SYS_CONFIG]{.perm} | Um quadro do painel no formato compacto do espelho |
 | POST | `/api/touch` | [PERM_SYS_CONFIG]{.perm} | Um toque no painel, ou um toque longo com `ms` |
 | GET | `/api/keypad` | [PERM_SYS_CONFIG]{.perm} | As faces do teclado de PIN na tela |
+| GET | `/api/ui` | [PERM_SYS_CONFIG]{.perm} | Só nas imagens com o painel Ângulo (Pico 2 W): o quadro que está na tela, em JSON, com os alvos de toque |
 
-São 62 rotas: 52 exigem uma permissão ou uma sessão, e 10 são públicas por projeto. O repositório confere essa lista a cada mudança, e nenhuma rota fica sem portão ([capítulo 29](#cap-29-abuso)).
+São 62 rotas: 52 exigem uma permissão ou uma sessão, e 10 são públicas por projeto. O repositório confere essa lista a cada mudança, e nenhuma rota fica sem portão ([capítulo 29](#cap-29-abuso)). A conta não inclui `GET /api/ui`: só as imagens com o painel Ângulo a registram, e o repositório a confere à parte, também com portão.
 
 ## Receitas {#cap-26-receitas}
 
@@ -554,11 +556,11 @@ curl -s -b jar "$H/api/status"
  "mac":"28:cd:c1:0a:1b:2c","cfg":"3F2A91C4","uptime":29260512,"rssi":-58,
  "ip":"192.0.2.10","theme":0,"heap_f":61240,"heap_t":230400,"heap_lb":40960,
  "fs_u":413696,"fs_t":1048576,"time":1790164800,"ntp":1,"pending":0,"tel":1,
- "hi":1,"cap":1,"feat":262026},
+ "hi":1,"cap":1,"feat":262026,"clk_peri":133000000,"tft_hz":66500000},
  "metr":{"lb":40960,"lbm":33792,"hm":52112,"wf":0,"mq":0,"rmn":-63,"rmx":-55,
  "ts":135,"tf":0,"tr":0,"tb":412345,"tl":180,"so":24000,"se":2,"cs":3,
  "fo":210,"fom":38,"fot":2100,"f50":0,"fx":0,"ad":0,"c1a":12,"c1n":1,
- "c1kl":0,"c1kh":0,"c1kq":0,"c1s":0,"cgd":0,"cgg":0,"cgx":0},
+ "c1kl":0,"c1kh":0,"c1kq":0,"c1s":0,"cgd":0,"cgg":0,"cgx":0,"cgw":0},
  "sensors":[
   {"slot":0,"gpio":2,"id":"FRIDGE","name":"Geladeira","type":"DS18B20","ch":1,
    "pc":1,"pr":"1-Wire","val":4.25},
@@ -590,6 +592,7 @@ O bloco `sys`:
 | `hi` | Intervalo do histórico, em minutos |
 | `cap` | `1` se a imagem tem painel |
 | `feat` | Com que chaves do configurador a imagem foi compilada: um bit por chave, ligado se a chave está ligada. O número de cada chave é o campo `bit` dela no [`model.json` do configurador](https://angelointj.github.io/simut/configurador/model.json) e nunca muda. Serve para não chamar o que a imagem não tem — a página de histórico (`web_history`, bit 13), a API de exportação (`web_export_api`, bit 14), o `/metrics` (`web_metrics`, bit 15), o MQTT (`tel_mqtt`, bit 12), o TLS da telemetria (`tel_tls`, bit 11). O SIMUT publicado responde 262026. Um firmware anterior ao campo não o manda: trate a ausência como "tudo o que a variante sempre teve" |
+| `clk_peri`, `tft_hz` | Só nas imagens com painel [release]{.img}. `clk_peri`: clock dos periféricos, em Hz, do qual o SPI do painel tira a sua velocidade; é o clock do processador, 133000000 no Pico W e 150000000 no Pico 2 W. `tft_hz`: velocidade que o SPI do painel recebeu na última escrita de pixels, em Hz, lida dos registradores do SPI; 66500000 no Pico W e 37500000 no Pico 2 W, e `0` até a primeira escrita |
 | `slot`, `trial`, `reverted` | Só no Pico 2 W. `slot`: de que slot da tabela de partições a imagem subiu, `A` ou `B`, ou `-` numa placa sem a tabela. `trial`: `1` enquanto a atualização instalada está em teste. Ela se confirma depois de rodar saudável por um minuto; se reiniciar antes disso, ou não tiver esse minuto em cinco, o aparelho volta para a imagem anterior. `reverted`: a versão de uma atualização que não se confirmou, e da qual o aparelho voltou neste boot; vazio no resto do tempo. O painel e a página **Arquivos** mostram os dois últimos |
 
 O bloco `metr` traz contadores de diagnóstico, zerados a cada boot:
@@ -609,7 +612,7 @@ O bloco `metr` traz contadores de diagnóstico, zerados a cada boot:
 | `ad` | Respostas longas interrompidas e fechadas à força |
 | `c1a` | Idade, em ms, do último sinal de vida do núcleo que desenha o painel. Dezenas de ms é normal; segundos indicam o núcleo parado |
 | `c1n`, `c1kl`, `c1kh`, `c1kq`, `c1s` | Partidas desse núcleo e interrupções por três causas diferentes; `c1s` conta travamentos na pausa |
-| `cgd`, `cgg`, `cgx` | Respostas cortadas por prazo, por proteção e por desconexão do cliente |
+| `cgd`, `cgg`, `cgx`, `cgw` | Respostas cortadas por prazo, por proteção, por desconexão do cliente e por escrita curta: um envio que não terminou dentro do prazo, e o aparelho encerrou a resposta ali |
 
 O bloco `sensors` lista só os slots ativos:
 
@@ -1003,13 +1006,13 @@ Outras três rotas agem na hora, sem reiniciar:
 
 ### Temas {#cap-26-temas}
 
-[release]{.img} `GET /api/themes` lista os temas do painel na ordem do índice:
+[release]{.img} `GET /api/themes` lista os temas do painel na ordem do índice. Cada linha traz o `id` (o índice), o `code` (o `@CODE` do tema) e o `name`:
 
 ```json
-[{"id":0,"name":"Simut Default"},{"id":1,"name":"Janeiro Branco"},{"id":2,"name":"Fevereiro Roxo"}]
+[{"id":0,"code":"simut_def","name":"Simut Default"},{"id":1,"code":"cafe","name":"Coffee with milk"},{"id":2,"code":"nordic","name":"Nordic"}]
 ```
 
-O índice é o que `theme` do `/api/status` mostra e o que `POST /api/save_sys` recebe ([capítulo 13](#cap-13-tema-painel)).
+O índice é o que `theme` do `/api/status` mostra e o que `POST /api/save_sys` recebe ([capítulo 13](#cap-13-tema-painel)). Os temas de fábrica trazem o `name` em inglês: a página web o traduz pela chave `thm_<code>` do pacote de idioma ativo e mostra o `name` como veio quando o pacote não tem a chave, como acontece com um tema seu.
 
 ### Histórico {#cap-26-historico}
 
@@ -1074,11 +1077,11 @@ Cada registro, em *little-endian*:
 | 10 | byte | Nível nos bits 7 a 5 (0 depuração, 1 informação, 2 aviso, 3 erro, 4 fatal), núcleo no bit 4 e subsistema nos bits 3 a 0 |
 | 11 | byte | Tempo desde o boot: os 8 bits altos |
 
-Os subsistemas, de 0 a 12: `APP`, `NET`, `TEL`, `STO`, `WEB`, `CFG`, `CLI`, `SENSOR`, `HIST`, `SYS`, `DSP`, `SEC`, `OTA`; 15 é desconhecido. O registro binário não traz o texto do evento: a página o busca pelo código em `GET /api/logcodes`, descrito abaixo.
+Os subsistemas, de 0 a 13: `APP`, `NET`, `TEL`, `STO`, `WEB`, `CFG`, `CLI`, `SENSOR`, `HIST`, `SYS`, `DSP`, `SEC`, `OTA`, `I18N`; 15 é desconhecido. O registro binário não traz o texto do evento: a página o busca pelo código em `GET /api/logcodes`, descrito abaixo.
 
 ```python
 import struct
-TAGS = ["APP","NET","TEL","STO","WEB","CFG","CLI","SENSOR","HIST","SYS","DSP","SEC","OTA"]
+TAGS = ["APP","NET","TEL","STO","WEB","CFG","CLI","SENSOR","HIST","SYS","DSP","SEC","OTA","I18N"]
 with open("eventos.bin", "rb") as f:
     dados = f.read()
 for i in range(0, len(dados) - 11, 12):
@@ -1215,7 +1218,7 @@ A atualização exige o administrador completo e segue quatro passos. A interfac
 A atualização pela API. O único comprovante de sucesso é a versão nova informada pelo próprio aparelho.
 :::
 
-1. **Baixe o backup.** A atualização reformata o sistema de arquivos. Só a configuração principal, o arquivo `/config/system.bin`, sobrevive: Wi-Fi, contas, slots de sensor, limites, telemetria e os demais campos de configuração. O histórico, os pacotes de idioma, os temas personalizados, a calibração dos sensores (`/calib.csv`), a pasta `/web`, o log de eventos, o par de certificados HTTPS e a origem CORS se perdem até você restaurar o backup.
+1. **Baixe o backup.** No Pico W, a atualização reformata o sistema de arquivos. Só a configuração principal, o arquivo `/config/system.bin`, sobrevive: Wi-Fi, contas, slots de sensor, limites, telemetria e os demais campos de configuração. O histórico, os pacotes de idioma, os temas personalizados, a calibração dos sensores (`/calib.csv`), a pasta `/web`, o log de eventos, o par de certificados HTTPS e a origem CORS se perdem até você restaurar o backup. No Pico 2 W nada disso se perde: veja a nota depois do passo 4.
 
    ```bash
    curl -s -b jar -o antes.bkp "$H/api/backup"
@@ -1313,7 +1316,7 @@ curl -s -u "metricas:$SIMUT_METRICS_PASS" "$H/metrics"
 
 [release]{.img}
 
-As cinco rotas do painel exigem **Sistema** [PERM_SYS_CONFIG]{.perm}. A interface web as usa no espelho do painel e na captura de tela ([capítulo 13](#cap-13-espelho)).
+As cinco rotas do painel exigem **Sistema** [PERM_SYS_CONFIG]{.perm}. A interface web as usa no espelho do painel e na captura de tela ([capítulo 13](#cap-13-espelho)). As imagens com o painel Ângulo têm uma sexta, `GET /api/ui`, com a mesma permissão; a interface web não a usa.
 
 | Rota | Resposta |
 |---|---|
@@ -1321,7 +1324,8 @@ As cinco rotas do painel exigem **Sistema** [PERM_SYS_CONFIG]{.perm}. A interfac
 | `GET /api/screenshot_chunk?n=N` | Um pedaço de 16 linhas, `n` de 0 a 14: 12 bytes de cabeçalho (índice, tamanho e CRC-32, cada um em 32 bits *big-endian*) e 15.360 bytes de pixels BGR |
 | `GET /api/screen_stream` | Um quadro inteiro no formato compacto do espelho, em 30 faixas de 8 linhas. O formato é interno e pode mudar entre versões |
 | `POST /api/touch` | Com `x` de 0 a 319 e `y` de 0 a 239, em coordenadas do painel, um toque. Com `ms`, o toque fica pressionado esse tempo antes de soltar — é o toque longo, como o de 3 s que fixa o cartão de cima; de 100 a 15000, e um valor fora disso é levado à borda. Responde `{"ok":true,"x":160,"y":120,"ms":100}`; `x` ou `y` fora da faixa, ou `ms` que não é número, `400` |
-| `GET /api/keypad` | As faces do teclado de PIN que está na tela, a geometria das teclas e a política de PIN |
+| `GET /api/keypad` | As faces do teclado de PIN que está na tela e a política de PIN. No painel original, também a geometria das teclas; no Ângulo, no lugar dela, `targets`: a rota onde as teclas estão |
+| `GET /api/ui` | Só nas imagens com o painel Ângulo. Um objeto JSON com o que está no vidro: `modo` (a tela do quadro) e `modo_atual` (a tela em que o painel está agora), `tema` (`claro` ou `escuro`), `hash`, `pinturas`, `ms`, `ms_max` e `faixas` (o quadro e o custo da pintura), `painel` (o estado da tela inicial), `janela` (início e fim do gráfico, em segundos de época; `[0,0]` fora do gráfico e do detalhe), `agora` (o relógio do aparelho) e `alvos`, os alvos de toque do quadro, no máximo 48, cada um `[x, y, w, h, tipo, indice]`: o script toca no centro do que está desenhado, com `POST /api/touch`. Sem quadro na tela, ou com o painel sendo redesenhado, responde `503` com `Retry-After: 1` |
 
 ```bash
 curl -s -b jar -o tela.bmp "$H/api/screenshot"
@@ -1338,11 +1342,20 @@ Regras que um cliente precisa seguir:
 `GET /api/keypad` responde, por exemplo:
 
 ```json
-{"faces":["123","456","789","0"],"up":true,"kb":"num",
- "grid":[4,3,2,2,20,60,130,60,150,70],"policy":[4,8,3,0]}
+{"faces":["123","45!","678","90@"],"up":true,"kb":"cards",
+ "grid":[4,3,2,2,6,72,152,44,156,50],"policy":[4,8,3,0]}
 ```
 
-`faces` descreve as teclas como estão desenhadas, sem dizer qual caractere é o do PIN. `up` diz se o teclado está na tela; `kb` é `cards` (teclado embaralhado), `num` ou `groups`. `grid` traz a geometria das teclas em pixels, e `policy` traz o mínimo, o máximo, os glifos por tecla e o alfabeto da política de PIN.
+`faces` descreve as teclas como estão desenhadas, sem dizer qual caractere é o do PIN: uma por tecla, em ordem, e no teclado numérico ordenado duas delas são vazias. `up` diz se o teclado está na tela; `kb` é `cards` (cartões sorteados), `num` ou `groups`. `policy` traz o mínimo, o máximo, os glifos por tecla e o alfabeto da política de PIN. No painel original, `grid` traz a geometria das teclas em pixels (quantas, glifos por tecla, colunas, linhas, x, y, largura, altura e o passo nos dois eixos) e, no teclado `groups`, `pop` traz a do popup.
+
+O Ângulo desenha as teclas em outro lugar, e a geometria do original as erraria. Por isso a resposta dele não traz `grid` nem `pop`, e traz `targets`, a rota que lista os alvos de toque do quadro que está na tela:
+
+```json
+{"faces":["123","45!","678","90@"],"up":true,"kb":"cards",
+ "policy":[4,8,3,0],"targets":"/api/ui"}
+```
+
+Um cliente que toca o teclado lê `targets` quando o campo existe, e `grid` quando não existe.
 
 ## Um cliente em Python {#cap-26-python}
 

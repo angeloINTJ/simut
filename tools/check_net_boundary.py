@@ -42,7 +42,7 @@ with the reason it may and what ends it:
 
     {"radio-api": {"src/SomeFile.cpp": {"count": 3, "reason": "..."}}}
 
-Since 2026-10-13 the file lists nothing: the last allowance, the radio's state machine in
+From 2026-10-13 to 2026-10-21 the file listed nothing (S10b's C3 lists src/ui/original/UiTouchChain.h since: its reason says why). The last allowance before that, the radio's state machine in
 src/NetworkManager.cpp, ended when it moved into its own unit, src/net/NetworkManager_Cyw43.cpp.
 
 The number stays tight, like tools/feature_sprawl.json: a file with MORE findings than its count

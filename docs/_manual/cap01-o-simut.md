@@ -8,7 +8,7 @@ O SIMUT é um firmware para o Raspberry Pi Pico W que transforma a placa num mon
 
 - **lê até 16 sensores** dos tipos DS18B20, DHT22, BME280 e BMP280, ligados aos pinos GP0 a GP15 ([capítulo 2](#cap-02), [capítulo 6](#cap-06));
 - **grava o histórico no próprio aparelho**, um registro por intervalo, a partir de 1 min. Com 11 grandezas e um registro por minuto, cabem cerca de 116 dias (medido em 31/07/2026; [capítulo 15](#cap-15));
-- **mostra as leituras** no painel de toque ou no LCD, conforme a imagem, e na interface web, que o próprio aparelho serve ([capítulo 11](#cap-11), [capítulo 12](#cap-12), [capítulo 13](#cap-13));
+- **mostra as leituras** no painel de toque ou no LCD, conforme a imagem, e na interface web, que o próprio aparelho serve ([capítulo 11](#cap-11), [capítulo 11A](#cap-11a), [capítulo 12](#cap-12), [capítulo 13](#cap-13));
 - **dispara alarmes** por limite, com som, tela e aviso ao servidor, e aceita janelas de manutenção ([capítulo 7](#cap-07));
 - **envia as medições** a um servidor seu por HTTP, HTTPS, MQTT ou MQTTS, e os alarmes por uma segunda linha, separada ([capítulo 21](#cap-21), [capítulo 22](#cap-22));
 - **conversa com outros sistemas** pelo Home Assistant, pelo Prometheus, pelo syslog e por uma API REST ([capítulo 20](#cap-20), [capítulo 26](#cap-26));
@@ -36,9 +36,9 @@ Um mesmo profissional pode acumular mais de uma dessas funções. O [roteiro de 
 
 ## Os três aparelhos {#cap-01-aparelhos}
 
-O mesmo código gera três imagens de firmware publicadas, uma para cada montagem de hardware:
+O mesmo código gera quatro imagens de firmware publicadas, para três montagens de hardware:
 
-- **release:** o monitor com painel de toque colorido de 320×240;
+- **release:** o monitor com painel de toque colorido de 320×240, no Pico W (imagem `release`, com o painel original, [capítulo 11](#cap-11)) ou no Pico 2 W (imagem `releasetwo`, com o painel Ângulo, [capítulo 11A](#cap-11a));
 - **alpha:** o monitor com LCD de 16×2 caracteres e console pelo Bluetooth;
 - **Air (SIMUT Air):** o registrador a bateria, sem tela, que hiberna entre as leituras. É experimental.
 
@@ -61,7 +61,7 @@ O mesmo código gera três imagens de firmware publicadas, uma para cada montage
 | Atualização pela web | Sim | Sim | Só acordado |
 | Situação | Estável | Publicada; a saída do LCD não foi testada em bancada | Experimental |
 
-Os 16 slots de sensor, os quatro tipos de sensor, o histórico, os alarmes, as contas e as permissões são iguais nas três imagens. As diferenças de cada recurso estão no capítulo dele: o ponto de acesso no [capítulo 9](#cap-09-ap), o console no [capítulo 14](#cap-14-perfis), o PIN no [capítulo 8](#cap-08-imagens), o Air no [capítulo 19](#cap-19).
+Os 16 slots de sensor, os quatro tipos de sensor, o histórico, os alarmes, as contas e as permissões são iguais em todas as imagens. As diferenças de cada recurso estão no capítulo dele: o ponto de acesso no [capítulo 9](#cap-09-ap), o console no [capítulo 14](#cap-14-perfis), o PIN no [capítulo 8](#cap-08-imagens), o Air no [capítulo 19](#cap-19).
 
 ::: atencao
 **Cada imagem serve a um hardware.** Uma imagem gravada no hardware errado não encontra a tela dela. Na atualização pela web, o aparelho recusa uma imagem feita para outro hardware; na gravação pelo USB, ele aceita qualquer uma. A escolha da imagem está no [capítulo 3](#cap-03-escolher).
@@ -69,7 +69,7 @@ Os 16 slots de sensor, os quatro tipos de sensor, o histórico, os alarmes, as c
 
 ### As imagens de bancada {#cap-01-bancada}
 
-O código gera também três imagens para testes automáticos: `pico_w_test`, `pico_w_test_https` e `pico_w_asserts`. Elas não são publicadas e não servem para uso: as duas primeiras trazem o console completo e comandos de teste, e a terceira existe para detectar erros de concorrência. Use sempre uma das três imagens publicadas.
+O código gera também três imagens para testes automáticos: `pico_w_test`, `pico_w_test_https` e `pico_w_asserts`. Elas não são publicadas e não servem para uso: as duas primeiras trazem o console completo e comandos de teste, e a terceira existe para detectar erros de concorrência. Use sempre uma das quatro imagens publicadas.
 
 ## Como ele funciona por dentro {#cap-01-dentro}
 
@@ -99,25 +99,28 @@ O aparelho em blocos: os sensores entram pelo Core 0, a tela fica com o Core 1, 
 
 ## Versões {#cap-01-versoes}
 
-Este manual descreve a **v2.11.1**, de 12/10/2026, a versão publicada mais recente. A linha 2.7 saiu do beta com a v2.7.0.
+Este manual descreve a **v2.13.0**, de 31/10/2026, a versão publicada mais recente. A linha 2.7 saiu do beta com a v2.7.0.
 
-O que a v2.11.1 mudou para quem usa o aparelho:
+O que a v2.13.0 mudou para quem usa o aparelho:
 
-- a troca obrigatória de PIN não pode mais ser pulada: **SAIR** volta à tela inicial, e o menu só abre depois da troca ([capítulo 8](#cap-08-pin-fabrica));
-- no painel, uma conta com a permissão **Usuários** só concede as permissões de painel que ela mesma tem ([capítulo 8](#cap-08-usuarios-painel));
-- uma política de PIN mais exigente não tranca mais do painel quem tem um PIN mais curto: a conta se identifica com o PIN antigo e vai para a troca, e a mensagem de PIN curto diz o mínimo da política ([capítulo 8](#cap-08-politica));
-- **Adotar a sonda ligada aqui** lê o GPIO do próprio slot, e a leitura segue com a sonda nova na hora ([capítulo 6](#cap-06-adotar));
-- o AP aberto pelo gesto no boot segue o prazo de 15 min num aparelho com rede configurada ([capítulo 9](#cap-09-ap-aberto));
-- a página **Arquivos** explica a recusa `v=6`, a de uma imagem de outro chip ([capítulo 17](#cap-17-ota-conferencias)).
+- no Pico 2 W, a release passa a desenhar o painel **Ângulo**, com telas próprias ([capítulo 11A](#cap-11a)); o Pico W continua com o painel original ([capítulo 11](#cap-11));
+- o tema do Ângulo é um modo (claro, escuro ou automático) mais uma de seis cores de destaque, 18 escolhas ao todo; um arquivo `.thm` enviado a um Pico 2 W é guardado, mas não é aplicado;
+- o Ângulo fala os três idiomas do aparelho pelos pacotes de idioma, que crescem para cerca de 53 KB e 55 KB: o maior arquivo de idioma que o aparelho carrega sobe de 48 KiB para 64 KiB, então o firmware entra antes dos pacotes novos;
+- a barra de status do Ângulo mostra o sinal do Wi-Fi em quatro níveis, e a página **Avisos de Terceiros** e a tela **Licença** do painel listam as fontes e os ícones dele;
+- o manual ganha o capítulo 11A, conta quatro imagens publicadas e descreve o *rollback* dos dois slots do Pico 2 W.
 
-A v2.11.0, de 04/10/2026, tinha trazido:
+A v2.12.0, de 29/10/2026, tinha trazido:
 
-- o Pico 2 W (RP2350) passa a ter imagens publicadas: o `.uf2` de fábrica, que traz a tabela de partições, e o `.bin` de atualização ([capítulo 3](#cap-03-arquivos));
-- no Pico 2 W, a atualização pela rede vai para o outro slot, sem tocar no sistema de arquivos, e sobe em teste. Se não se confirmar em cinco minutos, ou se o aparelho reiniciar antes, ele volta sozinho para a versão anterior, e o painel e a página **Arquivos** dizem isso ([capítulo 26](#cap-26-ota));
-- uma transferência longa, como uma atualização, um backup ou uma restauração, não cai mais quando outra página do aparelho está aberta no navegador ([capítulo 18](#cap-18-sem-web));
-- na alpha, gravar a configuração não reinicia mais o aparelho pelo watchdog.
+- no Pico W, o barramento do painel passa a ser ajustado a 66,5 MHz, onde rodava a 24 MHz (lido na bancada em 15/10/2026);
+- um rádio que para de responder não é mais associado às cegas: o aparelho reinicia pelo caminho planejado em vez de pelo watchdog, e o log registra `SYS_WIFI_CONNECT` com contexto 4 ([capítulo 9](#cap-09-mudo));
+- um ponto de acesso que some enquanto o aparelho espera a hora é notado, e a descarga do Air não dorme mais sem enviar quando a hora demora a chegar;
+- uma resposta da web não chega mais ao navegador com pedaços faltando, e uma aba `http://` esquecida na porta HTTPS não reinicia mais o aparelho;
+- depois de um boot em inglês, a tela **Idioma** do painel lista o pacote de `/lang`, e escolhê-lo grava o idioma para o próximo boot ([capítulo 11](#cap-11-menu));
+- o tema e o idioma escolhidos no painel pedem a permissão **Sistema**, como o relógio e as contas já faziam;
+- a página web mostra os nomes dos temas de fábrica no idioma do aparelho;
+- a página **Arquivos** mostra, em vermelho, o motivo de um arquivo que o aparelho recusou, em vez de "Upload concluído." ([capítulo 17](#cap-17-enviar)).
 
-Um aparelho com a v2.11.0 não tem os itens da v2.11.1, e o que as versões anteriores trouxeram está no apêndice [Histórico de versões](#ap-c). Onde este manual diz "na v2.7.1" ou "pelo código da v2.7.1", o texto vale também para as versões seguintes, salvo nas mudanças que o apêndice registra da v2.7.2 em diante. Como conferir a versão do seu aparelho está no [capítulo 17](#cap-17-ota-conferir).
+Um aparelho com a v2.12.0 não tem os itens da v2.13.0, e o que as versões anteriores trouxeram está no apêndice [Histórico de versões](#ap-c). Onde este manual diz "na v2.7.1" ou "pelo código da v2.7.1", o texto vale também para as versões seguintes, salvo nas mudanças que o apêndice registra da v2.7.2 em diante. Como conferir a versão do seu aparelho está no [capítulo 17](#cap-17-ota-conferir).
 
 ## Como ler este manual {#cap-01-como-ler}
 
@@ -127,12 +130,11 @@ Uma seção que vale só para algumas imagens começa com selos:
 
 | Selo | Significado |
 |---|---|
-| [release]{.img} | Vale para a imagem com painel de toque |
+| [release]{.img} | Vale para as imagens com painel de toque: a do Pico W e a do Pico 2 W (`releasetwo`) |
 | [alpha]{.img} | Vale para a imagem com LCD |
 | [air]{.img} | Vale para o SIMUT Air |
-| [main]{.img} | Está no código-fonte, mas ainda não numa versão publicada |
 
-Uma seção sem selo vale para as três imagens.
+Uma seção sem selo vale para todas as imagens.
 
 ### Selos de permissão
 
@@ -167,7 +169,7 @@ Os exemplos usam nomes de documentação: `simut` como nome do aparelho, `MinhaR
 | Leitor | Leia nesta ordem |
 |---|---|
 | Quem instala | [2](#cap-02) Hardware, [3](#cap-03) Firmware, [4](#cap-04) Primeiro boot, [9](#cap-09) Rede, [6](#cap-06) Sensores, [10](#cap-10) Data e hora, [18](#cap-18) Recuperação |
-| Quem opera | [11](#cap-11) Painel ou [12](#cap-12) LCD, [13](#cap-13) Interface web, [7](#cap-07) Alarmes, [15](#cap-15) Histórico, [16](#cap-16) Log de eventos |
+| Quem opera | [11](#cap-11) Painel original, [11A](#cap-11a) Painel Ângulo ou [12](#cap-12) LCD, [13](#cap-13) Interface web, [7](#cap-07) Alarmes, [15](#cap-15) Histórico, [16](#cap-16) Log de eventos |
 | Quem administra o aparelho | [5](#cap-05) Configuração pela web, [8](#cap-08) Contas, [17](#cap-17) Atualização e backup, [14](#cap-14) Console |
 | Quem integra | [20](#cap-20) Visão geral, [21](#cap-21) Telemetria, [22](#cap-22) Linha de alarmes, [23](#cap-23) Home Assistant, [24](#cap-24) Prometheus, [25](#cap-25) Syslog, [26](#cap-26) API REST, [27](#cap-27) Frota |
 | A equipe de TI | [9](#cap-09) Rede e HTTPS, [29](#cap-29) Segurança, [8](#cap-08) Contas, [17](#cap-17) Atualização, [20](#cap-20-rede) Portas, [27](#cap-27) Frota |

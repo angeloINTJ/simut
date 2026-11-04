@@ -1,0 +1,33 @@
+{
+ "_doc": "The Angulo driver's colour roles for the 320x240 RGB565 panel. 'guia' is the Angulo guide's palette (ANGULO.md 3.1, the values the web and the app use); 'tft' holds the panel's deviations, role by role, each with its reason in tools/tft_ui/gen_tokens.py. tools/tft_ui/gen_tokens.py writes src/ui/angulo/kit/angulo_tokens.h from this file; never edit the header by hand. 'acentos' is the accent palette of the Angulo's themes (S10c): an entry is an id and, for the light and the dark mode, the hex of its accent; entry 0 is the stock accent of 'guia' and has no hex. gen_tokens.py derives the rest of each entry (the pressed accent, the text on it, the 45 % disabled twins) and holds every entry and mode to the contrast floors, the 17 distinct roles and the hue rule, refusing to write the header when one fails.",
+ "guia": {
+  "claro": {
+   "fundo": "#f6f6f4", "superficie": "#ffffff", "superficie2": "#ecebe6",
+   "tinta": "#201e1a", "tinta2": "#5f5b54", "linha": "#dcdad3", "linhaForte": "#827e76",
+   "acento": "#1f6355", "acentoForte": "#174d42", "acentoTinta": "#f1faf6",
+   "positivo": "#20784e", "positivoSuave": "#e1f0e7",
+   "alerta": "#8a6116", "alertaSuave": "#f3ead2",
+   "perigo": "#b3382e", "perigoSuave": "#f7e3e0", "perigoTinta": "#fff5f3"
+  },
+  "escuro": {
+   "fundo": "#161513", "superficie": "#201e1b", "superficie2": "#2a2723",
+   "tinta": "#ebe7df", "tinta2": "#a39c90", "linha": "#383430", "linhaForte": "#78716a",
+   "acento": "#5fb39a", "acentoForte": "#7cc7b2", "acentoTinta": "#0e211b",
+   "positivo": "#6fbe8e", "positivoSuave": "#24352b",
+   "alerta": "#d9a84e", "alertaSuave": "#38301c",
+   "perigo": "#e07862", "perigoSuave": "#382220", "perigoTinta": "#2b100c"
+  }
+ },
+ "tft": {
+  "claro": { "tinta2": "#4f4c46", "linha": "#85847f", "linhaForte": "#6f6b65" },
+  "escuro": { "tinta2": "#b5b0a6", "linha": "#73706d", "linhaForte": "#918c86" }
+ },
+ "acentos": [
+  { "id": "verde-azulado" },
+  { "id": "petroleo", "claro": "#1a6478", "escuro": "#5ab0c8" },
+  { "id": "azul", "claro": "#1f5299", "escuro": "#6a9ee8" },
+  { "id": "indigo", "claro": "#4a4aa0", "escuro": "#9a9cf0" },
+  { "id": "violeta", "claro": "#7a3f9a", "escuro": "#c08ae0" },
+  { "id": "magenta", "claro": "#9a3a78", "escuro": "#e08ac4" }
+ ]
+}

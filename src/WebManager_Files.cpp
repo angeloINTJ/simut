@@ -11,6 +11,7 @@
 #include "LogManager.h"
 #include "TouchPriority.h"
 #include "Themes.h"
+#include "simut_config.h"   /* SIMUT_UI_CUSTOM_THEMES is tested below: included here, not left to WebManager.h */
 #include <LittleFS.h>
 
 using ReadGuard = StorageManager::ReadGuard;
@@ -143,10 +144,14 @@ void WebManager::handleDelete( ) {
  _storageRef->invalidateHistoryCodec( );
  }
  /* Hot-reload custom theme on delete (same pattern as upload) —
- * avoids residue in in-memory list after user removes a .thm. */
+ * avoids residue in in-memory list after user removes a .thm.
+ * Compiled only where the panel has custom themes (SIMUT_UI_CUSTOM_THEMES): the Ângulo deletes a .thm like any
+ * other file and keeps no list of them (S10c, A'4). */
+#if SIMUT_UI_CUSTOM_THEMES
  if (path.endsWith(".thm")) {
  scanCustomThemes( );
  }
+#endif
  _server->send(200, "application/json", "{\"status\":\"ok\"}");
 }
 
@@ -514,11 +519,16 @@ void WebManager::handleUploadData( ) {
  /* Hot-reload custom theme — re-scan if .thm uploaded
  * to any path (Files UI allows uploading to subdir).
  * New theme appears immediately in getThemeCount( ) and in the
- * selection list without reboot. */
+ * selection list without reboot.
+ * Compiled only where the panel has custom themes (SIMUT_UI_CUSTOM_THEMES): the Ângulo stores the file like any other,
+ * adds no theme to its own catalogue and applies nothing, so it neither rescans nor logs a rescan; the file takes effect
+ * when the board runs the original (S10c, A'4). */
+#if SIMUT_UI_CUSTOM_THEMES
  if (upload.filename.endsWith(".thm")) {
  scanCustomThemes( );
  LOG_CODE(LOG_INFO, "CFG", CFG_THEME_APPLIED, getThemeCount( ), TRL("Custom themes rescanned"));
  }
+#endif
  }
  }
  _uploadPath = "";

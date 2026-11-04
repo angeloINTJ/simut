@@ -12,6 +12,16 @@ own unit — the panel mirror into `WebManager_History.cpp`, `POST /api/tls` int
 `python3 tools/check_authz.py --list` to print the live matrix straight from the
 source.
 
+A UI driver's routes (any file under `src/ui/`, at any depth, with a C or C++
+source or header extension: `c`, `cc`, `cpp`, `cxx`, `h`, `hh`, `hpp`, `hxx`, `inl`,
+`ipp` or `tpp`, the `DRIVER_EXTS` of the gate, which the pre-commit hook and
+`tools/test_check_authz_drivers.py` hold to the same list; today only the Ângulo's
+`GET /api/ui`, in `src/ui/angulo/WebManager_UiA.cpp`) are parsed by the same rules
+and a finding there fails the check,
+but the gate counts them on a line of their own, outside the totals the READMEs
+quote: only an image built with `ui = "angulo"` serves one (the Pico 2 W release
+since 2026-10-30, S10c C3; published since v2.13.0: v2.12.0 and earlier drew the original panel on the Pico 2 W). They are in the tables below, marked **driver**.
+
 ## How a refusal is answered
 
 Every JSON route gates through `requirePerm(bits)` (`WebManager_Auth.cpp`):
@@ -123,8 +133,9 @@ handler checks.
 | `GET /api/logcodes` | `PERM_LOGS` — the event names the log view prints: the active pack's `@LOGCODES`, then the firmware's English names (`?l=en`: English only). Static labels, no device data; gated anyway because its only reader is the log view, which already needs the bit. |
 | `GET /api/screenshot`, `/api/screenshot_chunk` | `PERM_SYS_CONFIG` |
 | `GET /api/screen_stream` | `PERM_SYS_CONFIG` |
+| `GET /api/ui` (**driver**: only an image built with `ui = "angulo"` registers it, `src/ui/angulo/WebManager_UiA.cpp`) | `PERM_SYS_CONFIG` — the Ângulo panel's frame, one JSON object with these fields and no others (`handleApiUiA`): `modo` (the mode whose frame is on the glass) and `modo_atual` (the mode the panel is in now; they differ for one pass after Core 0 changes the screen), `tema` (`claro` or `escuro`, the palette of that frame), `hash` (8 hex digits, the hash of the frame's view model), `pinturas` (frames painted since boot), `ms` and `ms_max` (the last paint's duration and the longest one, in milliseconds), `faixas` (the strips the last paint pushed, 0 to 6), `painel` (the dashboard state the panel saves: `sel` the selected slot, `cima` the top card's, `fixado` whether it is pinned, `minmax` the two min/max modes, `nav` the slot behind each of the five buttons), `janela` (the chart's window, start and end in epoch seconds, `[0,0]` outside the chart and its detail), `agora` (the device's clock, epoch seconds) and `alvos` (the touch targets of the frame, at most 48, each `[x, y, w, h, tipo, indice]`), so a script touches the centre of what is drawn. It answers 503 with `Retry-After` while there is no frame yet or the panel is being repainted. The permission is `/api/screenshot`'s: the targets say as much about the screen as its picture does. `check_authz.py` checks that this handler has a gate, not which permission bit: `PERM_SYS_CONFIG` is held to this row and to review |
 | `POST /api/touch` | `PERM_SYS_CONFIG` — drives the panel UI; the panel's PIN keypad still guards the settings screens, and every panel action tests the bit of the account the PIN identified (below) |
-| `GET /api/keypad` | `PERM_SYS_CONFIG` — the four scrambled card faces, the same ones `show display keypad` prints. It describes the glass, not the secret: an account that may read `/api/screenshot` already has a picture of the identical cards, and neither says which slot of a card is the digit. Empty faces when the keypad is not the live screen |
+| `GET /api/keypad` | `PERM_SYS_CONFIG` — the four scrambled card faces, the same ones `show display keypad` prints. It describes the glass, not the secret: an account that may read `/api/screenshot` already has a picture of the identical cards, and neither says which slot of a card is the digit. Empty faces when the keypad is not the live screen. The gate is the same on both panels; what the answer carries differs: the original's has the grid and the groups keyboard's popup geometry, the Ângulo's has `faces`, `up`, `kb`, `policy` and `"targets":"/api/ui"` and no geometry, which would miss the Ângulo's keys |
 | `GET /api/sec_status` | `PERM_USER_MGR` |
 | `GET /api/ls` | `PERM_FILE_READ` |
 | `GET /download` | `PERM_FILE_READ`, **plus** `PERM_HISTORY` for `/history/...` and `PERM_LOGS` for `*.blog` (`downloadPermFor`) |
@@ -205,11 +216,50 @@ deal is different.
 | Users (list, new account, bits, another account's PIN, delete) | `PERM_USER_MGR` |
 | One's own PIN, License, System status | any identified account |
 
-Core 0 checks the bit again on every event (`AppManager_Panel.cpp`,
-`panelAllowed`) and logs a refusal as `APP_UI_PERM_DENIED` (458); Core 1 only
-decides what to draw. A user created at the panel holds panel bits only — no
-web page opens for it until an administrator grants a page bit and resets its
-password.
+Core 0 checks the bit again when the action arrives (`AppManager_Panel.cpp`,
+`panelAllowed`; the table below says which events do) and logs a refusal as
+`APP_UI_PERM_DENIED` (458); Core 1 only decides what to draw. A user created at
+the panel holds panel bits only — no web page opens for it until an
+administrator grants a page bit and resets its password.
+
+### Which panel event checks which bit
+
+`tools/check_authz.py` holds the panel's half of the matrix, as it holds the
+routes': every `UiEvent` (the touch panel's messages to Core 0,
+`SystemDefs_Records.h`) is classified, and CI fails on one that is not. A
+**gated** event calls `panelAllowed( )` with its bit before its first write — in
+the first arm of the dispatch chain in `AppManager_Events.cpp` that names it, or
+in the function or case of `AppManager_Panel.cpp` the table names.
+`python3 tools/check_authz.py --list` prints the whole table, with the reason of
+every ungated event; this one mirrors it as of 2026-10-28, and the script is the
+source. The gated events:
+
+| Event | Bit | Where Core 0 checks |
+|---|---|---|
+| `EVT_APPLY_THEME`, `EVT_APPLY_LANG` | `PERM_SYS_CONFIG` | one guard arm ahead of both handlers (2026-10-28): a refusal changes, saves and logs nothing |
+| `EVT_SET_CLOCK` | `PERM_SYS_CONFIG` | its arm; with no session, only while the boot's own question stands |
+| `EVT_START_AP` | `PERM_NET_CONFIG` | its arm |
+| `EVT_SAVE_ALARMS` | `PERM_ALARM_LIMITS` | `panelSaveAlarmLimits` |
+| `EVT_ALARM_BLOCK` | `PERM_ALARM_BLOCK` | its case |
+| `EVT_ALARM_DEACTIVATE` | `PERM_ALARM_BLOCK` | `panelDeactivateAlarm`, after the PIN |
+| `EVT_MAINT_SET` | `PERM_MAINT` | its case |
+| `EVT_USER_ADD`, `EVT_USER_DEL`, `EVT_USER_PERMS`, `EVT_PIN_POLICY` | `PERM_USER_MGR` | its case (`EVT_USER_ADD` and `EVT_USER_PERMS` also check the bits they would grant) |
+| `EVT_USER_PIN`, `EVT_SAVE_PASSWORD` | `PERM_USER_MGR`, for another account's PIN | `panelSetUserPin`; one's own PIN needs the session only |
+
+Ungated, with the reason in the table: navigation that writes nothing (slot,
+graph, calendar), opening Settings (it ends the session and asks for the PIN),
+the PIN typed (`EVT_AUTH_PIN`, the identification itself), the menu rows (the
+action each screen sends is checked on its own, except the four below), silencing an alarm (anyone at
+the panel can stop the sound; the alarm line records it) and four enumerators
+nothing sends.
+
+Four events still save the configuration with no check on Core 0, while their
+Settings rows ask for `PERM_SYS_CONFIG`: `EVT_SAVE_SOUNDS`,
+`EVT_APPLY_TOUCH_CAL`, `EVT_SAVE_TOUCH_CAL` and `EVT_APPLY_DISPLAY_OFFSET`. They
+are registered deviations in the gate (the maintainer, 2026-10-28), printed as
+warnings, to be fixed in a later change. The menu lists those rows only to a
+session that holds the bit, so a screen that behaves is not the problem; a
+session that loses the bit with the screen open is.
 
 ## Unauthenticated by design
 
@@ -240,3 +290,7 @@ behaviour) and otherwise returns 404, serving no protected data.
    a missing gate is what CI blocks. Keep this file in sync when a route's
    required permission changes — the table above is the reference the bit-level
    review reads from.
+4. Every panel event (`UiEvent`) is classified in `PANEL_EVENTS`; a gated one
+   asks for its bit before its first write; the four registered deviations
+   print as warnings and become a finding the day one of them checks.
+   `tools/test_check_authz.py` proves each rule on mutated copies of the tree.

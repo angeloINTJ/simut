@@ -65,10 +65,24 @@ inline ENC28J60Config enc28j60Config( ) {
 	c.rst_pin = -1;
 	c.irq_pin = SIMUT_ENC_INT_PIN;
 	c.pio_instance = SIMUT_ENC_PIO;
-	/* The library's largest receive buffer, 6.5 KB of the chip's 8 KB: four
-	 * full-size frames wait in the chip while a flash write holds the
-	 * interrupts off. */
-	c.rx_buffer_size = 0x1A00;
+	/* The library's default since its 1.3.0: 5 KB of the chip's 8 KB to
+	 * receive, three full-size frames, and room for two to send from, which
+	 * PicoENC28J60lwIP needs to put a frame into the chip while the one before
+	 * is on the wire. Until 2026-10-15 this was 0x1A00, the largest the
+	 * library takes: four frames to receive, as many as TCP_WND lets a sender
+	 * have in flight, for a flash write that holds the interrupts off, and
+	 * room to send one frame at a time.
+	 *
+	 * Measured that day on the bench (pico_wiretft, library 1.3.1, no other
+	 * client), 0x1A00 against this:
+	 *   32 KB uploads, written to LittleFS while they arrive, 3 x 20, each
+	 *   read back whole: medians 1,598 / 1,636 / 1,648 ms against
+	 *   1,635 / 1,590 / 1,620 — the same.
+	 *   /lang.js, 12.4 KB, one download at a time: 33.8 ms against 32.3.
+	 *   Four clients fetching pages for 300 s: 9,598 pages on average against
+	 *   10,499.
+	 * No failure, no tcp_write out of memory, no restart in either. */
+	c.rx_buffer_size = 0x141C;
 	return c;
 }
 

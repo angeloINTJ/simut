@@ -1,10 +1,11 @@
 /**
  * @file DisplayManager_i18n.cpp
- * @brief i18n: DICTIONARY_EN (hardcoded), dynamic tr(), language settings screen.
+ * @brief i18n: DICTIONARY_EN (hardcoded), dynamic tr(), showSettingsLang( ), which both UIs open; the language settings screen is drawn in DisplayManager_i18nUi.cpp (the original UI) and in ui/angulo/DisplayManager_UiA_Menus.cpp (the Ângulo).
  * @details DICTIONARY is now 1D EN only. Slot 1
- * of the menu shows _activeLang.name/code dynamically (via
- * unaccent for ASCII on the TFT). Without .lng loaded, slot 1
- * stays hidden (gated by _activeLangLoaded).
+ * of the menu shows the pack's name and code (the original's draw reads
+ * getListedLangName/Code( ); via unaccent for ASCII on the TFT). Without a .lng in /lang, slot 1
+ * stays hidden (langRowsListed, display/LangChoice.h); a pack that is only
+ * listed, not loaded, shows too, and choosing it waits for the next boot.
  *
  * @project SIMUT — Integrated Universal Monitoring and Telemetry System
  * @author Ângelo Moisés Alves
@@ -164,100 +165,20 @@ const char* DisplayManager::tr(LangKey key) {
 }
 
 #if SIMUT_DISPLAY_TFT
+static_assert(LANG_COUNT == LANG_CHOICE_ROWS,
+              "the Idioma screen lists English and one pack: display/LangChoice.h counts those rows");
+
 void DisplayManager::showSettingsLang(int currentLang) {
  mutex_enter_blocking(&_stateMutex);
  _uiMode = MODE_SETTINGS_LANG;
- _previewLangIdx = currentLang;
- _langPage = currentLang / 4;
+ /* The saved language if the screen lists it, English otherwise: a unit saved in
+  * a pack it could not load has one row, and row 1 is not there. */
+ _previewLangIdx = langRowAtOpen(currentLang, langRowsListed(isLangLoaded( ), isLangListed( )));
+ _langPage = _previewLangIdx / 4;
  _forceSettingsRedraw = true;
  _lastLangPage = -1;
  _repaintSettings = true;
  mutex_exit(&_stateMutex);
 }
 
-void DisplayManager::drawSettingsLang( ) {
- if (!_driver.canvas) return;
-
- bool fullRedraw = _forceSettingsRedraw;
- bool pageChanged = (_langPage != _lastLangPage);
-
-
- /* Slot 1 visible when .lng loaded; shows _activeLang.name/code
- * mapped to Latin-1 for the TFT fonts (accents kept). */
- int activeSlots = _activeLangLoaded ? LANG_COUNT : 1;
- char slot1Name[40] = "(install .lng)";
- char slot1Code[12] = "??";
- if (_activeLangLoaded && _activeLang.name[0]) {
- utf8ToLatin1(_activeLang.name, slot1Name, sizeof(slot1Name));
- }
- if (_activeLangLoaded && _activeLang.code[0]) {
- utf8ToLatin1(_activeLang.code, slot1Code, sizeof(slot1Code));
- }
- int totalPages = (activeSlots + 3) / 4;
- if (_langPage >= totalPages) _langPage = totalPages - 1;
- if (_langPage < 0) _langPage = 0;
-
-
- if (fullRedraw) {
- fastClearScreen(C_BG_MAIN);
- blitTitleBar(tr(TR_CONFIG_LANG));
- blitFooterMenu(tr(TR_BACK), tr(TR_APPLY)); /* T1.2: no heap */
- }
-
-
- if (fullRedraw || pageChanged) {
- uiScrollbar(_driver.tft, 302, 40, 8, 146, totalPages, _langPage);
- }
-
-
- int startIdx = _langPage * 4;
- int yBase = 40;
- int itemW = 285;
-
- for (int i = 0; i < 4; i++) {
- int actualIdx = startIdx + i;
- int y = yBase + (i * 38);
-
-
- if (!fullRedraw && !pageChanged) {
- if (actualIdx != _previewLangIdx && actualIdx != _lastPreviewLangIdx) continue;
- }
-
- _driver.canvas->fillScreen(C_BG_MAIN);
-
- if (actualIdx < activeSlots) {
- bool isSelected = (actualIdx == _previewLangIdx);
- uint16_t bg = isSelected ? C_ACCENT : C_CARD_BG;
- uint16_t txt = isSelected ? C_BG_MAIN : C_TEXT_MAIN;
-
-
- _driver.canvas->fillRoundRect(0, 0, itemW, 34, 8, bg);
- if (!isSelected) _driver.canvas->drawRoundRect(0, 0, itemW, 34, 8, C_TEXT_SUB);
-
-
- _driver.canvas->setFont(&simutFont9pt);
- _driver.canvas->setTextColor(txt);
- _driver.canvas->setCursor(10, 24);
- _driver.canvas->print(actualIdx == LANG_EN ? "English" : slot1Name);
-
- /* Code right-aligned: measure text width and position cursor so
- * the last letter is 10px from the right edge. Previously cursor
- * was fixed at (itemW-35) -> long codes like "pt-BR" went off screen. */
- const char* code = (actualIdx == LANG_EN) ? "EN" : slot1Code;
- int16_t cbx, cby; uint16_t cbw, cbh;
- _driver.canvas->getTextBounds(code, 0, 0, &cbx, &cby, &cbw, &cbh);
- int codeX = itemW - (int)cbw - 10;
- if (codeX < 100) codeX = 100;
- _driver.canvas->setCursor(codeX, 24);
- _driver.canvas->print(code);
- }
-
- blitCanvas(_driver.canvas, 10, y, itemW, 34);
- }
-
-
- _forceSettingsRedraw = false;
- _lastLangPage = _langPage;
- _lastPreviewLangIdx = _previewLangIdx;
-}
 #endif /* SIMUT_DISPLAY_TFT */

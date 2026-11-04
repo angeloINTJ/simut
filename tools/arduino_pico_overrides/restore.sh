@@ -55,6 +55,9 @@ cp -v "$ORIG/lwipopts.h" "$FW/include/"
 # original reverte os tres.
 [ -f "$ORIG/WiFiClientSecureBearSSL.cpp" ] && \
     cp -v "$ORIG/WiFiClientSecureBearSSL.cpp" "$FW/libraries/WiFi/src/"
+# WiFiServerSecureBearSSL.cpp carrega a recusa não-TLS na porta TLS (#274).
+[ -f "$ORIG/WiFiServerSecureBearSSL.cpp" ] && \
+    cp -v "$ORIG/WiFiServerSecureBearSSL.cpp" "$FW/libraries/WiFi/src/"
 [ -f "$ORIG/HTTPClient.cpp" ] && \
     cp -v "$ORIG/HTTPClient.cpp" "$FW/libraries/HTTPClient/src/"
 [ -f "$ORIG/ClientContext.h" ] && \

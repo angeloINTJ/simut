@@ -89,8 +89,8 @@ O que é a rede `<nome>_SETUP`, quando ela abre e como sair dela estão no [cap�
 O AP não abre sozinho: nem num aparelho sem rede configurada, nem quando a rede cai. Abra-o:
 
 - pelo console USB ou Bluetooth, com o comando `ap`. A resposta traz a chave: `OK: Modo AP iniciado (WPA2). Senha: ...`;
-- [release]{.img} pelo painel, no item 8 do menu de configurações, com a permissão **Rede** no painel ([capítulo 11](#cap-11-ap));
-- [release]{.img} segurando a tela durante o boot, quando o painel pede **Mantenha a tela pressionada: Modo AP...** ([capítulo 11](#cap-11-boot-ap)).
+- [release]{.img} pelo painel, no item 8 do menu de configurações (no painel Ângulo, a linha **Modo de configuração**), com a permissão **Rede** no painel ([capítulo 11](#cap-11-ap), [capítulo 11A](#cap-11a-ap));
+- [release]{.img} segurando a tela durante o boot, quando o painel pede **Mantenha a tela pressionada: Modo AP...** ([capítulo 11](#cap-11-boot-ap)) ou, no painel Ângulo, **Segure para o modo de configuração** ([capítulo 11A](#cap-11a-boot)).
 
 Se o console mostrar `[AP] FAILED to start`, o AP não subiu, e o log registra **AP iniciado** (15) com contexto −1. A causa mais comum é um nome de aparelho longo demais: o nome da rede é o nome do aparelho com `_SETUP`, e o total não pode passar de 32 caracteres. Encurte o nome para até 26 caracteres ([capítulo 9](#cap-09-ap)).
 
@@ -159,7 +159,7 @@ Sem backup, configure o aparelho de novo a partir do [capítulo 4](#cap-04).
 
 Cada placa usa uma imagem: `release` para o painel de toque, `alpha` para o LCD 16×2, `air` para o SIMUT Air.
 
-- **Pela página Arquivos,** o aparelho recusa uma imagem de outra variante com `v=7` e uma sem assinatura com `v=8` ([capítulo 17](#cap-17-ota-conferencias)). A recusa reformata o sistema de arquivos: restaure o backup antes de reiniciar.
+- **Pela página Arquivos,** o aparelho recusa uma imagem de outra variante com `v=7` e uma sem assinatura com `v=8` ([capítulo 17](#cap-17-ota-conferencias)). No Pico W, a recusa reformata o sistema de arquivos: restaure o backup antes de reiniciar. No Pico 2 W a recusa não toca o sistema de arquivos ([capítulo 26](#cap-26-ota)).
 - **Pelo USB,** o modo BOOTSEL grava qualquer `.uf2`, assinado ou não: é o caminho de um build local até um aparelho. Uma imagem de outra variante não aciona o visor da sua placa, e a imagem do Air hiberna depois de 5 min sem uso.
 
 Para saber qual imagem está no aparelho, consulte `/api/status` (campo `sys.env`) ou `/api/perms` (campo `env`).

@@ -131,17 +131,23 @@ static const uint8_t EDGE_RULE_COUNT = sizeof(EDGE_RULES) / sizeof(EDGE_RULES[0]
  * — which is what a script looks like, not what a system telling you something
  * looks like.
  *
- * The list is the measured signature, nothing broader. Two of the codes can
- * also be raised at runtime by an operator (APP_UI_LANG_CHANGED from the CLI
- * or the language parser, APP_SENSORS_CALIBRATED from `calib` and from
- * /api/calib), and those must never be silenced — which is why the filter is
- * armed for the duration of setup( ) only. A code appearing here is NOT a
- * statement that it is unimportant; it is a statement that its FIRST copy,
- * written by the cold boot, already said it.
+ * The 441 in it was the language pack loaded at boot, logged until #283 under
+ * APP_UI_LANG_CHANGED, the code of a person changing the language from the
+ * panel or the CLI. The pack has its own code since, I18N_PACK_LOADED (620),
+ * and the list carries that in the same place; the change itself is no longer
+ * in it, so it is written whenever someone makes it. Not measured again on an
+ * Air.
+ *
+ * The list is the measured signature, nothing broader. One of the codes can
+ * also be raised at runtime by an operator (APP_SENSORS_CALIBRATED, from
+ * `calib` and from /api/calib), and it must never be silenced — which is why
+ * the filter is armed for the duration of setup( ) only. A code appearing here
+ * is NOT a statement that it is unimportant; it is a statement that its FIRST
+ * copy, written by the cold boot, already said it.
  * =========================================================================== */
 static const uint16_t BOOT_PREAMBLE[] = {
  NET_PROVISIONAL_TIME,     /* 524 */
- APP_UI_LANG_CHANGED,      /* 441 — runtime-reachable; see the note above */
+ I18N_PACK_LOADED,         /* 620 — measured as 441; see the note above */
  SENSOR_RUNTIME_LOADED,    /* 590 */
  APP_SENSORS_CALIBRATED,   /* 407 — runtime-reachable; see the note above */
  TEL_ALARM_LINE_ON,        /* 549 */

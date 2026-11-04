@@ -81,6 +81,7 @@ extern volatile uint32_t g_flashIrqExposedMaxUs;/**< Longest such window */
  *
  * Diagnostics only — nothing here changes behaviour. */
 extern volatile uint32_t g_core1HeartbeatMs;    /**< millis( ) stamped by Core 1 each loop; age = liveness */
+extern volatile uint32_t g_tftSpiBaud;          /**< SPI0 baud as the last panel push programmed it, from the registers (0 before the first); status sys.tft_hz */
 extern volatile uint8_t  g_core1UiMode;         /**< _uiMode as last seen by Core 1 (resolves touch-probe ambiguity) */
 extern volatile uint32_t g_core1LockoutStuck;   /**< Lockout retry budget exhausted (3 s) */
 extern volatile uint32_t g_core1KillsLockout;   /**< Hard resets from the lockout timeout (P1) */
@@ -117,7 +118,7 @@ enum Core1Phase {
 	 * bottom of the loop, would both have printed 9 as well.
 	 *
 	 * These name each region so no value is a catch-all. */
-	C1P_ALARM_FLASH,     /* redrawAlarmFlash / restoreNormalDashboard (pre-render) */
+	C1P_ALARM_FLASH,     /* tickAlarmFlash( ): in the original, redrawAlarmFlash / restoreNormalDashboard (pre-render) */
 	C1P_R_BOOT,          /* render: boot-screen branch */
 	C1P_R_FULL,          /* render: full redraw (chrome + both panels + buttons) */
 	C1P_R_TOPBAR,        /* render: drawTopBar */

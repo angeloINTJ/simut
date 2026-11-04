@@ -608,7 +608,7 @@ void AppManager::airEnterDormant( ) {
     const uint32_t asked = wakeSec;
     wakeSec = airSleepSecBounded(wakeSec);
     if (wakeSec != asked) {
-      LOG_CODE(LOG_WARN, "AIR", APP_AIR_SLEEP_CLAMPED, (int)(asked / 60UL), "");
+      LOG_CODE(LOG_WARN, "APP", APP_AIR_SLEEP_CLAMPED, (int)(asked / 60UL), "");
     }
   }
 

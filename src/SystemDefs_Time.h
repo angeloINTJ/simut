@@ -101,6 +101,10 @@ constexpr uint32_t ALARM_ROTATE_INTERVAL_MS = 3000;
  * aggressive. */
 constexpr uint32_t ALARM_FLASH_INTERVAL_MS = 600;
 
+/** How long the panels stay in min/max mode without a touch before they go
+ * back to normal mode (ms). */
+constexpr uint32_t MINMAX_IDLE_MS = 30000;
+
 /** Duration of the "Web: <user>" toast in the dashboard header after a
  * successful web login (ms). */
 constexpr uint32_t WEB_NOTIFY_DURATION_MS = 5000;
@@ -179,6 +183,29 @@ inline bool timeReached(uint32_t deadline) {
  */
 inline bool timeSince(uint32_t start, uint32_t duration) {
  return (int32_t)(millis( ) - start) >= (int32_t)duration;
+}
+
+/**
+ * @brief True once an injected touch has been down longer than its hold.
+ *
+ * POST /api/touch, the CLI 'touch sim' / 'touch hold' and the web mirror raise
+ * DisplayManager::_simTouchActive for a hold time (injectTouch( )), and
+ * loopCore1( ) ends it with this test on every pass, right after handleTouch( ),
+ * whatever the screen: the pass that first sees the flag has processed it by
+ * then, even one that comes later than the hold. It used to end only inside
+ * mapTouchPoint( ), which two screens never call for an injection, and the
+ * flag stayed up for good (2026-10-16).
+ *
+ * Strictly greater: a 100 ms tap is still down at 100 ms and released at 101.
+ * Unsigned subtraction, so the millis( ) wrap (~49.7 days) cannot hold one down.
+ *
+ * @param now millis() of this Core 1 pass.
+ * @param setMs millis() at which injectTouch( ) raised the flag.
+ * @param holdMs How long the touch stays down (100 = a tap).
+ * @return true if the touch has outlived its hold.
+ */
+inline bool simTouchExpired(uint32_t now, uint32_t setMs, uint32_t holdMs) {
+ return now - setMs > holdMs;
 }
 
 /**

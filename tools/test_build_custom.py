@@ -13,9 +13,11 @@ de saída que o workflow vê) e canonical().
 @project SIMUT
 @license MIT License
 """
+import copy
 import hashlib
 import json
 import os
+import re
 import struct
 import subprocess
 import sys
@@ -89,6 +91,27 @@ HOSTILE = [
     ("rede em lista", AIR % '{"net":["cyw43"]}'),
     ("rede em objeto", AIR % '{"net":{"cyw43":true}}'),
     ("rede repetida no set", AIR % '{"net":"cyw43","net":"enc28j60"}'),
+    # A UI do painel touch e a outra escolha de driver (2026-10-14): `ui` leva o id de um [ui.*] do
+    # manifesto, como texto, e nada mais. Os mesmos ataques da rede: o que passasse chegaria a
+    # gf.compose( ), que indexa o manifesto pelo id, e a um [env] do PlatformIO.
+    ("ui em outra caixa", AIR % '{"UI":"original"}'),
+    ("ui com espaço", AIR % '{"ui ":"original"}'),
+    ("ui fora do set", '{"v":1,"base":"pico_w_air","ui":"angulo","set":{}}'),
+    ("UI desconhecida", AIR % '{"ui":"neon"}'),
+    ("UI curta", AIR % '{"ui":"x"}'),
+    ("UI em outra caixa", AIR % '{"ui":"Angulo"}'),
+    ("UI com acento", AIR % '{"ui":"Ângulo"}'),
+    ("UI com espaço", AIR % '{"ui":"angulo "}'),
+    ("UI vazia", AIR % '{"ui":""}'),
+    ("UI com quebra de linha", AIR % '{"ui":"angulo\\n[env:x]\\nbuild_flags = -DX"}'),
+    ("UI com comando embutido", AIR % '{"ui":"angulo\\n::warning::injetado"}'),
+    ("UI true", AIR % '{"ui":true}'),
+    ("UI false", AIR % '{"ui":false}'),
+    ("UI numérica", AIR % '{"ui":1}'),
+    ("UI null", AIR % '{"ui":null}'),
+    ("UI em lista", AIR % '{"ui":["angulo"]}'),
+    ("UI em objeto", AIR % '{"ui":{"angulo":true}}'),
+    ("UI repetida no set", AIR % '{"ui":"original","ui":"angulo"}'),
     ("grande demais", '{"v":1,"base":"pico_w_air","set":{}}' + " " * bc.MAX_SPEC),
 ]
 
@@ -136,6 +159,46 @@ CLI = [
     ('{"v":1,"base":"pico_w_release","set":{"net":1}}', 2, "net tem de ser o id de um driver de rede"),
     ('{"v":1,"base":"pico_w_release","set":{"lan":true}}', 2, "chave desconhecida: 'lan'"),
     ('{"v":1,"base":"pico_w_air","set":{"wifi":true}}', 2, "chave desconhecida"),
+    # A UI do painel touch (2026-10-14): o Angulo desenha na TFT (a regra angulo-needs-tft), e o
+    # original, o padrao, vale em qualquer mostrador. O pico_wiretft_angulo e o pico_wiretft com
+    # `ui = "angulo"`, e o perfil nao leva aviso: o texto da opcao deixou de dizer que e um estudo em 2026-10-30 (S10c C3, o Angulo e o painel da release do Pico 2 W).
+    ('{"v":1,"base":"pico_wiretft","set":{"ui":"angulo"}}', 0, "perfil válido"),
+    ('{"v":1,"base":"pico_wiretft_angulo","set":{}}', 0, "perfil válido"),
+    ('{"v":1,"base":"pico_wiretft_angulo","set":{"ui":"original"}}', 0, "perfil válido"),
+    # O Angulo no Pico W (2026-10-22): o RP2040 com o radio CYW43 nao leva o Angulo (a regra angulo-cyw43-needs-rp2350, com a evidencia no manifesto), e o
+    # Pico 2 W leva. O Wire com TFT (RP2040 com o ENC28J60) continua com o Angulo: e a imagem de bancada dele.
+    ('{"v":1,"base":"pico_w_release","set":{"ui":"angulo"}}', 2, "regra angulo-cyw43-needs-rp2350"),
+    ('{"v":1,"base":"pico_w_release","set":{"ui":"angulo"}}', 2, "Choose the Pico 2 W"),
+    ('{"v":1,"base":"pico2_w_release","set":{"ui":"angulo"}}', 0, "perfil válido"),
+    ('{"v":1,"base":"pico2_w_release","set":{"ui":"original"}}', 0, "perfil válido"),
+    ('{"v":1,"base":"pico2_w_release","set":{}}', 0, "perfil válido"),
+    ('{"v":1,"base":"pico2_w_release","set":{"ui":"original"}}', 0, "perfil válido"),
+    ('{"v":1,"base":"pico_w_release","set":{"ui":"original"}}', 0, "perfil válido"),
+    ('{"v":1,"base":"pico_w_release","set":{"ui":"angulo","net":"enc28j60","sensor_ds18b20":false}}', 0, "perfil válido"),
+    ('{"v":1,"base":"pico_wiretft","set":{"ui":"angulo","net":"cyw43"}}', 2, "regra angulo-cyw43-needs-rp2350"),
+    ('{"v":1,"base":"pico_wiretft_angulo","set":{"net":"cyw43"}}', 2, "regra angulo-cyw43-needs-rp2350"),
+    ('{"v":1,"base":"pico_w_alpha","set":{"ui":"angulo"}}', 2, "regra angulo-cyw43-needs-rp2350"),
+    ('{"v":1,"base":"pico_w_air","set":{"ui":"angulo"}}', 2, "regra angulo-cyw43-needs-rp2350"),
+    # O Angulo sem o grafico do painel (2026-10-22): o manifesto deixava passar e a build parava no compilador ('_graphData' was not declared in this scope). A regra
+    # angulo-needs-tft-graph recusa antes, nas duas bases que o Angulo tem, e o original sem o grafico segue valido.
+    ('{"v":1,"base":"pico2_w_release","set":{"ui":"angulo","tft_graph":false}}', 2, "regra angulo-needs-tft-graph"),
+    ('{"v":1,"base":"pico2_w_release","set":{"ui":"angulo","tft_graph":false}}', 2, "Graph and calendar on the touch display"),
+    ('{"v":1,"base":"pico_wiretft","set":{"ui":"angulo","tft_graph":false}}', 2, "regra angulo-needs-tft-graph"),
+    ('{"v":1,"base":"pico2_w_release","set":{"tft_graph":false}}', 2, "regra angulo-needs-tft-graph"),
+    ('{"v":1,"base":"pico_wiretft_angulo","set":{"tft_graph":false}}', 2, "regra angulo-needs-tft-graph"),
+    ('{"v":1,"base":"pico_w_release","set":{"ui":"angulo","tft_graph":false}}', 2, "regra angulo-needs-tft-graph"),
+    ('{"v":1,"base":"pico_w_alpha","set":{"ui":"angulo"}}', 2, "regra angulo-needs-tft-graph"),
+    ('{"v":1,"base":"pico2_w_release","set":{"ui":"original","tft_graph":false}}', 0, "perfil válido"),
+    ('{"v":1,"base":"pico_wiretft","set":{"tft_graph":false}}', 0, "perfil válido"),
+    ('{"v":1,"base":"pico_w_alpha","set":{"ui":"original"}}', 0, "perfil válido"),
+    ('{"v":1,"base":"pico_w_alpha","set":{"ui":"angulo"}}', 2, "regra angulo-needs-tft"),
+    ('{"v":1,"base":"pico_w_air","set":{"ui":"angulo"}}', 2, "regra angulo-needs-tft"),
+    ('{"v":1,"base":"pico_wire","set":{"ui":"angulo"}}', 2, "regra angulo-needs-tft"),
+    ('{"v":1,"base":"pico_wiretft","set":{"ui":"angulo"}}', 0, "aviso enc28j60-unsoaked"),
+    ('{"v":1,"base":"pico_w_release","set":{"ui":"neon"}}', 2, "UI desconhecida: 'neon'"),
+    ('{"v":1,"base":"pico_w_release","set":{"ui":"x"}}', 2, "UI desconhecida: 'x'"),
+    ('{"v":1,"base":"pico_w_release","set":{"ui":true}}', 2, "ui tem de ser o id de um driver de UI"),
+    ('{"v":1,"base":"pico_w_release","set":{"ui":1}}', 2, "ui tem de ser o id de um driver de UI"),
     ("", 2, "perfil vazio"),
 ]
 
@@ -235,6 +298,43 @@ for prof in M["profiles"]:
     check(gf.compose(bc.resolve(prof, {"net": own}, M), M) == gf.compose(bc.resolve(prof, {}, M), M),
           f"{prof}: escolher o próprio driver ({own}) mudou o ambiente")
 
+# A UI do painel touch é a outra escolha de driver (2026-10-14), e anda como a rede: `ui` chega ao
+# perfil resolvido como o id do driver, muda o ambiente composto só pelo que o manifesto diz dele
+# ([ui.<id>]: os flags, a identidade), e não mexe em nenhuma chave. Os valores saem do manifesto.
+check("ui" not in gf.TOGGLE_ORDER, "ui entrou no TOGGLE_ORDER: deixou de ser uma escolha de driver")
+for n in M["ui"]:   # cada driver do manifesto entra, e só ele
+    got = parsed(AIR % json.dumps({"ui": n}))
+    check(got == ("pico_w_air", {"ui": n}), f"parse_spec recusou ou mudou o driver de UI {n!r}: {got!r}")
+ui_flags = M["ui"]["angulo"]["flags"]
+asked = {"ui": "angulo", "sensor_dht22": False}
+got = parsed(json.dumps({"v": 1, "base": "pico_wiretft", "set": asked}))
+check(got == ("pico_wiretft", asked), f"parse_spec mudou a UI e o sensor pedidos: {got!r}")
+flipped = bc.resolve("pico_wiretft", asked, M)
+shipped = gf.resolve_profile("pico_wiretft", M["profiles"])
+check("ui" not in shipped and flipped["ui"] == "angulo",
+      f"ui não chegou ao perfil resolvido: {shipped.get('ui')!r} -> {flipped.get('ui')!r}")
+diff = {k for k in gf.TOGGLE_ORDER if bool(flipped.get(k)) != bool(shipped.get(k))}
+check(diff == {"sensor_dht22"}, f"a UI mexeu em chave que ninguém pediu: {sorted(diff)}")
+built, was = gf.compose(flipped, M), gf.compose(shipped, M)
+check(all(f in built["flags"] and f not in was["flags"] for f in ui_flags),
+      f"a identidade do driver de UI {ui_flags} não foi só para a build que o escolhe")
+check(not any(re.match(r"-DSIMUT_UI_(ORIGINAL|CUSTOM_THEMES)\b", f) for f in built["flags"] + was["flags"]),
+      "um macro derivado da UI foi passado por -D: ele sai do driver em src/ui/UiCaps.h")
+# O perfil de bancada é o pico_wiretft com a UI trocada, e escolher o driver que o produto já tem
+# compõe o mesmo ambiente que não escolher.
+check(gf.compose(bc.resolve("pico_wiretft_angulo", {}, M), M) == gf.compose(bc.resolve("pico_wiretft", {"ui": "angulo"}, M), M),
+      "o pico_wiretft_angulo não é o pico_wiretft com ui = angulo")
+# O pico2_w_original (2026-10-30, S10c C3) é o pico2_w_release com a UI trocada de volta, e mais nada: o configurador compõe os dois iguais, e o ambiente que o
+# gerador escreve, o de verdade, também, sem a raiz de bancada (ela é de imagem de bancada, e esta é o painel original do produto, sem ela como o pai).
+_b = gf.compose(bc.resolve("pico2_w_release", {"ui": "original"}, M), M)
+check(gf.compose(bc.resolve("pico2_w_original", {}, M), M) == _b, "o pico2_w_original não é o pico2_w_release com ui = original")
+check(gf.compose(gf.resolve_profile("pico2_w_original", M["profiles"]), M) == _b,
+      "o ambiente pico2_w_original não é o pico2_w_release com ui = original, e mais nada (nem a raiz de bancada)")
+for prof in M["profiles"]:
+    own = gf.resolve_profile(prof, M["profiles"]).get("ui", gf.DEFAULT_UI)
+    check(gf.compose(bc.resolve(prof, {"ui": own}, M), M) == gf.compose(bc.resolve(prof, {}, M), M),
+          f"{prof}: escolher a própria UI ({own}) mudou o ambiente")
+
 # Forma canônica: a ordem em que as chaves chegam não muda o nome da build.
 a = bc.canonical("pico_w_alpha", {"mdns": True, "bluetooth": False})
 b = bc.canonical("pico_w_alpha", {"bluetooth": False, "mdns": True})
@@ -249,6 +349,14 @@ check(a == '{"base":"pico_w_release","set":{"mdns":true,"net":"enc28j60","sensor
       f"canonical mudou a grafia de `net` (a página escreve a mesma): {a}")
 check(bc.canonical("pico_w_release", {"net": "enc28j60"}) != bc.canonical("pico_w_release", {"net": "cyw43"}),
       "canonical dá o mesmo nome a duas redes diferentes")
+# `ui` é texto e ordena com as outras chaves: a grafia que a página escreve.
+a = bc.canonical("pico_wiretft", {"ui": "angulo", "sensor_dht22": False, "mdns": True})
+b = bc.canonical("pico_wiretft", {"mdns": True, "sensor_dht22": False, "ui": "angulo"})
+check(a == b, "canonical depende da ordem de `ui` entre as chaves")
+check(a == '{"base":"pico_wiretft","set":{"mdns":true,"sensor_dht22":false,"ui":"angulo"},"v":1}',
+      f"canonical mudou a grafia de `ui` (a página escreve a mesma): {a}")
+check(bc.canonical("pico_wiretft", {"ui": "angulo"}) != bc.canonical("pico_wiretft", {"ui": "original"}),
+      "canonical dá o mesmo nome a duas UIs diferentes")
 
 for text, want, needle in CLI:
     r = subprocess.run([sys.executable, os.path.join(HERE, "build_custom.py"), "--validate-only"],
@@ -257,12 +365,146 @@ for text, want, needle in CLI:
     check(r.returncode == want, f"--validate-only {text!r}: saiu {r.returncode}, esperado {want}\n{out}")
     check(needle in out, f"--validate-only {text!r}: a saída não diz «{needle}»\n{out}")
 
+# O que a saida NAO pode dizer: a regra do Angulo no Pico W nao fala do Wire (so o radio a acende), nem do Pico 2 W, nem de quem fica no visual original.
+CLI_ABSENT = [
+    ('{"v":1,"base":"pico_wire","set":{"ui":"angulo"}}', "angulo-cyw43-needs-rp2350"),
+    ('{"v":1,"base":"pico_wiretft","set":{"ui":"angulo"}}', "angulo-cyw43-needs-rp2350"),
+    ('{"v":1,"base":"pico2_w_release","set":{"ui":"angulo"}}', "angulo-cyw43-needs-rp2350"),
+    ('{"v":1,"base":"pico_w_release","set":{"ui":"original"}}', "angulo-cyw43-needs-rp2350"),
+    # E a do grafico (2026-10-22) nao fala de quem tem o grafico, nem de quem fica no visual original sem ele.
+    ('{"v":1,"base":"pico2_w_release","set":{"ui":"angulo"}}', "angulo-needs-tft-graph"),
+    ('{"v":1,"base":"pico_wiretft","set":{"ui":"angulo"}}', "angulo-needs-tft-graph"),
+    ('{"v":1,"base":"pico2_w_release","set":{}}', "angulo-needs-tft-graph"),
+    ('{"v":1,"base":"pico_wiretft_angulo","set":{}}', "angulo-needs-tft-graph"),
+    ('{"v":1,"base":"pico2_w_release","set":{"ui":"original","tft_graph":false}}', "angulo-needs-tft-graph"),
+    ('{"v":1,"base":"pico_wiretft","set":{"tft_graph":false}}', "angulo-needs-tft-graph"),
+]
+for text, needle in CLI_ABSENT:
+    r = subprocess.run([sys.executable, os.path.join(HERE, "build_custom.py"), "--validate-only"],
+                       env={**os.environ, "SIMUT_PROFILE": text}, capture_output=True, text=True)
+    check(needle not in r.stdout + r.stderr, f"--validate-only {text!r}: a saída diz «{needle}», e a regra não é desta combinação\n{r.stdout}{r.stderr}")
+
+# O controle da regra (2026-10-22): sem ela, o caso que esperava a recusa deixa de ser recusado. Primeiro em memoria, pelo mesmo gf.blockers( ) que o
+# build_custom.py aplica; depois pela linha de comando, com o manifesto sem o bloco da regra (o build_custom.py sobre um gen_features que le a copia).
+NEW_RULE = "angulo-cyw43-needs-rp2350"
+M_sem = copy.deepcopy(M)
+M_sem["rules"] = [r for r in M_sem["rules"] if r["id"] != NEW_RULE]
+check(len(M_sem["rules"]) == len(M["rules"]) - 1, f"a regra {NEW_RULE} não está no manifesto: o controle não provou nada")
+for base_, set_ in (("pico_w_release", {"ui": "angulo"}), ("pico_wiretft", {"ui": "angulo", "net": "cyw43"}), ("pico_w_alpha", {"ui": "angulo"})):
+    com = [b["id"] for b in gf.blockers(bc.resolve(base_, set_, M), M)]
+    sem = [b["id"] for b in gf.blockers(bc.resolve(base_, set_, M_sem), M_sem)]
+    check(NEW_RULE in com, f"{base_} {set_}: com a regra, deveria ser recusado por {NEW_RULE}: {com}")
+    check(NEW_RULE not in sem, f"{base_} {set_}: sem a regra, ainda é recusado por ela: {sem}")
+for base_, set_ in (("pico2_w_release", {"ui": "angulo"}), ("pico_wiretft", {"ui": "angulo"}), ("pico2_w_release", {}), ("pico_wiretft_angulo", {})):
+    check(gf.blockers(bc.resolve(base_, set_, M), M) == [], f"{base_} {set_}: deveria passar pelas regras: {gf.blockers(bc.resolve(base_, set_, M), M)}")
+with open(gf.MANIFEST, encoding="utf-8") as fh:
+    toml_text = fh.read()
+bloco = re.search(r'\[\[rules\]\]\nid\s*=\s*"' + re.escape(NEW_RULE) + r'"\n(?:(?!\n\n).)*\n\n', toml_text, re.S)
+check(bloco is not None, f"o bloco [[rules]] de {NEW_RULE} não está no features.toml: o controle pela linha de comando não provou nada")
+if bloco:
+    with tempfile.TemporaryDirectory() as pasta:
+        copia = os.path.join(pasta, "features_sem_a_regra.toml")
+        with open(copia, "w", encoding="utf-8") as fh:
+            fh.write(toml_text.replace(bloco.group(0), ""))
+        harness = ("import sys; sys.path.insert(0, %r); import gen_features as gf; gf.MANIFEST = %r; "
+                   "import build_custom as bc; sys.argv = ['build_custom.py', '--validate-only']; sys.exit(bc.main())" % (HERE, copia))
+        # Sem a regra o perfil ainda sai 2, mas por outro motivo: o orçamento de RAM do Ângulo não tem ambiente nesse hardware (o RP2040 com o radio), a segunda guarda.
+        # O que o controle prova é o que a regra dá: o nome dela na saída. O caso que espera «regra angulo-cyw43-needs-rp2350» reprova sem ela.
+        for text in ('{"v":1,"base":"pico_w_release","set":{"ui":"angulo"}}', '{"v":1,"base":"pico_wiretft","set":{"ui":"angulo","net":"cyw43"}}'):
+            r = subprocess.run([sys.executable, "-c", harness], env={**os.environ, "SIMUT_PROFILE": text}, capture_output=True, text=True)
+            check(NEW_RULE not in r.stdout + r.stderr, f"controle: sem a regra, a saída de {text!r} ainda a nomeia\n{r.stdout}{r.stderr}")
+            check(r.returncode == 2 and "orçamento de RAM" in r.stdout + r.stderr,
+                  f"controle: sem a regra, {text!r} deveria ser recusado ainda pela segunda guarda (o orçamento de RAM), saiu {r.returncode}\n{r.stdout}{r.stderr}")
+            r = subprocess.run([sys.executable, os.path.join(HERE, "build_custom.py"), "--validate-only"], env={**os.environ, "SIMUT_PROFILE": text},
+                               capture_output=True, text=True)
+            check(r.returncode == 2 and NEW_RULE in r.stdout + r.stderr, f"com a regra, {text!r} deveria sair 2 nomeando {NEW_RULE}, saiu {r.returncode}\n{r.stdout}{r.stderr}")
+
+# O Angulo sem o grafico do painel (2026-10-22). Sem a regra angulo-needs-tft-graph, ui = angulo com tft_graph desligado passava pelo manifesto (exit 0) e a build parava no
+# compilador: src/ui/angulo/DisplayManager_UiA.cpp:293:44: error: '_graphData' was not declared in this scope (o membro so existe com SIMUT_TFT_GRAPH). O controle e o do bloco
+# acima, em memoria e pela linha de comando com o manifesto sem o bloco: sem a regra o perfil passa, e o caso que espera a recusa reprova.
+GRAPH_RULE = "angulo-needs-tft-graph"
+GRAPH_OFF = (("pico2_w_release", {"ui": "angulo", "tft_graph": False}), ("pico_wiretft", {"ui": "angulo", "tft_graph": False}),
+             ("pico2_w_release", {"tft_graph": False}), ("pico_wiretft_angulo", {"tft_graph": False}))
+M_sem_grafico = copy.deepcopy(M)
+M_sem_grafico["rules"] = [r for r in M_sem_grafico["rules"] if r["id"] != GRAPH_RULE]
+check(len(M_sem_grafico["rules"]) == len(M["rules"]) - 1, f"a regra {GRAPH_RULE} não está no manifesto: o controle não provou nada")
+for base_, set_ in GRAPH_OFF:
+    com = [b["id"] for b in gf.blockers(bc.resolve(base_, set_, M), M)]
+    sem = [b["id"] for b in gf.blockers(bc.resolve(base_, set_, M_sem_grafico), M_sem_grafico)]
+    check(com == [GRAPH_RULE], f"{base_} {set_}: com a regra, deveria ser recusado só por {GRAPH_RULE}: {com}")
+    check(sem == [], f"{base_} {set_}: sem a regra, nada mais recusa o perfil (foi o compilador que o recusou): {sem}")
+for base_, set_ in (("pico2_w_release", {"ui": "original", "tft_graph": False}), ("pico_wiretft", {"tft_graph": False}),
+                    ("pico2_w_release", {"ui": "angulo"}), ("pico_wiretft", {"ui": "angulo"}), ("pico2_w_release", {}), ("pico_wiretft_angulo", {})):
+    got = [b["id"] for b in gf.blockers(bc.resolve(base_, set_, M), M)]
+    check(got == [], f"{base_} {set_}: deveria passar pelas regras (tem o gráfico, ou fica no visual original): {got}")
+bloco_g = re.search(r'\[\[rules\]\]\nid\s*=\s*"' + re.escape(GRAPH_RULE) + r'"\n(?:(?!\n\n).)*\n\n', toml_text, re.S)
+check(bloco_g is not None, f"o bloco [[rules]] de {GRAPH_RULE} não está no features.toml: o controle pela linha de comando não provou nada")
+if bloco_g:
+    with tempfile.TemporaryDirectory() as pasta:
+        copia = os.path.join(pasta, "features_sem_a_regra_do_grafico.toml")
+        with open(copia, "w", encoding="utf-8") as fh:
+            fh.write(toml_text.replace(bloco_g.group(0), ""))
+        harness = ("import sys; sys.path.insert(0, %r); import gen_features as gf; gf.MANIFEST = %r; "
+                   "import build_custom as bc; sys.argv = ['build_custom.py', '--validate-only']; sys.exit(bc.main())" % (HERE, copia))
+        for base_, set_ in GRAPH_OFF[:2]:
+            text = json.dumps({"v": 1, "base": base_, "set": set_}, separators=(",", ":"))
+            r = subprocess.run([sys.executable, "-c", harness], env={**os.environ, "SIMUT_PROFILE": text}, capture_output=True, text=True)
+            out = r.stdout + r.stderr
+            check(r.returncode == 0 and GRAPH_RULE not in out and "perfil válido" in out, f"controle: sem a regra, {text!r} deveria passar (exit 0), saiu {r.returncode}\n{out}")
+            r = subprocess.run([sys.executable, os.path.join(HERE, "build_custom.py"), "--validate-only"], env={**os.environ, "SIMUT_PROFILE": text},
+                               capture_output=True, text=True)
+            out = r.stdout + r.stderr
+            check(r.returncode == 2 and GRAPH_RULE in out, f"com a regra, {text!r} deveria sair 2 nomeando {GRAPH_RULE}, saiu {r.returncode}\n{out}")
+
+# O orcamento de RAM estatica do Angulo numa build do configurador (2026-10-22). O ambiente `_custom` nao tem entrada no tools/ui_ram_budget.json, e por isso
+# nenhuma build do configurador com o Angulo linkava. O build_custom.py nomeia o ambiente de verdade cuja entrada vale para ela, derivado do hardware (chip,
+# rede, mostrador) e do que o orcamento registra, e o escreve como opcao do ambiente temporario; o portao (tools/check_ui_ram.py) le a opcao, e a entrada
+# continua a de la: o numero nao e copiado para ca.
+import check_ui_ram as cur  # noqa: E402
+budgets, erro_orc = cur.ler_orcamentos(bc.UI_RAM_BUDGET)
+check(budgets is not None, f"o orçamento de RAM não leu: {erro_orc}")
+if budgets is not None:
+    for base_, set_, want in (("pico2_w_release", {"ui": "angulo"}, "pico2_w_release"),
+                              ("pico2_w_release", {}, "pico2_w_release"),
+                              ("pico_wiretft", {"ui": "angulo"}, "pico_wiretft_angulo"),
+                              ("pico_wiretft_angulo", {}, "pico_wiretft_angulo"),
+                              ("pico_w_release", {"ui": "angulo", "net": "enc28j60", "sensor_ds18b20": False}, "pico_wiretft_angulo")):
+        got, why = bc.ui_ram_env(bc.resolve(base_, set_, M), M, budgets)
+        check(got == want, f"{base_} {set_}: o orçamento de RAM é o de {got!r} ({why}), esperado {want!r}")
+    # Derivado, nao copiado: o nome vem do hardware, e o numero e o da entrada que existe agora.
+    mudado = {**budgets, "pico2_w_release": {"budget": 1}}
+    check(bc.ui_ram_env(bc.resolve("pico2_w_release", {"ui": "angulo"}, M), M, mudado)[0] == "pico2_w_release",
+          "o ambiente do orçamento mudou com o número da entrada: o nome deveria sair do hardware")
+    semente = {k: v for k, v in budgets.items() if k != "pico2_w_release"}
+    got, why = bc.ui_ram_env(bc.resolve("pico2_w_release", {"ui": "angulo"}, M), M, semente)
+    check(got is None and "ui_ram_budget.json" in why, f"sem a entrada do pico2_w_release, deveria recusar e dizer onde registrá-la: {got!r} {why!r}")
+    # Toda combinacao de hardware que as regras deixam passar com o Angulo tem um ambiente com orcamento (e so as duas de hoje passam).
+    cobertas = set()
+    for nome in M["profiles"]:
+        for rede in M["net"]:
+            prof = bc.resolve(nome, {"ui": "angulo", "net": rede}, M)
+            if gf.blockers(prof, M):
+                continue
+            got, why = bc.ui_ram_env(prof, M, budgets)
+            check(got is not None, f"{nome} com o Angulo e net={rede} passa nas regras e não tem orçamento de RAM: {why}")
+            cobertas.add((bc.chip_of(nome, M), rede))
+    check(cobertas == {("rp2040", "enc28j60"), ("rp2350", "cyw43")}, f"o hardware que leva o Angulo mudou: {sorted(cobertas)}")
+    # O texto do ambiente temporario: o de sempre, mais a opcao so quando a build leva o Angulo.
+    prof_a = bc.resolve("pico2_w_release", {"ui": "angulo"}, M)
+    prof_o = bc.resolve("pico2_w_release", {"ui": "original"}, M)
+    texto_a = bc.custom_env(prof_a, gf.compose(prof_a, M), "pico2_w_release")
+    check(texto_a == gf.emit_env(bc.ENV, gf.compose(prof_a, M)) + f"{cur.OPCAO_ORCAMENTO} = pico2_w_release\n",
+          f"o ambiente temporário do Angulo não é o de sempre mais a opção do orçamento:\n{texto_a}")
+    check(bc.custom_env(prof_o, gf.compose(prof_o, M), None) == gf.emit_env(bc.ENV, gf.compose(prof_o, M)),
+          "o ambiente temporário de uma build sem o Angulo mudou")
+
 # No Actions, uma linha de log que começa com :: é um comando. Um perfil cuja
 # chave carrega uma quebra de linha e um comando não pode emitir esse comando;
 # a recusa sai como UMA anotação de erro, escapada. Vale para a chave e, desde que a
 # rede é uma escolha de texto (2026-10-13), para o valor de `net`.
 for where, evil in (("na chave", AIR % '{"mdns\\n::warning::injetado":true}'),
-                    ("no valor de net", AIR % '{"net":"cyw43\\n::warning::injetado"}')):
+                    ("no valor de net", AIR % '{"net":"cyw43\\n::warning::injetado"}'),
+                    ("no valor de ui", AIR % '{"ui":"angulo\\n::warning::injetado"}')):
     r = subprocess.run([sys.executable, os.path.join(HERE, "build_custom.py"), "--validate-only"],
                        env={**os.environ, "SIMUT_PROFILE": evil, "GITHUB_ACTIONS": "true"},
                        capture_output=True, text=True)
@@ -394,6 +636,10 @@ if failures:
     sys.exit(1)
 print(f"test_build_custom: {len(HOSTILE)} perfis hostis recusados, {len(M['profiles'])} produtos "
       f"iguais ao manifesto, {len(CLI)} casos pela linha de comando, a rede como escolha de "
-      f"driver ({len(M['net'])} do manifesto: {', '.join(M['net'])}), log sem comando injetado; "
+      f"driver ({len(M['net'])} do manifesto: {', '.join(M['net'])}), a UI do painel como a outra "
+      f"({len(M['ui'])}: {', '.join(M['ui'])}), log sem comando injetado; "
+      f"o Ângulo recusado no Pico W e aceito no Pico 2 W e no Wire com TFT, com o controle sem a regra, e o ambiente do "
+      f"orçamento de RAM dele derivado do hardware; "
+      f"o Ângulo sem o gráfico do painel recusado nas duas bases que o têm, com o controle sem a regra; "
       f"imagens e tetos de cada chip, e o acabamento depois da assinatura (Pico 2 W, Pico W, "
       f"Pico 2 W sem tabela).")

@@ -140,10 +140,11 @@ public:
   * @brief Silence the deterministic boot preamble of a hibernation wake.
   *
   * On SIMUT Air every wake is a full boot, so the same eight init records —
-  * measured, in this exact order: NET_PROVISIONAL_TIME, APP_UI_LANG_CHANGED,
-  * SENSOR_RUNTIME_LOADED, APP_SENSORS_CALIBRATED, TEL_ALARM_LINE_ON,
-  * TEL_HTTP_INIT, STO_H5_WIP, APP_READY — were rewritten once a minute. They
-  * were 68% of the forensic window and every copy said the same thing.
+  * measured, in this exact order: NET_PROVISIONAL_TIME, I18N_PACK_LOADED
+  * (logged as APP_UI_LANG_CHANGED until #283), SENSOR_RUNTIME_LOADED,
+  * APP_SENSORS_CALIBRATED, TEL_ALARM_LINE_ON, TEL_HTTP_INIT, STO_H5_WIP,
+  * APP_READY — were rewritten once a minute. They were 68% of the forensic
+  * window and every copy said the same thing.
   *
   * A wake is left with one record rather than none: STO_H5_WIP is emitted a
   * second time by flushWipV5( ) after the window closes, and because a
@@ -154,9 +155,9 @@ public:
   * Armed ONLY when the boot came out of hibernation, and disarmed the moment
   * setup( ) ends. Both halves matter: a cold boot keeps the whole preamble,
   * because that burst is the record of a power interruption; and the window
-  * closing at the end of setup( ) is what keeps two of those codes
-  * (APP_UI_LANG_CHANGED, APP_SENSORS_CALIBRATED) loggable when an operator
-  * triggers them later from the CLI or the web.
+  * closing at the end of setup( ) is what keeps one of those codes,
+  * APP_SENSORS_CALIBRATED, loggable when an operator triggers it later from
+  * the CLI or the web.
   *
   * @param on true while the preamble of a wake is being emitted.
   */

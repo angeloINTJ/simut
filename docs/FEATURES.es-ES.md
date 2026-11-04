@@ -32,7 +32,7 @@ Todo lo que hace el firmware, en detalle. El [README](../README.es-ES.md) tiene 
   - Ajustes → 8 arranca el punto de acceso de configuración;
   - Ajustes → 4 fija la fecha y la hora, y una unidad sin red configurada las pide al final del arranque.
 - **Gestos en el panel superior** — un toque alterna mín/máx, mantener 3 s fija la selección.
-- **Renderizado rápido con DMA** — composición en canvas sobre SPI a 62,5 MHz.
+- **Renderizado rápido con DMA** — composición en canvas sobre SPI a 66,5 MHz.
 - **Área segura de 4 px en toda la UI** — el offset de alineación de pantalla (±4 px por eje) nunca recorta contenido.
 - **Temas** — hasta 8 cargados desde LittleFS (11 vienen en `data/themes/`); el editor en `tools/theme-editor/` muestra la vista previa en un dispositivo real.
 - **Sistema de sonidos** — clases Toque, Confirmación, Error, Alarma y Atención, 6 melodías cada una, con volúmenes separados para sistema y alarma.
@@ -146,7 +146,7 @@ Todo lo que hace el firmware, en detalle. El [README](../README.es-ES.md) tiene 
 
 ## Núcleo e interruptores
 
-Toda imagen tiene lo que la tabla de abajo no lista: los slots de sensor, las alarmas y la línea de alarmas, el histórico grabado, las cuentas y los permisos, la interfaz web y la API HTTP por HTTP simple, la telemetría por HTTP simple, la consola de emergencia, el log de eventos, el backup y la restauración, y la actualización por el aire firmada. Dos cosas son una elección y no un interruptor: la pantalla (panel táctil, LCD 16×2 o ninguna) y el chip (el RP2040 de la Pico W, o el RP2350 de la Pico 2 W, que el CI compila y en el que aún no corre nada).
+Toda imagen tiene lo que la tabla de abajo no lista: los slots de sensor, las alarmas y la línea de alarmas, el histórico grabado, las cuentas y los permisos, la interfaz web y la API HTTP por HTTP simple, la telemetría por HTTP simple, la consola de emergencia, el log de eventos, el backup y la restauración, y la actualización por el aire firmada. Dos cosas son una elección y no un interruptor: la pantalla (panel táctil, LCD 16×2 o ninguna) y el chip (el RP2040 de la Pico W, o el RP2350 de la Pico 2 W, cuya versión dibuja la pantalla táctil en el aspecto Ángulo desde la v2.13.0; la v2.12.0 y las anteriores dibujaban el panel original en ella).
 
 Todo lo demás es un interruptor en [`tools/features.toml`](../tools/features.toml). Esta tabla se genera de ese archivo con `tools/gen_features.py`, y el CI falla cuando se queda atrás. El [configurador de build](https://angelointj.github.io/simut/configurador/) compila una imagen con cualquier combinación que las reglas permiten, para la Pico W o para la Pico 2 W, y muestra cuánto cuesta cada interruptor en flash, medido en cada producto.
 
@@ -162,7 +162,9 @@ Todo lo demás es un interruptor en [`tools/features.toml`](../tools/features.to
 |  | MQTT y Home Assistant | Publica en un broker MQTT (MQTT, o MQTTS con el interruptor de TLS), recibe las confirmaciones de la línea de alarmas en el tópico de ack y anuncia los sensores a Home Assistant por MQTT Discovery. Sin él, la telemetría va solo por HTTP. | sí | sí | sí | sí |
 |  | Métricas para Prometheus (/metrics) | Un endpoint /metrics en el formato de texto de Prometheus, con autenticación Basic para el recolector. | sí | sí | sí | sí |
 |  | Syslog remoto (registro de auditoría) | Reenvía los eventos del log a un colector syslog (RFC 5424 por UDP), para que el registro de auditoría sobreviva fuera del dispositivo. | sí | sí | sí | sí |
-| Interfaz | Página de histórico en la interfaz web | La página /history: gráficos, calendario, exportación CSV en el navegador y el visor de eventos. El dispositivo graba el histórico igual, y los archivos de histórico siguen descargables desde la página Archivos. | sí | sí | sí | sí |
+| Interfaz | Aspecto original | La pantalla táctil como la entrega la versión de la Pico W, y la de la Pico 2 W la entregó hasta la v2.12.0, con sus temas. Es la única opción con el LCD 16x2 y sin pantalla. | sí | sí | sí | no |
+|  | Aspecto Ángulo | La pantalla táctil dibujada según el estándar Ángulo: el aspecto de la versión de la Pico 2 W desde la v2.13.0 (la v2.12.0 y las anteriores dibujaban el panel original en ella). Requiere la pantalla táctil. | no | no | no | sí |
+|  | Página de histórico en la interfaz web | La página /history: gráficos, calendario, exportación CSV en el navegador y el visor de eventos. El dispositivo graba el histórico igual, y los archivos de histórico siguen descargables desde la página Archivos. | sí | sí | sí | sí |
 |  | API de exportación del histórico | Rutas que devuelven el histórico de varios sensores en una llamada (/api/history_multi) y exportan el histórico y el log como .simx. Ninguna página las usa; las herramientas de banco y las integraciones, sí. | sí | sí | sí | sí |
 |  | Línea de comandos completa | Todos los comandos por serie y Bluetooth. Sin ella queda solo la consola de emergencia. | no | no | sí | no |
 |  | Gráfico y calendario en la pantalla táctil | El gráfico del histórico que se abre desde la franja de mín/máx, su pantalla de detalle y el calendario para elegir el día. Sin él, la franja no tiene el botón del gráfico; el histórico se sigue grabando y sigue en la web. | sí | no | no | sí |

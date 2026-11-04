@@ -36,7 +36,7 @@ Detalhes nos capítulos [2](#cap-02), [3](#cap-03) e [4](#cap-04).
 |---|---|---|
 | O aparelho reinicia sozinho, sem causa no log de eventos | Queda de tensão no cabo USB ou na fonte | Troque por um cabo de pelo menos 22 AWG e uma fonte firme ([capítulo 2](#cap-02-pico)) |
 | O painel fica branco ou sem imagem | Fiação do SPI, do CS, do DC ou do RESET trocada ou solta | Confira a tabela do TFT pino a pino ([capítulo 2](#cap-02-tft)) |
-| Pontos soltos em áreas lisas do painel ou do espelho da web | Fios longos ou ruins para os 62,5 MHz do TFT | Encurte a fiação; se não resolver, compile com frequência menor ([capítulo 3](#cap-03-fonte)) |
+| Pontos soltos em áreas lisas do painel ou do espelho da web | Fios longos ou ruins para o barramento do TFT ajustado a 66,5 MHz | Encurte a fiação; se não resolver, compile com frequência menor ([capítulo 3](#cap-03-fonte)) |
 | O toque não responde | T_CS fora do GP17 ou T_IRQ fora do GP20 | Confira as ligações do toque ([capítulo 2](#cap-02-tft)) |
 | O LCD mostra blocos cheios ou fica em branco | Contraste desajustado, ou LCD no 3V3 | Ajuste o potenciômetro do VO; alimente o LCD pelo 5 V ([capítulo 2](#cap-02-lcd)) |
 | DS18B20 com **Erro de CRC** (103) ou falha ao ler a ROM (999) | Falta o resistor de 4,7 kΩ, ou há duas sondas no mesmo GPIO | Ponha o resistor entre o dado e o 3V3 e deixe uma sonda por GPIO ([capítulo 2](#cap-02-ds18b20)) |
@@ -192,7 +192,7 @@ Detalhes no [capítulo 6](#cap-06).
 | Editor sem o bloco **Calibração** | Conta sem a permissão **Calibração**, ou slot novo ainda não gravado | Peça a permissão; grave o slot antes de calibrar |
 | **Erro na calibração:** `NTP not synced` | O relógio não foi acertado, nem por NTP nem à mão | Acerte o relógio ([capítulo 10](#cap-10)) e grave de novo |
 | **Erro na calibração:** `rate limited` | Duas gravações de calibração em menos de 5 s | Espere 5 s e grave de novo |
-| Correções sumiram depois de atualizar o firmware | A atualização apaga o `calib.csv` | Restaure o backup `.bkp` baixado antes da atualização |
+| Correções sumiram depois de atualizar o firmware | No Pico W, a atualização apaga o `calib.csv` (no Pico 2 W ele fica) | Restaure o backup `.bkp` baixado antes da atualização |
 | Envio de `calib.csv` pela página **Arquivos** não muda nada | O `VERSION` do arquivo enviado não é maior que o atual | Aumente o número da linha `VERSION,` e envie de novo |
 
 ## Alarmes e sons {#cap-30-alarmes}
@@ -217,7 +217,7 @@ Detalhes no [capítulo 7](#cap-07).
 
 ## Painel {#cap-30-painel}
 
-Detalhes no [capítulo 11](#cap-11).
+Detalhes no [capítulo 11](#cap-11); no Pico 2 W, no [capítulo 11A](#cap-11a).
 
 | Sintoma | Causa provável | O que fazer |
 |---|---|---|
@@ -295,7 +295,7 @@ Detalhes no [capítulo 15](#cap-15).
 | Um sensor renomeado aparece com o nome novo nos dias anteriores | A página rotula os dados do slot com o nome e o ID atuais | Comportamento esperado. O arquivo guarda o slot, não o nome |
 | Os dados de um slot removido não aparecem na página | A página só mostra os slots configurados agora | Leia os arquivos `.h5` com `tools/history_v5.py --dump-csv` |
 | Arquivos que coloquei em `/history` sumiram depois de reiniciar | O boot apaga de `/history` tudo o que não é `.h5` | Guarde-os em outra pasta |
-| O histórico sumiu depois de atualizar o firmware | A atualização reformata o sistema de arquivos | Restaure o `.bkp` baixado antes da atualização ([capítulo 17](#cap-17)) |
+| O histórico sumiu depois de atualizar o firmware | No Pico W, a atualização reformata o sistema de arquivos (no Pico 2 W ele fica intocado) | Restaure o `.bkp` baixado antes da atualização ([capítulo 17](#cap-17)) |
 | As horas do CSV diferem das do painel | A página usa o fuso do computador; o painel, o do aparelho | Use um computador no mesmo fuso do aparelho |
 | Depois de mudar o **Intervalo Histórico**, os dias antigos aparecem com os pontos espalhados | A página decodifica todos os arquivos com o intervalo atual | Leia os arquivos antigos com `history_v5.py --interval` igual ao intervalo da época |
 | As horas saem erradas no `history_v5.py` | O `--interval` não é o **Intervalo Histórico** do aparelho | Passe o intervalo em segundos, como `--interval 300` para 5 min |
@@ -339,19 +339,23 @@ Detalhes no [capítulo 17](#cap-17).
 | **Aplicação recusada (HTTP 503)** | O painel estava em uso no instante da aplicação | Não reinicie. Repita `POST /api/ota/apply` com a sessão do administrador |
 | A página de entrada não abre logo depois da atualização | O aparelho está gravando a imagem e reiniciando | Espere cerca de 1 min e recarregue |
 | O aparelho continua na versão antiga | A aplicação não aconteceu | Confira a versão na gaveta e o log; refaça a atualização |
-| Depois da atualização, a interface e o painel estão em inglês | O pacote de idioma foi apagado com o sistema de arquivos | Restaure o backup, ou envie o `.lng` da versão e reinicie |
-| Depois da atualização, o aparelho responde em HTTP e não em HTTPS | O par do HTTPS foi apagado com o sistema de arquivos | Restaure o backup ou instale o par de novo ([capítulo 9](#cap-09-https-ota)) |
-| Depois da atualização, os sensores leem sem correção | O `/calib.csv` foi apagado | Restaure o backup |
+| Depois da atualização, a interface e o painel estão em inglês | No Pico W, o pacote de idioma foi apagado com o sistema de arquivos (no Pico 2 W ele fica) | Restaure o backup, ou envie o `.lng` da versão e reinicie |
+| Depois da atualização, o aparelho responde em HTTP e não em HTTPS | No Pico W, o par do HTTPS foi apagado com o sistema de arquivos (no Pico 2 W ele fica) | Restaure o backup ou instale o par de novo ([capítulo 9](#cap-09-https-ota)) |
+| Depois da atualização, os sensores leem sem correção | No Pico W, o `/calib.csv` foi apagado (no Pico 2 W ele fica) | Restaure o backup |
 | O log mostra **Config alterada** (303), módulo `OTA`, nível `ERR`, logo depois de atualizar | O CRC da imagem gravada não confere | Grave a imagem pelo USB ([capítulo 18](#cap-18-bootsel)) |
 | O aparelho não liga depois de uma falta de energia durante a atualização | O corte caiu na aplicação e o firmware ficou pela metade | BOOTSEL e `.uf2` pelo USB ([capítulo 18](#cap-18-bootsel)) |
 | **Validação falhou: chip ID mismatch (backup is from another device)** | O backup é de outro aparelho | Use um backup deste aparelho |
 | A restauração trouxe de volta uma senha antiga do administrador | A restauração devolve a configuração da data do backup | Troque a senha depois de restaurar |
 | Faltam as medições entre a atualização e a restauração | A restauração substituiu o arquivo do dia pela cópia do backup | Restaure logo depois de atualizar ([capítulo 15](#cap-15-ota)) |
 | **Falha ao aplicar: I/O error** | Falha de gravação (até a v2.9.0, também um backup com mais de 200 arquivos) | Não reinicie; repita a restauração: os arquivos já gravados ficam, e ela completa o resto |
-| A página diz **Upload concluído.**, mas o arquivo não aparece | O aparelho recusou o envio (nome inválido, sem espaço ou destino proibido) | Confira o nome, o espaço livre e a pasta |
+| A página diz **Envio recusado (HTTP 400: Invalid upload).** | O aparelho recusou o envio (nome inválido, sem espaço ou destino proibido); com HTTP 403, a conta não tem a permissão de envio | Confira o nome do arquivo, o espaço livre e a pasta; com HTTP 403, entre com uma conta que possa enviar arquivos |
 | Um pacote de idioma enviado não fez efeito | O pacote só é lido no boot | Reinicie o aparelho |
 | [air]{.img} A página do Air parou de responder durante a atualização | O Air hibernou | Ligue o carregador durante a atualização, ou ponha o Air em M0 com `air stop` |
 | O reset de fábrica deixou o aparelho sem uma senha conhecida | A senha aleatória desse reset não é mostrada | Rode `system admin reset confirm` pelo console USB |
+
+::: atencao
+**Vários arquivos num envio.** O aparelho só informa a recusa do último arquivo: se um arquivo recusado vier antes de um aceito, a página diz **Upload concluído.** e o arquivo recusado não aparece. Envie um arquivo por vez quando algum puder ser recusado, e confira a lista.
+:::
 
 ## Recuperação {#cap-30-recuperacao}
 

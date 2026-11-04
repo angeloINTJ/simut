@@ -55,6 +55,10 @@ De fábrica, os alarmes de todo slot vêm ligados. Religar os alarmes de um sens
 
 ## O que acontece quando um alarme dispara {#cap-07-disparo}
 
+::: nota
+**As telas desta seção são as do painel original (Pico W).** No Pico 2 W, veja o [capítulo 11A](#cap-11a-alarme-cartoes).
+:::
+
 Quando um alarme dispara, o aparelho:
 
 - toca a cigarra, com a melodia e o volume de alarme ([Sons](#cap-07-sons));

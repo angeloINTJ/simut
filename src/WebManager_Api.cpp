@@ -12,10 +12,12 @@
 #include "LogManager.h"
 #include "MetricsManager.h"
 #include "Themes.h"
+#include "ThemeApiRow.h"   /* formatThemeRow( ): the native suite runs the same code */
 #include "TouchPriority.h"
 #include "DisplayManager.h" /* For getActiveWebDictSource */
 #include "FlashIrqProbe.h"  /* For g_flashIrqExposed (metr.fx) */
 #include <hardware/watchdog.h>
+#include <hardware/clocks.h>   /* clock_get_hz( clk_peri ): status sys.clk_peri */
 /* Position trace (hp=) — see WebManager_History.cpp. */
 #define HPOS(v) do { watchdog_hw->scratch[7] = (uint32_t)(v); } while (0)
 #include <LittleFS.h>
@@ -405,23 +407,13 @@ void WebManager::handleApiThemes( ) {
 	_server->send(200, "application/json", "");
 
 	safeSend("[");
-	char entry[64];
+	/* One row per theme: {"id", "code", "name"}. The page translates the stock names by code
+	 * (thm_<code> in the pack's @WEBDICT) and keeps "name" when the pack has no key. */
+	char entry[THEME_ROW_MAX];
 
 	for (int i = 0; i < getThemeCount( ); i++) {
-		char cleanName[32];
-		int cn = 0;
-		const char* p = getThemePalette(i)->displayName;
-		if (p) {
-			while (*p && cn < (int)sizeof(cleanName) - 1) {
-				unsigned char c = (unsigned char)(*p);
-				if (c >= 32 && c != '\"' && c != '\\') cleanName[cn++] = (char)c;
-				p++;
-			}
-		}
-		if (cn == 0) cn = snprintf(cleanName, sizeof(cleanName), "Tema %d", i);
-		cleanName[cn] = '\0';
-
-		snprintf(entry, sizeof(entry), "%s{\"id\":%d,\"name\":\"%s\"}", i > 0 ? "," : "", i, cleanName);
+		const ThemePalette* th = getThemePalette(i);
+		formatThemeRow(entry, sizeof(entry), i, th->idName, th->displayName);
 		if (!safeSend(entry)) return;
 	}
 
@@ -644,7 +636,7 @@ void WebManager::handleApiLang( ) {
 
 	_server->setContentLength(len);
 	_server->send(200, "application/json", "");
-	_server->client( ).setTimeout(500);
+	_server->client( ).setTimeout(WEB_WRITE_TIMEOUT_MS);
 
 	char buf[WEB_STREAM_CHUNK_SOFT];
 	uint32_t sent = 0;
@@ -720,7 +712,7 @@ void WebManager::handleApiLogcodes( ) {
 	_server->sendHeader("Cache-Control", "private, max-age=300");
 	_server->setContentLength(packLen + enLen);
 	_server->send(200, "text/plain; charset=utf-8", "");
-	_server->client( ).setTimeout(500);
+	_server->client( ).setTimeout(WEB_WRITE_TIMEOUT_MS);
 
 	char buf[WEB_STREAM_CHUNK_SOFT];
 	uint32_t sent = 0;
@@ -782,6 +774,20 @@ static const char* bootSlot( ) {
 #else
 #define STATUS_SLOT_FMT ""
 #define STATUS_SLOT_ARG
+#endif
+
+#if SIMUT_DISPLAY_TFT
+/* clk_peri: the clock of the peripherals in Hz, which setup( ) puts on clk_sys.
+ * tft_hz: the baud the PL022 gave the last panel push, read back from its
+ * registers (0 before the first). Read on the bench 2026-10-15, before that
+ * change: 48000000 and 24000000. Macros and not an `if` on the panel: the images
+ * without it then compile the very tokens they always did (an `if ( 0 )` left the
+ * alpha, the Air and the plain Wire two bytes different in this function). */
+#define STATUS_CLK_FMT ",\"clk_peri\":%lu,\"tft_hz\":%lu"
+#define STATUS_CLK_ARG , (unsigned long)clock_get_hz(clk_peri), (unsigned long)g_tftSpiBaud
+#else
+#define STATUS_CLK_FMT ""
+#define STATUS_CLK_ARG
 #endif
 
 void WebManager::handleApiStatus( ) {
@@ -877,7 +883,7 @@ void WebManager::handleApiStatus( ) {
 #else
 	         "\"link\":%d,"
 #endif
-	         "\"ip\":\"%s\",\"theme\":%d,\"heap_f\":%lu,\"heap_t\":%lu,\"heap_lb\":%lu,\"fs_u\":%lu,\"fs_t\":%lu,\"time\":%lu,\"ntp\":%d,\"pending\":%d,\"tel\":%d,\"hi\":%u,\"cap\":%d,\"feat\":%lu" STATUS_SLOT_FMT "},",
+	         "\"ip\":\"%s\",\"theme\":%d,\"heap_f\":%lu,\"heap_t\":%lu,\"heap_lb\":%lu,\"fs_u\":%lu,\"fs_t\":%lu,\"time\":%lu,\"ntp\":%d,\"pending\":%d,\"tel\":%d,\"hi\":%u,\"cap\":%d,\"feat\":%lu" STATUS_CLK_FMT STATUS_SLOT_FMT "},",
 	         devName.c_str( ), SIMUT_VERSION, simut_env_name( ),
 	         StorageManager::getBoardSerialNumber( ).c_str( ), macBuf,
 	         (unsigned long)_storageRef->getConfigCrc( ),
@@ -897,7 +903,7 @@ void WebManager::handleApiStatus( ) {
 	          * browser decoding .h5 would place every record after the first
 	          * at the wrong instant on any device not sampling once a minute. */
 	         (unsigned)_storageRef->getHistoryIntervalMin( ), SIMUT_DISPLAY_TFT,
-	         (unsigned long)SIMUT_FEATURE_BITS STATUS_SLOT_ARG);
+	         (unsigned long)SIMUT_FEATURE_BITS STATUS_CLK_ARG STATUS_SLOT_ARG);
 
 	if (!safeSend(buffer)) return;
 
@@ -927,6 +933,10 @@ void WebManager::handleApiStatus( ) {
 	 * full-CLI image, so from the network they were indistinguishable —
 	 * a truncated download and a client that walked away read the same.
 	 * They are what makes an abort diagnosable while a storm is running.
+	 * cgw is the fourth (2026-10-14): a write the client's timeout cut short,
+	 * after which the framework ends the response (override 2m). Before it,
+	 * those replies reached the client with a hole in them and moved none of
+	 * the other three: #189, and the half of B13 that had no explanation.
 	 *
 	 * c1a/c1n/c1kl/c1kh/c1kq/c1s are the Core-1 lifecycle, and they are here
 	 * for the third time the same lesson has had to be learned: a STALLED
@@ -949,7 +959,7 @@ void WebManager::handleApiStatus( ) {
 	         "\"ts\":%lu,\"tf\":%lu,\"tr\":%lu,\"tb\":%lu,\"tl\":%lu,\"so\":%lu,\"se\":%lu,\"cs\":%lu,"
 	         "\"fo\":%lu,\"fom\":%lu,\"fot\":%lu,\"f50\":%lu,\"fx\":%lu,\"ad\":%lu,"
 	         "\"c1a\":%lu,\"c1n\":%lu,\"c1kl\":%lu,\"c1kh\":%lu,\"c1kq\":%lu,\"c1s\":%lu,"
-	         "\"cgd\":%lu,\"cgg\":%lu,\"cgx\":%lu},",
+	         "\"cgd\":%lu,\"cgg\":%lu,\"cgx\":%lu,\"cgw\":%lu},",
 	         (unsigned long)mt.heapLargestBlock, (unsigned long)lbmin, (unsigned long)hmin,
 	         (unsigned long)mt.wifiReconnects, (unsigned long)mt.mqttReconnects,
 #if SIMUT_NET_WIFI
@@ -966,7 +976,7 @@ void WebManager::handleApiStatus( ) {
 	         (unsigned long)g_core1KillsLockout, (unsigned long)g_core1KillsHealth,
 	         (unsigned long)g_core1KillsQuiet, (unsigned long)g_core1LockoutStuck,
 	         (unsigned long)_cgDeadlineHits, (unsigned long)_cgGuardHits,
-	         (unsigned long)_cgDisconnHits);
+	         (unsigned long)_cgDisconnHits, (unsigned long)shortWrites( ));
 
 	if (!safeSend(buffer)) return;
 	if (!safeSend("\"sensors\":[")) return;

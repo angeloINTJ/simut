@@ -172,4 +172,8 @@
 612	OTA_TRIAL_EXPIRED	Update not confirmed in time	Atualização não confirmada a tempo	Actualización no confirmada a tiempo
 613	OTA_TRIAL_REVERTED	Update reverted	Atualização revertida	Actualización revertida
 614	OTA_TRIAL_BUY_FAILED	Update confirmation failed	Falha ao confirmar a atualização	Fallo al confirmar la actualización
+620	I18N_PACK_LOADED	Language pack loaded	Pacote de idioma carregado	Paquete de idioma cargado
+621	I18N_PACK_OUTDATED	Language pack older than the firmware	Pacote de idioma mais antigo que o firmware	Paquete de idioma más antiguo que el firmware
+622	I18N_PACK_MULTIPLE	More than one language pack in /lang	Mais de um pacote de idioma em /lang	Más de un paquete de idioma en /lang
+623	I18N_PACK_FAILED	Language pack failed to load	Falha ao carregar o pacote de idioma	Fallo al cargar el paquete de idioma
 999	ERR_UNKNOWN	Unknown error	Erro desconhecido	Error desconocido

@@ -859,10 +859,24 @@ void LogManager::safeReboot( ) {
  /* Persist before anything else: below this point the console detaches and
   * the chip resets, and the history block still open lives in RAM. Cleared
   * before the call so a hook that somehow reaches safeReboot again cannot
-  * recurse. Suppressed by callers that just erased the filesystem. */
+  * recurse. Suppressed by callers that just erased the filesystem.
+  *
+  * The log's own RAM comes first. writeCompactToFlash( ) holds a record in
+  * _pendingLogs for TOUCH_PRIORITY_MS (5 s) after a touch on the panel, while
+  * the storage holds its heavy-task lock, and while the Bluetooth console's
+  * update runs (setForceBuffer( )), and only a later write or the touch's
+  * release puts it on flash. A planned restart in that window dropped
+  * it, and markCleanReboot( ) below then hid the restart from the autopsy too:
+  * a reboot with no record at all. NetworkManager::update( ) runs on every
+  * pass, the touch window included, so the radio's planned restarts (ctx 3 and
+  * 4 of SYS_WIFI_CONNECT) and the setup AP's timeout were exposed. Inside the
+  * hook's guard because the two callers that suppress it (a restore that
+  * replaced the filesystem, `system format`) must not have records of the
+  * filesystem they replaced written into the new one either. */
  if (_preRebootFn) {
  void (*fn)( ) = _preRebootFn;
  _preRebootFn = nullptr;
+ flushPendingIfAny( );
  fn( );
  }
 
@@ -943,6 +957,7 @@ void LogManager::safeRebootFlashUpdate(uint32_t updateBase) {
  if (_preRebootFn) {
  void (*fn)( ) = _preRebootFn;
  _preRebootFn = nullptr;
+ flushPendingIfAny( ); /* the records in RAM first, as in safeReboot( ) */
  fn( );
  }
  markCleanReboot( );
@@ -1366,6 +1381,11 @@ static const char* translateCodeEn(uint16_t code) {
  case OTA_TRIAL_REVERTED: return "Update reverted";
  case OTA_TRIAL_BUY_FAILED: return "Update confirmation failed";
 
+ case I18N_PACK_LOADED: return "Language pack loaded";
+ case I18N_PACK_OUTDATED: return "Language pack older than the firmware";
+ case I18N_PACK_MULTIPLE: return "More than one language pack in /lang";
+ case I18N_PACK_FAILED: return "Language pack failed to load";
+
  case ERR_UNKNOWN: return "Unknown error";
  default: return "?";
  }
@@ -1385,9 +1405,9 @@ const char* LogManager::translateCode(uint16_t code) {
  return translateCodeEn(code);
 }
 
-/* TRL via hash. In EN or without .lng, returns the EN literal
- * passed by the caller (zero-cost). In non-EN, does binary search in
- * @TRL of .lng by FNV-1a hash of EN; miss falls back to EN too. */
+/* TRL in name only since 2026-08-29 (b0799f6e): @TRL is not resident,
+ * so trlLookup( ) answers absent and every language gets the EN literal
+ * the caller passed. @TRL stays in the packs as the build's ledger. */
 const char* LogManager::tr(const char* en) const {
  if (_language == LANG_EN || !en) return en;
  const char* t = DisplayManager::trlLookup(en);

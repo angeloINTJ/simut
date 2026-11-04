@@ -3,7 +3,7 @@
 Gerado por `tools/build_manual.py` — não edite à mão. Salve cada captura
 nesta pasta com o nome indicado e rode o script de novo.
 
-151 pendentes de 202.
+151 pendentes de 245.
 
 
 ## Capítulo 1 — O SIMUT em uma página
@@ -166,7 +166,7 @@ nesta pasta com o nome indicado e rode o script de novo.
 - [ ] `10-painel-hora-provisoria.png` (Tela do painel) — screen dash; rede configurada e NTP desligado e gravado, reiniciado e sem acerto à mão desde o boot; recorte da faixa de topo com a data e a hora em âmbar e o ? no lugar do -
       O relógio provisório no topo do painel: a data e a hora em âmbar, separadas por ?.
 
-## Capítulo 11 — O painel
+## Capítulo 11 — O painel original (Pico W)
 
 - [ ] `11-principal.png` (Tela do painel) — screen dash; 3 sensores ativos: DS18B20 no slot 0 (fixado no cartão de cima), DHT22 no slot 1 (selecionado) e BME280 no slot 2; Wi-Fi conectado com sinal forte; 12 registros pendentes; relógio acertado; nenhum alarme
       A tela inicial: a barra de cima, os dois cartões e a barra de botões com S1, S2 e CFG.

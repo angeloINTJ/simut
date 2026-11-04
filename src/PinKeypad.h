@@ -1,9 +1,16 @@
 /**
  * @file PinKeypad.h
  * @brief Alphabet, geometry and CPU ceiling of the panel-PIN keypad, shared
- *        by the renderer (DisplayManager_Users.cpp::drawPinScreen), the touch
+ *        by the renderer (DisplayManager_UsersUi.cpp::drawPinScreen), the touch
  *        mapper (handleTouchPanelV24), the validator (SystemDefs_Validate.h)
- *        and the CLI/HTTP readouts used by the bench.
+ *        and the CLI/HTTP readouts used by the bench. GET /api/keypad publishes
+ *        the geometry below (the grids and the popup's six numbers) on the
+ *        original panel's images only: it is the original's, and the Ângulo's
+ *        answer carries the faces and the policy and points to /api/ui for
+ *        where the keys are. What only the original's paint and touch handler
+ *        read (the popup's rows and hit test, the footer's zones, the cards'
+ *        corners, the dots) is in ui/original/PinKeypadLayout.h; keyAt( ) is
+ *        the one such name that stays here (the note at its definition).
  * @details Two keypads live here, and which one is on screen depends on what
  *          the screen is for.
  *
@@ -268,16 +275,6 @@ inline uint8_t orderedFace(uint8_t alphabet, int k, char* out, size_t cap) {
 	return 1;
 }
 
-/** What to PRINT on key `k`, which is not always what it CARRIES: the ten
- *  digits of group 0 need ~100 px at 9 pt and the key is 100 px wide, so that
- *  one is labelled "0-9". Everything else prints its characters. */
-inline void orderedLabel(uint8_t alphabet, int k, char* out, size_t cap) {
-	orderedFace(alphabet, k, out, cap);
-	if (alphabet == ALPHA_ALNUM && k == 0 && cap >= 4) {
-		out[0] = '0'; out[1] = '-'; out[2] = '9'; out[3] = '\0';
-	}
-}
-
 /* ── The popup of the ALPHA_ALNUM keyboard ───────────────────────────────
  * Up to five keys per row, two rows at most, every row centred. That one rule
  * covers both shapes it has to draw: a letter group of three or four on one
@@ -288,46 +285,10 @@ constexpr int16_t POP_KEY_W = 56, POP_KEY_H = 52, POP_GAP = 6;
  * draft put them at 84/142 and the card ran to 198, six pixels INTO the
  * footer, where BACK and ENTER live. */
 constexpr int16_t POP_ROW0_Y = 76, POP_ROW1_Y = 132, POP_ONE_Y = 104;
-constexpr int16_t POP_CARD_X = 6, POP_CARD_W = 308;
 
-inline int popupRows(int n)          { return (n > 5) ? 2 : 1; }
-inline int popupRowKeys(int n, int r) {
-	if (n <= 5) return (r == 0) ? n : 0;
-	const int first = (n + 1) / 2;
-	return (r == 0) ? first : n - first;
-}
-inline int16_t popupRowY(int n, int r) {
-	if (n <= 5) return POP_ONE_Y;
-	return (r == 0) ? POP_ROW0_Y : POP_ROW1_Y;
-}
-inline int16_t popupRowX0(int m) {
-	return (int16_t)((320 - (m * POP_KEY_W + (m - 1) * POP_GAP)) / 2);
-}
-/* One card for both shapes, covering the whole keyboard area (70..190). A
- * card sized to its row left the group keys showing above and below it, which
- * reads as a keyboard with a stripe through it rather than as a layer over
- * one — and a single row centred in the full card lands on POP_ONE_Y anyway. */
-inline int16_t popupCardY(int n) { (void)n; return (int16_t)70; }
-inline int16_t popupCardH(int n) { (void)n; return (int16_t)120; }
-
-/** Index into the group of the popup key at (x, y), or -1 — which the caller
- *  reads as "cancel", the same as tapping off the card. */
-inline int popupKeyAt(int n, int16_t x, int16_t y) {
-	int base = 0;
-	for (int r = 0; r < popupRows(n); r++) {
-		const int m = popupRowKeys(n, r);
-		const int16_t ry = popupRowY(n, r), rx = popupRowX0(m);
-		if (y >= ry && y < ry + POP_KEY_H) {
-			for (int i = 0; i < m; i++) {
-				const int16_t kx = (int16_t)(rx + i * (POP_KEY_W + POP_GAP));
-				if (x >= kx && x < kx + POP_KEY_W) return base + i;
-			}
-			return -1;
-		}
-		base += m;
-	}
-	return -1;
-}
+/* The rows these numbers lay out (popupRows, popupRowKeys, popupRowY, popupRowX0) and the
+ * popup's hit test (popupKeyAt) are in ui/original/PinKeypadLayout.h since S12, A3
+ * (2026-10-31): only the original's paint and its touch handler read them. */
 
 /* The widest grid and the widest card, for the fixed-size buffers that hold a
  * deal (DisplayManager::_pinKeyChars) and one tap (DisplayManager::_pinTaps).
@@ -356,6 +317,13 @@ inline int decoyCount(uint8_t alphabet, uint8_t keypad) {
 
 /* ── Hit tests ─────────────────────────────────────────────────────────── */
 
+/* keyAt( ) is called by the original's touch handler (handleTouchPanelV24( ), two call sites) and
+ * by the native suite only, like the popup's hit test that went to ui/original/PinKeypadLayout.h
+ * in S12, A3 (2026-10-31), and it stays here all the same: when S11's first try moved it with the
+ * others, six of the eleven images changed, keyAt( ) and a lambda of handleTouchPanelV24( )
+ * trading places in the object; why is not decoded (docs/analysis/UI_DRIVERS.md section 4.7).
+ * Its row in the function table stays the original's. */
+
 /** Index of the card containing (x, y) in this layout, or -1. */
 inline int keyAt(const Grid& g, int16_t x, int16_t y) {
 	for (int i = 0; i < (int)g.keys; i++) {
@@ -366,41 +334,17 @@ inline int keyAt(const Grid& g, int16_t x, int16_t y) {
 	return -1;
 }
 
-/** Top-left of card `k`. */
-inline int16_t keyX(const Grid& g, int k) { return (int16_t)(g.x0 + (k % g.cols) * g.px); }
-inline int16_t keyY(const Grid& g, int k) { return (int16_t)(g.y0 + (k / g.cols) * g.py); }
-
-/** Left edge of glyph slot `s` inside card `k`. Slots split the card evenly;
- *  identifying, they are drawn without separators and the whole card is the
- *  target, so they survive only as the layout of the glyphs. */
-inline int16_t slotX(const Grid& g, int k, int s) {
-	return (int16_t)(keyX(g, k) + 1 + s * ((g.w - 2) / (g.slots ? g.slots : 1)));
-}
-inline int16_t slotW(const Grid& g) {
-	return (int16_t)((g.w - 2) / (g.slots ? g.slots : 1));
-}
-
 /* The numeric pad's geometry used to live here as NUM_X0/NUM_Y0/NUM_KEY_W/…
  * beside its own hit test. It is NUM_GRID above now, hit-tested by the same
  * keyAt( ) as every other layout: two copies of one rectangle is two things
  * to keep in step, and this panel has already paid for that once. */
 
-/* ── Chrome ──
- * The dots, or the refusal message, at y=40. Spacing shrinks once a PIN is
- * long enough that 20 px would run past the safe area: sixteen dots at 20 px
- * is 320, one pixel wider than the panel allows (measured 2026-09-20). */
-constexpr int16_t DOTS_Y = 40, DOTS_H = 28;
-inline int16_t dotSpacing(int n) { return (n > 14) ? (int16_t)18 : (int16_t)20; }
-inline int16_t dotRadius(int n)  { return (n > 14) ? (int16_t)5  : (int16_t)6;  }
-
-/* The footer every other screen of the panel draws: y=195, 40 tall, exit at
- * 141 and the primary action at 222. Backspace takes the two nav-arrow slots
- * as one key, which is how this panel already merges slots it does not need
- * (drawSettingsThemes does it with a 174-wide BACK). */
-constexpr int16_t FOOT_Y = 195, FOOT_H = 40;
-constexpr int16_t FOOT_BACK_X = 5,   FOOT_BACK_W = 130;   /* backspace glyph */
-constexpr int16_t FOOT_EXIT_X = 141, FOOT_EXIT_W = 75;    /* TR_BACK */
-constexpr int16_t FOOT_OK_X   = 222, FOOT_OK_W   = 93;    /* TR_ENTER */
+/* What only the original's paint and touch handler read is not in this header:
+ * orderedLabel, POP_CARD_X/W, popupCardY/H, keyX/keyY, slotX/slotW, DOTS_Y/H,
+ * dotSpacing and dotRadius are in ui/original/PinKeypadLayout.h since S10c, C8
+ * (2026-10-28), and popupRows, popupRowKeys, popupRowY, popupRowX0, popupKeyAt and
+ * the eight FOOT_* constants since S12, A3 (2026-10-31). keyAt( ) above is the
+ * exception. The Ângulo links none of them, keyAt( ) included. */
 
 }  /* namespace PinKb */
 

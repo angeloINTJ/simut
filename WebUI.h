@@ -585,14 +585,34 @@ static const char DASH_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
         }
 
         /* @IF tft */
+        /* th: the pure part: the <option>s of the theme select. GET /api/themes sends
+           {"id", "code", "name"}: the stock names in English, "code" being the theme's @CODE.
+           The pack's @WEBDICT answers thm_<code> with the name in its language; a code it has
+           no key for (a user's own .thm), the English page, or a firmware that sends no code
+           shows the name as the device wrote it. data-i18n lets applyLang( ) relabel the option
+           when /api/lang answers after /api/themes. data-en holds the device's English the way
+           applyLang( ) keeps it (escaped HTML, escaped again for the attribute), so an option
+           born translated, when /api/lang answered first, is not taken for English by the next
+           applyLang( ). t( ) is lang.js's: no binding in here may be named t.
+           tools/test_webui_theme_names.py runs this part under node, as written and minified. */
+        function themeOptions(themes) {
+            let html = '';
+            themes.forEach(th => {
+                const c = th.code ? String(th.code).replace(/[^A-Za-z0-9_]/g, '_') : '';
+                const name = c ? t('thm_' + c, th.name) : th.name;
+                const attr = c ? ` data-i18n="thm_${c}" data-en="${escAttr(escHtml(th.name))}"` : '';
+                html += `<option value="${escHtml(th.id)}"${attr}>${escHtml(name)}</option>`;
+            });
+            return html;
+        }
+        /* th: end of the pure part */
+
         async function loadThemes() {
             try {
                 let res = await fetchSafe('/api/themes');
                 let text = await res.text(); // Lemos como texto primeiro para evitar falha silenciosa
                 let themes = JSON.parse(text); // Tentamos converter
-                let html = '';
-                themes.forEach(t => html += `<option value="${escHtml(t.id)}">${escHtml(t.name)}</option>`);
-                document.getElementById('themeSel').innerHTML = html;
+                document.getElementById('themeSel').innerHTML = themeOptions(themes);
             } catch(e){
                 // Se o JSON vier quebrado do C++, o botão mostrará o erro na hora!
                 document.getElementById('themeSel').innerHTML = `<option value="0">Err: ${e.message.substring(0,20)}</option>`;
@@ -2741,7 +2761,7 @@ global.Chart = H5G;
             _evtNames = m; _evtLang = lang;
         }
         function evtName(code) { const l = _evtNames && _evtNames[String(code)]; return l || ('#' + code); }
-        const TAG_NAMES = ['APP','NET','TEL','STO','WEB','CFG','CLI','SENSOR','HIST','SYS','DSP','SEC','OTA','?','?','?'];
+        const TAG_NAMES = ['APP','NET','TEL','STO','WEB','CFG','CLI','SENSOR','HIST','SYS','DSP','SEC','OTA','I18N','?','?'];
         const LVL_LABELS = ['DBG','INF','WRN','ERR','FTL']; const LVL_CLASS = ['log-inf','log-inf','log-wrn','log-err','log-err'];
         function fmtUptime(ms) { let s=Math.floor(ms/1000); let d=Math.floor(s/86400); s%=86400; let h=Math.floor(s/3600); s%=3600; let m=Math.floor(s/60); s%=60; let p=v=>v<10?'0'+v:v; return d>0?d+'d '+p(h)+':'+p(m)+':'+p(s):p(h)+':'+p(m)+':'+p(s); }
 
@@ -6361,9 +6381,23 @@ static const char FILE_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
 
         function fmToggleAll(src) { document.querySelectorAll('.item-chk').forEach(c => c.checked = src.checked); }
         function fmUploadClick() { document.getElementById('uploadFile').click(); }
+        /* fetchSafe( ) throws only for a status of 500 or more (503 excepted), so a refusal the device answers with
+           a 4xx reaches this function as a response, not as an exception: 400 {"error":"Invalid upload"} (a name, a
+           folder or a size it will not take) or 403 in plain text. Read it: until 2026-10-28 the page refreshed the
+           listing and said "Upload complete." for a file that never arrived. tools/test_webui_upload_result.py runs
+           this function with the page's own fetchSafe( ). */
         async function doUpload() {
             let fData = new FormData(document.getElementById('upForm'));
-            try { await fetchSafe('/api/upload', { method: 'POST', body: fData, timeout: 60000 }); fmNavigate(currentDir); showToast(window.t('fil_uploaded','Upload complete.'), 'ok'); } catch(e) { showToast(window.t('fil_up_err','Upload error'), 'err'); }
+            try {
+                const r = await fetchSafe('/api/upload', { method: 'POST', body: fData, timeout: 60000 });
+                if (!r.ok) {
+                    let why = '';
+                    try { const j = await r.json(); if (j && typeof j.error === 'string') why = j.error; } catch(e2) {}
+                    showToast(window.t('fil_up_refused', 'Upload refused (HTTP {s}). Check the file name, the folder, the free space and your permission to upload, then try again.').replace('{s}', () => r.status + (why ? ': ' + why : '')), 'err');
+                    return;
+                }
+                fmNavigate(currentDir); showToast(window.t('fil_uploaded','Upload complete.'), 'ok');
+            } catch(e) { showToast(window.t('fil_up_err','Upload error'), 'err'); }
         }
         async function fmDelete() {
             let sel = document.querySelectorAll('.item-chk:checked'); if (sel.length === 0) { showToast(window.t('fil_sel_del', 'Select files to delete.'), 'warn'); return; }
@@ -7425,7 +7459,7 @@ repository, published with every release: https://github.com/angeloINTJ/simut
                   bitmaps and cut down to the glyphs SIMUT draws.
    Holder:        GNU FreeFont contributors
    License:       GPL-3.0-or-later with the font exception
-   Images:        the five images with the touch panel
+   Images:        pico_w_release, pico_w_test, pico_w_test_https, pico_w_asserts
    URL:           https://www.gnu.org/software/freefont/
 
 ================================================================================
@@ -7448,9 +7482,7 @@ repository, published with every release: https://github.com/angeloINTJ/simut
    Images:        all images
    URL:           https://github.com/geraintluff/sha256
 
-================================================================================
-
-END OF THIRD-PARTY NOTICES/* @ENDIF */
+/* @ENDIF */
 /* @IF !wifi */
 ================================================================================
 SIMUT — Sistema Integrado de Monitoramento Universal e Telemetria
@@ -7644,8 +7676,8 @@ repository, published with every release: https://github.com/angeloINTJ/simut
    URL:           https://github.com/angeloINTJ/pico-enc28j60
    Note:          A fork of Lukasz Janyst's pico-enc28j60
                   (https://github.com/ljanyst/pico-enc28j60), whose PIO SPI
-                  program and C driver it keeps; the build fixes it at commit
-                  fb16ec1.
+                  program and C driver it keeps; the build fixes it at the
+                  commit of v1.3.1 (4984e2f).
 
 ================================================================================
 19. GNU FreeFont (FreeSans Bold)
@@ -7677,10 +7709,60 @@ repository, published with every release: https://github.com/angeloINTJ/simut
    Images:        all images
    URL:           https://github.com/geraintluff/sha256
 
+/* @ENDIF */
+/* @IF ui_angulo */
+================================================================================
+Angulo touch panel: fonts and icons
+================================================================================
+The images with the Angulo touch panel (pico_wiretft_angulo, pico2_w_release)
+draw with the fonts and icons below, besides the software listed above. The
+licence text of each one is reproduced in full in THIRD_PARTY_NOTICES.md and the
+LICENSES directory of the source repository: https://github.com/angeloINTJ/simut
+
+================================================================================
+A. Bricolage Grotesque
+================================================================================
+   Description:   The display face (weight 600) of the Angulo touch panel,
+                  converted to bitmaps at 9, 12, 18, 24 and 32 pt and cut down
+                  to the glyphs SIMUT draws.
+   Holder:        The Bricolage Grotesque Project Authors
+   License:       SIL Open Font License 1.1
+   Images:        pico_wiretft_angulo, pico2_w_release
+   URL:           https://github.com/ateliertriay/bricolage
+
+================================================================================
+B. GNU FreeFont (FreeSans, FreeMono Bold)
+================================================================================
+   Description:   The FreeSans and FreeSans Bold faces at 9 pt and the FreeMono
+                  Bold face at 9 and 12 pt of the Angulo touch panel, converted
+                  to bitmaps and cut down to the glyphs SIMUT draws.
+   Holder:        GNU FreeFont contributors
+   License:       GPL-3.0-or-later with the font exception
+   Images:        pico_wiretft_angulo, pico2_w_release
+   URL:           https://www.gnu.org/software/freefont/
+   Note:          The Angulo images cut this typeface at the sizes above and
+                  keep none of the 9, 12 and 24 pt faces of &quot;GNU FreeFont
+                  (FreeSans Bold)&quot;, which belong to the original panel (nm of
+                  the eleven images, 2026-10-30).
+
+================================================================================
+C. Lucide
+================================================================================
+   Description:   The icons of the Angulo touch panel (status bar, buttons,
+                  result and update screens), rasterized to 1-bit bitmaps at 16,
+                  20 and 24 px from Lucide 0.468.0.
+   Holder:        Lucide Contributors (portions: Cole Bemis, as part of Feather)
+   License:       ISC
+   Images:        pico_wiretft_angulo, pico2_w_release
+   URL:           https://lucide.dev
+   Note:          Its LICENSE says portions are held by Cole Bemis 2013-2022 as
+                  part of Feather (MIT). The file is reproduced as the
+                  lucide-static 0.468.0 package ships it.
+
+/* @ENDIF */
 ================================================================================
 
-END OF THIRD-PARTY NOTICES/* @ENDIF */
-</pre>
+END OF THIRD-PARTY NOTICES</pre>
         </div>
     </div>
     <script>
@@ -8671,8 +8753,9 @@ static const char LANG_JS[] PROGMEM = R"raw(
        lang.js is paid for in every image.
 
        The cap is 64 KiB: the largest text the firmware keeps is a language
-       pack, held under LANG_FILE_MAX (48 KiB), and the viewer draws one
-       element per row, so a bigger file is downloaded instead. */
+       pack, held under LANG_FILE_MAX (64 KiB since 2026-10-22, at most this
+       cap: tools/check_lang_packs.py), and the viewer draws one element per
+       row, so a bigger file is downloaded instead. */
     const TV_CAP = 65536, TV_EXT = ' json jsonl ndjson txt csv tsv lng thm log cfg conf ini pem crt md xml yml yaml ';
     function tvExt(n) { let i = n.lastIndexOf('.'); return i < 0 ? '' : n.slice(i + 1).toLowerCase(); }
     function tvViewable(n, s) { return s <= TV_CAP && TV_EXT.indexOf(' ' + tvExt(n) + ' ') >= 0; }

@@ -16,7 +16,7 @@ gives none; and what is fine on any lwIP interface (WiFiClient, WiFiUDP, ...) gi
   * The real tree: it passes, and one violation of each rule appended to a copy of it gives
     exactly one finding. The counts are held tight on the real files too: one site more in an
     allowed file fails ("grew"), one less fails ("lower the allowance"), and --update lowers
-    it. The real tools/net_boundary.json allows nothing since 2026-10-13, so the copy is given
+    it. The real tools/net_boundary.json allowed nothing from 2026-10-13 to 2026-10-21 (S10b's C3 lists one fragment since), so the copy is given
     an allowance of its own (two radio calls in a surface file, allowed two); while the real
     file lists one, its largest is used as it is.
   * The gate never writes under src/: the sha256 of every scanned file is the same before and

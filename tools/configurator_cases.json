@@ -12,7 +12,10 @@
     "e o orçamento de PIO e de pinos (pio-budget, pin-conflict; tools/pio_budget.py). O Python",
     "(gen_features.blockers) e o JS (logic.js blockersOf) têm de dar exatamente essa lista.",
     "A rede é uma escolha, não um interruptor: `\"set\": {\"net\": \"<id>\"}` troca o driver do",
-    "produto (cyw43, o rádio da placa; enc28j60, o módulo de cabo), como `config.net` do model.json."
+    "produto (cyw43, o rádio da placa; enc28j60, o módulo de cabo), como `config.net` do model.json.",
+    "A UI do painel touch (2026-10-14) é a outra escolha de driver: `\"set\": {\"ui\": \"<id>\"}` troca o driver de UI",
+    "do produto (original, o painel da release do Pico W; angulo, o da release do Pico 2 W desde 2026-10-30), como `config.ui` do model.json.",
+    "O Ângulo só compila com o gráfico do painel (2026-10-22): `\"set\": {\"tft_graph\": false}` com `ui` = angulo quebra angulo-needs-tft-graph."
   ],
   "cases": [
     {"name": "SIMUT as shipped",               "base": "pico_w_release", "set": {},                                                       "violates": [], "blocks": []},
@@ -44,7 +47,30 @@
     {"name": "SIMUT Wire with DS18B20, without DHT22", "base": "pico_wire", "set": {"sensor_ds18b20": true, "sensor_dht22": false},       "violates": [], "blocks": []},
     {"name": "Pico 2 W as shipped",            "base": "pico2_w_release", "set": {},                                                      "violates": [], "blocks": []},
     {"name": "Pico 2 W on the cable",          "base": "pico2_w_release", "set": {"net": "enc28j60"},                                     "violates": [], "blocks": ["unsupported-net"]},
-    {"name": "Pico 2 W on the cable, with Bluetooth", "base": "pico2_w_release", "set": {"net": "enc28j60", "bluetooth": true},          "violates": ["bluetooth-needs-cyw43"], "blocks": ["bluetooth-needs-cyw43", "unsupported-net"]}
+    {"name": "Pico 2 W on the cable, with Bluetooth", "base": "pico2_w_release", "set": {"net": "enc28j60", "bluetooth": true},          "violates": ["bluetooth-needs-cyw43"], "blocks": ["bluetooth-needs-cyw43", "unsupported-net"]},
+    {"name": "SIMUT with the Ângulo look",     "base": "pico_w_release", "set": {"ui": "angulo"},                                         "violates": ["angulo-cyw43-needs-rp2350"], "blocks": ["angulo-cyw43-needs-rp2350"]},
+    {"name": "SIMUT with the original look",   "base": "pico_w_release", "set": {"ui": "original"},                                       "violates": [], "blocks": []},
+    {"name": "SIMUT on the cable with the Ângulo look, no DS18B20", "base": "pico_w_release", "set": {"ui": "angulo", "net": "enc28j60", "sensor_ds18b20": false}, "violates": [], "blocks": []},
+    {"name": "Pico 2 W asking for the Ângulo look it has (no change)", "base": "pico2_w_release", "set": {"ui": "angulo"},                                        "violates": [], "blocks": []},
+    {"name": "Pico 2 W with the original look", "base": "pico2_w_release", "set": {"ui": "original"},                                      "violates": [], "blocks": []},
+    {"name": "Pico 2 W original as shipped",        "base": "pico2_w_original", "set": {},                                                    "violates": [], "blocks": []},
+    {"name": "Pico 2 W original on the cable",      "base": "pico2_w_original", "set": {"net": "enc28j60"},                                   "violates": [], "blocks": ["unsupported-net"]},
+    {"name": "SIMUT Wire TFT with the Wi-Fi back and the Ângulo look", "base": "pico_wiretft", "set": {"net": "cyw43", "ui": "angulo"},     "violates": ["angulo-cyw43-needs-rp2350"], "blocks": ["angulo-cyw43-needs-rp2350"]},
+    {"name": "SIMUT Wire TFT Ângulo with the Wi-Fi back", "base": "pico_wiretft_angulo", "set": {"net": "cyw43"},                           "violates": ["angulo-cyw43-needs-rp2350"], "blocks": ["angulo-cyw43-needs-rp2350"]},
+    {"name": "SIMUT Wire TFT with the Ângulo look", "base": "pico_wiretft", "set": {"ui": "angulo"},                                    "violates": [], "blocks": []},
+    {"name": "SIMUT Wire TFT Ângulo as shipped", "base": "pico_wiretft_angulo", "set": {},                                              "violates": [], "blocks": []},
+    {"name": "SIMUT Wire TFT Ângulo with the original look back", "base": "pico_wiretft_angulo", "set": {"ui": "original"},         "violates": [], "blocks": []},
+    {"name": "Alpha with the Ângulo look",     "base": "pico_w_alpha",   "set": {"ui": "angulo"},                                         "violates": ["angulo-needs-tft", "angulo-cyw43-needs-rp2350", "angulo-needs-tft-graph"], "blocks": ["angulo-needs-tft", "angulo-cyw43-needs-rp2350", "angulo-needs-tft-graph"]},
+    {"name": "Alpha with the original look",   "base": "pico_w_alpha",   "set": {"ui": "original"},                                       "violates": [], "blocks": []},
+    {"name": "Air with the Ângulo look",       "base": "pico_w_air",     "set": {"ui": "angulo"},                                         "violates": ["angulo-needs-tft", "angulo-cyw43-needs-rp2350", "angulo-needs-tft-graph"], "blocks": ["angulo-needs-tft", "angulo-cyw43-needs-rp2350", "angulo-needs-tft-graph"]},
+    {"name": "SIMUT Wire with the Ângulo look", "base": "pico_wire",     "set": {"ui": "angulo"},                                         "violates": ["angulo-needs-tft", "angulo-needs-tft-graph"], "blocks": ["angulo-needs-tft", "angulo-needs-tft-graph"]},
+    {"name": "Pico 2 W asking for the Ângulo look it has, and no panel chart", "base": "pico2_w_release", "set": {"ui": "angulo", "tft_graph": false}, "violates": ["angulo-needs-tft-graph"], "blocks": ["angulo-needs-tft-graph"]},
+    {"name": "Pico 2 W Ângulo with the panel chart off", "base": "pico2_w_release", "set": {"tft_graph": false}, "violates": ["angulo-needs-tft-graph"], "blocks": ["angulo-needs-tft-graph"]},
+    {"name": "SIMUT Wire TFT with the Ângulo look and no panel chart", "base": "pico_wiretft", "set": {"ui": "angulo", "tft_graph": false}, "violates": ["angulo-needs-tft-graph"], "blocks": ["angulo-needs-tft-graph"]},
+    {"name": "SIMUT Wire TFT Ângulo with the panel chart off", "base": "pico_wiretft_angulo", "set": {"tft_graph": false}, "violates": ["angulo-needs-tft-graph"], "blocks": ["angulo-needs-tft-graph"]},
+    {"name": "SIMUT with the Ângulo look and no panel chart", "base": "pico_w_release", "set": {"ui": "angulo", "tft_graph": false}, "violates": ["angulo-cyw43-needs-rp2350", "angulo-needs-tft-graph"], "blocks": ["angulo-cyw43-needs-rp2350", "angulo-needs-tft-graph"]},
+    {"name": "Pico 2 W with the original look and no panel chart", "base": "pico2_w_release", "set": {"ui": "original", "tft_graph": false}, "violates": [], "blocks": []},
+    {"name": "SIMUT Wire TFT with the original look and no panel chart", "base": "pico_wiretft", "set": {"tft_graph": false}, "violates": [], "blocks": []}
   ],
   "hazard_cases": [
     {"name": "SIMUT as shipped",               "base": "pico_w_release", "set": {},                  "hazards": []},
