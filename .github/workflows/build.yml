@@ -399,6 +399,8 @@ jobs:
       # reach the card's action once, with onGraphBtn true on the painted columns only. Two text checks hold that both cards are painted by the same code; its 6 mutants must fail it.
       - name: Original dashboard min/max graph-button zones on the host (test_zona_minmax.py)
         run: python3 tools/tft_ui/test_zona_minmax.py
+      - name: Original boot screen during the setup-AP hold, one clear then only the bar (test_ap_progress.py)
+        run: python3 tools/tft_ui/test_ap_progress.py
       # The figures of the manual's chapter 11A (S10c, C6 step 2): docs/images/manual/11a-*.png are frames that host_telas.py draws from the code at the commit (src/ui/angulo and the
       # pt-BR pack), enlarged 2x. manual_frames.py --check draws them again and compares the PIXELS with the committed files, never the PNG bytes (those depend on Pillow's and zlib's
       # versions): one line for each figure that differs, so a change to the panel's code or to the pack's @ANGULO that moves a pixel of a figure fails here until the figures are

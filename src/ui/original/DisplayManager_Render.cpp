@@ -187,8 +187,15 @@ void DisplayManager::render(const SystemState& state) {
 			 * percentage is what changed — and clearing 320x240 plus
 			 * re-stamping the caption twenty times a second is a 3-second
 			 * flicker. Only the bar moves, so only the bar is painted after
-			 * the first frame. */
-			const bool enterAp = fullRedraw || (_lastRenderedState.apProgressPct < 0);
+			 * the first frame: the screen is cleared on entering the hold (the
+			 * frame before was the boot terminal, at -1, or no boot screen at
+			 * all) and when a language arrives (the caption is retranslated).
+			 * Not on `fullRedraw`, which counts the percentage too: until
+			 * 2026-11-04 this read `fullRedraw || ...` and so cleared at every
+			 * step after all (tools/tft_ui/test_ap_progress.py: 21 clears in a
+			 * hold of 21 steps, now 1). The percentage only rises within a
+			 * hold, and a cancel goes through -1, so the bar never shrinks. */
+			const bool enterAp = !_lastRenderedState.isBooting || langJustChanged || (_lastRenderedState.apProgressPct < 0);
 			if (enterAp) {
 				fastClearScreen(C_BG_MAIN);
 				_driver.tft->setFont(&simutFont9pt); _driver.tft->setTextColor(C_TEXT_MAIN);
