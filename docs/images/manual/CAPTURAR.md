@@ -3,7 +3,7 @@
 Gerado por `tools/build_manual.py` — não edite à mão. Salve cada captura
 nesta pasta com o nome indicado e rode o script de novo.
 
-134 pendentes de 245.
+133 pendentes de 245.
 
 
 ## Capítulo 1 — O SIMUT em uma página
@@ -204,11 +204,6 @@ nesta pasta com o nome indicado e rode o script de novo.
       O gesto cancelado: Modo AP Cancelado.
 - [ ] `11-boot-ap.png` (Foto) — boot pelo gesto completo; caixa com o nome da rede, PSK e AP Ativo!; foto da tela; a chave da foto deve ser borrada antes de publicar
       O boot no AP: o nome da rede, a chave e AP Ativo!.
-
-## Capítulo 12 — O LCD do alpha
-
-- [ ] `12-wifi-niveis.png` (Diagrama) — os seis desenhos do ícone, em grade de 5 x 8 pixels, lado a lado: X, 1, 2, 3, 4 e 5 barras; em cima, a escada da v2.7.2 (colunas acesas da esquerda para a direita); embaixo, os desenhos da v2.7.1 (linhas acesas de baixo para cima); bitmaps em src/display/BigFont_HD44780.h
-      Os seis estados do ícone de sinal: a escada da v2.7.2 e as linhas da v2.7.1.
 
 ## Capítulo 13 — A interface web no dia a dia
 
