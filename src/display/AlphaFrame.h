@@ -101,8 +101,8 @@ struct AlphaFrameIn {
 	explicit AlphaFrameIn(AlphaScreen s = ALPHA_SCREEN_CLEAR) : screen(s) {}
 };
 
-/* pendingLabel( ) and alphaMarqueeWindow( ) are small `inline` functions of headers the TFT shares, and the loop had each inlined at its one
- * call. With the calls inside the always_inline copies of alphaDrawFrame( ) below, GCC 14.3 at -Os left both out of line in pico_w_alpha (56
+/* pendingLabel( ) (PendingLabel.h, which the TFT's panels include too) and alphaMarqueeWindow( ) (AlphaMarquee.h, the alpha's alone) are
+ * small `inline` functions, and the loop had each inlined at its one call. With the calls inside the always_inline copies of alphaDrawFrame( ) below, GCC 14.3 at -Os left both out of line in pico_w_alpha (56
  * and 108 B of code, loopCore1 104 B smaller: 60 B more in all, measured 2026-11-04). These two wrappers are flattened, which inlines the one
  * callee they hold and nothing else, and the loop is 28 B larger than before instead (see the commit that moved the loop onto this file). */
 inline __attribute__((always_inline, flatten)) void alphaPendingLabelInline(uint16_t n, char* out, size_t cap) { pendingLabel(n, out, cap); }

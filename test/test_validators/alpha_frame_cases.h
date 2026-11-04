@@ -85,6 +85,9 @@ static void test_alpha_frame_boot_bar_half_full(void) {
 	alphaExpectGlass(p.lcd, "SIMUT 2.13.0xxxx", "[#######       ]", "the boot bar at 7 of 14");
 }
 
+/* Bar 0 is a frame the loop never draws: barTimer starts at 0 and the splash waits 1,200 ms, so the first boot pass always advances the
+ * bar (the review's loop-level A/B, 2,500 runs of the old loop per build, 2026-11-04). It is pinned so that alphaDrawFrame( ) draws any
+ * value right, not as a state for the loop to reach. */
 static void test_alpha_frame_boot_bar_empty_and_full(void) {
 	AlphaPass p; p.previousFrame( );
 	AlphaFrameIn in(ALPHA_SCREEN_BOOT);
@@ -261,6 +264,9 @@ static void test_alpha_frame_slot_id_replaces_the_pending_count(void) {
 		"slot 10");
 }
 
+/* A frame the loop does not reach: the AP branch comes before the sensor branch, so the sensor screen is drawn with apMode false (before
+ * the move, a Core 0 store between the loop's two reads of apMode could show it for one pass). Pinned so that alphaDrawFrame( ) draws the
+ * field right, not as a state for the loop to reach (the review of 2026-11-04 found no blitted row of the old loop with it). */
 static void test_alpha_frame_status_cell_says_ap_in_ap_mode(void) {
 	AlphaPass p; p.previousFrame( );
 	AlphaFrameIn in(ALPHA_SCREEN_SENSOR);
