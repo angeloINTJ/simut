@@ -1,13 +1,14 @@
 /**
  * @file    tools/lcd_alpha/amostras.cpp
- * @brief   The manual's 17 LCD figures as samples of src/display/AlphaFrame.h on the host (2026-11-04).
+ * @brief   The manual's 17 LCD figures as samples of src/display/AlphaFrame.h on the host, and the link glyph of each RSSI (2026-11-04).
  * @details Each sample is a state the alpha's loop (DisplayManager_Alpha.cpp, loopCore1( )) reaches, named after its figure: an AlphaFrameIn, drawn by
  *          the alpha's own alphaDrawFrame( ) over a FakeHd44780 (test/native_stubs), after the frames that really come before it where the screen does
  *          not clear (the boot keeps the cells of row 0 past the version; the network screen and the setup network's pages write all thirty-two cells,
  *          and the sensor screen clears). Nothing of the composition is copied here: the headers come from src/ and what this file adds is the order of a
  *          pass, the loop's own (the link glyph, one screen, the blit), and the data of each state.
  *          The program prints, for every sample, the glass after its last blit( ): the DDRAM's two rows and the eight CGRAM slots, as hex, in the JSON
- *          that tools/lcd_alpha/lcd.py reads. tools/lcd_alpha/host_lcd.py builds it twice (the radio's, and the cable's with -DSIMUT_NET_ENC28J60=1),
+ *          that tools/lcd_alpha/lcd.py reads; and under "icones", for each RSSI of RSSIS, CGRAM slot 7 after alphaLoadLinkGlyph( ) on a fresh glass (the
+ *          signal icon's figure, 12-wifi-niveis.png, and the table of chapter 12 that host_lcd.py --selftest holds it to). tools/lcd_alpha/host_lcd.py builds it twice (the radio's, and the cable's with -DSIMUT_NET_ENC28J60=1),
  *          runs it and draws the frames; the manual's figures are drawn by tools/lcd_alpha/manual_lcd.py from the same program.
  *
  *          usage: amostras VERSION      the version the splash and the boot screens print after "SIMUT " (data of the sample, not SIMUT_VERSION: the
@@ -141,6 +142,11 @@ const Amostra AMOSTRAS[] = {
 #endif
 };
 
+/* The signal icon's figure (12-wifi-niveis.png) and the table of chapter 12 ("O sinal do Wi-Fi"): the link glyph each RSSI puts in slot 7, at both
+ * ends of every band of the table, the two values the samples use (RSSI_BOM, RSSI_SEM) and the cable's edge (-100). Each from a fresh glass, so every
+ * value goes through the mapping: showWiFi( ) skips a level it already shows, and a glass carried over would keep the glyph of the value before. */
+const int32_t RSSIS[] = { -45, -50, -51, -60, -61, -70, -71, -80, -81, -90, -91, -99, -100, -127 };
+
 void hex(const uint8_t* p, size_t n) { for (size_t i = 0; i < n; i++) printf("%02x", (unsigned)p[i]); }
 
 }  // namespace
@@ -156,6 +162,12 @@ int main(int argc, char** argv) {
 		printf("\"],\"cgram\":[");
 		for (int s = 0; s < 8; s++) { printf("%s\"", s ? "," : ""); hex(v.lcd.cgram[s], 8); printf("\""); }
 		printf("]}");
+	}
+	printf("},\"icones\":{");
+	for (size_t i = 0; i < sizeof(RSSIS) / sizeof(RSSIS[0]); i++) {
+		Vidro v;
+		alphaLoadLinkGlyph(v.lcd, v.big, RSSIS[i]);
+		printf("%s\"%d\":\"", i ? "," : "", (int)RSSIS[i]); hex(v.lcd.cgram[7], 8); printf("\"");
 	}
 	printf("}}\n");
 	return 0;

@@ -400,11 +400,12 @@ jobs:
       - name: Angulo manual figures (manual_frames.py --check)
         run: python3 tools/tft_ui/manual_frames.py --check
       # The alpha's 16x2 LCD on the host (2026-11-04). test_rom.py holds the glyph table (ROM A00, read from the HD44780U datasheet), test_lcd.py the renderer that draws the glass from its two DDRAM rows
-      # and its CGRAM, host_lcd.py --selftest the samples that run src/display/AlphaFrame.h against the native cases' fake LCD (the radio's build and the cable's, 8 edited copies of AlphaFrame.h that
-      # must each change exactly their samples), manual_lcd.py --check the manual's 17 LCD figures drawn again from that code (04-lcd-ap.png, 06-lcd-erro.png, 12-*.png: PIXELS compared, never PNG bytes,
+      # and its CGRAM, host_lcd.py --selftest the samples that run src/display/AlphaFrame.h against the native cases' fake LCD (the radio's build and the cable's, the link glyph at 14 RSSIs, 11 edited
+      # copies of AlphaFrame.h or BigFont_HD44780.h that must each change exactly their samples and icons), manual_lcd.py --check the manual's 17 LCD figures and the signal icon's diagram drawn again
+      # from that code (04-lcd-ap.png, 06-lcd-erro.png, 12-*.png: PIXELS compared, never PNG bytes,
       # and the chapters' captura= and version text read) and test_manual_lcd.py the controls of that check. A change to AlphaFrame.h, BigFont_HD44780.h or PendingLabel.h that moves a pixel of a figure
       # fails manual_lcd.py --check until the figures are drawn again (manual_lcd.py --write). g++ is the runner's own, as for the Angulo's host tests above, and Pillow comes from the step before them.
-      # 0.02, 0.17, 0.9, 0.5 and 2.8 s here on 2026-11-04 (g++ 15, Python 3.14; the same results under Python 3.11 in isolated mode).
+      # 0.03, 0.35, 0.9, 0.5 and 3.8 s here on 2026-11-04 (g++ 15, Python 3.14; the same results under Python 3.11 in isolated mode).
       - name: Alpha LCD glyph table (test_rom.py)
         run: python3 tools/lcd_alpha/test_rom.py
       - name: Alpha LCD renderer (test_lcd.py)

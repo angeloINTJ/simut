@@ -112,6 +112,17 @@ def verificacoes():
     lcd.desenhar(li, cgc, types.MappingProxyType(fo), e)
     confere((li, cgc, fo) == antes, 'an input changed')
     confere(lcd.tamanho(lcd.Estilo(ponto=3, margem=4)) == (2 * 4 + 16 * 19 + 15 * 5, 2 * 4 + 2 * 31 + 7), 'Estilo(ponto=3, margem=4) does not move the size')
+    # celula_em( ) without the unlit dots, as the manual's diagram draws its labels: the lit dots of 'A' at 3 px with 1 px gaps (dot (i,j) at x 4j, y 4i),
+    # and the background, not an unlit dot, everywhere else.
+    from PIL import Image, ImageDraw
+    r = lcd.Estilo(ponto=3, vao_ponto=1)
+    c = Image.new('RGB', (19, 31), (1, 2, 3))
+    lcd.celula_em(ImageDraw.Draw(c), r, 0, 0, A, apagados=False)
+    cores = dict((cor, n) for n, cor in c.getcolors(1 << 16))
+    confere(cores.get(r.aceso, 0) == sum(bin(v).count('1') for v in A) * 9, f"celula_em(apagados=False): {cores.get(r.aceso, 0)} lit pixels, not 18 dots x 9")
+    confere(r.apagado not in cores, 'celula_em(apagados=False) drew an unlit dot')
+    confere(c.getpixel((0, 0)) == (1, 2, 3) and c.getpixel((4, 0)) == r.aceso and c.getpixel((0, 4)) == r.aceso,
+            "celula_em(apagados=False): dot (0,0) of 'A' is not the background, or dot (0,1) or (1,0) is not lit")
     return falhas
 
 
@@ -145,7 +156,9 @@ def cli():
     return falhas
 
 
+_CELULA_EM = lcd.celula_em
 MUTANTES = {
+    'the unlit dots drawn for a label too': ('celula_em', lambda d, e, x0, y0, g, apagados=True: _CELULA_EM(d, e, x0, y0, g, True)),
     'the bit order reversed (bit 0 leftmost)': ('_aceso', lambda valor, j: bool(valor & (1 << j))),
     'the gap between dots one pixel smaller': ('_origem_ponto', lambda e, x0, y0, i, j: (x0 + j * (e.ponto + e.vao_ponto - 1), y0 + i * (e.ponto + e.vao_ponto - 1))),
     'the cells without the gap between them': ('_origem_celula', lambda e, l, c: (e.margem + c * lcd.celula(e)[0], e.margem + l * (lcd.celula(e)[1] + e.vao_linha))),

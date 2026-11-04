@@ -5,7 +5,8 @@ What the alpha's LCD shows is composed by src/display/AlphaFrame.h (alphaLoadLin
 program can run them against test/native_stubs/FakeHd44780.h, the fake the native cases use: it keeps the DDRAM at each blit( ) and the CGRAM at each
 createChar( ). tools/lcd_alpha/amostras.cpp is that program, with one SAMPLE for each of the manual's 17 LCD figures, named after it: an AlphaFrameIn (and
 the frames before it, where the screen does not clear) that is a state the loop really reaches. It prints each sample's glass, the two DDRAM rows and the
-eight CGRAM slots, as the JSON tools/lcd_alpha/lcd.py reads. This script builds it, runs it and draws every frame with lcd.py (ROM A00, 639 x 137).
+eight CGRAM slots, as the JSON tools/lcd_alpha/lcd.py reads, and the link glyph (CGRAM slot 7) of each RSSI it samples, for the signal icon's figure.
+This script builds it, runs it and draws every frame with lcd.py (ROM A00, 639 x 137).
 The headers are included from src/, never copied: a change to AlphaFrame.h, to BigFont_HD44780.h or to PendingLabel.h moves the frames at the next run.
 
 Both network variants are built, as the native cases build them: the radio's (the default) and the cable's, -DSIMUT_NET_ENC28J60=1 (net/NetCaps.h derives
@@ -23,16 +24,20 @@ Exit 2 when it cannot run, with what is missing: g++ absent, the build fails, Pi
     out here by hand, cell by cell, and not taken from a run: the rows of the splash, the boot bar at 7 of 14, "Conectado!" over an IP of the documentation
     range, "Sem WiFi"/"Offline", 23.4 / 58 / 1013.2 hPa / -18.5, ERRO, 37 and 2k pending, the three pages of the setup network; slots 0-6 the big-digit
     pieces and slot 7 the five-bar icon (or the X), with the bitmaps READ from BigFont_HD44780.h;
+  * the link glyph: for each RSSI the program samples (both ends of every band of chapter 12's table of the signal icon, the samples' two values and the
+    cable's edge), slot 7 is the icon the table names, written out here: 5 bars at -50 dBm or more, 4 from -60 to -51, 3 from -70 to -61, 2 from -80 to
+    -71, 1 from -90 to -81, the X below -90; on the cable, its glyph above -100 dBm and the X from there down;
   * the cable: the four differences above, and every other cell as on the radio;
   * the sources the harness leans on: the loop still builds its banner as "SIMUT " and SIMUT_VERSION; the demonstration key is one the firmware could
     generate (ApPsk.h's alphabet and length); the address is in 192.0.2.0/24 (RFC 5737); every frame draws (a code with no glyph is an error);
-  * the checker bites: an expectation changed in one cell, a frame changed in one cell or one CGRAM bit, a sample missing and a sample extra give
-    exactly one finding each;
-  * the program bites: AlphaFrame.h is copied, edited at one anchor and built again, and the samples that change must be exactly the ones the edit is
-    about: the degree sign a column to the left (the four temperatures), the slot label from the third slot on and from the first (the 3 and the 4 samples
-    with that many active slots), " Sem WiFi" and " Sem rede" misspelled (offline), " Conectado!" without its bang (the two samples that print it), the
-    boot bar's brackets, the first page's title. An anchor that is not found the expected number of times, or a mutant that does not build, fails the run:
-    a mutant must be killed by a check and not by the compiler.
+  * the checker bites: an expectation changed in one cell, a frame changed in one cell or one CGRAM bit, a sample missing and a sample extra, an icon
+    expected otherwise and an icon missing give exactly one finding each;
+  * the program bites: AlphaFrame.h or BigFont_HD44780.h is copied, edited at one anchor and built again, and the samples and icons that change must be
+    exactly the ones the edit is about: the degree sign a column to the left (the four temperatures), the slot label from the third slot on and from the
+    first (the 3 and the 4 samples with that many active slots), " Sem WiFi" and " Sem rede" misspelled (offline), " Conectado!" without its bang (the
+    two samples that print it), the boot bar's brackets, the first page's title; the four-bar band a dBm wider (the icon at -61 and no sample), the
+    three-bar glyph with one dot more (the icons at -61 and -70), the cable's edge at -99 (its icon at -99). An anchor that is not found the expected
+    number of times, or a mutant that does not build, fails the run: a mutant must be killed by a check and not by the compiler.
 """
 import argparse
 import concurrent.futures
@@ -80,8 +85,8 @@ def compilador():
 
 
 def construir(rede, pasta, mutante=None):
-    """Builds amostras.cpp for `rede` (wifi or cabo) into pasta and returns the executable. `mutante` is a folder holding display/AlphaFrame.h, an edited copy that
-    the include path finds before src/display/AlphaFrame.h (its own relative includes fall back on -I src/display)."""
+    """Builds amostras.cpp for `rede` (wifi or cabo) into pasta and returns the executable. `mutante` is a folder holding display/AlphaFrame.h (and, for a mutant
+    of the font, display/BigFont_HD44780.h beside it), copies the include path finds before src/display/ (their other relative includes fall back on -I src/display)."""
     exe = pathlib.Path(pasta) / f'amostras_{rede}'
     # -U_FORTIFY_SOURCE: Ubuntu's g++ turns it on from -O1, and glibc 2.38 and later then define strlcpy( ) in string.h, which test/native_stubs/Arduino.h
     # declares inline again ("redeclared inline without gnu_inline"); the firmware's libc has no such definition and the stub is not edited here.
@@ -96,7 +101,7 @@ def construir(rede, pasta, mutante=None):
 
 
 def executar(exe, versao):
-    """Runs the program: (the network it says it was built for, {sample: (the two rows as bytes, the eight CGRAM slots as bytes)})."""
+    """Runs the program: (the network it says it was built for, {sample: (the two rows as bytes, the eight CGRAM slots as bytes)}, {RSSI: slot 7 as bytes})."""
     if not re.fullmatch(r'[0-9A-Za-z.+_-]{1,10}', versao):
         raise Falta(f'the version {versao!r} is not 1 to 10 of [0-9A-Za-z.+_-]: it has to fit the banner of row 0')
     r = subprocess.run([str(exe), versao], capture_output=True, text=True, timeout=60)
@@ -105,22 +110,26 @@ def executar(exe, versao):
     try:
         dados = json.loads(r.stdout)
         amostras = {nome: (tuple(bytes.fromhex(h) for h in q['linhas']), [bytes.fromhex(h) for h in q['cgram']]) for nome, q in dados['amostras'].items()}
+        icones = {int(r): bytes.fromhex(h) for r, h in dados['icones'].items()}
         rede = dados['rede']
     except (ValueError, KeyError, TypeError, AttributeError) as e:
         raise Falta(f'{pathlib.Path(exe).name} printed something that is not the frames: {e}')
     for nome, (linhas, cgram) in amostras.items():
         if len(linhas) != 2 or any(len(l) != 16 for l in linhas) or len(cgram) != 8 or any(len(s) != 8 for s in cgram):
             raise Falta(f'sample {nome}: the frame is not two rows of 16 cells and eight slots of 8 bytes')
-    return rede, amostras
+    for r, g in icones.items():
+        if len(g) != 8:
+            raise Falta(f'the link glyph of {r} dBm is not 8 bytes')
+    return rede, amostras, icones
 
 
 def quadros(rede, versao, mutante=None):
-    """Builds and runs the samples of one network: {sample: (rows, cgram)}."""
+    """Builds and runs the samples of one network: ({sample: (rows, cgram)}, {RSSI: the link glyph in slot 7})."""
     with tempfile.TemporaryDirectory(prefix='host_lcd_') as tmp:
-        declarada, amostras = executar(construir(rede, tmp, mutante), versao)
+        declarada, amostras, icones = executar(construir(rede, tmp, mutante), versao)
     if declarada != rede:
         raise Falta(f'built for {rede} and the program says {declarada}: the network switch of the build did not take')
-    return amostras
+    return amostras, icones
 
 
 def desenhar(quadro):
@@ -149,7 +158,7 @@ def bitmaps():
     t = BIGFONT.read_text(encoding='utf-8')
     saida = {m.group(1): bytes(int(v, 0) for v in m.group(2).replace(' ', '').split(','))
              for m in re.finditer(r'const uint8_t (BF_[A-Z0-9]+)\[8\]\s*=\s*\{([^}]*)\}', t)}
-    for n in PECAS + ('BF_WIFI0', 'BF_WIFI5', 'BF_WIRED'):
+    for n in PECAS + tuple(f'BF_WIFI{k}' for k in range(6)) + ('BF_WIRED',):
         if n not in saida or len(saida[n]) != 8:
             raise Falta(f'{n} not found in {BIGFONT.name}')
     return saida
@@ -227,6 +236,28 @@ def esperado_cabo(w):
     return c
 
 
+# The table of chapter 12 ("O sinal do Wi-Fi", docs/_manual/cap12-lcd-alpha.md), written out here and not read from the code: 5 bars at -50 dBm or more,
+# 4 from -60 to -51, 3 from -70 to -61, 2 from -80 to -71, 1 from -90 to -81, the X below -90 (and with no link). Both ends of every band, the samples'
+# two values (-45 and -127) and the cable's edge (-99, -100): the RSSIS of amostras.cpp.
+ICONES_WIFI = {-45: 'BF_WIFI5', -50: 'BF_WIFI5', -51: 'BF_WIFI4', -60: 'BF_WIFI4', -61: 'BF_WIFI3', -70: 'BF_WIFI3', -71: 'BF_WIFI2', -80: 'BF_WIFI2',
+               -81: 'BF_WIFI1', -90: 'BF_WIFI1', -91: 'BF_WIFI0', -99: 'BF_WIFI0', -100: 'BF_WIFI0', -127: 'BF_WIFI0'}
+
+
+def icones_cabo():
+    """The cable's slot 7 at the same RSSIs: its glyph while the link is up (an RSSI above -100: AlphaFrame.h's alphaLoadLinkGlyph( )), the X from -100 down."""
+    return {r: ('BF_WIRED' if r > -100 else 'BF_WIFI0') for r in ICONES_WIFI}
+
+
+def conferir_icones(icones, esperado, bm):
+    """One line for each RSSI the program does not sample, samples and nothing expects, or whose slot 7 is not the icon expected."""
+    achados = [f'{r} dBm: the program prints no link glyph for it' for r in sorted(set(esperado) - set(icones))]
+    achados += [f'{r} dBm: a link glyph nothing expects' for r in sorted(set(icones) - set(esperado))]
+    for r in sorted(set(esperado) & set(icones)):
+        if icones[r] != bm[esperado[r]]:
+            achados.append(f'{r} dBm: slot 7 is {icones[r].hex()}, not {esperado[r]} ({bm[esperado[r]].hex()})')
+    return achados
+
+
 def mostra(b):
     """Cells as text for a message: printable ASCII as it is, anything else as <n> (the CGRAM pieces 0-7)."""
     return ''.join(chr(c) if 0x20 <= c < 0x7F else f'<{c}>' for c in b)
@@ -253,31 +284,42 @@ def conferir(amostras, esperado, bm):
     return achados
 
 
-# (name, build, the text of AlphaFrame.h, what replaces it, how many times the text stands there, the samples that must change and no others)
+# (name, build, the file edited, its text, what replaces it, how many times the text stands there, the samples and the icons that must change and no others)
 MUTANTES = (
-    ('the degree sign a column to the left', 'wifi', "lcd.setCursor(14, 0); lcd.write('o');", "lcd.setCursor(13, 0); lcd.write('o');", 1,
-     {'temperatura', 'negativa', 'pendentes', 'pendentes-k'}),
-    ('the slot label from the third slot on', 'wifi', 'if (in.slots > 1) {', 'if (in.slots > 2) {', 1,
-     {'temperatura', 'umidade', 'pressao'}),
-    ('the slot label from the first slot on', 'wifi', 'if (in.slots > 1) {', 'if (in.slots >= 1) {', 1,
-     {'negativa', 'lcd-erro', 'pendentes', 'pendentes-k'}),
-    ('Sem WiFi misspelled', 'wifi', 'lcd.print(" Sem WiFi       ");', 'lcd.print(" Sem Wifi       ");', 1, {'offline'}),
-    ('Sem rede misspelled (the cable)', 'cabo', 'lcd.print(" Sem rede       ");', 'lcd.print(" Sem Rede       ");', 1, {'offline'}),
-    ('Conectado! without its bang', 'wifi', 'lcd.print(" Conectado!     ");', 'lcd.print(" Conectado      ");', 2, {'conectado', 'obtendo-ip'}),
-    ('the boot bar without its closing bracket', 'wifi', "lcd.write(']');\n\t\tbreak;\n\n\tcase ALPHA_SCREEN_BOOT_FULL:", "lcd.write('|');\n\t\tbreak;\n\n\tcase ALPHA_SCREEN_BOOT_FULL:", 1,
-     {'boot'}),
-    ('the first page of the setup network retitled', 'wifi', 'case 0: lcd.print("Modo AP  1 de 3"); break;', 'case 0: lcd.print("Modo AP  1 de 4"); break;', 1, {'ap-1'}),
+    ('the degree sign a column to the left', 'wifi', ALFA, "lcd.setCursor(14, 0); lcd.write('o');", "lcd.setCursor(13, 0); lcd.write('o');", 1,
+     {'temperatura', 'negativa', 'pendentes', 'pendentes-k'}, set()),
+    ('the slot label from the third slot on', 'wifi', ALFA, 'if (in.slots > 1) {', 'if (in.slots > 2) {', 1,
+     {'temperatura', 'umidade', 'pressao'}, set()),
+    ('the slot label from the first slot on', 'wifi', ALFA, 'if (in.slots > 1) {', 'if (in.slots >= 1) {', 1,
+     {'negativa', 'lcd-erro', 'pendentes', 'pendentes-k'}, set()),
+    ('Sem WiFi misspelled', 'wifi', ALFA, 'lcd.print(" Sem WiFi       ");', 'lcd.print(" Sem Wifi       ");', 1, {'offline'}, set()),
+    ('Sem rede misspelled (the cable)', 'cabo', ALFA, 'lcd.print(" Sem rede       ");', 'lcd.print(" Sem Rede       ");', 1, {'offline'}, set()),
+    ('Conectado! without its bang', 'wifi', ALFA, 'lcd.print(" Conectado!     ");', 'lcd.print(" Conectado      ");', 2, {'conectado', 'obtendo-ip'}, set()),
+    ('the boot bar without its closing bracket', 'wifi', ALFA, "lcd.write(']');\n\t\tbreak;\n\n\tcase ALPHA_SCREEN_BOOT_FULL:", "lcd.write('|');\n\t\tbreak;\n\n\tcase ALPHA_SCREEN_BOOT_FULL:", 1,
+     {'boot'}, set()),
+    ('the first page of the setup network retitled', 'wifi', ALFA, 'case 0: lcd.print("Modo AP  1 de 3"); break;', 'case 0: lcd.print("Modo AP  1 de 4"); break;', 1, {'ap-1'}, set()),
+    ('the four-bar band a dBm wider', 'wifi', BIGFONT, 'else if (rssi >= -60) level = 4;', 'else if (rssi >= -61) level = 4;', 1, set(), {-61}),
+    ('the three-bar glyph with one dot more', 'wifi', BIGFONT, 'BF_WIFI3[8] = { 0b00000, 0b00000, 0b00000, 0b00100,', 'BF_WIFI3[8] = { 0b00000, 0b00000, 0b00000, 0b00110,', 1,
+     set(), {-61, -70}),
+    ("the cable's edge at -99", 'cabo', ALFA, 'big.showWired(lcd, rssi > -100);', 'big.showWired(lcd, rssi > -99);', 1, set(), {-99}),
 )
 
 
-def mutante_em(pasta, antigo, novo, vezes):
-    """A copy of AlphaFrame.h with `antigo` replaced, in pasta/display/AlphaFrame.h; the anchor has to stand exactly `vezes` times."""
-    t = ALFA.read_text(encoding='utf-8')
+def mutante_em(pasta, antigo, novo, vezes, arquivo=ALFA):
+    """A copy of `arquivo` (AlphaFrame.h or BigFont_HD44780.h) with `antigo` replaced, in pasta/display/; the anchor has to stand exactly `vezes` times. A mutant
+    of the font takes an unchanged copy of AlphaFrame.h beside it: AlphaFrame.h includes "BigFont_HD44780.h" from its own folder first, so the edited font is
+    only found by a copy that stands next to it."""
+    arquivo = pathlib.Path(arquivo)
+    if arquivo not in (ALFA, BIGFONT):
+        raise Falta(f'a mutant edits {ALFA.name} or {BIGFONT.name}, not {arquivo.name}')
+    t = arquivo.read_text(encoding='utf-8')
     if t.count(antigo) != vezes:
-        raise Falta(f'the mutant anchor {antigo!r} stands {t.count(antigo)} times in {ALFA.name}, expected {vezes}: the mutant would test nothing')
+        raise Falta(f'the mutant anchor {antigo!r} stands {t.count(antigo)} times in {arquivo.name}, expected {vezes}: the mutant would test nothing')
     d = pathlib.Path(pasta) / 'display'
     d.mkdir(parents=True)
-    (d / 'AlphaFrame.h').write_text(t.replace(antigo, novo), encoding='utf-8')
+    if arquivo == BIGFONT:
+        shutil.copyfile(ALFA, d / ALFA.name)
+    (d / arquivo.name).write_text(t.replace(antigo, novo), encoding='utf-8')
     return pathlib.Path(pasta)
 
 
@@ -330,16 +372,18 @@ def selftest():
         def roda(chave, rede, mutante=None):
             pasta = tmp / chave
             pasta.mkdir()
-            declarada, amostras = executar(construir(rede, pasta, mutante), versao)
+            declarada, amostras, icones = executar(construir(rede, pasta, mutante), versao)
             if declarada != rede:
                 raise Falta(f'{chave}: built for {rede} and the program says {declarada}')
-            return amostras
+            return amostras, icones
 
         base = {rede: ex.submit(roda, rede, rede) for rede in REDES}
         muts = []
-        for i, (nome, rede, antigo, novo, vezes, _) in enumerate(MUTANTES):
-            muts.append(ex.submit(roda, f'm{i}', rede, mutante_em(tmp / f'src{i}', antigo, novo, vezes)))
-        amostras = {rede: f.result() for rede, f in base.items()}
+        for i, (nome, rede, arquivo, antigo, novo, vezes, _, _) in enumerate(MUTANTES):
+            muts.append(ex.submit(roda, f'm{i}', rede, mutante_em(tmp / f'src{i}', antigo, novo, vezes, arquivo)))
+        saidas = {rede: f.result() for rede, f in base.items()}
+        amostras = {rede: s[0] for rede, s in saidas.items()}
+        icones = {rede: s[1] for rede, s in saidas.items()}
         resultados = [f.result() for f in muts]
 
     # the glass of the radio and of the cable
@@ -351,6 +395,13 @@ def selftest():
     confere(len(w) == 17, f'the radio\'s table holds {len(w)} samples, the manual has 17 LCD figures')
     confere(set(amostras['cabo']) == set(amostras['wifi']) - set(PAGINAS_DO_AP), 'the cable\'s samples are not the radio\'s without the AP pages',
             'the cable has no setup-network sample')
+
+    # the link glyph of each RSSI: the table of chapter 12 on the radio, the cable's glyph or the X on the cable
+    for rede, quer in (('wifi', ICONES_WIFI), ('cabo', icones_cabo())):
+        achados = conferir_icones(icones[rede], quer, bm)
+        for a in achados:
+            confere(False, f'{rede}: {a}')
+        confere(not achados, 'unreachable', f'{rede}: slot 7 at {len(quer)} RSSIs, both ends of every band, as the table of chapter 12 says')
 
     # every frame draws: no code without a glyph, and the size of the figures
     try:
@@ -380,13 +431,23 @@ def selftest():
     uma('a sample extra', conferir(a4, w, bm))
     e2 = dict(w); r0, r1, g = e2['umidade']; e2['umidade'] = (r0, r1, 'BF_WIFI0')
     uma('a link glyph other than the one expected', conferir(amostras['wifi'], e2, bm))
+    limpo_i = len(conferir_icones(icones['wifi'], ICONES_WIFI, bm))
+
+    def uma_i(nome, achados):
+        confere(len(achados) == limpo_i + 1, f'control "{nome}" gave {len(achados)} findings, not {limpo_i} + 1: {achados}', f'control "{nome}": exactly one finding')
+
+    e3 = dict(ICONES_WIFI); e3[-61] = 'BF_WIFI4'
+    uma_i('an icon expected one band up', conferir_icones(icones['wifi'], e3, bm))
+    i1 = dict(icones['wifi']); del i1[-90]
+    uma_i('an icon missing', conferir_icones(i1, ICONES_WIFI, bm))
 
     # the program bites
-    for (nome, rede, antigo, novo, vezes, quer), obtido in zip(MUTANTES, resultados):
-        mudou = mudaram(amostras[rede], obtido)
-        confere(mudou == quer, f'mutant "{nome}" changed {sorted(mudou)}, expected exactly {sorted(quer)}',
-                f'mutant "{nome}" changes {len(mudou)} sample(s), exactly {sorted(mudou)}')
-        confere(len(mudou) > 0, f'mutant "{nome}" changed nothing')
+    for (nome, rede, arquivo, antigo, novo, vezes, quer, quer_i), (obtido, obtido_i) in zip(MUTANTES, resultados):
+        mudou, mudou_i = mudaram(amostras[rede], obtido), mudaram(icones[rede], obtido_i)
+        confere(mudou == quer and mudou_i == quer_i,
+                f'mutant "{nome}" changed the samples {sorted(mudou)} and the icons {sorted(mudou_i)}, expected exactly {sorted(quer)} and {sorted(quer_i)}',
+                f'mutant "{nome}" ({arquivo.name}) changes exactly the samples {sorted(mudou)} and the icons {sorted(mudou_i)}')
+        confere(mudou or mudou_i, f'mutant "{nome}" changed nothing')
     print(f'host_lcd: selftest {CONTA[0]} checks, {len(FALHAS)} failed')
     return 1 if FALHAS else 0
 
@@ -406,7 +467,7 @@ def main():
         versao = a.versao or versao_do_firmware()
         pasta = pathlib.Path(a.out)
         pasta.mkdir(parents=True, exist_ok=True)
-        amostras = quadros(a.rede, versao)
+        amostras, _ = quadros(a.rede, versao)
         for nome, (linhas, cgram) in sorted(amostras.items()):
             desenhar((linhas, cgram)).save(pasta / f'{nome}.png')
             (pasta / f'{nome}.json').write_text(json.dumps({'linhas': [l.hex() for l in linhas], 'cgram': [s.hex() for s in cgram]}), encoding='utf-8')

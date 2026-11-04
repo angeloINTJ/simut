@@ -1,18 +1,21 @@
 #!/usr/bin/env python3
-"""Draws, checks and lists the 17 LCD figures of the manual (the alpha's 16x2): docs/images/manual/04-lcd-ap.png, 06-lcd-erro.png and 12-*.png.
+"""Draws, checks and lists the alpha's figures of the manual: the 17 of its 16x2 LCD (docs/images/manual/04-lcd-ap.png, 06-lcd-erro.png and 12-*.png) and the
+diagram of its signal icon (12-wifi-niveis.png).
 
 The figures are not photographs. Each is a frame that tools/lcd_alpha/host_lcd.py makes on the host from the code at the commit (src/display/AlphaFrame.h
 and BigFont_HD44780.h compiled with g++ against the fake LCD of the native cases, one sample for each figure in tools/lcd_alpha/amostras.cpp) and draws with
 tools/lcd_alpha/lcd.py: ROM A00 glyphs read from the HD44780U datasheet, a blue module with white dots, 639 x 137, every dot a square of whole pixels (no
-resizing, no smoothing). Where the glass keeps cells of the frame before it (the boot) the sample runs the frames that really come before it.
+resizing, no smoothing). Where the glass keeps cells of the frame before it (the boot) the sample runs the frames that really come before it. The diagram
+puts side by side the six drawings of the link glyph, enlarged: on top the ones the same program loads into CGRAM slot 7 at the lower end of each band of
+chapter 12's table, below the ones v2.7.1 drew (WIFI_V271, kept here: no code at HEAD draws them), labelled in the ROM's own glyphs.
 
   --write      draws the frames and writes the figures into --images (default docs/images/manual).
   --check      draws them again from the code at HEAD and compares the PIXELS with the committed files, never the PNG bytes (those depend on Pillow's and zlib's
-               versions): one line for each figure that differs, is missing, is not a readable 639 x 137 RGB PNG or whose sample the program no longer prints;
-               for each 04-lcd-*.png, 06-lcd-*.png and 12-*.png that no row of FIGURAS names (the figures of other kinds that the chapters declare, such as
-               12-wifi-niveis.png, are not this tool's); for each row whose figure block is gone from the chapters or has another file or kind; for each block of
-               tipo="lcd" that no row names; for each block whose captura= is not the text --list prints; and for each "SIMUT x.y.z" in chapter 12 that is not
-               the version the figures show. Exit 0 clean, 1 with findings, 2 when it cannot draw.
+               versions): one line for each figure that differs, is missing, is not a readable RGB PNG of its size (639 x 137, the diagram 639 x 271) or whose
+               sample the program no longer prints; for each 04-lcd-*.png, 06-lcd-*.png and 12-*.png that no row of FIGURAS names (the figures of other kinds
+               that the chapters declare are not this tool's); for each row whose figure block is gone from the chapters or has another file or kind; for each
+               block of tipo="lcd" that no row names; for each block whose captura= is not the text --list prints; and for each "SIMUT x.y.z" in chapter 12
+               that is not the version the figures show. Exit 0 clean, 1 with findings, 2 when it cannot draw.
   --list       the table: the file, the sample and the captura= text of the figure block in the chapter, tab-separated.
   --images     the folder of the figures (the controls point it at a scratch copy).
   --capitulos  the folder of the chapters, docs/_manual (the controls point it at a scratch copy).
@@ -42,20 +45,22 @@ VERSAO = '2.13.0'                    # the version the splash and the boot figur
 CAPITULO_DA_VERSAO = 'cap12-lcd-alpha.md'
 
 try:
-    from PIL import Image
+    from PIL import Image, ImageDraw
 except ImportError:   # --list needs no Pillow
-    Image = None
+    Image = ImageDraw = None
 
 
 class Figura(NamedTuple):
     bloco: str      # the id of the figure block in the chapter: ::: {.figura #fig-12-splash ...}
     arquivo: str    # docs/images/manual/<arquivo>
     capitulo: str   # the chapter of docs/_manual that holds the block
-    amostra: str    # the sample of tools/lcd_alpha/amostras.cpp (the radio's build)
+    amostra: str    # the sample of tools/lcd_alpha/amostras.cpp (the radio's build); the diagram's is icones, the link glyphs the program prints
     nota: str       # the state the glass is in: the end of the captura= text
+    tipo: str = 'lcd'   # the tipo= of the block: lcd for a glass, diagrama for the signal icon's figure
 
 
-# One row per block of tipo="lcd", in the order of the chapters. The radio's build draws them all: the manual's LCD figures are the alpha's (Wi-Fi).
+# One row per block of tipo="lcd", in the order of the chapters, and the diagram of the signal icon. The radio's build draws them all: the manual's LCD
+# figures are the alpha's (Wi-Fi).
 FIGURAS = (
     Figura('fig-04-lcd-ap', '04-lcd-ap.png', 'cap04-primeiro-boot.md', 'lcd-ap',
            'alpha recém-gravada, sem rede configurada; ponto de acesso aberto pelo comando ap no console USB, com o aparelho já nas leituras; página Rede: 2 de 3 com simut_SETUP na linha de baixo; é o mesmo quadro de 12-ap-2'),
@@ -91,12 +96,94 @@ FIGURAS = (
            'mesmo estado; página Rede: 2 de 3 com simut_SETUP'),
     Figura('fig-12-ap-3', '12-ap-3.png', 'cap12-lcd-alpha.md', 'ap-3',
            'mesmo estado; página Senha: 3 de 3 com uma chave de demonstração, de 10 caracteres do alfabeto das chaves e de nenhum aparelho'),
+    Figura('fig-12-wifi-niveis', '12-wifi-niveis.png', 'cap12-lcd-alpha.md', 'icones',
+           'os seis desenhos do ícone de sinal, ampliados, em grade de 5 x 8 pontos, lado a lado: X, 1, 2, 3, 4 e 5 barras; em cima, a escada da v2.7.2, '
+           'que o código põe no slot 7 em -127, -90, -80, -70, -60 e -50 dBm; embaixo, as linhas da v2.7.1, guardadas em tools/lcd_alpha/manual_lcd.py '
+           'a partir da tag v2.7.1', 'diagrama'),
 )
+TIPOS = ('lcd', 'diagrama')
+
+# ---- the diagram of the signal icon ----------------------------------------------------------------------------------------------------------------
+# Six cells in two rows, the levels over them and the versions beside them, on the glass's blue, every dot a square of whole pixels as lcd.py draws.
+NIVEIS_RSSI = (-127, -90, -80, -70, -60, -50)   # X, 1, 2, 3, 4 and 5 bars: the lower end of each band of chapter 12's table, and no link for the X
+ROTULOS_NIVEIS = ('X', '1', '2', '3', '4', '5')
+ROTULOS_VERSOES = ('v2.7.2', 'v2.7.1')           # the top row, the bottom row
+D_PONTO, D_VAO = 10, 2      # a dot of a cell of the diagram, and the gap between two: a cell of 58 x 94
+R_PONTO, R_VAO = 3, 1       # a dot of a label's character, and the gap: a character of 19 x 31, drawn without its unlit dots
+R_ENTRE = 3                 # between two characters of a label
+D_MARGEM = 10               # around everything, as lcd.py's margin
+D_ENTRE_CELULAS = 23        # between two cells of a row
+D_ROTULO = 27               # between the versions' labels and the first cell
+D_CABECALHO = 12            # between the levels' labels and the first row of cells
+D_ENTRE_LINHAS = 20         # between the two rows of cells
+
+# What v2.7.1 drew for the six levels: BF_WIFI0 to BF_WIFI5 of src/display/BigFont_HD44780.h at the tag v2.7.1 (a14e7aaa8f, 2026-09-22), one more full row
+# for each level, from the bottom. No code at HEAD draws them, so they are history and are kept here; test_manual_lcd.py compares them with the tag when the
+# clone has it (CI's shallow checkout has no tags: the control then says it was skipped).
+WIFI_V271 = (
+    (0b00000, 0b10001, 0b01010, 0b00100, 0b01010, 0b10001, 0b00000, 0b00000),
+    (0b00000, 0b00000, 0b00000, 0b00000, 0b00000, 0b11111, 0b00000, 0b00000),
+    (0b00000, 0b00000, 0b00000, 0b00000, 0b01111, 0b11111, 0b00000, 0b00000),
+    (0b00000, 0b00000, 0b00000, 0b00111, 0b01111, 0b11111, 0b00000, 0b00000),
+    (0b00000, 0b00000, 0b00011, 0b00111, 0b01111, 0b11111, 0b00000, 0b00000),
+    (0b00000, 0b00001, 0b00011, 0b00111, 0b01111, 0b11111, 0b00000, 0b00000),
+)
+
+
+def _vao(ponto, vao, n):
+    """n dots of `ponto` px with `vao` px between two."""
+    return n * ponto + (n - 1) * vao
+
+
+def geometria():
+    """The diagram's layout in whole pixels, a formula of the constants above: the size of a cell (cw, ch) and of a label's character (lw, lh), where the
+    cells start (x_celulas, y_linhas), and the image (largura, altura). The drawing and the captura= text both read it."""
+    cw, ch = _vao(D_PONTO, D_VAO, 5), _vao(D_PONTO, D_VAO, 8)
+    lw, lh = _vao(R_PONTO, R_VAO, 5), _vao(R_PONTO, R_VAO, 8)
+    n = max(len(r) for r in ROTULOS_VERSOES)
+    x_celulas = D_MARGEM + n * lw + (n - 1) * R_ENTRE + D_ROTULO
+    y_linhas = D_MARGEM + lh + D_CABECALHO
+    k = len(ROTULOS_NIVEIS)
+    return {'cw': cw, 'ch': ch, 'lw': lw, 'lh': lh, 'x_celulas': x_celulas, 'y_linhas': y_linhas,
+            'largura': x_celulas + k * cw + (k - 1) * D_ENTRE_CELULAS + D_MARGEM,
+            'altura': y_linhas + len(ROTULOS_VERSOES) * ch + (len(ROTULOS_VERSOES) - 1) * D_ENTRE_LINHAS + D_MARGEM}
+
+
+def tamanho_de(f):
+    """(width, height) of a row's figure, without drawing it (--list needs no Pillow)."""
+    if f.tipo == 'diagrama':
+        g = geometria()
+        return g['largura'], g['altura']
+    return LARGURA, ALTURA
+
+
+def desenhar_diagrama(icones):
+    """The diagram: the top row the glyphs of `icones` ({RSSI: CGRAM slot 7}, the program's) at NIVEIS_RSSI, the bottom row WIFI_V271, the labels in ROM A00."""
+    import lcd
+    from rom_hd44780 import ROM_A00
+    g = geometria()
+    celula, rotulo = lcd.Estilo(ponto=D_PONTO, vao_ponto=D_VAO), lcd.Estilo(ponto=R_PONTO, vao_ponto=R_VAO)
+    img = Image.new('RGB', (g['largura'], g['altura']), lcd.Estilo().fundo)
+    d = ImageDraw.Draw(img)
+
+    def escreve(texto, x, y):
+        for k, c in enumerate(texto):
+            lcd.celula_em(d, rotulo, x + k * (g['lw'] + R_ENTRE), y, ROM_A00[ord(c)], apagados=False)
+
+    for k, nivel in enumerate(ROTULOS_NIVEIS):
+        escreve(nivel, g['x_celulas'] + k * (g['cw'] + D_ENTRE_CELULAS) + (g['cw'] - g['lw']) // 2, D_MARGEM)
+    for n, (versao, glifos) in enumerate(zip(ROTULOS_VERSOES, (tuple(icones[r] for r in NIVEIS_RSSI), WIFI_V271))):
+        y = g['y_linhas'] + n * (g['ch'] + D_ENTRE_LINHAS)
+        escreve(versao, D_MARGEM, y + (g['ch'] - g['lh']) // 2)
+        for k, glifo in enumerate(glifos):
+            lcd.celula_em(d, celula, g['x_celulas'] + k * (g['cw'] + D_ENTRE_CELULAS), y, glifo)
+    return img
 
 
 def captura(f):
     """The captura= text of the figure's block in the chapter."""
-    return (f'desenhada pelo código do alpha no host (tools/lcd_alpha), amostra {f.amostra}, ROM A00, {LARGURA} x {ALTURA}; '
+    largura, altura = tamanho_de(f)
+    return (f'desenhada pelo código do alpha no host (tools/lcd_alpha), amostra {f.amostra}, ROM A00, {largura} x {altura}; '
             f'refazer com python3 tools/lcd_alpha/manual_lcd.py --write; {f.nota}')
 
 
@@ -112,6 +199,10 @@ def tabela_ok():
             return f'FIGURAS row {f.bloco!r}: the captura= text has a double quote or a line break (it breaks the attribute) or says "capturada no aparelho" (the frame comes from the host)'
         if not any(pathlib.PurePath(f.arquivo).match(p) for p in PADROES):
             return f'FIGURAS row {f.bloco!r}: the file {f.arquivo!r} matches none of PADROES, so an orphan of that name would not be found'
+        if f.tipo not in TIPOS:
+            return f'FIGURAS row {f.bloco!r}: the kind {f.tipo!r} is none of {TIPOS}'
+    if [f.tipo for f in FIGURAS].count('diagrama') != 1:
+        return 'FIGURAS has to hold exactly one row of tipo diagrama: the signal icon\'s figure'
     return None
 
 
@@ -155,8 +246,8 @@ def conferir_capitulos(capitulos):
         b = blocos.get(f.bloco)
         if b is None:
             achados.append(f'{f.bloco}: the figure block is gone from the chapters (the row of FIGURAS names {f.capitulo} and {f.arquivo})')
-        elif (b.tipo, b.arquivo, b.capitulo) != ('lcd', f.arquivo, f.capitulo):
-            achados.append(f'{f.bloco}: the block says tipo={b.tipo!r}, arquivo={b.arquivo!r} in {b.capitulo}, the row says tipo=\'lcd\', arquivo={f.arquivo!r} in {f.capitulo}')
+        elif (b.tipo, b.arquivo, b.capitulo) != (f.tipo, f.arquivo, f.capitulo):
+            achados.append(f'{f.bloco}: the block says tipo={b.tipo!r}, arquivo={b.arquivo!r} in {b.capitulo}, the row says tipo={f.tipo!r}, arquivo={f.arquivo!r} in {f.capitulo}')
         elif b.captura != captura(f):
             achados.append(f'{f.bloco}: the captura= of the block ({b.capitulo}:{b.linha}) is not the text of FIGURAS (python3 tools/lcd_alpha/manual_lcd.py --list prints it)')
     for b in blocos.values():
@@ -185,13 +276,15 @@ def diferenca(a, b):
 
 
 def desenhar_figuras(mutante=None):
-    """({file: its image}, [the rows whose sample the program does not print]), from the code at HEAD (or from an edited copy of AlphaFrame.h in `mutante`).
-    Raises host_lcd.Falta when it cannot draw."""
+    """({file: its image}, [the rows whose sample the program does not print]), from the code at HEAD (or from the edited copies host_lcd.mutante_em( ) put
+    in `mutante`). Raises host_lcd.Falta when it cannot draw."""
     import host_lcd
-    amostras = host_lcd.quadros('wifi', VERSAO, mutante)
+    amostras, icones = host_lcd.quadros('wifi', VERSAO, mutante)
     imagens, sem = {}, []
     for f in FIGURAS:
-        if f.amostra in amostras:
+        if f.tipo == 'diagrama' and all(r in icones for r in NIVEIS_RSSI):
+            imagens[f.arquivo] = desenhar_diagrama(icones)
+        elif f.tipo == 'lcd' and f.amostra in amostras:
             imagens[f.arquivo] = host_lcd.desenhar(amostras[f.amostra])
         else:
             sem.append(f)
@@ -203,7 +296,10 @@ def conferir_imagens(imagens, desenhadas, sem, capitulos):
     achados = []
     for f in FIGURAS:
         if f in sem:
-            achados.append(f'{f.arquivo}: the program does not print the sample {f.amostra} any more: it was renamed or removed')
+            if f.tipo == 'diagrama':
+                achados.append(f'{f.arquivo}: the program does not print the link glyph of every RSSI of NIVEIS_RSSI {NIVEIS_RSSI} any more')
+            else:
+                achados.append(f'{f.arquivo}: the program does not print the sample {f.amostra} any more: it was renamed or removed')
             continue
         caminho = imagens / f.arquivo
         if not caminho.is_file():
@@ -215,13 +311,13 @@ def conferir_imagens(imagens, desenhadas, sem, capitulos):
         except Exception as e:   # noqa: BLE001  (any decoder error is a finding, not a crash)
             achados.append(f'{f.arquivo}: not a readable PNG ({e})')
             continue
-        if img.mode != 'RGB' or img.size != (LARGURA, ALTURA):
-            achados.append(f'{f.arquivo}: {img.size[0]}x{img.size[1]} {img.mode}, not {LARGURA}x{ALTURA} RGB')
-            continue
         esperada = desenhadas[f.arquivo]
+        if img.mode != 'RGB' or img.size != esperada.size:
+            achados.append(f'{f.arquivo}: {img.size[0]}x{img.size[1]} {img.mode}, not {esperada.size[0]}x{esperada.size[1]} RGB')
+            continue
         if img.tobytes() != esperada.tobytes():
             n, p = diferenca(img, esperada)
-            achados.append(f'{f.arquivo}: {n} of {LARGURA * ALTURA} pixels differ from the sample {f.amostra}, the first at x={p[0]} y={p[1]}')
+            achados.append(f'{f.arquivo}: {n} of {esperada.size[0] * esperada.size[1]} pixels differ from the sample {f.amostra}, the first at x={p[0]} y={p[1]}')
     nomes = {f.arquivo for f in FIGURAS}
     de_outro_tipo = {b.arquivo for b in ler_blocos(capitulos).values() if b.tipo != 'lcd'}
     orfaos = sorted({p.name for padrao in PADROES for p in imagens.glob(padrao)} - nomes - de_outro_tipo)

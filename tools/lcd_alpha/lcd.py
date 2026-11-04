@@ -101,6 +101,19 @@ def _valida(linhas, cgram, fonte):
         raise ValueError('fonte must be a mapping from a code to its 8 rows')
 
 
+def celula_em(d, estilo, x0, y0, glifo, apagados=True):
+    """Draws one 5 x 8 glyph (8 rows, bit 4 the leftmost dot) as a cell of square dots with its top-left pixel at (x0, y0), on the ImageDraw `d`: a lit
+    dot in estilo.aceso, an unlit one in estilo.apagado, or nothing for it when `apagados` is False (a label drawn in the font's dots, not a cell of the
+    glass). The geometry of a dot is estilo's (ponto, vao_ponto); its colours too. The manual's diagram of the signal icon draws its cells and its labels
+    with it, at sizes of its own."""
+    for i in range(PONTOS_Y):
+        for j in range(PONTOS_X):
+            aceso = _aceso(glifo[i], j)
+            if aceso or apagados:
+                x, y = _origem_ponto(estilo, x0, y0, i, j)
+                d.rectangle((x, y, x + estilo.ponto - 1, y + estilo.ponto - 1), fill=estilo.aceso if aceso else estilo.apagado)   # inclusive corners
+
+
 def desenhar(linhas, cgram, fonte=None, estilo=Estilo()):
     """The image (RGB) of the glass: `linhas` two rows of 16 codes, `cgram` the 8 custom characters, `fonte` the ROM's glyphs
     (default ROM A00). Raises ValueError for a malformed input or a code with no glyph. Reads its inputs and never changes them."""
@@ -113,12 +126,7 @@ def desenhar(linhas, cgram, fonte=None, estilo=Estilo()):
     for linha in range(LINHAS):
         for coluna in range(COLUNAS):
             g = _glifo(linhas[linha][coluna], cgram, fonte, linha, coluna)
-            x0, y0 = _origem_celula(estilo, linha, coluna)
-            for i in range(PONTOS_Y):
-                for j in range(PONTOS_X):
-                    x, y = _origem_ponto(estilo, x0, y0, i, j)
-                    cor = estilo.aceso if _aceso(g[i], j) else estilo.apagado
-                    d.rectangle((x, y, x + estilo.ponto - 1, y + estilo.ponto - 1), fill=cor)   # inclusive corners
+            celula_em(d, estilo, *_origem_celula(estilo, linha, coluna), g)
     return img
 
 

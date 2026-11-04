@@ -164,7 +164,7 @@ Desde a v2.7.2, as barras são uma escada de cinco degraus, cada um um pixel mai
 
 Na v2.7.1, cada nível acende uma linha a mais, de baixo para cima: com sinal fraco, o ícone é uma linha reta na largura toda, e ele cresce para cima.
 
-::: {.figura #fig-12-wifi-niveis tipo="diagrama" arquivo="12-wifi-niveis.png" captura="os seis desenhos do ícone, em grade de 5 x 8 pixels, lado a lado: X, 1, 2, 3, 4 e 5 barras; em cima, a escada da v2.7.2 (colunas acesas da esquerda para a direita); embaixo, os desenhos da v2.7.1 (linhas acesas de baixo para cima); bitmaps em src/display/BigFont_HD44780.h"}
+::: {.figura #fig-12-wifi-niveis tipo="diagrama" arquivo="12-wifi-niveis.png" captura="desenhada pelo código do alpha no host (tools/lcd_alpha), amostra icones, ROM A00, 639 x 271; refazer com python3 tools/lcd_alpha/manual_lcd.py --write; os seis desenhos do ícone de sinal, ampliados, em grade de 5 x 8 pontos, lado a lado: X, 1, 2, 3, 4 e 5 barras; em cima, a escada da v2.7.2, que o código põe no slot 7 em -127, -90, -80, -70, -60 e -50 dBm; embaixo, as linhas da v2.7.1, guardadas em tools/lcd_alpha/manual_lcd.py a partir da tag v2.7.1"}
 Os seis estados do ícone de sinal: a escada da v2.7.2 e as linhas da v2.7.1.
 :::
 
