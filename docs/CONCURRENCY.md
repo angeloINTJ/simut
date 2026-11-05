@@ -97,6 +97,10 @@ The 16x2 cannot be read back, so the driver keeps a shadow of what it wrote (`sr
   `blit( )` rewrites all thirty-two cells.
 - **The reader is bounded.** It waits for an odd count at most 2 ms (a 20 us step, the Ângulo's) and returns 1 copied, 0 no
   frame yet, -1 busy: the numbers of `uaEstado( )`. The caller answers "busy", not "none", for -1.
+- **The handler.** `GET /api/lcd` (`WebManager::handleApiLcd( )`) takes one copy with `lcdGlass( )` and formats it into a 282 B buffer on Core 0's stack (the
+  handler's frame is 448 B in the pico_wire image: five registers pushed and `sub sp, #428`, objdump, 2026-11-04; the callees add theirs, against the ~4 KB of
+  invariant 5): no allocation of its own (`send( )` builds String headers, as in every handler), no SPI, no pause of Core 1, no park. A busy shadow (-1) and no
+  frame yet (0) are 503 with `Retry-After: 1`.
 - **How it is held** (2026-11-04). `alpha_glass.cpp` and `alpha_driver_twin.cpp` in `test/test_validators/` stop the writer
   after each of its stores and land a whole publish at each byte of the reader's copy (a host thread would find a tear only
   by chance), and the same harnesses report a mix on a writer without the odd count and on two readers that skip one look at
