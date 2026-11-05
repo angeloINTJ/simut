@@ -43,7 +43,7 @@ struct FakeHd44780 {
 	unsigned glyphLoads[8];   /**< createChar( ) calls per slot: a glyph is not reloaded when it did not change */
 
 	/* What the other core reads: the shadow, the time blit( ) stamps into it, and the reader's clock. */
-	LcdGlassShadow glass;
+	LcdGlassShadow glass{};
 	uint32_t nowMs = 0;
 	struct Clock {
 		uint32_t t = 0;        /**< microseconds: one per look at the clock, and the whole of each wait */

@@ -165,7 +165,7 @@ static const char* randomOp(Hd44780_16x2 &real, FakeHd44780 &fake, unsigned step
 
 void test_alpha_fake_lcd_leaves_the_glass_the_real_driver_leaves(void) {
 	twin::reset( );
-	Hd44780_16x2 real;
+	Hd44780_16x2 real{};   /* value-initialized: the shadow has no initializers (display/LcdGlass.h) */
 	FakeHd44780 fake;
 	real.begin( ); fake.begin( );
 	TEST_ASSERT_TRUE_MESSAGE(twin::fourBit, "the driver's initialisation reached 4-bit mode on the model");
@@ -217,7 +217,7 @@ static void sameShadow(const Hd44780_16x2 &real, const FakeHd44780 &fake, unsign
 
 void test_alpha_real_driver_shadow_is_the_glass_after_every_operation(void) {
 	twin::reset( );
-	Hd44780_16x2 real;
+	Hd44780_16x2 real{};   /* value-initialized: the shadow has no initializers (display/LcdGlass.h) */
 	FakeHd44780 fake;
 	set_native_millis(0);
 	real.begin( ); fake.begin( );
@@ -245,7 +245,7 @@ static void composeFrame(Hd44780_16x2 &lcd, const char* top, const char* bottom)
 
 void test_alpha_real_driver_shadow_does_not_move_during_the_bus_writes(void) {
 	twin::reset( );
-	Hd44780_16x2 real;
+	Hd44780_16x2 real{};   /* value-initialized: the shadow has no initializers (display/LcdGlass.h) */
 	real.begin( );
 	static const uint8_t first[8]  = { 1, 2, 3, 4, 5, 6, 7, 8 };
 	static const uint8_t second[8] = { 31, 30, 29, 28, 27, 26, 25, 24 };
@@ -281,7 +281,7 @@ void test_alpha_real_driver_shadow_does_not_move_during_the_bus_writes(void) {
 
 void test_alpha_real_driver_shows_the_previous_frame_until_the_blit(void) {
 	twin::reset( );
-	Hd44780_16x2 real;
+	Hd44780_16x2 real{};   /* value-initialized: the shadow has no initializers (display/LcdGlass.h) */
 	real.begin( );
 	LcdGlass g;
 	/* Composed, never blitted: the glass is blank and the reader says there is no frame. */

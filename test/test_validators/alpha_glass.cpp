@@ -211,7 +211,7 @@ struct KillAt { unsigned at, seen = 0; void storeDone( ) { if (++seen == at) thr
 }  // namespace
 
 void test_alpha_glass_reader_gets_what_the_writer_published(void) {
-	LcdGlassShadow s;
+	LcdGlassShadow s{};
 	LcdGlass g; Clock c;
 	memset(&g, 0xEE, sizeof(g));
 	TEST_ASSERT_EQUAL_INT8_MESSAGE(LCD_GLASS_NONE, s.read(g, c), "nothing published: whole, and no frame");
@@ -237,7 +237,7 @@ void test_alpha_glass_reader_gets_what_the_writer_published(void) {
 }
 
 void test_alpha_glass_stopped_writer_gives_busy_the_old_glass_or_the_new_never_a_mix(void) {
-	LcdGlassShadow old; makeOld(old);
+	LcdGlassShadow old{}; makeOld(old);
 	const LcdGlass oldGlass = readWhole(old, LCD_GLASS_OK, "the old state");
 	const PubFrame frame; const PubGlyph glyph; const PubBlank blank;
 	const Report f = stopHarness(frame, old, oldGlass, LCD_GLASS_OK, RealReader( ));
@@ -255,7 +255,7 @@ void test_alpha_glass_stopped_writer_gives_busy_the_old_glass_or_the_new_never_a
 }
 
 void test_alpha_glass_publish_landing_in_the_readers_copy_never_gives_a_mix(void) {
-	LcdGlassShadow old; makeOld(old);
+	LcdGlassShadow old{}; makeOld(old);
 	const LcdGlass oldGlass = readWhole(old, LCD_GLASS_OK, "the old state");
 	const PubFrame frame; const PubGlyph glyph; const PubBlank blank;
 	const Report f = landHarness(frame, old, oldGlass, LCD_GLASS_OK, RealReader( ));
@@ -269,7 +269,7 @@ void test_alpha_glass_publish_landing_in_the_readers_copy_never_gives_a_mix(void
 }
 
 void test_alpha_glass_the_harnesses_see_a_mix_when_there_is_one(void) {
-	LcdGlassShadow old; makeOld(old);
+	LcdGlassShadow old{}; makeOld(old);
 	const LcdGlass oldGlass = readWhole(old, LCD_GLASS_OK, "the old state");
 	const PubFrame frame; const PubFrameWithoutOdd noOdd;
 	/* A writer that never counts odd: a reader sees the count unchanged while the cells are half of each frame. */
@@ -287,7 +287,7 @@ void test_alpha_glass_the_harnesses_see_a_mix_when_there_is_one(void) {
 }
 
 void test_alpha_glass_odd_count_heals_in_one_publish(void) {
-	LcdGlassShadow s; makeOld(s);
+	LcdGlassShadow s{}; makeOld(s);
 	TEST_ASSERT_EQUAL_UINT32(20, s.seq);
 	/* A writer that died after its odd store and before its even one: the count is odd and nothing else tells. */
 	s.seq = 21;
@@ -309,7 +309,7 @@ void test_alpha_glass_odd_count_heals_in_one_publish(void) {
 	TEST_ASSERT_EQUAL_MEMORY(line[0], g.ddram[0], 16);
 	TEST_ASSERT_EQUAL_MEMORY(line[1], g.ddram[1], 16);
 	/* A frame heals as well, with no glyph first. */
-	LcdGlassShadow t; makeOld(t);
+	LcdGlassShadow t{}; makeOld(t);
 	t.seq = 33;
 	t.putFrame(line, 888);
 	TEST_ASSERT_EQUAL_UINT32(36, t.seq);
@@ -319,7 +319,7 @@ void test_alpha_glass_odd_count_heals_in_one_publish(void) {
 }
 
 void test_alpha_glass_writer_killed_at_any_store_never_leaves_a_torn_frame_visible(void) {
-	LcdGlassShadow old; makeOld(old);
+	LcdGlassShadow old{}; makeOld(old);
 	const PubFrame frame;
 	unsigned stops;
 	{ CountStores cnt; LcdGlassShadow w = old; frame(w, cnt); stops = cnt.n; }
@@ -364,7 +364,7 @@ void test_alpha_glass_writer_killed_at_any_store_never_leaves_a_torn_frame_visib
 }
 
 void test_alpha_glass_reader_gives_up_within_its_limit(void) {
-	LcdGlassShadow s; makeOld(s);
+	LcdGlassShadow s{}; makeOld(s);
 	LcdGlass g; Clock c;
 	/* The count stays odd. */
 	s.seq = s.seq + 1;
@@ -372,7 +372,7 @@ void test_alpha_glass_reader_gives_up_within_its_limit(void) {
 	TEST_ASSERT_TRUE_MESSAGE(c.waited <= LIMIT + STEP, "it gave up within the limit (one step past at most)");
 	TEST_ASSERT_TRUE_MESSAGE(c.waited + 100 >= LIMIT, "and it did wait for the limit: a refusal at once would read a publish of tens of microseconds as busy");
 	/* The count is even but a publish lands in every attempt: nothing to pause for, so the clock is the looks, and it still ends. */
-	LcdGlassShadow t; makeOld(t);
+	LcdGlassShadow t{}; makeOld(t);
 	const PubFrame frame;
 	struct EveryAttempt {
 		LcdGlassShadow* s; const PubFrame* pub; unsigned seen = 0, landed = 0;
@@ -387,7 +387,7 @@ void test_alpha_glass_reader_gives_up_within_its_limit(void) {
 }
 
 void test_alpha_glass_reader_waits_out_a_publish_that_ends_within_its_limit(void) {
-	LcdGlassShadow s; makeOld(s);
+	LcdGlassShadow s{}; makeOld(s);
 	const LcdGlass oldGlass = readWhole(s, LCD_GLASS_OK, "the state");
 	s.seq = s.seq + 1;                              /* a publish under way */
 	struct FinishingClock : Clock {

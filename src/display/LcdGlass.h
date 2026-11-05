@@ -15,13 +15,14 @@
  * with the lock held (invariant 3), and the reader is on the side that can afford to wait.
  *
  * Three things the Ângulo's record does not need and this one does:
- *   - A publish that dies in the middle. Core 0 relaunches Core 1 when its heartbeat is 10 s old, and the relaunch
- *     keeps the driver (begin( ) returns at once when `initialized`), so a counter left odd would stay odd: the
- *     Ângulo's writer adds one, which turns the parity around for good, and every read after it would see "busy" for as
- *     long as the board runs. open( ) makes the next count odd whatever it found, in ONE store (an even counter
- *     written first would let a reader trust data a dead writer left half-copied), and drops `blitted`: the dead
- *     publish may have been a frame, whose cells are then half of two frames, and the reader says "no frame" until the
- *     next blit( ) rewrites all thirty-two of them.
+ *   - A publish that dies in the middle. Core 0 relaunches Core 1 when its heartbeat is 10 s old (AppManager_Loop.cpp,
+ *     "Core 1 dead >10s"), and the relaunch keeps the driver (begin( ) returns at once when `initialized`), so a count
+ *     left odd would stay odd. A writer that adds one blindly (the Ângulo's frame record does, in uaPintar( )) then turns
+ *     the parity around for good: the count is odd between publishes, when every read says "busy", and even in the
+ *     middle of one, when a read is trusted that should not be. open( ) makes the next count odd whatever it found, in
+ *     ONE store (an even count written first would let a reader trust data a dead writer left half-copied), and drops
+ *     `blitted`: the dead publish may have been a frame, whose cells are then half of two frames, and the reader says
+ *     "no frame" until the next blit( ) rewrites all thirty-two of them.
  *   - One snapshot for the cells and the glyphs: a glyph is replaced on its own (the link's, slot 7, at the top of
  *     every pass of the loop) and a frame is blitted on its own, and the glass shows each as soon as it is written, so
  *     the shadow publishes each as soon as it is written, with the same counter. A reader gets a frame with the
@@ -31,10 +32,11 @@
  *     the controller does not have yet (the twin test holds the shadow still during every bus write).
  *
  * Memory order. The counter is volatile, the data are plain, and the barrier between them is the fence the SDK's
- * __dmb( ) is (`dmb ish` on the Cortex-M0+ and the M33, read from the disassembly of the alpha image on 2026-11-04):
- * the writer fences after the odd count and before the even one, the reader after its first look at the counter and
- * before its second. __atomic_thread_fence( ) is used here, and not the SDK's, because this header is also compiled on
- * the host by the fake LCD (test/native_stubs/FakeHd44780.h), which holds it to the same tests.
+ * __dmb( ) is: the writer fences after the odd count and before the even one, the reader after its first look at the
+ * count and before its second. __atomic_thread_fence( ) is used here, and not the SDK's, because this header is also
+ * compiled on the host by the fake LCD (test/native_stubs/FakeHd44780.h), which holds it to the same tests. It is
+ * `dmb ish` on the Cortex-M0+ (read from the disassembly of the pico_wire image, 2026-11-04) and, with the same GCC
+ * 14.3, on the M33 of the RP2350 (compiled on a copy of the writer: the alpha images are RP2040 builds).
  *
  * The probes. Every function that stores or copies takes an optional probe, and calls storeDone( ) after each store
  * the other core could observe and copyStep( ) after each byte the reader copies. The default does nothing and
@@ -75,11 +77,15 @@ struct LcdGlassShadow {
 	static constexpr uint32_t kReadLimitUs = 2000;
 	static constexpr uint32_t kReadStepUs  = 20;
 
-	volatile uint32_t seq = 0;   /**< even: the shadow is whole; odd: Core 1 is writing it (or died writing it) */
-	uint8_t  ddram[2][16] = {};
-	uint8_t  cgram[8][8]  = {};
-	uint32_t blitMs  = 0;
-	bool     blitted = false;    /**< a frame has been blitted since the shadow was last whole-by-construction (the start, or a publish that died) */
+	/* No initializers, on purpose: the state at the start is all zero, which a static gets from the loader. The driver's `_lcd` is a static,
+	 * and `DisplayManager::_driver`, an alpha driver nothing reads, is a member of a class that is built once: an initializer here made
+	 * both construct the shadow, +160 B in DisplayManager::DisplayManager( ) and +48 B in the static initializer of the unit (the pico_wire
+	 * image, 2026-11-04). An instance that is not static is value-initialized by whoever makes it: `LcdGlassShadow s{}`. */
+	volatile uint32_t seq;   /**< even: the shadow is whole; odd: Core 1 is writing it (or died writing it) */
+	uint8_t  ddram[2][16];
+	uint8_t  cgram[8][8];
+	uint32_t blitMs;         /**< millis( ) of the last blit( ) */
+	bool     blitted;        /**< a frame has been blitted since the start, or since the last publish that died (open( ) clears it) */
 
 	/* ── Core 1: the writer ─────────────────────────────────────────── */
 
@@ -142,8 +148,8 @@ struct LcdGlassShadow {
 	}
 
 private:
-	/** A full barrier: `dmb ish` on the RP2040 and the RP2350, a fence on the host. */
-	static void fence( ) { __atomic_thread_fence(__ATOMIC_SEQ_CST); }
+	/** A full barrier: `dmb ish` on the RP2040 and the RP2350, a fence on the host. Inlined: out of line, at -Os, GCC made it a 6 B function that every publish called (the pico_wire image, 2026-11-04). */
+	static inline __attribute__((always_inline)) void fence( ) { __atomic_thread_fence(__ATOMIC_SEQ_CST); }
 
 	/** The count goes odd and stays odd until close( ). From an odd count (the previous writer died inside a publish) it goes
 	 *  to the odd number after the next even one, in the same store; the shadow it left may be half of two frames. */
