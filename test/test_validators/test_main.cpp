@@ -48,6 +48,12 @@ void test_alpha_glass_writer_killed_at_any_store_never_leaves_a_torn_frame_visib
 void test_alpha_glass_reader_gives_up_within_its_limit(void);
 void test_alpha_glass_reader_waits_out_a_publish_that_ends_within_its_limit(void);
 void test_alpha_glass_fake_lcd_publishes_at_the_blit_not_at_the_composition(void);
+void test_alpha_glass_json_exact_text_for_a_known_glass(void);   /* alpha_glass_json.cpp: the glass as the JSON of GET /api/lcd and of lcd.py --quadro (display/LcdGlassJson.h) */
+void test_alpha_glass_json_of_a_fake_lcd_after_a_glyph_and_a_blit(void);
+void test_alpha_glass_json_cap_of_length_plus_one_fits_and_length_does_not(void);
+void test_alpha_glass_json_null_buffer_and_zero_cap_write_nothing(void);
+void test_alpha_glass_json_age_is_unsigned_across_the_wrap(void);
+void test_alpha_glass_json_equals_a_reference_at_every_digit_count_and_on_random_glasses(void);
 #include "TelemetryCursor.h"  /* what the telemetry cursor may advance to */
 #include "TelemetryPosition.h" /* the cursor as a write position (A-04) */
 #include <algorithm>
@@ -6302,6 +6308,12 @@ int main(int /*argc*/, char** /*argv*/) {
     RUN_TEST(test_alpha_glass_reader_gives_up_within_its_limit);
     RUN_TEST(test_alpha_glass_reader_waits_out_a_publish_that_ends_within_its_limit);
     RUN_TEST(test_alpha_glass_fake_lcd_publishes_at_the_blit_not_at_the_composition);
+    RUN_TEST(test_alpha_glass_json_exact_text_for_a_known_glass);
+    RUN_TEST(test_alpha_glass_json_of_a_fake_lcd_after_a_glyph_and_a_blit);
+    RUN_TEST(test_alpha_glass_json_cap_of_length_plus_one_fits_and_length_does_not);
+    RUN_TEST(test_alpha_glass_json_null_buffer_and_zero_cap_write_nothing);
+    RUN_TEST(test_alpha_glass_json_age_is_unsigned_across_the_wrap);
+    RUN_TEST(test_alpha_glass_json_equals_a_reference_at_every_digit_count_and_on_random_glasses);
     RUN_TEST(test_tel_cursor_stops_at_what_the_payload_kept);
     RUN_TEST(test_tel_cursor_nothing_delivered_keeps_the_floor);
     RUN_TEST(test_tel_cursor_takes_the_newest_and_clamps_the_future);
