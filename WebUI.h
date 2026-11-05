@@ -395,7 +395,8 @@ static const char DASH_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
            when the canvas is shown smaller than its 639 px (a phone): a nearest-neighbour shrink drops the 1 px gaps of the grid unevenly, which the manual's figures
            showed on 2026-11-04. The colours of the glass are the canvas's own, not the interface's. */
         #lcdv { display: none; image-rendering: pixelated; border: 0; }
-        #lcdStat { margin-top: 8px; font-size: 12px; line-height: 16px; color: var(--tinta-2); min-height: 16px; }
+        /* The age is plain text, rewritten at every answer. #lcdStat is the live region: only the state words go there (busy, a failed read, stopped, stale), and it takes no room while it is empty. */
+        #lcdAge { margin-top: 8px; font-size: 12px; line-height: 16px; color: var(--tinta-2); min-height: 16px; }
         #lcdStat.faixa { margin: 8px 0 0; font-size: 14px; line-height: 20px; align-self: stretch; }
         /* No dark veil: a nearly opaque surface reads in both themes. */
         #lcdOverlay { display: none; position: absolute; inset: 0; align-items: center; justify-content: center; border-radius: 6px; background: var(--superficie); opacity: 0.92; color: var(--tinta-2); font-size: 14px; }
@@ -499,6 +500,7 @@ static const char DASH_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                         <canvas id="lcdv" class="shot" width="639" height="137"></canvas>
                         <div id="lcdOverlay"><span data-i18n="dash_disp_cap">Capturing Display...</span></div>
                     </div>
+                    <div id="lcdAge"></div>
                     <div id="lcdStat" role="status"></div>
                     <div class="tools">
                         <button id="lcdCap" class="sxb" onclick="lcdCapture()"><svg class="ic"><use href="#i-cam"/></svg><span data-i18n="dash_disp_btn">Capture screen</span></button>
@@ -1058,16 +1060,21 @@ static const char DASH_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
         const LCD_PERIOD_MS = 250, LCD_HIDDEN_MS = 1000, LCD_BUSY_MS = 1500, LCD_RETRY_MS = 1000, LCD_STALE_MS = 2000, LCD_TIMEOUT_MS = 5000;
         /* Three failures in a row stop the view. One is a lost packet or a request that met a flash write; two can still be a device that just restarted or a Wi-Fi
            hand-over; three, about 2 s of asking at 1 s apart (requests at 0, 1.0 and 2.0 s, the test's own case), is not going to mend by itself (it is off, the cable is out, an update removed the route), and an
-           unattended tab must not keep a single-threaded server busy for nothing: the view stops and says so. A 401 or a 403 will not mend either: it stops at once. */
+           unattended tab must not keep a single-threaded server busy for nothing: the view stops and says so. A 401 or a 403 will not mend either: it stops at once.
+           Only a frame resets the count: a 503 neither counts nor resets it (the device answered, so it is not a failure, and it is no frame either), so a device that alternates 500 and 503 still
+           stops at the third 500. A device that answers 503 for ever is asked once a second, the Retry-After, which is lighter than the live view's own 4 Hz; that case is accepted. */
         const LCD_FAILS_MAX = 3;
         /* lcdReq: 0 nothing out, 1 a Live view request, 2 a Capture request. */
         let lcdOn = false, lcdReq = 0, lcdTimer = null, lcdSeq = -1, lcdFails = 0, lcdGlyphs = null;
         function lcdEl(id) { return document.getElementById(id); }
-        /* kind: '' for plain text, 'alerta' (busy, stale) or 'perigo' (a failed read) for the faixa classes of the shared sheet. */
+        /* The frame's age: plain text in an element with no live role, written at every answer, so a screen reader does not read "0.35 s" four times a second. */
+        function lcdAgeSet(text) { lcdEl('lcdAge').textContent = text; }
+        /* The state words, in the live region, and only when they change (a screen reader reads a live region when it is written). kind: '' for none, 'alerta' (busy, stale) or
+           'perigo' (a failed read) for the faixa classes of the shared sheet. */
         function lcdSay(text, kind) {
-            const e = lcdEl('lcdStat');
-            e.textContent = text;
-            e.className = kind ? 'faixa faixa-' + kind : '';
+            const e = lcdEl('lcdStat'), cls = kind ? 'faixa faixa-' + kind : '';
+            if (e.textContent !== text) e.textContent = text;
+            if (e.className !== cls) e.className = cls;
         }
         function lcdWait(on) { lcdEl('lcdOverlay').style.display = on ? 'flex' : 'none'; }
         function lcdUi() {
@@ -1090,12 +1097,19 @@ static const char DASH_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
             cv.style.display = 'block';
             lcdFit();
         }
-        /* The frame's age in seconds, from age_ms, and whether it is stale; nothing when the answer has none. */
+        /* The frame's age in seconds, from age_ms, and whether it is stale (the stale words are the live region's); nothing when the answer has none. */
         function lcdAge(d) {
             const ms = d && d.age_ms;
             if (typeof ms !== 'number' || !isFinite(ms) || ms < 0) return { text: '', stale: false };
             const stale = ms > LCD_STALE_MS;
-            return { text: (ms / 1000).toFixed(2) + ' s' + (stale ? ' \u00b7 ' + window.t('dash_disp_stale', 'stale') : ''), stale: stale };
+            return { text: (ms / 1000).toFixed(2) + ' s', stale: stale };
+        }
+        /* The body of an answer. fetchSafe( ) clears its timer when the headers arrive, so a body that stalls would leave lcdReq at 1 for ever (Stop would work, Start would do nothing and
+           Capture would stay disabled until a reload): the read is raced against the same timeout, and losing is one failed read. */
+        async function lcdBody(r) {
+            let tm;
+            const lost = new Promise((ok, no) => { tm = setTimeout(() => no(new Error('lcd: body')), LCD_TIMEOUT_MS); });
+            try { return await Promise.race([r.json(), lost]); } finally { clearTimeout(tm); }
         }
         /* One request: {k: 'frame', d}, {k: 'busy', wait} (503: the device is rendering or has no frame yet; wait is the Retry-After in ms), {k: 'denied', status}
            (401, 403) or {k: 'fail', status} (a network error, a 5xx that fetchSafe( ) throws, any other status, an answer that is not JSON: status 0 or the code). */
@@ -1108,13 +1122,13 @@ static const char DASH_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                 }
                 if (r.status === 401 || r.status === 403) return { k: 'denied', status: r.status };
                 if (!r.ok) return { k: 'fail', status: r.status };
-                return { k: 'frame', d: await r.json() };
+                return { k: 'frame', d: await lcdBody(r) };
             } catch (e) { return { k: 'fail', status: 0 }; }
         }
-        /* What the loop does after an answer: the wait before the next request (ms), the failures in a row, whether to stop. */
+        /* What the loop does after an answer: the wait before the next request (ms), the failures in a row, whether to stop. Only a frame resets the count. */
         function lcdNext(res, took, fails) {
             if (res.k === 'frame') return { wait: Math.max(0, LCD_PERIOD_MS - took), fails: 0, stop: false };
-            if (res.k === 'busy') return { wait: res.wait, fails: 0, stop: false };
+            if (res.k === 'busy') return { wait: res.wait, fails: fails, stop: false };
             if (res.k === 'denied') return { wait: 0, fails: fails + 1, stop: true };
             return { wait: LCD_RETRY_MS, fails: fails + 1, stop: fails + 1 >= LCD_FAILS_MAX };
         }
@@ -1126,11 +1140,13 @@ static const char DASH_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                     if (!(typeof res.d.seq === 'number' && res.d.seq === lcdSeq)) lcdShow(res.d);
                     lcdSeq = typeof res.d.seq === 'number' ? res.d.seq : -1;
                     const a = lcdAge(res.d);
-                    lcdSay(a.text, a.stale ? 'alerta' : '');
+                    lcdAgeSet(a.text);
+                    lcdSay(a.stale ? window.t('dash_disp_stale', 'Stale frame') : '', a.stale ? 'alerta' : '');
                     return res;
                 } catch (e) { res = { k: 'fail', status: 0 }; }
             }
             lcdSeq = -1;
+            lcdAgeSet('');
             if (res.k === 'busy') lcdSay(window.t('display_busy', 'Display in use. Try again shortly.'), 'alerta');
             else lcdSay(window.t('dash_disp_err', 'Read Failed') + (res.status ? ' (' + res.status + ')' : ''), 'perigo');
             return res;
@@ -1162,13 +1178,13 @@ static const char DASH_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
             if (lcdTimer) { clearTimeout(lcdTimer); lcdTimer = null; }
             lcdWait(false);
             lcdUi();
-            if (text) lcdSay(text, '');
+            if (text) { lcdAgeSet(''); lcdSay(text, ''); }
         }
         function lcdToggle() {
             if (lcdOn) { lcdStopLive(window.t('dash_disp_stopped', 'Live view stopped')); return; }
             if (lcdReq === 2) return;
             lcdOn = true; lcdFails = 0; lcdSeq = -1;
-            lcdSay('', '');
+            lcdSay('', ''); lcdAgeSet('');
             lcdWait(lcdEl('lcdv').style.display !== 'block');
             lcdUi();
             /* A request of a view stopped a moment ago may still be out: its tick carries on when it ends (lcdOn is true again), and a second one must not start. */
@@ -1177,7 +1193,7 @@ static const char DASH_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
         async function lcdCapture() {
             if (lcdOn || lcdReq > 0) return;
             lcdReq = 2;
-            lcdSay('', '');
+            lcdSay('', ''); lcdAgeSet('');
             lcdWait(lcdEl('lcdv').style.display !== 'block');
             lcdUi();
             const res = await lcdGet();

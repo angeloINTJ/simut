@@ -5,32 +5,39 @@ test_lcd_js.py holds the renderer (the font and the pure part) to lcd.py. This h
 WebUI.h: the box that captures the glass once or shows it live, as the release's "Display Capture" box does for the TFT.
 
 WHAT NODE CANNOT SEE, read off the source (B checks): the three blocks (CSS, markup, JS) are there and inside `@IF lcd`; the canvas is the size of
-lcdSize( ) (639 x 137); every id the JS asks for is in the markup; the status line is a live region; the two labels of the live button are two
+lcdSize( ) (639 x 137: lcd.tamanho( ), which needs Pillow); every id the JS asks for is in the markup; the state words are a live region (role="status") and
+the frame's age is NOT (an element with no live role: a screen reader must not read "0.35 s" four times a second); the two labels of the live button are two
 spans, each with its own data-i18n, so that applyLang( ) keeps the right one when the language changes with the view running; the CSS has no literal
-colour and keeps to the grid of 4 px; every word the box uses is in both language packs, the keys the briefing names with the pt-BR texts it quotes,
-the new ones in both; GET /api/lcd is named in no other place of the page.
+colour and keeps to the grid of 4 px; every word the box uses is in both language packs, the keys the briefing names with the pt-BR texts it quotes, the
+new ones in both; GET /api/lcd is named in no other place of the page.
 
 THE LOOP, run under node on a fake world (a virtual clock whose timers the test fires in order, a fake fetchSafe( ) that is scripted answer by answer
-and counts the requests in flight, and a fake DOM of the nine elements): the page's own functions, as written and as the build's minifier leaves them.
-The cases are the rules the box must keep, with the bench's numbers (Pico W with the LCD, 2026-11-04: 240 of 240 answers at 4 Hz, 13 ms the median, a
-new frame every 500 ms, age_ms at most 501):
-  s1  live view asks every 250 ms (start to start), one request at a time, and draws only when seq changes;
+and counts the requests in flight, and a fake DOM of the ten elements, in which every write to the live region is counted): the page's own functions,
+as written and as the build's minifier leaves them. The cases are the rules the box must keep, with the bench's numbers (Pico W with the LCD,
+2026-11-04: 240 of 240 answers at 4 Hz, 13 ms the median, a new frame every 500 ms, age_ms at most 501):
+  s1  live view asks every 250 ms (start to start), one request at a time, draws only when seq changes, writes the age (a plain element) at every answer and
+      never writes the live region while the state stays the same;
   s2  a request that takes longer than the period is followed at once, never overlapped;
   s3  a hidden tab sends nothing and looks again every second, and goes on when it is shown;
   s4  503: the busy words, the canvas kept, the next request after the Retry-After counted from the answer (1500 ms without the header, 10 s at most);
   s5  401 and 403 stop the view at once, with the failed-read words and the code;
   s6  three failures in a row stop it (a network error, a 500, a 404 and an answer that is not a glass all count), two do not, and a good frame resets the count;
-  s7  a frame older than 2000 ms is marked stale, exactly 2000 is not;
+  s7  a frame older than 2000 ms is marked stale (in the live region; the age itself is in the plain element), exactly 2000 is not;
   s8  Capture is one GET and one draw, disabled while it is out or while the view is live, and says busy and failed reads;
   s9  Stop clears the timer, says it, keeps the last frame, discards the answer that was still out, and a quick stop and start never overlaps two requests;
   s10 after a failure the next frame is drawn whatever its seq (the device may have restarted);
-  s11 the first frame shows the loading overlay until it arrives; the states of the buttons; the canvas is smoothed when it is shown smaller than its pixels.
-And 12 copies of the JS, each broken one way (the period, the hidden tab, the seq test, the Retry-After, the stop on 401/403, the count of failures
-two ways, the stale limit, a request started before the last ended, the answer drawn after Stop, the seq reset, the button state), must each fail a case.
+  s11 the first frame shows the loading overlay until it arrives; the states of the buttons; the canvas is smoothed when it is shown smaller than its pixels;
+  s12 only a frame resets the count of failures: a device that alternates 500 and 503 stops at the third 500, and one that answers 503 for ever is asked once a
+      second and the view stays on (accepted: lighter than the live view's own 4 Hz);
+  s13 the body of an answer has no timeout of fetchSafe( ) (it clears its timer when the headers arrive): a json( ) that never settles is one failure after 5 s and
+      puts the request flag back, so the view can be started again and Capture is enabled again.
+And 16 copies of the JS, each broken one way, must each fail a case: the period; the hidden tab two ways (it sends, it looks again after 250 ms); the seq test; the
+Retry-After; the stop on 401 and 403; the count of failures two ways (never, one); a 503 that resets the count; the stale limit; a request started before the last
+ended; the answer drawn after Stop; the seq reset after a failure; the button state; the body read with no timeout; the body timer not cleared.
 
   python3 tools/lcd_alpha/test_lcd_box.py
 
-Exit 0 when every check holds, 1 when one fails, 2 when it cannot run (node absent). Python 3.11 and later.
+Exit 0 when every check holds, 1 when one fails, 2 when it cannot run (node or Pillow absent). Python 3.11 and later.
 """
 import functools
 import json
@@ -55,7 +62,7 @@ FONT_END = '/* @LCD_FONT_END */'
 PURE_BEGIN, PURE_END = '/* lcd: the pure part of the renderer */', '/* lcd: end of the pure part */'
 BOX_BEGIN, BOX_END = '/* lcd: the box */', '/* lcd: end of the box */'
 
-IDS = ['lcdView', 'lcdPlaceholder', 'lcdv', 'lcdOverlay', 'lcdStat', 'lcdCap', 'lcdLive', 'lcdLiveLbl', 'lcdStopLbl']
+IDS = ['lcdView', 'lcdPlaceholder', 'lcdv', 'lcdOverlay', 'lcdAge', 'lcdStat', 'lcdCap', 'lcdLive', 'lcdLiveLbl', 'lcdStopLbl']
 # The keys the briefing names, with the pt-BR texts it quotes: reused as they are.
 REUSED = {'dash_disp': 'Tela', 'dash_disp_msg': 'Clique para capturar', 'dash_disp_btn': 'Capturar', 'dash_disp_live': 'Ao vivo', 'dash_disp_stop': 'Parar',
           'dash_disp_err': 'Falha na leitura', 'dash_disp_cap': 'Capturando...', 'display_busy': 'Display em uso. Tente novamente em alguns segundos.'}
@@ -128,10 +135,13 @@ def fiacao(src):
             f'B2 the canvas is {w} x {h}, the size of the image lcd.py draws and lcdSize( ) computes', m.group(0) if m else 'no canvas')
     ids_html = set(re.findall(r'\bid="([\w-]+)"', html))
     ids_js = set(re.findall(r"(?:getElementById|lcdEl)\(\s*'([\w-]+)'\s*\)", js))
-    confere(set(IDS) <= ids_html and ids_js <= ids_html, 'B3 every id the JS asks for is in the markup, and the markup has the nine of the harness',
+    confere(set(IDS) <= ids_html and ids_js <= ids_html, 'B3 every id the JS asks for is in the markup, and the markup has the ten of the harness',
             f'missing from the markup: {sorted((ids_js | set(IDS)) - ids_html)}')
     confere(re.search(r'<div\b[^>]*\bid="lcdStat"[^>]*\brole="status"', html) is not None or re.search(r'<div\b[^>]*\brole="status"[^>]*\bid="lcdStat"', html) is not None,
-            'B4 the status line is a live region (role="status"): a screen reader hears the state change')
+            'B4 the state words are a live region (role="status"): a screen reader hears a state change')
+    age = re.search(r'<[a-z]+\b[^>]*\bid="lcdAge"[^>]*>', html)
+    confere(age is not None and not re.search(r'\brole=|\baria-live=', age.group(0)),
+            'B4b the frame\'s age is an element with no live role and no aria-live: it is rewritten four times a second and must not be read each time', age.group(0) if age else 'no #lcdAge')
     lv = re.search(r'<span\b[^>]*\bid="lcdLiveLbl"[^>]*>', html)
     st = re.search(r'<span\b[^>]*\bid="lcdStopLbl"[^>]*>', html)
     confere(lv is not None and st is not None and 'data-i18n="dash_disp_live"' in lv.group(0) and 'data-i18n="dash_disp_stop"' in st.group(0) and ' hidden' in st.group(0),
@@ -149,7 +159,7 @@ def fiacao(src):
     faltam = [k for k in sorted(chaves) if k not in pt or k not in es]
     confere(not faltam, 'B9 every word of the box is in the @WEBDICT of both packs', ', '.join(faltam))
     errados = [f'{k}: {pt.get(k)!r}' for k, v in REUSED.items() if pt.get(k) != v]
-    confere(not errados and set(REUSED) <= chaves | {'dash_disp'} , 'B10 the keys the briefing names are reused with their pt-BR texts (no copy under another name)', '; '.join(errados))
+    confere(not errados and set(REUSED) <= chaves | {'dash_disp'}, 'B10 the keys the briefing names are reused with their pt-BR texts (no copy under another name)', '; '.join(errados))
     novos = [k for k in NEW if not (pt.get(k) and es.get(k) and pt[k] != es[k])]
     confere(set(NEW) <= chaves and not novos, 'B11 the two new keys (stopped, stale) are used and have a text in each pack', ', '.join(novos))
     resto = src.replace(js, '').replace(html, '')
@@ -166,13 +176,18 @@ function frame(seq, age) {
 }
 function world() {
     let clock = 0, nextId = 1, timers = [], inflight = 0;
-    const W = { log: [], maxInflight: 0, script: { fn: null }, listeners: {} };
+    const W = { log: [], maxInflight: 0, script: { fn: null }, listeners: {}, writes: { statText: 0, statClass: 0, ageTexts: [] } };
     const ctx = { puts: 0, last: null, createImageData: function (w, h) { return { width: w, height: h, data: new Uint8ClampedArray(w * h * 4) }; },
                   putImageData: function (img) { this.puts++; this.last = img; } };
     const els = {};
-    ['lcdView', 'lcdPlaceholder', 'lcdv', 'lcdOverlay', 'lcdStat', 'lcdCap', 'lcdLive', 'lcdLiveLbl', 'lcdStopLbl'].forEach(function (id) {
+    ['lcdView', 'lcdPlaceholder', 'lcdv', 'lcdOverlay', 'lcdAge', 'lcdStat', 'lcdCap', 'lcdLive', 'lcdLiveLbl', 'lcdStopLbl'].forEach(function (id) {
         els[id] = { id: id, style: {}, hidden: false, disabled: false, textContent: '', className: '', clientWidth: 639, width: 639, height: 137, getContext: function () { return ctx; } };
     });
+    // The live region: every write of its text or its class is counted (a screen reader reads a live region when it is written). The age: the texts it was given, in order.
+    let statText = '', statClass = '', ageText = '';
+    Object.defineProperty(els.lcdStat, 'textContent', { get: function () { return statText; }, set: function (v) { statText = String(v); W.writes.statText++; } });
+    Object.defineProperty(els.lcdStat, 'className', { get: function () { return statClass; }, set: function (v) { statClass = String(v); W.writes.statClass++; } });
+    Object.defineProperty(els.lcdAge, 'textContent', { get: function () { return ageText; }, set: function (v) { ageText = String(v); W.writes.ageTexts.push(ageText); } });
     els.lcdStopLbl.hidden = true;
     els.lcdv.style.display = 'none';
     W.els = els; W.ctx = ctx;
@@ -197,7 +212,8 @@ function world() {
                 if (spec.throws || (spec.status >= 500 && spec.status !== 503)) { reject(new Error('Server error')); return; }
                 resolve({ status: spec.status, ok: spec.status >= 200 && spec.status < 300,
                           headers: { get: function (k) { return (spec.headers && spec.headers[k] !== undefined) ? spec.headers[k] : null; } },
-                          json: function () { return spec.badJson ? Promise.reject(new SyntaxError('bad json')) : Promise.resolve(JSON.parse(JSON.stringify(spec.body))); } });
+                          // hangJson: the headers came and the body never does (fetchSafe( ) has cleared its timer by then)
+                          json: function () { return spec.hangJson ? new Promise(function () {}) : spec.badJson ? Promise.reject(new SyntaxError('bad json')) : Promise.resolve(JSON.parse(JSON.stringify(spec.body))); } });
             }, spec.latency === undefined ? 13 : spec.latency);
         });
     };
@@ -221,6 +237,8 @@ function load(W) {
     return new Function('document', 'window', 'fetchSafe', 'setTimeout', 'clearTimeout', 'performance', body)(W.document, W.window, W.fetchSafe, W.setTimeout, W.clearTimeout, W.performance);
 }
 function same(a, b) { return JSON.stringify(a) === JSON.stringify(b); }
+// a promise the case waits for without hanging on it: a broken box that never settles one is a finding, not a silent end of the run
+function done(p) { return Promise.race([p, new Promise(function (r) { setImmediate(r); })]); }
 function range(n, step, from) { const o = []; for (let i = 0; i < n; i++) o.push((from || 0) + i * step); return o; }
 const BUSY = { status: 503, headers: { 'Retry-After': '1' }, body: { error: 'LCD busy. Retry shortly.' } };
 const NONE = { status: 503, headers: { 'Retry-After': '1' }, body: { error: 'No frame on the LCD yet.' } };
@@ -228,7 +246,7 @@ const OK = function (seq, age) { return { status: 200, body: frame(seq, age === 
 
 const S = {};
 S.s1 = async function (W, A, f) {
-    W.script.fn = function (i) { return OK(2 * Math.floor(i / 2), 100); };   // a new frame every second request, as the 500 ms module under 250 ms polls
+    W.script.fn = function (i) { return OK(2 * Math.floor(i / 2), 100 + 10 * i); };   // a new frame every second request, as the 500 ms module under 250 ms polls; the age moves
     A.toggle(); await W.advance(5000);
     if (!same(W.starts().slice(0, 21), range(21, 250))) f('the requests did not start 250 ms apart: ' + W.starts().slice(0, 8));
     if (W.log.length !== 21) f(W.log.length + ' requests in 5 s, wanted 21');
@@ -238,8 +256,12 @@ S.s1 = async function (W, A, f) {
     if (W.log[0].url !== '/api/lcd') f('asked for ' + W.log[0].url);
     if (W.log[0].opts.retries !== 0) f('fetchSafe( ) was allowed to retry: the loop is the retry');
     if (!(W.log[0].opts.timeout > 0 && W.log[0].opts.timeout <= 10000)) f('no sane timeout on the request: ' + W.log[0].opts.timeout);
-    if (W.els.lcdStat.textContent !== '0.10 s') f('the status line reads ' + JSON.stringify(W.els.lcdStat.textContent) + ', wanted the frame\'s age, "0.10 s"');
-    if (W.els.lcdStat.className !== '') f('a fresh frame is not a warning: ' + W.els.lcdStat.className);
+    if (W.els.lcdAge.textContent !== '0.29 s') f('the age element reads ' + JSON.stringify(W.els.lcdAge.textContent) + ', wanted the last frame\'s age, "0.29 s"');
+    const ages = W.writes.ageTexts.filter(function (x) { return x !== ''; });
+    if (new Set(ages).size < 15) f('the age element was written ' + ages.length + ' times with ' + new Set(ages).size + ' different texts: it must follow every answer');
+    // the live region: the state does not change in a fresh live run, so nothing is written to it (a screen reader would read each write)
+    if (W.writes.statText !== 0 || W.writes.statClass !== 0) f('the live region was written ' + W.writes.statText + ' times (text) and ' + W.writes.statClass + ' (class) while the state stayed the same');
+    if (W.els.lcdStat.textContent !== '' || W.els.lcdStat.className !== '') f('a fresh frame is not a state to announce: ' + JSON.stringify(W.els.lcdStat.textContent) + ' / ' + W.els.lcdStat.className);
     if (!A.on) f('the view stopped by itself');
     if (W.pending() !== 1) f(W.pending() + ' timers pending, wanted one, the request in flight');
 };
@@ -266,6 +288,7 @@ S.s4 = async function (W, A, f) {
     A.toggle(); await W.advance(400);
     if (W.els.lcdStat.textContent !== 'T[display_busy]') f('a 503 shows ' + JSON.stringify(W.els.lcdStat.textContent) + ', wanted the busy words');
     if (W.els.lcdStat.className.indexOf('faixa-alerta') < 0) f('busy is a warning, not an error: ' + JSON.stringify(W.els.lcdStat.className));
+    if (W.els.lcdAge.textContent !== '') f('the age of a frame that is not the latest must not stay on while the device is busy: ' + JSON.stringify(W.els.lcdAge.textContent));
     if (W.ctx.puts !== 1 || W.els.lcdv.style.display !== 'block') f('the last frame must stay on the canvas while the device is busy');
     await W.advance(3000);
     // request 0 at 0, 503 at 250 (answered 263): the next 1000 ms after the answer; then ok at 1263 (1276), the next 250 ms after its start, 1513 = NONE (answered 1526)...
@@ -274,6 +297,7 @@ S.s4 = async function (W, A, f) {
     if (s[3] !== 1513) f('a good frame after a busy one is followed 250 ms after its start: ' + s[3] + ', wanted 1513');
     if (s[4] !== 2526) f('the "no frame yet" 503 is the same wait: ' + s[4] + ', wanted 2526');
     if (!A.on) f('busy must not stop the view');
+    if (W.els.lcdStat.textContent !== '' || W.els.lcdAge.textContent === '') f('after the busy answers a good frame clears the words and shows its age: ' + JSON.stringify(W.els.lcdStat.textContent) + ' / ' + JSON.stringify(W.els.lcdAge.textContent));
     // without a header: 1500; a header of 99 s is held to 10 s; 0 and a date are not trusted
     for (const [hdr, want] of [[undefined, 1500], ['99', 10000], ['0', 1500], ['Wed, 21 Oct 2026 07:28:00 GMT', 1500], ['2', 2000]]) {
         const W2 = world(), A2 = load(W2);
@@ -317,42 +341,42 @@ S.s7 = async function (W, A, f) {
         const W2 = world(), A2 = load(W2);
         W2.script.fn = function () { return OK(2, age); };
         A2.toggle(); await W2.advance(20);
+        if (W2.els.lcdAge.textContent !== (age / 1000).toFixed(2) + ' s') f('age ' + age + ' reads ' + JSON.stringify(W2.els.lcdAge.textContent) + ' in the age element');
         const t = W2.els.lcdStat.textContent;
-        if (t.indexOf((age / 1000).toFixed(2) + ' s') !== 0) f('age ' + age + ' reads ' + JSON.stringify(t));
-        if ((t.indexOf('T[dash_disp_stale]') >= 0) !== stale) f('age ' + age + ': stale should be ' + stale + ', the line reads ' + JSON.stringify(t));
+        if (t !== (stale ? 'T[dash_disp_stale]' : '')) f('age ' + age + ': the live region should say ' + (stale ? 'the stale words' : 'nothing') + ', it reads ' + JSON.stringify(t));
         if ((W2.els.lcdStat.className.indexOf('faixa-alerta') >= 0) !== stale) f('age ' + age + ': the warning tone should be ' + stale + ': ' + JSON.stringify(W2.els.lcdStat.className));
     }
     const W3 = world(), A3 = load(W3);
     W3.script.fn = function () { return { status: 200, body: { linhas: ['20'.repeat(16), '20'.repeat(16)], cgram: Array.from({ length: 8 }, function () { return '00'.repeat(8); }), seq: 2 } }; };
     A3.toggle(); await W3.advance(20);
-    if (W3.ctx.puts !== 1 || W3.els.lcdStat.textContent !== '') f('a frame without age_ms is drawn and says nothing about its age: ' + JSON.stringify(W3.els.lcdStat.textContent));
+    if (W3.ctx.puts !== 1 || W3.els.lcdAge.textContent !== '' || W3.els.lcdStat.textContent !== '') f('a frame without age_ms is drawn and says nothing about its age: ' + JSON.stringify(W3.els.lcdAge.textContent));
 };
 S.s8 = async function (W, A, f) {
     W.script.fn = function () { return { status: 200, body: frame(8, 300), latency: 50 }; };
     const p = A.capture(); await W.advance(10);
     if (!W.els.lcdCap.disabled) f('Capture is not disabled while its request is out');
     if (W.els.lcdOverlay.style.display !== 'flex') f('no loading overlay while the first capture is out');
-    await W.advance(1000); await p;
+    await W.advance(1000); await done(p);
     if (W.log.length !== 1 || W.ctx.puts !== 1) f('a capture is one GET and one draw: ' + W.log.length + ' GETs, ' + W.ctx.puts + ' draws');
     if (W.els.lcdCap.disabled || W.els.lcdOverlay.style.display !== 'none') f('Capture did not come back to idle');
-    if (W.els.lcdStat.textContent !== '0.30 s') f('the capture says ' + JSON.stringify(W.els.lcdStat.textContent));
+    if (W.els.lcdAge.textContent !== '0.30 s') f('the capture says ' + JSON.stringify(W.els.lcdAge.textContent) + ' in the age element');
     if (W.els.lcdv.style.display !== 'block' || W.els.lcdPlaceholder.style.display !== 'none') f('the canvas is not shown in place of the placeholder');
-    if (W.pending() !== 0 || A.on) f('a capture left a timer or a loop behind');
+    if (W.pending() !== 0 || A.on) f('a capture left a timer or a loop behind: ' + W.pending() + ' timers');
     await W.advance(5000);
     if (W.log.length !== 1) f('a capture went on asking: ' + W.log.length);
     for (const [spec, want, tone] of [[BUSY, 'T[display_busy]', 'faixa-alerta'], [{ throws: true }, 'T[dash_disp_err]', 'faixa-perigo'], [{ status: 403, body: {} }, 'T[dash_disp_err] (403)', 'faixa-perigo'],
                                        [{ status: 200, body: { linhas: [], cgram: [] } }, 'T[dash_disp_err]', 'faixa-perigo']]) {
         const W2 = world(), A2 = load(W2);
         W2.script.fn = function () { return spec; };
-        const p2 = A2.capture(); await W2.advance(3000); await p2;
+        const p2 = A2.capture(); await W2.advance(3000); await done(p2);
         if (W2.els.lcdStat.textContent !== want || W2.els.lcdStat.className.indexOf(tone) < 0) f('a capture answered ' + (spec.throws ? 'by a network error' : spec.status) + ' says ' + JSON.stringify(W2.els.lcdStat.textContent) + ' / ' + W2.els.lcdStat.className + ', wanted ' + want);
-        if (W2.log.length !== 1 || W2.pending() !== 0) f('a capture must not retry: ' + W2.log.length + ' requests');
+        if (W2.log.length !== 1 || W2.pending() !== 0) f('a capture must not retry: ' + W2.log.length + ' requests, ' + W2.pending() + ' timers');
         if (W2.els.lcdCap.disabled) f('Capture stayed disabled after ' + want);
     }
     const W3 = world(), A3 = load(W3);
     A3.toggle(); await W3.advance(600);
     const n = W3.log.length;
-    await A3.capture();
+    await done(A3.capture());
     if (W3.maxInflight !== 1 || !A3.on) f('Capture while the view is live must change nothing (the button is disabled): inflight ' + W3.maxInflight);
     if (!W3.els.lcdCap.disabled) f('Capture is not disabled while the view is live');
 };
@@ -364,6 +388,7 @@ S.s9 = async function (W, A, f) {
     if (W.log.length > n) f('requests went on after Stop: ' + (W.log.length - n));
     if (W.pending() !== 0) f('Stop left ' + W.pending() + ' timer(s)');
     if (W.els.lcdStat.textContent !== 'T[dash_disp_stopped]') f('Stop says ' + JSON.stringify(W.els.lcdStat.textContent));
+    if (W.els.lcdAge.textContent !== '') f('after Stop the age element must not keep the age of a frame that is no longer followed: ' + JSON.stringify(W.els.lcdAge.textContent));
     if (W.ctx.puts !== puts || W.els.lcdv.style.display !== 'block') f('the last frame must stay on the canvas after Stop');
     if (A.on || W.els.lcdLiveLbl.hidden || !W.els.lcdStopLbl.hidden || W.els.lcdCap.disabled) f('the buttons did not go back to idle after Stop');
     // Stop with a request still out: its answer is discarded
@@ -402,6 +427,51 @@ S.s11 = async function (W, A, f) {
     const n = W.log.length; await W.advance(1000);
     if (W.log.length > n + 1) f('requests went on after the page was left');
 };
+S.s12 = async function (W, A, f) {
+    // 500 and 503 alternate: a 503 neither counts nor resets, so the third 500 stops the view (before, a 503 reset the count and this ran for ever)
+    W.script.fn = function (i) { return i % 2 === 0 ? { status: 500, body: {} } : BUSY; };
+    A.toggle(); await W.advance(10000);
+    if (!same(W.starts(), [0, 1013, 2026, 3039, 4052])) f('500 and 503 alternating: requests at ' + W.starts() + ', wanted 0, 1013, 2026, 3039, 4052 and then stop (the third 500)');
+    if (A.on) f('500 and 503 alternating: the view is still on after the third 500');
+    if (W.els.lcdStat.textContent.indexOf('T[dash_disp_err]') !== 0) f('500 and 503 alternating: the last words are ' + JSON.stringify(W.els.lcdStat.textContent));
+    // a device that answers 503 for ever: asked once a second (the Retry-After) and the view stays on; accepted, it is lighter than the live view's own 4 Hz
+    const W2 = world(), A2 = load(W2);
+    W2.script.fn = function () { return BUSY; };
+    A2.toggle(); await W2.advance(12000);
+    if (!A2.on) f('503 for ever: the view stopped (it is accepted to look at such a device once a second)');
+    if (W2.log.length !== 12) f('503 for ever: ' + W2.log.length + ' requests in 12 s, wanted 12 (one a second, the Retry-After)');
+    // a frame in the middle resets the count: 500, 500, frame, 500, 500 does not stop (kept from s6, now with 503s between)
+    const W3 = world(), A3 = load(W3);
+    W3.script.fn = function (i) { return [{ status: 500, body: {} }, BUSY, { status: 500, body: {} }, OK(2), { status: 500, body: {} }, BUSY, { status: 500, body: {} }][i] || OK(4); };
+    A3.toggle(); await W3.advance(9000);
+    if (!A3.on) f('two 500s, a frame and two more 500s (with 503s between) must not stop the view');
+};
+S.s13 = async function (W, A, f) {
+    // The body read has no timeout of fetchSafe( ): a json( ) that never settles is one failure after the timeout, with the request flag back, and the view goes on
+    W.script.fn = function (i) { return i === 0 ? { status: 200, hangJson: true, body: {} } : OK(2 * i, 100); };
+    A.toggle(); await W.advance(4000);
+    if (A.req !== 1) f('before the timeout the request is still out (lcdReq 1): ' + A.req);
+    await W.advance(2000);   // t = 6000: the body timed out at 13 + 5000 = 5013, the next request is at 6013
+    if (A.req !== 0) f('after the timeout the request flag must be back at 0: ' + A.req + ' (Start would do nothing and Capture would stay disabled)');
+    if (W.els.lcdStat.textContent !== 'T[dash_disp_err]' || W.els.lcdStat.className.indexOf('faixa-perigo') < 0) f('a body that never arrives is a failed read: ' + JSON.stringify(W.els.lcdStat.textContent) + ' / ' + W.els.lcdStat.className);
+    if (W.log.length !== 1) f('one request in the first 6 s (the failure waits a second): ' + W.log.length);
+    await W.advance(600);
+    if (W.log.length < 2 || W.log[1].t0 !== 6013 || W.ctx.puts < 1 || W.els.lcdStat.textContent !== '') f('the view goes on after the failure (the next request at 6013, then every 250 ms): ' + W.starts() + ', ' + W.ctx.puts + ' draws, words ' + JSON.stringify(W.els.lcdStat.textContent));
+    // Stop and Start work after the timeout (with a request out, Start used to do nothing)
+    const W2 = world(), A2 = load(W2);
+    W2.script.fn = function (i) { return i === 0 ? { status: 200, hangJson: true, body: {} } : OK(2 * i, 100); };
+    A2.toggle(); await W2.advance(5100);
+    A2.toggle(); A2.toggle();
+    if (!A2.on || W2.log.length !== 2) f('Start after the timeout must start a request at once: on ' + A2.on + ', ' + W2.log.length + ' requests');
+    // Capture: disabled while the body is awaited, enabled again after the timeout, with the failed-read words
+    const W3 = world(), A3 = load(W3);
+    W3.script.fn = function () { return { status: 200, hangJson: true, body: {} }; };
+    const p3 = A3.capture(); await W3.advance(4000);
+    if (!W3.els.lcdCap.disabled) f('Capture is not disabled while the body is awaited');
+    await W3.advance(1500); await done(p3);
+    if (W3.els.lcdCap.disabled || A3.req !== 0 || W3.els.lcdStat.textContent !== 'T[dash_disp_err]') f('Capture after a body that never arrived: disabled ' + W3.els.lcdCap.disabled + ', lcdReq ' + A3.req + ', words ' + JSON.stringify(W3.els.lcdStat.textContent));
+    if (W3.pending() !== 0) f('the body timer was left pending: ' + W3.pending());
+};
 
 (async function () {
     const out = {};
@@ -425,11 +495,14 @@ MUTANTES = [
     ('a 401 or 403 does not stop the view', 'stop: true }', 'stop: false }'),
     ('three failures in a row -> never', 'LCD_FAILS_MAX = 3', 'LCD_FAILS_MAX = 99'),
     ('three failures in a row -> one', 'LCD_FAILS_MAX = 3', 'LCD_FAILS_MAX = 1'),
+    ('a 503 resets the count of failures', "if (res.k === 'busy') return { wait: res.wait, fails: fails, stop: false };", "if (res.k === 'busy') return { wait: res.wait, fails: 0, stop: false };"),
     ('stale from 2000 ms on, not past it', 'ms > LCD_STALE_MS', 'ms >= LCD_STALE_MS'),
     ('the next request armed before the answer is in', 'let res = await lcdGet();', 'setTimeout(lcdTick, LCD_PERIOD_MS); let res = await lcdGet();'),
     ('the answer after Stop is drawn', 'if (!lcdOn) return;', ''),
-    ('the seq not forgotten after a failure', 'lcdSeq = -1;\n            if (res.k === \'busy\')', "if (res.k === 'busy')"),
+    ('the seq not forgotten after a failure', "lcdSeq = -1;\n            lcdAgeSet('');", "lcdAgeSet('');"),
     ('Capture enabled while the view is live', 'lcdOn || lcdReq > 0;', 'lcdReq > 0;'),
+    ('the body read has no timeout (the timer loses every race)', 'Promise.race([r.json(), lost])', 'Promise.race([r.json(), lost.catch(function () { return new Promise(function () {}); })])'),
+    ('the body timer is not cleared', 'finally { clearTimeout(tm); }', 'finally { }'),
 ]
 
 
@@ -466,6 +539,11 @@ def confere_cenarios(rotulo, codigo):
 
 
 def main():
+    try:
+        import lcd   # noqa: F401  (Pillow: lcd.tamanho( ) is the size of the image the canvas must have)
+    except ImportError as e:
+        print(f'test_lcd_box.py: cannot run: {e} (Pillow is needed to draw lcd.py\'s images: pip install pillow)', file=sys.stderr)
+        return 2
     try:
         node()
         src = WEBUI.read_text(encoding='utf-8', errors='replace')
