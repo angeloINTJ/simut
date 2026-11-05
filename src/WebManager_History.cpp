@@ -2454,7 +2454,7 @@ void WebManager::registerScreenRoutes( ) { }
 /* GET /api/lcd: what the alpha's 16x2 shows NOW, as one JSON object, {"linhas":[row 0,row 1],"cgram":[eight glyphs],"seq":N,"age_ms":M} (display/
  * LcdGlassJson.h), the frame tools/lcd_alpha/lcd.py --quadro draws. The controller cannot be read back, so the driver on Core 1 keeps a shadow of what
  * it wrote and DisplayManager::lcdGlass( ) hands Core 0 one consistent copy of it (display/LcdGlass.h, docs/CONCURRENCY.md): a copy in RAM, so unlike
- * the TFT mirror above there is no malloc, no chunking, no park, no pauseRendering and no SPI here. The route registers in registerLcdRoutes( ), beside
+ * the TFT mirror above the handler allocates nothing of its own (send( ) builds its String headers, as in every handler) and there is no chunking, no park, no pauseRendering and no SPI here. The route registers in registerLcdRoutes( ), beside
  * registerScreenRoutes( ) and not in it: tools/build_webui_gz.py counts every route of that registrar as the `tft` web feature's, and this one is the
  * `lcd` feature's. */
 void WebManager::handleApiLcd( ) {
@@ -2463,25 +2463,27 @@ void WebManager::handleApiLcd( ) {
  if (!requirePerm(PERM_SYS_CONFIG)) return;
 
  if (!_displayRef) {
- _server->send(500, "application/json", "{\"erro\":\"o aparelho não tem LCD\"}");
+ _server->send(500, "application/json", "{\"error\":\"No LCD on this device.\"}");
  return;
  }
- /* The answers of the Ângulo's GET /api/ui (src/ui/angulo/WebManager_UiA.cpp), for the same two states of the same kind of record: 503 with Retry-After: 1 when
-  * Core 1 kept the shadow under update for the reader's whole wait (-1: busy) and when nothing was blitted yet (0: no frame), the caller reading "try again". */
+ /* The codes and the header of the Ângulo's GET /api/ui (src/ui/angulo/WebManager_UiA.cpp), for the same two states of the same kind of record: 503 with Retry-After: 1
+  * when Core 1 kept the shadow under update for the reader's whole wait (-1: busy) and when nothing was blitted yet (0: no frame), the caller reading "try again". The
+  * bodies are {"error":"<English>"}, the key of the other handlers and of requirePerm's own 401 and 403 (the Ângulo's three are {"erro":...}): one key on this route. */
  LcdGlass g;
  const int8_t r = _displayRef->lcdGlass(g);
  if (r <= 0) {
  _server->sendHeader("Retry-After", "1");
  _server->send(503, "application/json",
-               r < 0 ? "{\"erro\":\"o LCD estava sendo redesenhado; tente de novo\"}"
-                     : "{\"erro\":\"nenhum quadro no LCD ainda\"}");
+               r < 0 ? "{\"error\":\"LCD busy. Retry shortly.\"}"
+                     : "{\"error\":\"No frame on the LCD yet.\"}");
  return;
  }
- /* One buffer on the stack (282 B at the longest) and one write. Core 0's stack has 8 KB and one handler runs at a time. */
+ /* One buffer on the stack (282 B at the longest) and one write. The frame is 448 B in the pico_wire image (five registers pushed and `sub sp, #428`: the
+  * 104 B LcdGlass, the text and the locals; objdump, 2026-11-04), small against the ~4 KB that docs/CONCURRENCY.md (invariant 5) counts on; the callees add theirs. */
  char json[LCD_GLASS_JSON_MAX];
  const size_t n = lcdGlassJson(g, millis( ), json, sizeof json);
  if (n == 0) { /* cannot happen: the buffer is the longest text and its NUL */
- _server->send(500, "application/json", "{\"erro\":\"o quadro não coube na resposta\"}");
+ _server->send(500, "application/json", "{\"error\":\"Frame did not fit the response.\"}");
  return;
  }
  _server->sendHeader("Cache-Control", "no-store");

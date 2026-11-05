@@ -430,8 +430,8 @@ jobs:
 
       # GET /api/lcd, the alpha's glass for the web (2026-11-04). The handler lives in WebManager, which needs the arduino-pico WebServer, so no native suite runs it: test_api_lcd.py cuts
       # WebManager::handleApiLcd( ) out of WebManager_History.cpp, verbatim, and compiles it with g++ against a server that records every header and every send( ), a requirePerm that
-      # answers as the real one and a display with ONE method, lcdGlass( ) (a handler that paused rendering, parked Core 1 or touched the SPI would not compile). Seven cases (ok, the
-      # clock's wrap, busy, none, no display, denied, denied with no display: the permission is the first line) and eight mutants of the function, each of which must fail exactly its cases.
+      # answers as the real one and a display with ONE method, lcdGlass( ) (a handler that paused rendering, parked Core 1 or touched the SPI would not compile). Eight cases (ok, the
+      # clock's wrap, busy, none, no display, the formatter's overflow, denied, denied with no display: the permission is the first line) and eight mutants of the function, each of which must fail exactly its cases.
       # g++ is the runner's own, as for the LCD steps above; standard library only.
       - name: Alpha LCD web route on the host (test_api_lcd.py)
         run: python3 tools/lcd_alpha/test_api_lcd.py

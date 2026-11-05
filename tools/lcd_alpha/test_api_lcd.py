@@ -13,9 +13,10 @@ What it holds, one case each:
   ok          permission, a glass, millis( ) 250 after the blit: 200, ONE send( ) with the length, application/json, the header `Cache-Control: no-store`, and the body is the
               text written out by hand below (the formatter's own text is not the oracle); requirePerm was asked once, with PERM_SYS_CONFIG; the display was read once
   wrap        the clock wrapped between the blit and the read: the age is 512 ms and not 49 days
-  busy        lcdGlass( ) = -1 (Core 1 kept the shadow under update): 503, `Retry-After: 1`, the Angulo's key and wording, no Cache-Control, one send( )
-  none        lcdGlass( ) = 0 (no frame blitted yet): 503, `Retry-After: 1`, "nenhum quadro no LCD ainda"; the glass the display did not fill is not formatted
-  nodisplay   permission and no display reference: 500, one send( ), the display never read
+  busy        lcdGlass( ) = -1 (Core 1 kept the shadow under update): 503, `Retry-After: 1` (the Angulo's code and header), {"error":"LCD busy. Retry shortly."}, no Cache-Control, one send( )
+  none        lcdGlass( ) = 0 (no frame blitted yet): 503, `Retry-After: 1`, {"error":"No frame on the LCD yet."}; the glass the display did not fill is not formatted
+  nodisplay   permission and no display reference: 500, {"error":"No LCD on this device."}, one send( ), the display never read
+  overflow    the formatter refuses (the same function with a 16 B buffer, since the real one cannot overflow): 500, {"error":"Frame did not fit the response."}, no Cache-Control
   denied      no permission: the 403 is requirePerm's own and the handler adds nothing (one send( ), no header), and the display is never read
   denied_nodisplay  no permission AND no display reference: still requirePerm's 403, not the 500: the permission is the first line
 The text: the handler's first statement is `if (!requirePerm(PERM_SYS_CONFIG)) return;`, and it names no malloc, new, String, pauseRendering, Core 1 park, SPI or chunk.
@@ -40,9 +41,11 @@ BODY_OK = ('{"linhas":["000102030405060708090a0b0c0d0e0f","f0f1f2f3f4f5f6f7f8f9f
            '"cgram":["0001020304050607","08090a0b0c0d0e0f","1011121314151617","18191a1b1c1d1e1f",'
            '"2021222324252627","28292a2b2c2d2e2f","3031323334353637","38393a3b3c3d3e3f"],"seq":4242,"age_ms":250}')
 BODY_WRAP = BODY_OK.replace('"age_ms":250', '"age_ms":512')
-BUSY = '{"erro":"o LCD estava sendo redesenhado; tente de novo"}'
-NONE = '{"erro":"nenhum quadro no LCD ainda"}'
-NODISPLAY = '{"erro":"o aparelho não tem LCD"}'
+# The error bodies are {"error":"<English>"}, the key of the 109 other bodies of the firmware and of requirePerm's own 401 and 403: a client reads ONE key on this route.
+BUSY = '{"error":"LCD busy. Retry shortly."}'
+NONE = '{"error":"No frame on the LCD yet."}'
+NODISPLAY = '{"error":"No LCD on this device."}'
+OVERFLOW = '{"error":"Frame did not fit the response."}'
 DENIED = '{"error":"Forbidden"}'      # what the stand-in requirePerm sends: the real one's 401 or 403 body is not the handler's
 
 CPP = r'''
@@ -264,6 +267,18 @@ def main():
         bad = verdicts(res, bit)
         for name in ('ok', 'wrap', 'busy', 'none', 'nodisplay', 'denied', 'denied_nodisplay'):
             case(f'GET /api/lcd, case {name}', name not in bad, '; '.join(bad.get(name, [])))
+        small, n_small = re.subn(r'char json\[LCD_GLASS_JSON_MAX\];', 'char json[16];', handler)
+        if n_small != 1:
+            case('GET /api/lcd, case overflow', False, f'the buffer declaration stands {n_small} times in the handler, not once')
+        else:
+            got = run_cpp(small, tmp, 'small')
+            if isinstance(got, str):
+                case('GET /api/lcd, case overflow', False, got)
+            else:
+                r = got['ok']
+                case('GET /api/lcd, case overflow (a 16 B buffer: the formatter refuses)',
+                     r['code'] == 500 and r['sends'] == 1 and r['type'] == 'application/json' and r['body'] == OVERFLOW and r['headers'] == '' and r['perm_calls'] == 1,
+                     f'code {r["code"]}, {r["sends"]} sends, body {r["body"]!r}, headers {r["headers"]!r}')
         body = re.sub(r'/\*.*?\*/', '', handler, flags=re.S)
         body = re.sub(r'//[^\n]*', '', body)
         first = re.search(r'\{\s*(.*?;)', body, re.S)
