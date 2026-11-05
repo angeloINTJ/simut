@@ -456,15 +456,15 @@ jobs:
       - name: Alpha LCD web route on the host (test_api_lcd.py)
         run: python3 tools/lcd_alpha/test_api_lcd.py
 
-      # The page's renderer for the alpha's live LCD view (2026-11-04). WebUI.h carries the glass's font, a block that fonte_web.py generates from fonte_x11.py (the public-domain X.Org misc-fixed 5x7), and a pure
+      # The page's renderer for the alpha's live LCD view (2026-11-04). WebUI.h carries the glass's font, a block that fonte_web.py generates from ROM_A00 of rom_hd44780.py (the table lcd.py draws with by default, the print virtual's own), and a pure
       # renderer, both in the JS of the dashboard's `@IF lcd` block. test_lcd_js.py cuts them out by their markers and runs them under node, as written and as the build's minifier leaves them, and compares 64
-      # frames byte for byte with lcd.desenhar( ): the radio's 17 and the cable's 13 samples (host_lcd.py builds them with g++), the link glyph of 28 RSSIs, the 96 font codes, the CGRAM mirror and a fallback; answers
-      # that are not a glass, and a buffer too small, must be refused. The one deliberate difference: a code with no glyph draws every dot unlit, where lcd.py raises. 22 copies of the JS, each broken one way (a colour or
-      # a gap off by one, the bit order, the CGRAM mirror, a font row, the fallback, the checks of the answer), must each fail a case; fonte_web.py is held on copies of WebUI.h. node ships with the runner, g++ and
+      # frames byte for byte with lcd.desenhar( ) and its default table, so the page is the print virtual: the radio's 17 and the cable's 13 samples (host_lcd.py builds them with g++), the link glyph of 28 RSSIs, the 96 font codes, the CGRAM mirror and a fallback; answers
+      # that are not a glass, and a buffer too small, must be refused. The one deliberate difference: a code with no glyph draws every dot unlit, where lcd.py raises. 25 copies of the JS, each broken one way (a colour or
+      # a gap off by one, the bit order, the CGRAM mirror, a font row, a block made from another table, the fallback, the checks of the answer), must each fail a case; fonte_web.py is held on copies of WebUI.h. node ships with the runner, g++ and
       # Pillow come from the steps above. Standard library and Pillow; 2.5 s here on 2026-11-04.
       - name: Alpha LCD page renderer under node (test_lcd_js.py)
         run: python3 tools/lcd_alpha/test_lcd_js.py
-      - name: Alpha LCD page font block is what fonte_x11.py says (fonte_web.py --check)
+      - name: Alpha LCD page font block is what rom_hd44780.py says (fonte_web.py --check)
         run: python3 tools/lcd_alpha/fonte_web.py --check
 
       # The box of the alpha's live LCD view on the dashboard (2026-11-04): the three `@IF lcd` blocks of DASH_PAGE (CSS, markup, JS) and the loop in them. test_lcd_box.py reads the source for what node cannot see
