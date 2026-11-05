@@ -154,7 +154,7 @@ Com o ponto de acesso aberto, o painel da release passa ao terminal da tela de b
 O painel com o ponto de acesso aberto: a rede, a chave e o aviso de AP ativo ficam na tela.
 :::
 
-::: {.figura #fig-04-lcd-ap tipo="lcd" arquivo="04-lcd-ap.png" captura="alpha recém-gravada, sem rede configurada; ponto de acesso aberto pelo comando ap no console USB, com o aparelho já nas leituras; página Rede: 2 de 3 com simut_SETUP na linha de baixo"}
+::: {.figura #fig-04-lcd-ap tipo="lcd" arquivo="04-lcd-ap.png" captura="desenhada pelo código do alpha no host (tools/lcd_alpha), amostra lcd-ap, ROM A00, 639 x 137; refazer com python3 tools/lcd_alpha/manual_lcd.py --write; alpha recém-gravada, sem rede configurada; ponto de acesso aberto pelo comando ap no console USB, com o aparelho já nas leituras; página Rede: 2 de 3 com simut_SETUP na linha de baixo; é o mesmo quadro de 12-ap-2"}
 O LCD de uma alpha com o ponto de acesso aberto pelo comando `ap`: a página com o nome da rede.
 :::
 

@@ -34,6 +34,8 @@
 #include "sensors/SensorChannelTable.h" /* channel table integrity */
 #include "display/PendingLabel.h"    /* pending count as both displays print it */
 #include "display/BigFont_HD44780.h" /* the alpha LCD glyphs */
+#include "alpha_frame_cases.h"      /* what the alpha LCD's screens write, cell by cell (display/AlphaFrame.h) */
+void test_alpha_fake_lcd_leaves_the_glass_the_real_driver_leaves(void);   /* alpha_driver_twin.cpp: the fake LCD those cases run on, against the real driver */
 #include "TelemetryCursor.h"  /* what the telemetry cursor may advance to */
 #include "TelemetryPosition.h" /* the cursor as a write position (A-04) */
 #include <algorithm>
@@ -6525,6 +6527,31 @@ int main(int /*argc*/, char** /*argv*/) {
     RUN_TEST(test_pending_label_reads_like_the_top_bar);
     RUN_TEST(test_pending_label_fits_three_columns);
     RUN_TEST(test_alpha_wifi_grows_left_to_right);
+    RUN_TEST(test_alpha_frame_cgram_starts_with_the_big_digit_pieces_and_the_x);
+    RUN_TEST(test_alpha_frame_link_glyph_follows_the_rssi);
+    RUN_TEST(test_alpha_frame_link_glyph_loads_only_when_the_level_changes);
+    RUN_TEST(test_alpha_frame_splash_owns_the_whole_screen);
+    RUN_TEST(test_alpha_frame_boot_bar_half_full);
+    RUN_TEST(test_alpha_frame_boot_bar_empty_and_full);
+    RUN_TEST(test_alpha_frame_boot_full_ignores_the_counter_and_does_not_clear);
+    RUN_TEST(test_alpha_frame_net_connected_with_the_address);
+    RUN_TEST(test_alpha_frame_net_waiting_for_the_address);
+    RUN_TEST(test_alpha_frame_net_offline);
+    RUN_TEST(test_alpha_frame_clear_empties_both_rows);
+    RUN_TEST(test_alpha_frame_temperature_with_the_degree_and_the_link_glyph);
+    RUN_TEST(test_alpha_frame_temperature_below_zero);
+    RUN_TEST(test_alpha_frame_humidity);
+    RUN_TEST(test_alpha_frame_pressure_in_plain_characters);
+    RUN_TEST(test_alpha_frame_error_when_no_slot_is_active);
+    RUN_TEST(test_alpha_frame_error_for_a_reading_that_is_not_one);
+    RUN_TEST(test_alpha_frame_pending_count_with_one_slot);
+    RUN_TEST(test_alpha_frame_slot_id_replaces_the_pending_count);
+    RUN_TEST(test_alpha_frame_status_cell_says_ap_in_ap_mode);
+    RUN_TEST(test_alpha_frame_ap_pages);
+    RUN_TEST(test_alpha_frame_ap_draws_the_title_and_the_value_it_is_given);
+    RUN_TEST(test_alpha_frame_ap_scrolls_a_value_wider_than_the_screen);
+    RUN_TEST(test_alpha_frame_ota_lines);
+    RUN_TEST(test_alpha_fake_lcd_leaves_the_glass_the_real_driver_leaves);
     RUN_TEST(test_tel_cursor_stops_at_what_the_payload_kept);
     RUN_TEST(test_tel_cursor_nothing_delivered_keeps_the_floor);
     RUN_TEST(test_tel_cursor_takes_the_newest_and_clamps_the_future);

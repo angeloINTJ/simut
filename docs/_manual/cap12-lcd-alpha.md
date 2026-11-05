@@ -34,25 +34,25 @@ Os algarismos grandes são desenhados com caracteres especiais do LCD: cada um o
 
 ## O boot {#cap-12-boot}
 
-Ao ligar, o LCD mostra por 1,2 s:
+Ao ligar, o LCD mostra por 1,2 s, com a versão do firmware na linha de cima. Os exemplos e as figuras deste capítulo mostram `SIMUT 2.13.0`:
 
 ```text
-SIMUT 2.7.1
+SIMUT 2.13.0
   Inicializando
 ```
 
 Em seguida, a linha de baixo vira uma barra de 14 posições entre colchetes. Ela avança uma posição a cada etapa nova do boot, ou a cada 0,8 s se nenhuma etapa nova chegar, e se completa no fim do boot:
 
 ```text
-SIMUT 2.7.1
+SIMUT 2.13.0
 [#######       ]
 ```
 
-::: {.figura #fig-12-splash tipo="lcd" arquivo="12-splash.png" captura="logo depois de ligar; linha de cima SIMUT 2.7.1, linha de baixo Inicializando"}
+::: {.figura #fig-12-splash tipo="lcd" arquivo="12-splash.png" captura="desenhada pelo código do alpha no host (tools/lcd_alpha), amostra splash, ROM A00, 639 x 137; refazer com python3 tools/lcd_alpha/manual_lcd.py --write; logo depois de ligar; linha de cima SIMUT 2.13.0, linha de baixo Inicializando; a versão é a da tabela FIGURAS de tools/lcd_alpha/manual_lcd.py, não a do firmware"}
 A abertura do LCD, com a versão.
 :::
 
-::: {.figura #fig-12-boot tipo="lcd" arquivo="12-boot.png" captura="durante o boot, com a barra pela metade: SIMUT 2.7.1 e [#######       ]"}
+::: {.figura #fig-12-boot tipo="lcd" arquivo="12-boot.png" captura="desenhada pelo código do alpha no host (tools/lcd_alpha), amostra boot, ROM A00, 639 x 137; refazer com python3 tools/lcd_alpha/manual_lcd.py --write; durante o boot, com a barra pela metade: SIMUT 2.13.0 e [#######       ]; a versão é a da tabela FIGURAS de tools/lcd_alpha/manual_lcd.py, não a do firmware"}
 A barra de progresso do boot.
 :::
 
@@ -73,15 +73,15 @@ Depois disso, o LCD passa às leituras, também num alpha sem rede configurada: 
 192.0.2.10
 ```
 
-::: {.figura #fig-12-conectado tipo="lcd" arquivo="12-conectado.png" captura="fim do boot, na rede, com IP; Conectado! e o endereço IP na linha de baixo (use um endereço de documentação na legenda publicada)"}
-O fim do boot com a rede: Conectado! e o endereço IP.
+::: {.figura #fig-12-conectado tipo="lcd" arquivo="12-conectado.png" captura="desenhada pelo código do alpha no host (tools/lcd_alpha), amostra conectado, ROM A00, 639 x 137; refazer com python3 tools/lcd_alpha/manual_lcd.py --write; fim do boot, na rede, com IP; Conectado! e o endereço IP na linha de baixo, 192.0.2.10, da faixa de documentação (RFC 5737)"}
+O fim do boot com a rede, em valores de exemplo: Conectado! e o endereço IP.
 :::
 
-::: {.figura #fig-12-obtendo-ip tipo="lcd" arquivo="12-obtendo-ip.png" captura="fim do boot, associado ao roteador sem endereço ainda; Conectado! e Obtendo IP..."}
+::: {.figura #fig-12-obtendo-ip tipo="lcd" arquivo="12-obtendo-ip.png" captura="desenhada pelo código do alpha no host (tools/lcd_alpha), amostra obtendo-ip, ROM A00, 639 x 137; refazer com python3 tools/lcd_alpha/manual_lcd.py --write; fim do boot, associado ao roteador sem endereço ainda; Conectado! e Obtendo IP..."}
 Associado à rede, esperando o endereço.
 :::
 
-::: {.figura #fig-12-offline tipo="lcd" arquivo="12-offline.png" captura="fim do boot sem rede alcançável; Sem WiFi e Offline"}
+::: {.figura #fig-12-offline tipo="lcd" arquivo="12-offline.png" captura="desenhada pelo código do alpha no host (tools/lcd_alpha), amostra offline, ROM A00, 639 x 137; refazer com python3 tools/lcd_alpha/manual_lcd.py --write; fim do boot sem rede alcançável; Sem WiFi e Offline"}
 O fim do boot sem rede.
 :::
 
@@ -110,20 +110,20 @@ A dezena de uma temperatura abaixo de 10 °C fica em branco: 5,3 °C aparece com
 
 **Qual sensor está na tela.** Com mais de um sensor ativo, o canto de baixo à esquerda mostra `S` e o número do slot, como `S2`. Com um só, o canto fica livre para a contagem de pendentes. O LCD não mostra o nome do sensor.
 
-::: {.figura #fig-12-temperatura tipo="lcd" arquivo="12-temperatura.png" captura="2 sensores ativos; na vez da temperatura do slot 0, com 23,4 °C; W e o ícone de sinal no canto de cima, S0 no canto de baixo"}
-Uma temperatura em algarismos grandes, com o slot no canto de baixo.
+::: {.figura #fig-12-temperatura tipo="lcd" arquivo="12-temperatura.png" captura="desenhada pelo código do alpha no host (tools/lcd_alpha), amostra temperatura, ROM A00, 639 x 137; refazer com python3 tools/lcd_alpha/manual_lcd.py --write; 2 sensores ativos; na vez da temperatura do slot 0, com 23,4 °C; W e o ícone de sinal, de cinco barras, no canto de cima, S0 no canto de baixo"}
+Uma temperatura em algarismos grandes, em valores de exemplo, com o slot no canto de baixo.
 :::
 
-::: {.figura #fig-12-umidade tipo="lcd" arquivo="12-umidade.png" captura="DHT22 no slot 1, na vez da umidade, com 58 %; S1 no canto de baixo"}
-A umidade em algarismos grandes, com %UR.
+::: {.figura #fig-12-umidade tipo="lcd" arquivo="12-umidade.png" captura="desenhada pelo código do alpha no host (tools/lcd_alpha), amostra umidade, ROM A00, 639 x 137; refazer com python3 tools/lcd_alpha/manual_lcd.py --write; DHT22 no slot 1, na vez da umidade, com 58 %; S1 no canto de baixo"}
+A umidade em algarismos grandes, em valores de exemplo, com %UR.
 :::
 
-::: {.figura #fig-12-pressao tipo="lcd" arquivo="12-pressao.png" captura="BME280 no slot 2, na vez da pressão, com 1013,2 hPa; S2 no canto de baixo"}
-A pressão, em caracteres normais na linha de cima.
+::: {.figura #fig-12-pressao tipo="lcd" arquivo="12-pressao.png" captura="desenhada pelo código do alpha no host (tools/lcd_alpha), amostra pressao, ROM A00, 639 x 137; refazer com python3 tools/lcd_alpha/manual_lcd.py --write; BME280 no slot 2, na vez da pressão, com 1013.2 hPa, com ponto decimal como o LCD escreve; S2 no canto de baixo"}
+A pressão em caracteres normais na linha de cima, em valores de exemplo.
 :::
 
-::: {.figura #fig-12-negativa tipo="lcd" arquivo="12-negativa.png" captura="DS18B20 num congelador, com -18,5 °C; um só sensor ativo e nenhum pendente"}
-Uma temperatura negativa: o traço antes dos algarismos.
+::: {.figura #fig-12-negativa tipo="lcd" arquivo="12-negativa.png" captura="desenhada pelo código do alpha no host (tools/lcd_alpha), amostra negativa, ROM A00, 639 x 137; refazer com python3 tools/lcd_alpha/manual_lcd.py --write; DS18B20 num congelador, com -18,5 °C; um só sensor ativo e nenhum pendente"}
+Uma temperatura negativa, em valores de exemplo: o traço antes dos algarismos.
 :::
 
 ## Erro e ausência de sensor {#cap-12-erro}
@@ -137,7 +137,7 @@ Com mais de um sensor, o canto de baixo diz qual está em falha. Uma grandeza se
 
 A figura do sensor em falha está no [capítulo 6](#fig-06-lcd-erro).
 
-::: {.figura #fig-12-sem-sensor tipo="lcd" arquivo="12-sem-sensor.png" captura="imagem alpha sem nenhum slot ativo, conectada ao Wi-Fi; ERRO em letras grandes e W com o ícone de sinal"}
+::: {.figura #fig-12-sem-sensor tipo="lcd" arquivo="12-sem-sensor.png" captura="desenhada pelo código do alpha no host (tools/lcd_alpha), amostra sem-sensor, ROM A00, 639 x 137; refazer com python3 tools/lcd_alpha/manual_lcd.py --write; imagem alpha sem nenhum slot ativo, conectada ao Wi-Fi; ERRO em letras grandes e W com o ícone de sinal"}
 ERRO fixo: nenhum sensor ativo.
 :::
 
@@ -164,7 +164,7 @@ Desde a v2.7.2, as barras são uma escada de cinco degraus, cada um um pixel mai
 
 Na v2.7.1, cada nível acende uma linha a mais, de baixo para cima: com sinal fraco, o ícone é uma linha reta na largura toda, e ele cresce para cima.
 
-::: {.figura #fig-12-wifi-niveis tipo="diagrama" arquivo="12-wifi-niveis.png" captura="os seis desenhos do ícone, em grade de 5 x 8 pixels, lado a lado: X, 1, 2, 3, 4 e 5 barras; em cima, a escada da v2.7.2 (colunas acesas da esquerda para a direita); embaixo, os desenhos da v2.7.1 (linhas acesas de baixo para cima); bitmaps em src/display/BigFont_HD44780.h"}
+::: {.figura #fig-12-wifi-niveis tipo="diagrama" arquivo="12-wifi-niveis.png" captura="desenhada pelo código do alpha no host (tools/lcd_alpha), amostra icones, ROM A00, 639 x 271; refazer com python3 tools/lcd_alpha/manual_lcd.py --write; os seis desenhos do ícone de sinal, ampliados, em grade de 5 x 8 pontos, lado a lado: X, 1, 2, 3, 4 e 5 barras; em cima, a escada da v2.7.2, que o código põe no slot 7 em -127, -90, -80, -70, -60 e -50 dBm; embaixo, as linhas da v2.7.1, guardadas em tools/lcd_alpha/manual_lcd.py a partir da tag v2.7.1"}
 Os seis estados do ícone de sinal: a escada da v2.7.2 e as linhas da v2.7.1.
 :::
 
@@ -180,12 +180,12 @@ O aparelho atualiza a contagem a cada 10 s. Com mais de um sensor, o canto mostr
 
 Na v2.7.1, o LCD não mostra os pendentes.
 
-::: {.figura #fig-12-pendentes tipo="lcd" arquivo="12-pendentes.png" captura="imagem v2.7.2; 1 sensor ativo; telemetria ligada com o coletor fora do ar, 37 registros pendentes; 37 no canto de baixo à esquerda"}
-A contagem de pendentes no canto de baixo, com um único sensor.
+::: {.figura #fig-12-pendentes tipo="lcd" arquivo="12-pendentes.png" captura="desenhada pelo código do alpha no host (tools/lcd_alpha), amostra pendentes, ROM A00, 639 x 137; refazer com python3 tools/lcd_alpha/manual_lcd.py --write; 1 sensor ativo; telemetria ligada com o coletor fora do ar, 37 registros pendentes; 37 no canto de baixo à esquerda"}
+A contagem de pendentes no canto de baixo, com um único sensor, em valores de exemplo.
 :::
 
-::: {.figura #fig-12-pendentes-k tipo="lcd" arquivo="12-pendentes-k.png" captura="imagem v2.7.2; 1 sensor ativo; 2.500 registros pendentes; 2k no canto de baixo"}
-Mais de mil pendentes: a contagem em milhares.
+::: {.figura #fig-12-pendentes-k tipo="lcd" arquivo="12-pendentes-k.png" captura="desenhada pelo código do alpha no host (tools/lcd_alpha), amostra pendentes-k, ROM A00, 639 x 137; refazer com python3 tools/lcd_alpha/manual_lcd.py --write; 1 sensor ativo; 2.500 registros pendentes; 2k no canto de baixo"}
+Mais de mil pendentes, em valores de exemplo: a contagem em milhares.
 :::
 
 ## O ponto de acesso de configuração {#cap-12-ap}
@@ -225,16 +225,16 @@ Senha:   3 de 3
 K7PX4MRW2A
 ```
 
-::: {.figura #fig-12-ap-1 tipo="lcd" arquivo="12-ap-1.png" captura="AP aberto em operação pelo comando ap; página Modo AP 1 de 3 com 192.168.4.1"}
+::: {.figura #fig-12-ap-1 tipo="lcd" arquivo="12-ap-1.png" captura="desenhada pelo código do alpha no host (tools/lcd_alpha), amostra ap-1, ROM A00, 639 x 137; refazer com python3 tools/lcd_alpha/manual_lcd.py --write; AP aberto em operação pelo comando ap; página Modo AP 1 de 3 com 192.168.4.1"}
 A página 1 do AP: o endereço.
 :::
 
-::: {.figura #fig-12-ap-2 tipo="lcd" arquivo="12-ap-2.png" captura="mesmo estado; página Rede: 2 de 3 com simut_SETUP"}
+::: {.figura #fig-12-ap-2 tipo="lcd" arquivo="12-ap-2.png" captura="desenhada pelo código do alpha no host (tools/lcd_alpha), amostra ap-2, ROM A00, 639 x 137; refazer com python3 tools/lcd_alpha/manual_lcd.py --write; mesmo estado; página Rede: 2 de 3 com simut_SETUP"}
 A página 2 do AP: o nome da rede.
 :::
 
-::: {.figura #fig-12-ap-3 tipo="lcd" arquivo="12-ap-3.png" captura="mesmo estado; página Senha: 3 de 3 com a chave; borre a chave na foto publicada ou use um aparelho de demonstração"}
-A página 3 do AP: a chave.
+::: {.figura #fig-12-ap-3 tipo="lcd" arquivo="12-ap-3.png" captura="desenhada pelo código do alpha no host (tools/lcd_alpha), amostra ap-3, ROM A00, 639 x 137; refazer com python3 tools/lcd_alpha/manual_lcd.py --write; mesmo estado; página Senha: 3 de 3 com uma chave de demonstração, de 10 caracteres do alfabeto das chaves e de nenhum aparelho"}
+A página 3 do AP, em valores de exemplo: a chave.
 :::
 
 ## A atualização do firmware {#cap-12-atualizacao}
@@ -255,8 +255,8 @@ O LCD não tem barra nem porcentagem. Do primeiro byte ao fim da conferência, a
 
 | Estado | Linha de cima | Linha de baixo | Figura |
 |---|---|---|---|
-| Abertura | `SIMUT 2.7.1` | `Inicializando` | [12-splash](#fig-12-splash) |
-| Boot | `SIMUT 2.7.1` | Barra `[##...]` | [12-boot](#fig-12-boot) |
+| Abertura | `SIMUT 2.13.0` | `Inicializando` | [12-splash](#fig-12-splash) |
+| Boot | `SIMUT 2.13.0` | Barra `[##...]` | [12-boot](#fig-12-boot) |
 | Rede com IP | `Conectado!` | O IP | [12-conectado](#fig-12-conectado) |
 | Esperando IP | `Conectado!` | `Obtendo IP...` | [12-obtendo-ip](#fig-12-obtendo-ip) |
 | Sem rede | `Sem WiFi` | `Offline` | [12-offline](#fig-12-offline) |

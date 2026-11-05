@@ -34,6 +34,7 @@
 #include "SystemDefs_Records.h"
 #include "SystemDefs_Network.h"
 #include "LogPolicy.h"
+#include "alpha_frame_wired_cases.h"   /* the cable's differences in display/AlphaFrame.h */
 #include "SystemDefs_Logging.h"
 #include <cstring>
 #include <string>
@@ -270,5 +271,9 @@ int main(int, char**) {
     RUN_TEST(test_menu_numbers_every_row_this_build_has);
     RUN_TEST(test_cable_faults_are_network_faults);
     RUN_TEST(test_cable_codes_are_their_own);
+    RUN_TEST(test_alpha_frame_wired_status_cell_is_the_cable);
+    RUN_TEST(test_alpha_frame_wired_link_glyph_is_the_cable_or_the_x);
+    RUN_TEST(test_alpha_frame_wired_offline_says_rede);
+    RUN_TEST(test_alpha_frame_wired_has_no_setup_ap_screen);
     return UNITY_END( );
 }

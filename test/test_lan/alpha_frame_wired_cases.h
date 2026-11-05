@@ -1,0 +1,61 @@
+/**
+ * @file    test/test_lan/alpha_frame_wired_cases.h
+ * @brief   What display/AlphaFrame.h writes differently on the cable (the SIMUT Wire's 16x2): a case list of test_main.cpp.
+ * @details The screens the radio and the cable share are test_validators' (alpha_frame_cases.h); here are the four
+ *          places the original loop branched on SIMUT_NET_LAN, and the one it did not have: the cell the link's glyph
+ *          sits in (a space and the cable, never a "W", and no "AP"), the offline text ("Sem rede"), the glyph
+ *          slot 7 takes (the cable up, or the X), and the setup AP's screen, which a wired build does not draw.
+ *          Expected rows are read from the loop at 34fc44a9 as in the radio's cases; AlphaPass is AlphaFrameCheck.h's.
+ *
+ * @project SIMUT
+ * @license MIT License
+ */
+#pragma once
+#include "AlphaFrameCheck.h"
+
+static_assert(SIMUT_NET_LAN == 1 && SIMUT_NET_WIFI == 0, "these cases are the cable's: the radio's are test_validators'");
+
+static void test_alpha_frame_wired_status_cell_is_the_cable(void) {
+	AlphaPass p; p.previousFrame( );
+	AlphaFrameIn in(ALPHA_SCREEN_SENSOR);
+	in.slots = 1; in.slot = 0; in.channel = CH_TEMP; in.valid = true; in.value = 23.4f;
+	in.apMode = true;                       /* a wired build has no setup AP: the flag is not drawn */
+	p.pass(-50, in);
+	alphaExpectGlass(p.lcd,
+		" " GL_LINK "  " GL_UMB GL_UMB GL_RT GL_UMB GL_UMB GL_RT " " GL_LL GL_LB GL_RT "o ",
+		"    " GL_LL GL_LB GL_LB GL_LB GL_LB GL_LR "," "  " GL_LR " C",
+		"the cable's cell: a space and the glyph, no W and no AP");
+	alphaExpectGlyph(p.lcd, 7, BF_WIRED, "link up: the cable glyph");
+}
+
+static void test_alpha_frame_wired_link_glyph_is_the_cable_or_the_x(void) {
+	AlphaPass p;
+	TEST_ASSERT_EQUAL_UINT(1, p.lcd.glyphLoads[7]);                       /* begin( ): the X */
+	p.pass(-50, AlphaFrameIn(ALPHA_SCREEN_CLEAR));
+	alphaExpectGlyph(p.lcd, 7, BF_WIRED, "-50 dBm reads as up");
+	TEST_ASSERT_EQUAL_UINT(2, p.lcd.glyphLoads[7]);
+	p.pass(-99, AlphaFrameIn(ALPHA_SCREEN_CLEAR));
+	alphaExpectGlyph(p.lcd, 7, BF_WIRED, "-99 dBm is the last that reads as up");
+	TEST_ASSERT_EQUAL_UINT_MESSAGE(2, p.lcd.glyphLoads[7], "up again is not loaded again");
+	p.pass(-100, AlphaFrameIn(ALPHA_SCREEN_CLEAR));
+	alphaExpectGlyph(p.lcd, 7, BF_WIFI0, "-100 dBm reads as down: the X");
+	TEST_ASSERT_EQUAL_UINT(3, p.lcd.glyphLoads[7]);
+	p.pass(-127, AlphaFrameIn(ALPHA_SCREEN_CLEAR));
+	TEST_ASSERT_EQUAL_UINT_MESSAGE(3, p.lcd.glyphLoads[7], "down again is not loaded again");
+}
+
+static void test_alpha_frame_wired_offline_says_rede(void) {
+	AlphaPass p; p.previousFrame( );
+	AlphaFrameIn in(ALPHA_SCREEN_NET);
+	in.online = false;
+	p.pass(-127, in);
+	alphaExpectGlass(p.lcd, " Sem rede       ", "    Offline     ", "offline on the cable");
+}
+
+static void test_alpha_frame_wired_has_no_setup_ap_screen(void) {
+	AlphaPass p; p.previousFrame( );
+	AlphaFrameIn in(ALPHA_SCREEN_AP);
+	in.apPage = 1; in.apValue = "simut_SETUP";
+	p.pass(-50, in);
+	alphaExpectGlass(p.lcd, "xxxxxxxxxxxxxxxx", "xxxxxxxxxxxxxxxx", "the setup AP's screen draws nothing on the cable");
+}
