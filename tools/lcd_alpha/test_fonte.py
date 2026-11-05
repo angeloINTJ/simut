@@ -12,8 +12,8 @@ What is held, on the real module (standard library and Pillow only; no font file
                fonte_extract.py pins, so the tool and the module cannot be edited apart;
   * pin        the sha256 of the table as text equals TABLE_SHA256. A change detector and nothing more: it says the table is the one that
                fonte_extract.py --check proved equal to the font files on 2026-11-04, so a hand edit or a regeneration from other files shows;
-  * golden     14 glyphs, TYPED BY HAND from the font on 2026-11-04 between 21:3x and 21:5x, BEFORE fonte_x11.py existed (git: it is committed after this file
-               and after fonte_extract.py's reader): A 0 g _ and the three substitutions (the yen sign at 0x5C, the right arrow at 0x7E, the left arrow
+  * golden     14 glyphs, TYPED BY HAND from the font on 2026-11-04, BEFORE fonte_x11.py existed (the first run of this file, with no module, was at
+               21:34:33; git: the module is committed after this file and after fonte_extract.py's reader): A 0 g _ and the three substitutions (the yen sign at 0x5C, the right arrow at 0x7E, the left arrow
                at 0x7F), and the space ! @ W j { |. The sources were three readers that agree: the reader of fonte_extract.py (its dump), FreeType
                through Pillow, and the hex rows of the font's own source, the upstream 5x7.bdf (v1.38). The font's 'g' really is .###. #..#. .##.. #.... .###.;
   * substitution  0x5C is not the font's backslash and 0x7E is not its tilde (the HD44780's ROM shows a yen sign and a right arrow there);
@@ -24,7 +24,7 @@ What is held, on the real module (standard library and Pillow only; no font file
 
 And on the reader (the extractor is judged here, not on a promise):
   * synthetic PCF files, written by the writer below from the format's documentation, in every layout the format allows (row padding 1, 2, 4, 8 bytes;
-    scan unit 1 to 8 bytes; both byte orders and both bit orders; compressed and plain metrics; one- and two-byte encodings): fonte_extract.py's reader
+    scan unit 1, 2, 4 bytes; both byte orders and both bit orders; compressed and plain metrics; one- and two-byte encodings): fonte_extract.py's reader
     gives back the glyphs written, and FreeType (Pillow), a reader that shares no code with it, draws the same dots. The control is a file whose
     format word lies about the bit order or the byte order: the reader must NOT give the glyphs back. The real files use one layout only (the format
     0x0E: rows padded to 4 bytes, MSB first, scan unit 1); the other layouts are proved here and nowhere else;
@@ -282,7 +282,8 @@ MUTANTS = [
      lambda t: {('pin', '')} | golden_changed_by(no_descent)),
     ("0x5C left as the font's backslash (the yen sign missing)", put(0x5C, BACKSLASH), {('golden', '0x5C'), ('substitution', '0x5C'), ('pin', '')}),
     ("0x7E left as the font's tilde (the right arrow missing)", put(0x7E, TILDE), {('golden', '0x7E'), ('substitution', '0x7E'), ('pin', '')}),
-    ("0x7F left blank (the font has no glyph there; the left arrow missing)", put(0x7F, (0,) * 8), {('golden', '0x7F'), ('blank', '0x7F'), ('pin', '')}),
+    ("0x7F left blank (the font has no glyph there; the left arrow missing): it is the space twice", put(0x7F, (0,) * 8),
+     {('golden', '0x7F'), ('blank', '0x7F'), ('distinct', '0x20 = 0x7F'), ('pin', '')}),
     ("the bit order reversed in every row: the golden, the stems and the pin", every(mirrored),
      lambda t: {('pin', '')} | golden_changed_by(mirrored) | stems()),
     ("one bit flipped in the S (row 3, bit 2): nothing but the pin sees it", flip(ord('S'), 3, 2), {('pin', '')}),
@@ -324,7 +325,7 @@ def pcf_bytes(glyphs, ascent, descent, copyright_text, pad=4, unit=1, msb_byte=T
     def align(b):
         return b + bytes(-len(b) % 4)
 
-    props = [('COPYRIGHT', copyright_text), ('PIXEL_SIZE', ascent + descent)]
+    props = [('COPYRIGHT', copyright_text), ('PIXEL_SIZE', ascent + descent), ('CHARSET_REGISTRY', 'ISO10646' if two_byte else 'ISO8859'), ('CHARSET_ENCODING', '1')]
     strings, entries = b'', b''
     for name, val in props:
         at = len(strings)
@@ -388,8 +389,10 @@ def pcf_bytes(glyphs, ascent, descent, copyright_text, pad=4, unit=1, msb_byte=T
         return b''.join(i(fn(m[k] for m in ms), 2) for k in range(5)) + i(0, 2, signed=False)
 
     t_acc = le(fmt | fx.ACCEL_W_INKBOUNDS) + bytes(8) + i(ascent) + i(descent) + i(0) + bounds(min) + bounds(max) + bounds(min) + bounds(max)
-    tables = [(fx.PCF_PROPERTIES, fmt, t_props), (fx.PCF_BDF_ACCELERATORS, fmt | fx.ACCEL_W_INKBOUNDS, t_acc),
-              (fx.PCF_METRICS, fmt | (fx.COMPRESSED_METRICS if compressed else 0), t_met), (fx.PCF_BITMAPS, fmt, t_bmp), (fx.PCF_BDF_ENCODINGS, fmt, t_enc)]
+    # In ascending order of type, as in the real files: FreeType refuses an index in any other order (119 of the 120 orders of the 5 tables, measured
+    # on 2026-11-04 with FreeType 2.14.2 on a real file's tables), though the format's documentation does not ask for it.
+    tables = [(fx.PCF_PROPERTIES, fmt, t_props), (fx.PCF_METRICS, fmt | (fx.COMPRESSED_METRICS if compressed else 0), t_met), (fx.PCF_BITMAPS, fmt, t_bmp),
+              (fx.PCF_BDF_ENCODINGS, fmt, t_enc), (fx.PCF_BDF_ACCELERATORS, fmt | fx.ACCEL_W_INKBOUNDS, t_acc)]
     head, body, at = b'\x01fcp' + le(len(tables)), b'', 8 + 16 * len(tables)
     for typ, f, blob in tables:
         head += le(typ) + le(f) + le(len(blob)) + le(at)
@@ -404,13 +407,14 @@ SYNTH = [
     (0x42, 1, 9, 5, ['#.#.#.#.#.#.#', '.#.#.#.#.#.#.', '###..###..###', '#..#..#..#..#', '#############']),
     (0x43, -1, 4, 3, ['#' * 20, '#' + '.' * 18 + '#', '.#.#.#.#.#.#.#.#.#.#']),
     (0x44, 0, 5, 0, []),
-    (0x2190, 0, 5, 4, ['.#...', '####.', '.#...']),
+    (0xA5, 0, 5, 4, ['.#...', '####.', '.#...']),
 ]
+SYNTH2 = SYNTH[:-1] + [(0x2190,) + SYNTH[-1][1:]]       # the two-byte layouts carry the glyph at U+2190, which a one-byte code cannot hold
 SYNTH_FONT_BOX = (6, 1)
 
 
 def layouts():
-    for pad, unit in ((1, 1), (2, 1), (2, 2), (4, 1), (4, 2), (4, 4), (8, 1), (8, 2), (8, 4), (8, 8)):
+    for pad, unit in ((1, 1), (2, 1), (2, 2), (4, 1), (4, 2), (4, 4), (8, 1), (8, 2), (8, 4)):      # the scan unit of 8 is refused below
         for msb_byte, msb_bit, compressed, two_byte in itertools.product((True, False), repeat=4):
             yield dict(pad=pad, unit=unit, msb_byte=msb_byte, msb_bit=msb_bit, compressed=compressed, two_byte=two_byte)
 
@@ -539,13 +543,14 @@ def main():
         path = os.path.join(tmp, 'synth.pcf')
         for kw in layouts():
             n += 1
-            data = pcf_bytes(SYNTH, *SYNTH_FONT_BOX, fx.COPYRIGHT, **kw)
+            glyphs = SYNTH2 if kw['two_byte'] else SYNTH
+            data = pcf_bytes(glyphs, *SYNTH_FONT_BOX, fx.COPYRIGHT, **kw)
             try:
                 font = fx.Font(data)
-                same = all(reader_dots(font, g) == expected_dots(g) for g in SYNTH)
+                same = all(reader_dots(font, g) == expected_dots(g) for g in glyphs)
                 same = same and font.accel['ascent'] == 6 and font.accel['descent'] == 1 and font.props['COPYRIGHT'] == fx.COPYRIGHT
-                same = same and [font.metrics[font.encoding[g[0]]] for g in SYNTH] == [(g[1], g[1] + (len(g[4][0]) if g[4] else 0), g[2], g[3], len(g[4]) - g[3])
-                                                                                       for g in SYNTH]
+                same = same and [font.metrics[font.encoding[g[0]]] for g in glyphs] == [(g[1], g[1] + (len(g[4][0]) if g[4] else 0), g[2], g[3], len(g[4]) - g[3])
+                                                                                       for g in glyphs]
             except fx.Unreadable as err:
                 same = False
                 bad.append('%s: %s' % (name_of(kw), err))
@@ -561,18 +566,25 @@ def main():
                     ft_refused.append(name_of(kw))
                     continue
                 ft_n += 1
-                if all(freetype_dots(ft, g) == expected_dots(g) for g in SYNTH):
+                if all(freetype_dots(ft, g) == expected_dots(g) for g in glyphs):
                     ft_ok += 1
                 elif len(ft_bad) < 3:
                     ft_bad.append(name_of(kw))
-    report(ok_n == n and n == 160, 'the reader gives back the glyphs, the metrics, the font box and the COPYRIGHT of %d synthetic layouts (pad 1..8, unit 1..8, both orders, '
+    report(ok_n == n and n == 144, 'the reader gives back the glyphs, the metrics, the font box and the COPYRIGHT of %d synthetic layouts (pad 1..8, unit 1..4, both orders, '
            'compressed or plain, one or two bytes) %s' % (n, bad[:3]))
+    try:
+        fx.Font(pcf_bytes(SYNTH, *SYNTH_FONT_BOX, fx.COPYRIGHT, pad=8, unit=8))
+        refused = None
+    except fx.Unreadable as err:
+        refused = str(err)
+    report(refused is not None and 'scan unit of 8' in refused, 'the reader refuses a scan unit of 8 bytes, which the format\'s documentation does not list (FreeType draws it wrong '
+           'when the byte and bit orders differ: 8 of the 16 layouts with that unit, measured on 2026-11-04) -> %s' % refused)
     if ImageFont is None:
         report(False, 'Pillow is not installed: FreeType cannot be the second reader')
     else:
         report(ft_n >= 120 and ft_ok == ft_n, 'FreeType (Pillow), sharing no code with the reader, draws the same dots from %d of those layouts%s %s'
                % (ft_n, ' (it refused %d: %s)' % (len(ft_refused), ft_refused[0]) if ft_refused else '', ft_bad[:3]))
-        report(ft_n + len(ft_refused) == 160, 'FreeType loaded or refused each of the 160 layouts, none went missing')
+        report(ft_n + len(ft_refused) == 144, 'FreeType loaded or refused each of the 144 layouts, none went missing')
     # The control: a file whose format word lies must not be read as the glyphs written.
     lies = []
     for kw in layouts():
@@ -614,6 +626,17 @@ def main():
         got = cell_fn(font, 0x42, 'test')
         report(got == glyph('#....', '.....', '....#', '.....', '.....', '.....', '#...#', '.....'),
                'a glyph of the whole box keeps its corners: rows 0 and 6, columns 0 and 4 %s' % (got,))
+        a_read = {p: cell_fn(font, p, 'test') for p in (0x41, 0x42)}
+        try:
+            b_read = fx.freetype_cells(pcf_bytes(small, 6, 1, fx.COPYRIGHT), [0x41, 0x42])
+        except fx.Unreadable as err:
+            b_read = {}
+            report(False, 'read B (FreeType) cannot read the small test font: %s' % err)
+        report(fx.compare_reads(a_read, b_read) == [] and b_read.get(0x41) == a_read[0x41], 'read B (FreeType) places the same two glyphs in the cell as read A')
+        wrong_a = dict(a_read)
+        wrong_a[0x42] = tuple(v ^ 0b00100 if i == 3 else v for i, v in enumerate(wrong_a[0x42]))
+        report(fx.compare_reads(wrong_a, b_read) == [0x42], 'control: one dot changed in read A is reported by the comparison, for that code point and no other')
+        report(fx.compare_reads(a_read, {**b_read, 0x41: None}) == [0x41], 'control: a code point that read B gives as ink outside the window is reported')
 
         def refuses(rows, lsb=0, adv=5, asc=6, box=(6, 1), code=0x41, ask=0x41):
             try:
