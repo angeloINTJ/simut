@@ -100,7 +100,13 @@ it yet). It keeps the rules above:
 - **How it is held** (2026-11-04). `alpha_glass.cpp` and `alpha_driver_twin.cpp` in `test/test_validators/` stop the writer
   after each of its stores and land a whole publish at each byte of the reader's copy (a host thread would find a tear only
   by chance), and the same harnesses report a mix on a writer without the odd count and on two readers that skip one look at
-  the count. What a host cannot see is the fence: it is `dmb ish`, read from the disassembly of the pico_wire image.
+  the count. What a host cannot see is the fence: it is `dmb ish`, read from the disassembly of the pico_wire image, and the source check now
+  holds the order (`tools/check_glass_seqlock.py`, in the `gates` job): in the text of `LcdGlass.h` the writer's odd store, a fence, the data, a
+  fence and the even store, and the reader's first look at the count, a fence, the copy, a fence and the second look, each fence a statement of its
+  own and not in a comment or under an `if`. All 408 native cases passed with any one of the four fences taken out (the review of step 1,
+  2026-11-04); the check gives exactly one finding for each of those, and for a store or a look moved across a fence. The disassembly showed `dmb ish`
+  on the M0+ (the pico_wire image) and on the M33 (a copy of the writer compiled for the RP2350, since the alpha images are RP2040 builds), GCC 14.3,
+  the review of 2026-11-04.
 - **What it costs.** The publish of a `blit( )` is 33 instructions after the bus loops (24 in `blit( )`, 9 in `open( )`), two
   16-byte `memcpy` calls and a `millis( )` (pico_wire image; counted, not timed on a board), against at least 3.5 ms of bus
   time for the blit (34 bytes, two nibbles each, 52 us of delays per nibble). The shadow is 216 B of RAM: 108 B of static RAM in

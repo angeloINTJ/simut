@@ -417,6 +417,17 @@ jobs:
       - name: Alpha LCD manual figures, the controls of the check (test_manual_lcd.py)
         run: python3 tools/lcd_alpha/test_manual_lcd.py
 
+      # The fences of the alpha glass's seqlock (src/display/LcdGlass.h, docs/CONCURRENCY.md; 2026-11-04). A fence is a no-op on the host, so a
+      # single-threaded test cannot see one: the review of step 1 took each of the four out in turn and all 408 native cases still passed. This
+      # reads the order from the text of the header (the writer: the odd store, a fence, the data, a fence, the even store; the reader: the count,
+      # a fence, the copy, a fence, the count again). Its --selftest applies 23 mutants to a copy of the header (each fence out, a store or a look
+      # moved across one, a fence in a comment or under an if, the second look out, the fence weakened, ...), each of which must give exactly one
+      # finding, then runs the command line as a process. Standard library only.
+      - name: Alpha glass seqlock fences (the order in LcdGlass.h, its mutants)
+        run: |
+          python3 tools/check_glass_seqlock.py --selftest
+          python3 tools/check_glass_seqlock.py
+
       # patch.sh runs again and again: after every override that merges, and in the
       # firmware jobs on a warm ~/.platformio cache that already carries them (see
       # "Apply framework overrides" below). Each step skips itself when a grep finds

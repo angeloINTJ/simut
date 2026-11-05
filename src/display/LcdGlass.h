@@ -36,7 +36,9 @@
  * count and before its second. __atomic_thread_fence( ) is used here, and not the SDK's, because this header is also
  * compiled on the host by the fake LCD (test/native_stubs/FakeHd44780.h), which holds it to the same tests. It is
  * `dmb ish` on the Cortex-M0+ (read from the disassembly of the pico_wire image, 2026-11-04) and, with the same GCC
- * 14.3, on the M33 of the RP2350 (compiled on a copy of the writer: the alpha images are RP2040 builds).
+ * 14.3, on the M33 of the RP2350 (compiled on a copy of the writer: the alpha images are RP2040 builds). A host test cannot see a fence (it
+ * is a no-op there: all the native cases pass with any one of the four taken out), so tools/check_glass_seqlock.py holds where the four stand,
+ * in the text of this file; its --selftest names the rule that a change to the order breaks.
  *
  * The probes. Every function that stores or copies takes an optional probe, and calls storeDone( ) after each store
  * the other core could observe and copyStep( ) after each byte the reader copies. The default does nothing and
