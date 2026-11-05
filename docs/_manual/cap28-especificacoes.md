@@ -4,7 +4,7 @@ Este capítulo reúne em tabelas os números do SIMUT: faixas, valores de fábri
 
 ## Como ler as tabelas {#cap-28-como-ler}
 
-- Os valores são os da v2.13.0.
+- Os valores são os da v2.14.0.
 - Quando um número muda de uma imagem para outra, a célula traz o selo da imagem: [release]{.img}, [alpha]{.img} ou [air]{.img}.
 - Uma medição traz a data e a versão em que foi feita. Os demais números vêm do código.
 - A coluna **Onde** leva ao capítulo que explica o item. Lá estão o efeito de cada valor e o que fazer quando um limite é atingido.
@@ -43,7 +43,7 @@ Legenda: a flash de 2 MB. O teto da atualização web fica 4 KiB abaixo do fim d
 | HTTPS na interface web | Sim, com certificado | Não | Não | [cap. 9](#cap-09-https) |
 | Nome `<nome>.local` (mDNS) | Sim | Não | Não | [cap. 9](#cap-09-mdns) |
 | Console serial | De emergência, 15 comandos | De emergência, 15 comandos | Completo | [cap. 14](#cap-14-perfis) |
-| Rotas da API | 62 | 56 | 56, só acordado (M0) | [cap. 26](#cap-26-imagens) |
+| Rotas da API | 62 | 55 | 54, só acordado (M0) | [cap. 26](#cap-26-imagens) |
 | AP de configuração | A pedido: menu do painel, comando `ap` ou gesto no boot | A pedido: comando `ap` | A pedido: comando `ap` | [cap. 9](#cap-09-ap-quando) |
 | PIN e contas no painel | Sim | Não | Não | [cap. 8](#cap-08-imagens) |
 | Hibernação entre leituras | Não | Não | Sim | [cap. 19](#cap-19-ciclo) |
@@ -196,7 +196,7 @@ O filtro vale só para a flash: o console com `debug on` e o syslog recebem todo
 
 | Item | Valor | Onde |
 |---|---|---|
-| Rotas | [release]{.img} 62, das quais 52 exigem permissão ou sessão e 10 são públicas. [alpha]{.img} [air]{.img} 56 | [cap. 26](#cap-26-imagens) |
+| Rotas | [release]{.img} 62, das quais 52 exigem permissão ou sessão e 10 são públicas. [alpha]{.img} 55, com o `GET /api/lcd`. [air]{.img} 54 | [cap. 26](#cap-26-imagens) |
 | Pedidos simultâneos | Um de cada vez; os outros esperam na fila | [cap. 26](#cap-26-um-por-vez) |
 | Intervalo mínimo por endereço | 200 ms em `GET /api/logs` e `GET /api/ls`; 5 s em `POST /api/calib` e `POST /api/tls` | [cap. 26](#cap-26-ritmo) |
 | Campo `_payload` de `POST /api/commit_all` | Até 6.144 bytes | [cap. 26](#cap-26-referencia) |

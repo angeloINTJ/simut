@@ -4,10 +4,14 @@
 
 All notable changes to SIMUT firmware.
 
-## Unreleased
+## v2.14.0 (2026-11-05)
+
+**The dashboard of the SIMUT alpha and of the SIMUT Wire with a 16x2 LCD can show the LCD: a Display Capture box draws the glass dot by dot, once on Capture and up to four times a second on Live view, from `GET /api/lcd` (#320). Behind it is the print virtual (#319), the alpha's LCD drawn on the host from the firmware's own code, which makes the manual's 17 LCD figures and which the page repeats pixel for pixel. The characters are Hitachi's (Table 4 of the HD44780U datasheet): the published `pico_w_alpha` now carries ROM A00, reproduced without the written approval its Caution 6 asks for, on the maintainer's decision of 2026-11-04. The release also has thirteen small fixes found by reading the code and by the bench's notes (#318), and three changes that close items of v2.13.0's *Known* list: the panel's alarm-limits save (F3, #307), the display-alignment preview that outlived its screen (#308) and `GET /api/keypad` on the Ângulo (F4, #311). The rest is a move of names between two headers that changes no image (#312), tests, tools, the attestation action and documents.**
+
+`CONFIG_VERSION` stays at 26 and the security version at 1. `keys/` and `src/ota/ota_layout.h` are the files of v2.13.0 (`git diff v2.13.0 HEAD -- keys src/ota/ota_layout.h` is empty, 2026-11-05), so v2.13.0 verifies this release's signature and the way back is open by the files; the gate has not run that round trip on a board (*The bench*). The thirteen pull requests merged since v2.13.0 are each named in the section they belong to (#307, #308, #311 and #312 first, then #318, #319 and #320) or in *Under the hood* (#309, #310, #313, #315, #316 and #317).
 
 **Salvar on the panel's alarm-limits editor now saves the limits that were on the screen at the tap, not what the editor holds when Core 0 gets to the event. This closes F3 of the v2.13.0 *Known* list. A display-alignment preview that was not saved no longer outlives the alignment screen, on the original panel and on the Ângulo: whichever way the screen is left except during a firmware update, Core 1 puts the saved offset back
-and repaints, and the next entry starts from it. Both fixes were found by reading the code, and both were checked on the bench on 2026-10-31, on the Pico W (the original panel) and on the Pico 2 W (the Ângulo). A third change, checked on the Pico 2 W on 2026-10-31, closes F4: on the Ângulo, `GET /api/keypad` no longer describes the original panel's keypad. It sends the faces, the state and the policy, and names the route that lists the Ângulo's keys; the two Ângulo images get 208 and 216 B smaller and the other nine are byte for byte what they were. A fourth change, which moves thirteen names between two headers of the original panel's keypad, changes no image: all eleven are sha256-equal to `main`'s. A last change draws the alpha's 16x2 LCD on the host, from the firmware's own code: the manual's 17 LCD figures are made that way, and a check in CI draws them again. It was not run on a board, and the two images with that LCD grow by 32 and 24 B; the other nine are byte for byte what they were.**
+and repaints, and the next entry starts from it. Both fixes were found by reading the code, and both were checked on the bench on 2026-10-31, on the Pico W (the original panel) and on the Pico 2 W (the Ângulo). A third change, checked on the Pico 2 W on 2026-10-31, closes F4: on the Ângulo, `GET /api/keypad` no longer describes the original panel's keypad. It sends the faces, the state and the policy, and names the route that lists the Ângulo's keys; the two Ângulo images get 208 and 216 B smaller and the other nine are byte for byte what they were. A fourth change, which moves thirteen names between two headers of the original panel's keypad, changes no image: all eleven are sha256-equal to `main`'s. A last change draws the alpha's 16x2 LCD on the host, from the firmware's own code: the manual's 17 LCD figures are made that way, and a check in CI draws them again. On 2026-11-04 the maintainer saw a Pico W's module (the cable build) show what the host had drawn for the same state; the radio build was not looked at on a module. The two images with that LCD grow by 24 B (`pico_w_alpha`) and 32 B (`pico_wire`) of `used`; the other nine are byte for byte what they were.**
 
 **Thirteen small fixes, found by reading the code and by the bench's notes since 2026-10-13. The bench of 2026-11-04 ran them on the Pico 2 W and on the Pico W (as the release, the Air and the SIMUT Wire), each against v2.13.0 or `main`'s image: eleven failed before and passed after on the board, the License screen's line was checked in the image's bytes and not on the glass, and the boot screen during the setup-AP hold could not be checked, because that screen is not drawn in either image. On the web page, the password rules' marks read `¹3` and `¹5` instead of a check mark and a cross, and the dashboard wrote `ºC` for `°C`. On the original panel, a tap on the lower card's graph button could turn min/max off, the License screen ended on a tagline that is not the licence, the boot screen cleared at every step of the setup-AP hold, and the boot terminal drew every accent of a translated line as `?`. On the Ângulo, the boot ring encoded a UTF-8 suffix a second time, so the setup AP's "Estação_SETUP" was drawn "EstaÃ§Ã£o_SETUP". The setup AP's address left out the web port in four places, and an unknown path at another port redirected to port 80. On the console, `system history_interval abc` named the minimum batch. On the alpha, a language pack's name and code reached the page as the file had them. On the Air, `air stop` on a telemetry wake left the web server down, and `ap` during the sleep cycle opened an access point that served nothing and is now refused. Each fix is a section below with what was wrong, what changed and how it was proved; the sizes are at the end.**
 
@@ -20,7 +24,7 @@ and repaints, and the next entry starts from it. Both fixes were found by readin
 - **The fix.** At Salvar, Core 1 copies the working copy into a box of one entry (`src/display/AlarmLimitsSnap.h`, 68 B, a member of `DisplayManager`), and Core 0 takes the copy out under `_stateMutex`, for the sensor of the event. A take that finds the box empty, or holding another sensor's limits, returns before anything else: no sound, no save, no log, no screen change. `editedAlarmRecord( )`, which handed out the live copy, is gone, and the five comments that still said Core 0 diffs the live copy now say why it does not.
 - **The limit that stays.** The box holds one Salvar. If a second Salvar, on another sensor, comes before Core 0 has handled the first, it replaces the first, and the first save is dropped without a sound. Before this fix the same sequence wrote the second sensor's limits into the first. A Salvar that Core 0 denies, or whose event the full ring drops, leaves its copy in the box until the next Salvar replaces it; that is harmless, because `actLimitsSave( )` is the only producer of the event.
 
-### Tests
+### Tests (the alarm-limits save)
 
 Five new cases in the `native` suite (`test_validators`): **366 to 371** cases there and **772 to 777** in the eleven suites, all passing on 2026-10-31. They pin the box: the copy keeps what was posted when the record changes afterwards (10.0 and 20.0 stay), a take for another sensor fails and leaves the box for its own, a second take of the same Salvar fails, a new box gives nothing for any slot, and all 8 channels of both arrays come through. They were red before the header existed (the suite did not build). Each of three mutations of the header fails exactly one case: a take that reads the live record, a take with no sensor check, a take that does not empty the box. The host's mutex does nothing, so the lock is checked by reading, not by a test.
 
@@ -51,7 +55,7 @@ Five new cases in the `native` suite (`test_validators`): **366 to 371** cases t
   11 screens. The preview runs as Right, as Down and as both, every move of the glass on Core 1 must paint the margins, and `screen offset` over a stale preview, with a Core 1 pass after each store of the entry, must never show the old preview. CI runs it in the `gates` job.
 - **The manual.** Chapter 11A said that the idle return leaves the image shifted and that a new entry keeps it; it now says that every exit puts the saved offset back and a new entry starts at it, and names the update as the exception.
 
-### Flash
+### Flash (the alarm-limits save and the display alignment)
 
 Against v2.13.0 (`3ca4976f`), `firmware.bin` signed (the image plus its 241-byte signature), all eleven images built from zero on the merged tree on 2026-10-31 through the pio shim, `-Werror` holding.
 The two fixes add up: F3's share is `aaccce35` against `3ca4976f`, as F3 measured it on its own tree, and the display alignment's share is the merged tree against `aaccce35`. The eight images with
@@ -261,6 +265,205 @@ Against `main` at `34fc44a9` (the budget's `used` and `bin` there equal `main`'s
 - **On the bench (2026-11-04).** A Pico W with a 16x2 module ran `pico_wire` of `d92b08a2`: the route and the shadow, not the box (`firmware.bin` `51e6f51d`, 605,864 B). At 22:37 a request with no session got 401 and the admin's got 200. Sixty seconds at 4 Hz: 240 of 240 answers 200, 12.9 ms the median and 14.2 ms the worst, a new frame every 500 ms (`seq` moved by 2), `age_ms` at most 501, the heap flat. From 22:40 to 23:00, twenty minutes at 4 Hz: 4,797 of 4,797 answers 200 and no 503; 12.9 ms the median, 13.7 ms at the 95th percentile and 288.3 ms the worst (one outlier, its cause not measured); 2,388 different frames; `age_ms` 250 the median and 505 the worst; `heap_free` between 103,888 and 103,968 B and the largest block at least 93,105 B; the uptime went from 199 s to 1,390 s with no reboot. These numbers set the page's period (250 ms, about 5% of a 13 ms answer) and its stale limit (2,000 ms, four refreshes).
 - **On the bench (2026-11-05).** The same board ran `pico_wire` of `03d05e47`, the box with this table (`firmware.bin` `ddb493bd`, 609,248 B), from 00:12. A script read what the device serves, 19 checks: 401 with no session and 200 with one, with `Cache-Control: no-store`; the dashboard carries the LCD box and nothing of the touch panel's; `/license` no longer names the open font; and the font block the device serves is `ROM_A00` digit for digit (1,344 digits, computed from `rom_hd44780.py` and not read from `WebUI.h`; the earlier build's block differs from it in 92 of 96 glyphs, the check's negative control). The maintainer compared the live view in his browser with the module and called it a perfect representation of the display (00:21). From 00:22 to 00:32, ten minutes at 4 Hz: 2,399 of 2,399 answers 200 and no 503; 12.6 ms the median, 13.4 ms at the 95th percentile and 99.8 ms the worst; 1,191 different frames, one every 500 ms; `age_ms` 250 the median and 504 the worst; `heap_free` between 103,856 and 103,888 B and the largest block at least 93,076 B; the uptime went from 594 s to 1,184 s with no reboot.
 - **Not run on a board.** The 403, and `pico_w_alpha`: the bench ran the cable build only. The box was also checked in headless Chrome 156 against a local stand-in server (60 checks at 1280 and 390 px wide, at 1x and 3x: the canvas holds exactly the 639 x 137 image `lcd.py` draws with its default table, the box is above the status cards, no horizontal scroll, Capture, Live view, Stop, busy and 403, and a `MutationObserver` sees the live region untouched while the age is rewritten) and on the fake world above. On 2026-11-04 the maintainer saw an earlier build on the board, whose glyphs were an open font's and not the real LCD's, and asked for the real LCD's table.
+
+### Under the hood
+
+- **Tests.** The eleven native suites hold **843** cases, against 772 at v2.13.0 (`tools/check_readme_numbers.py`
+  counts them, 2026-11-05): 5 more for the alarm-limits box (#307), 18 for the small fixes (#318), 29 for the alpha's
+  frame (#319) and 19 for the live view (#320). The `gates` job grew with the host scripts of the changes:
+  `tools/tft_ui/test_alinhar.py` (#308), `tools/test_keypad_answer.py` (#311), `tools/tft_ui/test_zona_minmax.py`,
+  `tools/tft_ui/test_ap_progress.py` and C9 and C10 of `tools/check_air_consistency.py` (#318), the print virtual's
+  checks in `tools/lcd_alpha/` (#319) and, for the live view (#320), `tools/check_glass_seqlock.py`, the page's and
+  the box's tests under node (`test_lcd_js.py`, `test_lcd_box.py`) and the route's (`test_api_lcd.py`). The
+  authorization matrix holds 63 routes, 53 gated (`GET /api/lcd` is gated, #320).
+- **The attestation action (#315).** `actions/attest-build-provenance` goes from v2 to v4 in
+  `.github/workflows/release-ota.yml` (one line). It has not run yet: its first run is this release's own tag.
+- **The savings floor and the configurator's costs (#316, #317).** The `tft_graph` floor falls from 20,365 B to 20,135
+  B (issue #314; the *Flash* section of the first two changes explains it). The costs the configurator offers
+  (`docs/configurador/model.json`, `tools/feature_costs.json`) are measured again on `main` after #307, #308 and #311
+  changed the images.
+- **Documents (#309, #310, #313).** The bench of 2026-10-31 in `docs/VERIFICATION*.md` and
+  `docs/analysis/UI_DRIVERS.md`: the alarm-limits save and the display alignment checked on both panels (#309), the
+  transient of that day explained as a screenshot torn by the idle return (#310) and `GET /api/keypad` on the Ângulo
+  checked on the Pico 2 W (#313).
+
+### Flash
+
+Against v2.13.0's published images, `firmware.bin` signed (the image plus its 241-byte signature; `pico_w_test_https` is not signed), all eleven images built from zero on this tree on 2026-11-05 through the pio shim, `-Werror` holding. The tables above measure each change on the tree it names; this one is the whole release.
+
+| Image | v2.13.0 | v2.14.0 | Δ |
+|---|---:|---:|---:|
+| `pico_w_release` | 1,036,333 | 1,037,093 | +760 |
+| `pico_w_test` | 1,037,117 | 1,037,909 | +792 |
+| `pico_w_test_https` (unsigned) | 1,041,220 | 1,042,004 | +784 |
+| `pico_w_asserts` | 1,038,629 | 1,039,389 | +760 |
+| `pico_w_alpha` | 990,621 | 994,717 | +4,096 |
+| `pico_w_air` | 1,035,581 | 1,035,581 | 0 |
+| `pico2_w_release` | 1,038,345 | 1,038,929 | +584 |
+| `pico_wire` | 604,665 | 609,481 | +4,816 |
+| `pico_wiretft` | 788,009 | 788,433 | +424 |
+| `pico_wiretft_angulo` | 829,113 | 829,409 | +296 |
+| `pico2_w_original` | 1,000,297 | 1,001,049 | +752 |
+
+The version line alone moves seven images by −8 B: the login page, whose text carries the version, packs 6 B smaller (6,666 to 6,660 B) and what follows it sits 8 B closer; the other four (the Air, the alpha and the two Pico 2 W images) keep their size, the shift being absorbed by padding later in the image.
+
+Slack under the 1,040,384 B over-the-air ceiling: release 3,291 B (4,051 in v2.13.0), `pico_w_test` 2,475 B (3,267), `pico_w_asserts` 995 B (1,755). The gate warns for all three, as it did, because each is under one flash sector, and fails nothing. The alpha has 45,667 B left under the ceiling and the Wire 430,903 B; the Pico 2 W's slot (1,568,768 B) keeps 529,839 B on the Ângulo image and 567,719 B on the original.
+
+### The bench
+
+The release gate (`AGENTS.md` §2) has not run on this release's candidate yet. This section is filled in by the gate's documentation change, from the candidate the CI signs on `main`. Until then, each figure above names the build and the date it was measured on. What ran on a board before, on development images (the Pico 2 W and the Pico W of the bench; each record is outside the repository, except where a section above gives the numbers):
+- 2026-10-31: the alarm-limits save and the display alignment, on the Pico W (the original panel) and on the Pico 2 W (the Ângulo), on v2.13.0 and on `main` at `96f503aa` (#307, #308; #309 and #310 record them); `GET /api/keypad` on the Pico 2 W, on v2.13.0's candidate and on `main` at `2bead926` (#311, #313).
+- 2026-11-04: the thirteen small fixes (#318), on the Pico 2 W and on the Pico W as the release, the Air and the SIMUT Wire, each against v2.13.0 or `main`'s image: eleven failed before and passed after, the License screen's line was checked in the image's bytes, and the setup-AP hold's screen could not be checked. The print virtual (#319) and the live view's route (#320) on a Pico W with a 16x2 module, as `pico_wire`: 4,797 of 4,797 answers in 20 minutes at 4 Hz.
+- 2026-11-05: the live view's box on the same module, as `pico_wire`: 19 checks of what the device serves, the maintainer's comparison with the glass and 2,399 of 2,399 answers in ten minutes at 4 Hz.
+
+Not run on a board: the retention check between v2.13.0 and this release, on either board, and the way down (they run at the gate, on the CI-signed candidate); the published `pico_w_alpha` with the print virtual and the live view (the bench ran the cable build, `pico_wire`); the 403 of `GET /api/lcd`; the Apply of the alignment screen and its other exits (the console's `screen` command, a theme change, an update with a preview on the glass); the radio build's screens, and the boot, network and setup-AP screens, on a module; the original panel's AP address line and the alpha's AP page; the setup-AP hold's screen at boot (never drawn, see *Known*). Seen on the host only: the manual's 17 LCD figures, and the live view's box in headless Chrome 156 against a local stand-in server (60 checks at 1280 and 390 px wide).
+
+### Upgrading
+
+- **The language packs grow by 78 B and 81 B and still load on v2.13.0.** pt-BR goes from 53,035 to 53,113 B and es-ES
+  from 55,064 to 55,145 B (two new keys for the live view's box, #320); the ceiling is 65,536 B on v2.13.0 and on this
+  firmware alike (`LANG_FILE_MAX`), so the order of the installs does not matter. A v2.13.0 pack still loads on this
+  firmware, since a key a pack lacks shows its English text: on an alpha or a Wire, the live view's two new words
+  (*Live view stopped*, *Stale frame*) read in English until the new pack is in.
+- **From v2.13.0, on a Pico W (release, alpha or Air):** over the air, from the Files page, with this release's `.bin`
+  and with no other page of the device open. Download the `.bkp` the page offers first. The apply reformats the
+  filesystem and keeps only `/config/system.bin`: `/lang` is gone, so the device shows English until the pack is back
+  and it has rebooted, and the history, the themes in `/themes` and the Air's own options come back only with the
+  `.bkp`. Restore the `.bkp` (it brings the old pack back), upload **the pack of the device's language** attached to
+  this release, over the old one, and reboot; a pack is read at boot. The Pico W keeps the original panel.
+- **From v2.13.0, on a Pico 2 W:** over the air, with this release's `.bin`: the update goes to the other slot, leaves
+  the filesystem alone and boots on trial, as since v2.11.0. The board stays on the Ângulo, and the pack in `/lang`
+  stays: this release changes only the two keys above, which the Pico 2 W's pages do not use. The saved theme number
+  is read as in v2.13.0. The retention check between the two images has not run on a board for this release (*The
+  bench*).
+- **Back to v2.13.0:** over the air with its signed `.bin` (both carry security version 1 and series 1), or over USB.
+  A pack of this release in `/lang` is under v2.13.0's ceiling, so v2.13.0 loads it. The way down over the air has not
+  run on a board for this release (*The bench*).
+- **From an older version, or a Pico 2 W's first install:** as for v2.11.0, in its entry below.
+- **Language packs: upload only the one of the device's language.** With more than one `language_*.lng` in `/lang` the
+  device loads the first in alphabetical order (every image does, by the code; all but the alpha also log 622,
+  `I18N_PACK_MULTIPLE`), and `language_es-ES.lng` comes before `language_pt-BR.lng`: a Portuguese device with both
+  turns Spanish (measured on the Pico W's release image, 2026-10-29). The Upgrading text of v2.11.1 and of the
+  releases before it says to upload the two; do not. A device that has both gets its language back by deleting the
+  other pack from `/lang` on the Files page and rebooting. A v2.13.0 pack still loads on this firmware, since a key a
+  pack lacks shows its English text. After a boot in English, the panel's Idioma screen lists the pack put in `/lang`
+  (#294).
+- **Themes:** on the original panel, a `.thm` restored from a `.bkp` keeps the name it was installed with, in
+  Portuguese for the stock themes of an older install; the web page translates their codes (#298). The device loads
+  eight `.thm` files (see *Known*). On the Ângulo a `.thm` is stored and not used.
+- **simut-rx** has no published release that knows `releasetwo`: its pull request #14, which adds it, was merged on
+  2026-11-04, and its latest release, v1.9.1, is of 2026-10-03 (`gh pr view` and `gh release list`, 2026-11-05). Until
+  a release carries it, simut-rx offers no update to a Pico 2 W; once one does, it offers this release, with the
+  Ângulo, to every Pico 2 W, because the original panel and the Ângulo are the same `releasetwo` for the update.
+
+### Known, and not fixed here
+
+- **Closed since v2.13.0's list.** Accented lines on the original panel's boot screen printed `?`, and the Ângulo's boot ring, which had not been checked, drew a UTF-8 suffix encoded a second time ("EstaÃ§Ã£o_SETUP") (#318). Saving the alarm limits from the panel read the working copy with no copy and no lock (F3, #307). `GET /api/keypad` on the Ângulo described the original panel's keypad (F4, #311). A display-alignment preview that was not saved survived the idle return, on both panels (#308; one exit still keeps it, in the list below).
+- **A refused file followed by an accepted one, in the same upload, still ends in "Upload complete."** The device
+  clears its refusal at the start of each file (`handleUploadData( )`), so it reports only the last file's. Send one
+  file at a time when one may be refused (#299).
+- **Four panel events save the configuration without Core 0's permission check**: the sounds, the two touch
+  calibrations and the display offset. `tools/check_authz.py` lists them as warnings, and CI holds the list. Deferred
+  at the maintainer's word of 2026-10-28.
+- **`data/themes/*.thm` differ from `tools/gen_theme_collection.py`** in the limit-alarm colours since 2137ea15
+  (2026-08-23). The generator's contrast rules fail the new colours on 36 pairs, so regenerating the files would turn
+  every stock theme's alarm red again.
+- **The Spanish texts are a proposal** until a native speaker reviews them: the names of the themes (#298), the text of `fil_up_refused` (#299), the 380 texts of the Ângulo's `@ANGULO` section (#304) and the two texts of the live view's box (#320). The review does not block a release (the maintainer's word of 2026-10-30).
+- **The emergency console has no `language` command**, and the web has no key for it. After a boot in English, the
+  panel's Idioma screen is the way back (#294), on the Ângulo too (seen on the Pico 2 W's bench on 2026-10-28, on a
+  development image, and on v2.13.0's candidate on 2026-10-31).
+- **The web page's theme select gives no feedback when the device refuses the change.** `saveTheme( )` ignores the
+  answer of `/api/save_sys`.
+- **Narrowing the PIN alphabet or lowering the length ceiling still strands an old PIN** that uses a letter no longer
+  on the cards, or is longer than the new ceiling: the cards cannot offer the one, and Core 0 cannot check the other
+  in time. The account needs a new PIN from the panel's Users, the web or the console.
+- **On a build with a panel, a Core 1 hard fault leaves no program counter in the log**, on both chips. The main loop
+  restarts Core 1 after 10 s without its heartbeat, before the soft panic that would record it (measured in #249).
+- **On the Pico W, a configuration save from the panel during an upload restarts Core 1 in the middle of the stage**,
+  by the code. The stage then writes the flash with Core 1 running from it. It has not been seen on the bench. The
+  Pico 2 W's stage does not run that save.
+- **The web page does not retry an install refused with 503** (a touch on the panel in the 5 s before), by the code.
+- **A large response can be cut short under concurrent load.** On the Pico 2 W, a screenshot of 230,454 B read in
+  parallel with six page-like GETs was cut in 1 of 749 requests and in 1 of 602 on v2.13.0's candidate (2026-10-30 23:46 to
+  2026-10-31 00:00, with the telemetry server down and then up), and on v2.12.0, on the same board, in 1 of 805 (00:11
+  to 00:19), where a reset connection on the next status read then ended the run. Each of the three cut screenshots
+  added one to `cgx` in `metr`, a disconnect that includes the drop the board chooses when a client does not drain half
+  of the TCP send buffer within `WEB_SEND_STALL_MS` (4 s; `WebManager_Send.cpp:89-90`), and none moved the handler
+  deadline (`cgd`) or the abort guard (`cgg`). No restart and no data lost. It shows as a screenshot cut short and,
+  once, as the web page loading without its dictionary (the theme names in English that time; inferred from the
+  browser's `ERR_CONTENT_LENGTH_MISMATCH` in that load, with no counter read). It is older than this release: v2.12.0
+  does the same, and #247's fix is in v2.13.0's candidate, so this is not the eviction it closed.
+- **`configure terminal` does not need `enable`**, although the console's command table says it needs privileged mode.
+  It opens nothing, but the table and the behaviour disagree.
+- **With two pressure sensors, the measurement line sends the pressure under the first one's key and with the last
+  one's value**, by the code.
+- **The Telemetry page's token list for the alarm line stops at v22.** Chapter 22 of the manual lists them all.
+- **Adopting a probe, or `sensor_wipe`, does not start the slot's history anew.** Both stamp the slot's provisioning
+  epoch, and nothing reads it: the history serves every record of a slot under the slot's current id. On the bench,
+  after slot 0 adopted another probe, its readings of 4 October came back under the new probe's id.
+- **After a boot, a probe that is not the slot's can have its first reading recorded.** The read path checks the ROM
+  on every fifth read, from the fifth on. On the bench, with another probe on the slot's GPIO, the reading of 20 s
+  after the boot went into the history as the slot's, and the quarantine began within the next minute.
+- **An Air with telemetry over TLS and no `/cert.pem` writes two records at every wake:** 545 (`TEL_CERT_MISSING`, "No
+  cert.pem, insecure mode") and 544 (`TEL_CERT_READ_ERR`, context 1: TLS on without certificate validation).
+  `TelemetryManager::begin( )` writes them at every start, and the boot preamble list in `LogPolicy.cpp`, which
+  silences the other start-up records of a wake, does not hold them. Not new: on the same Air, v2.11.1 wrote them at
+  each of three wakes and v2.12.0's candidate at each of eleven (2026-10-29).
+- **The alpha and the Air log an error after each update:** `Config changed: image CRC mismatch over 990720 B, want
+  4f5041ca` on the alpha, `over 1035776 B, want 299abf18` on the Air (`AppManager_Boot.cpp`; 2026-10-29, and the same
+  on both in v2.11.1's gate, 2026-10-05). The slot equals the signed image except the 4 KiB sector of BTstack's flash
+  bank, which lies inside the range the check sums: the likely cause. The update installs and boots, and the version
+  and the configuration are the new ones; the release image logs `image verified` instead.
+- **Only eight of the eleven stock themes load, on the original panel.** `MAX_CUSTOM_THEMES` is 8
+  (`src/ui/original/Themes.cpp`, since v1.0.0) and the directory is read in order, so with all eleven `.thm` files
+  uploaded `ubuntu`, `unimed_claro` and `unimed_escuro`, the last in that order, are left out: `GET /api/themes` lists
+  nine rows, `simut_def` and eight, on both boards (2026-10-29, when the Pico 2 W still ran the original panel; again on
+  the Pico W's candidate of v2.13.0, 2026-10-31). The packs carry the eleven names (#298); R-R14 of
+  `docs/analysis/MODELO_DE_RECURSOS.md` has the limit. The Ângulo does not load `.thm` files: on a Pico 2 W with it,
+  `GET /api/themes` lists its 18 choices.
+- **No language pack carries a name for the built-in theme `simut_def`,** so, on the original panel, the web page shows
+  "Simut Default" in every language, by the code (the packs of v2.12.0 and of v2.13.0 alike, 2026-10-31). #298
+  names the stock themes in the device's language, and this one is the exception: it is compiled in and has no `thm_`
+  key.
+- **Some injected touches are not taken** (the bench's `POST /api/touch`). On the original panel, "Nova conta" on the
+  users list and the graph's detail (seen on `main` 2f4bc3d3 and on the Ângulo's branch alike, 2026-10-21). On the
+  Ângulo, the first 3.5 s hold right after a slot tap does not toggle the pinned card, and a retry 2 s later does
+  (2026-10-21 and 2026-10-22). Not seen with a finger, and not judged a defect.
+- **The Ângulo's confirmation to start the setup network was never confirmed on a board.** The bench pressed Cancel;
+  Confirm sends `EVT_START_AP` and starts the setup network. Its frames were compared with the host's in pt-BR and in
+  es-ES (0 of 76,800 pixels differ).
+- **The setup-AP hold's screen is not drawn at boot.** While a finger holds the panel from the boot, the AP opens, but
+  the hold screen ("Modo AP" and the bar) was never drawn, on `main`'s image or on #318's (2026-11-04, Pico W,
+  `pico_w_release`). The cause is open. The fix of the screen's repeated clear (#318) is proved by
+  `tools/tft_ui/test_ap_progress.py` alone.
+- **A second Salvar on another sensor drops the first, silently.** The alarm-limits box holds one Salvar (#307): if a
+  second one, on another sensor, comes before Core 0 has handled the first, it replaces the first, and the first save
+  is lost without a sound. Before #307 the same sequence wrote the second sensor's limits into the first.
+- **A display-alignment preview survives a firmware update.** During an update Core 1 is parked and Core 0 paints the
+  update screen on the glass as it is (#308), so a preview left on the glass stays, shifted by up to 4 px, until the
+  restart if the update succeeds and until Core 1 resumes if it fails.
+- **The alpha's LCD truncates the temperature and the humidity, where its pressure and the TFT round.** `AlphaFrame.h`
+  writes `(int)(v * 10.0f)` for the temperature and `(int)v` for the humidity (since `afe1d875`, 2026-08-24), and
+  `(int)(v * 10.0f + 0.5f)` for the pressure: 27.98 °C reads 27.9 on the alpha and 28.0 on the release. Seen on the
+  way in #319's board check (2026-11-04) and not changed. The live view shows what the LCD shows.
+- **A UTF-8 name reaches the alpha's LCD unfolded.** A setup-AP SSID with accents is shown as UTF-8 bytes, not folded
+  to the characters of the ROM, because `isValidName( )` (`SystemDefs_Validate.h:316-323`) refuses bytes below 0x20,
+  `"` and `\` and accepts 0x7F and every byte above. Listed among #318's findings; not changed.
+- **On the alpha, the setup AP's page flip draws one frame with the new title over the old value** (#318's list of
+  findings).
+- **The Ângulo's frame counter is bumped blindly.** `uaPintar( )` raises `s_seq` with `s_seq = s_seq + 1` twice,
+  around the publication of the frame's state (`src/ui/angulo/DisplayManager_UiA.cpp:296` and `:308`), and `uaEstado(
+  )` takes an odd count for "writer busy". If Core 1 is relaunched between the two bumps (the main loop does it after
+  10 s without its heartbeat; see the Core 1 hard fault item), the count stays odd with no writer running and every
+  later paint keeps the parity inverted. `uaEstado( )` then finds the odd count at rest and answers -1, "busy", after
+  2 ms of retries, on every call; and while a paint publishes the count is even, so a copy taken inside that write
+  passes the check. The alpha's glass shadow sets its count odd whatever parity it finds (`seq = (s + 1u) | 1u`,
+  `src/display/LcdGlass.h:164`). Rare, because it needs that relaunch inside a window of tens of microseconds; by the
+  code, noticed in the review of the live view's shadow; not seen on a board.
+- **On the bench's Air, the `[AIR] alarm` line never reaches the host.** The Air suite waits for it before the sleep,
+  but the USB drops during the sleep entry, before the line is printed (`main` too, 2026-11-04). The suspect is
+  `b0bc5c36` (2026-10-13, "a module stopped on its way up starts again; the Air asks net::…"); not confirmed. T18 to
+  T20 ran from a copy that reads the wake period from `air status`.
 
 ## v2.13.0 (2026-10-31)
 

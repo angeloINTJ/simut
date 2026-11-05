@@ -23,10 +23,10 @@ O aparelho atende um protocolo por vez. Com o par de certificados instalado, a i
 
 | Imagem | Rotas | Diferença |
 |---|---|---|
-| release | 62 | Todas, menos `GET /api/ui` |
+| release | 62 | Todas, menos `GET /api/lcd` (só as imagens com o LCD do alpha) e `GET /api/ui` |
 | releasetwo, com o painel Ângulo | 63 | As da release, mais `GET /api/ui` |
-| alpha | 54 | Sem as 5 rotas do painel, sem `GET /api/themes` e `POST /api/reset_touch_cal`, e sem `POST /api/tls` |
-| Air | 54 | As mesmas da alpha, e só enquanto o Air está acordado em M0 ([capítulo 19](#cap-19)) |
+| alpha | 55 | Sem as 5 rotas do painel, sem `GET /api/themes` e `POST /api/reset_touch_cal`, e sem `POST /api/tls`; com `GET /api/lcd` |
+| Air | 54 | As da alpha, menos `GET /api/lcd`, e só enquanto o Air está acordado em M0 ([capítulo 19](#cap-19)) |
 
 Até a v2.7.3 a alpha e o Air tinham 56: `GET /api/themes` e `POST /api/reset_touch_cal` respondiam também nelas, sem painel para usar. Uma rota que não existe na imagem responde como qualquer caminho desconhecido ([Convenções](#cap-26-convencoes)).
 

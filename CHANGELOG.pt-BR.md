@@ -4,10 +4,14 @@
 
 Todas as mudanças notáveis do firmware SIMUT.
 
-## Não lançado
+## v2.14.0 (2026-11-05)
+
+**O painel do alpha e do SIMUT Wire com um LCD 16x2 pode mostrar o LCD: uma caixa, *Tela* (*Display Capture* em inglês), desenha o vidro ponto a ponto, uma vez no Capturar e até quatro vezes por segundo no Ao vivo, a partir do `GET /api/lcd` (#320). Por trás dela está o print virtual (#319), o LCD do alpha desenhado no computador a partir do código do próprio firmware, que faz as 17 figuras de LCD do manual e que a página repete pixel a pixel. Os caracteres são da Hitachi (Tabela 4 do datasheet do HD44780U): o `pico_w_alpha` publicado passa a trazer a ROM A00, reproduzida sem a aprovação escrita que a Advertência 6 pede, por decisão do mantenedor de 04/11/2026. A versão traz ainda treze correções pequenas, achadas lendo o código e pelas notas da bancada (#318), e três mudanças que fecham itens da lista *Conhecido* da v2.13.0: o Salvar dos limites de alarme do painel (F3, #307), a prévia do alinhamento da tela que sobrevivia à saída da tela (#308) e o `GET /api/keypad` no Ângulo (F4, #311). O resto é uma mudança de lugar de nomes entre dois cabeçalhos, que não muda nenhuma imagem (#312), testes, ferramentas, a ação de atestado e documentos.**
+
+A `CONFIG_VERSION` continua em 26 e o nível de segurança em 1. `keys/` e `src/ota/ota_layout.h` são os arquivos da v2.13.0 (`git diff v2.13.0 HEAD -- keys src/ota/ota_layout.h` está vazio, 05/11/2026), então a v2.13.0 verifica a assinatura desta release e o caminho de volta está aberto pelos arquivos; o portão ainda não rodou esse vai e volta numa placa (*A bancada*). Os treze pull requests mesclados desde a v2.13.0 estão cada um na seção a que pertencem (#307, #308, #311 e #312 primeiro, depois #318, #319 e #320) ou em *Por dentro* (#309, #310, #313, #315, #316 e #317).
 
 **O Salvar do editor de limites de alarme do painel passa a salvar os limites que estavam na tela no toque, e não o que o editor guarda quando o Core 0 chega ao evento. Isto fecha o F3 da lista *Conhecido* da v2.13.0. Uma prévia do alinhamento da tela que não foi salva não sobrevive mais à saída da tela, no painel original e no Ângulo: por onde quer que a tela seja deixada, menos durante uma atualização do firmware, o Core 1 devolve o deslocamento gravado
-e redesenha, e a entrada seguinte parte dele. As duas correções foram encontradas lendo o código, e as duas foram conferidas na bancada em 31/10/2026, no Pico W (o painel original) e no Pico 2 W (o Ângulo). Uma terceira mudança, conferida no Pico 2 W em 31/10/2026, fecha o F4: no Ângulo, o `GET /api/keypad` deixa de descrever o teclado do painel original. Ele manda as faces, o estado e a política, e nomeia a rota que lista as teclas do Ângulo; as duas imagens do Ângulo ficam 208 e 216 B menores e as outras nove são, byte a byte, o que eram. Uma quarta mudança, a de treze nomes entre dois cabeçalhos do teclado do painel original, não muda nenhuma imagem: as onze têm o mesmo sha256 da `main`. Uma última mudança desenha o LCD 16x2 do alpha no computador, a partir do código do próprio firmware: as 17 figuras de LCD do manual são feitas assim, e uma conferência no CI as desenha de novo. Ela não rodou numa placa, e as duas imagens com esse LCD crescem 32 e 24 B; as outras nove são, byte a byte, o que eram.**
+e redesenha, e a entrada seguinte parte dele. As duas correções foram encontradas lendo o código, e as duas foram conferidas na bancada em 31/10/2026, no Pico W (o painel original) e no Pico 2 W (o Ângulo). Uma terceira mudança, conferida no Pico 2 W em 31/10/2026, fecha o F4: no Ângulo, o `GET /api/keypad` deixa de descrever o teclado do painel original. Ele manda as faces, o estado e a política, e nomeia a rota que lista as teclas do Ângulo; as duas imagens do Ângulo ficam 208 e 216 B menores e as outras nove são, byte a byte, o que eram. Uma quarta mudança, a de treze nomes entre dois cabeçalhos do teclado do painel original, não muda nenhuma imagem: as onze têm o mesmo sha256 da `main`. Uma última mudança desenha o LCD 16x2 do alpha no computador, a partir do código do próprio firmware: as 17 figuras de LCD do manual são feitas assim, e uma conferência no CI as desenha de novo. Em 04/11/2026 o mantenedor viu o módulo de um Pico W (o build de cabo) mostrar o que o computador havia desenhado para o mesmo estado; o build de rádio não foi visto num módulo. As duas imagens com esse LCD crescem 24 B (`pico_w_alpha`) e 32 B (`pico_wire`) de `used`; as outras nove são, byte a byte, o que eram.**
 
 **Treze correções pequenas, achadas lendo o código e pelas notas da bancada desde 13/10/2026. A bancada de 04/11/2026 as rodou no Pico 2 W e no Pico W (como release, como Air e como SIMUT Wire), cada uma contra a v2.13.0 ou a imagem da `main`: onze falharam antes e passaram depois na placa, a linha da tela Licença foi conferida nos bytes da imagem e não no vidro, e a tela de boot durante o gesto do AP de configuração não pôde ser conferida, porque essa tela não é desenhada em nenhuma das duas imagens. Na página web, as marcas das regras de senha mostravam `¹3` e `¹5` no lugar do visto e do xis, e o dashboard escrevia `ºC` em vez de `°C`. No painel original, um toque no botão de gráfico do cartão de baixo podia desligar o mín/máx, a tela Licença terminava numa frase de efeito que não é a licença, a tela de boot apagava a tela inteira a cada passo do gesto de segurar para abrir o AP de configuração, e o terminal de boot desenhava todo acento de uma linha traduzida como `?`. No Ângulo, o anel de boot codificava um sufixo UTF-8 pela segunda vez, e o "Estação_SETUP" do AP de configuração aparecia como "EstaÃ§Ã£o_SETUP". O endereço do AP de configuração deixava a porta web de fora em quatro lugares, e um caminho desconhecido numa porta diferente redirecionava para a porta 80. No console, `system history_interval abc` falava do lote mínimo. No alpha, o nome e o código de um pacote de idioma chegavam à página do jeito que estavam no arquivo. No Air, o `air stop` num despertar de telemetria deixava o servidor web desligado, e o `ap` durante o ciclo de hibernação abria um ponto de acesso que não servia nada e agora é recusado. Cada correção é uma seção abaixo, com o que estava errado, o que mudou e como foi provado; os tamanhos ficam no fim.**
 
@@ -20,7 +24,7 @@ e redesenha, e a entrada seguinte parte dele. As duas correções foram encontra
 - **O conserto.** No Salvar, o Core 1 copia a cópia de trabalho para uma caixa de uma entrada (`src/display/AlarmLimitsSnap.h`, 68 B, membro do `DisplayManager`), e o Core 0 tira a cópia de lá sob o `_stateMutex`, para o sensor do evento. Uma retirada que acha a caixa vazia, ou com os limites de outro sensor, volta antes de qualquer outra coisa: sem som, sem gravação, sem log, sem troca de tela. O `editedAlarmRecord( )`, que entregava a cópia viva, saiu, e os cinco comentários que ainda diziam que o Core 0 compara a cópia viva agora dizem por que não.
 - **O limite que fica.** A caixa guarda um Salvar. Se um segundo Salvar, noutro sensor, chega antes de o Core 0 tratar o primeiro, ele o substitui, e o primeiro salvamento se perde sem som. Antes deste conserto, a mesma sequência escrevia os limites do segundo sensor no primeiro. Um Salvar que o Core 0 nega, ou cujo evento o anel cheio descarta, deixa a cópia na caixa até o próximo Salvar substituí-la; isso é inofensivo, porque o `actLimitsSave( )` é o único produtor do evento.
 
-### Testes
+### Testes (o Salvar dos limites de alarme)
 
 Cinco casos novos na suíte `native` (`test_validators`): de **366 para 371** casos nela e de **772 para 777** nas onze suítes, todos passando em 31/10/2026. Eles fixam a caixa: a cópia guarda o que foi postado quando o registro muda depois (10,0 e 20,0 ficam), uma retirada para outro sensor falha e deixa a caixa para o dono, uma segunda retirada do mesmo Salvar falha, uma caixa nova não dá nada para nenhum slot, e os 8 canais dos dois vetores passam. Eles estavam vermelhos antes de o cabeçalho existir (a suíte não compilava). Cada uma de três mutações do cabeçalho reprova exatamente um caso: uma retirada que lê o registro vivo, uma retirada sem a conferência do sensor, uma retirada que não esvazia a caixa. O mutex do host não faz nada, então a trava é conferida por leitura, não por teste.
 
@@ -52,7 +56,7 @@ Cinco casos novos na suíte `native` (`test_validators`): de **366 para 371** ca
 - **O manual.** O capítulo 11A dizia que a volta por inatividade deixa a imagem deslocada e que uma entrada nova a mantém; agora diz que toda saída devolve o deslocamento gravado e que uma entrada
   nova parte dele, e cita a atualização como a exceção.
 
-### Flash
+### Flash (o Salvar dos limites de alarme e o alinhamento da tela)
 
 Contra a v2.13.0 (`3ca4976f`), `firmware.bin` assinado (a imagem mais a assinatura de 241 bytes), as onze imagens compiladas do zero na árvore da fusão em 31/10/2026 pelo shim do pio, com `-Werror` valendo.
 As duas correções somam: a parte do F3 é o `aaccce35` contra o `3ca4976f`, como o F3 mediu na árvore dele, e a parte do alinhamento é a árvore da fusão contra o `aaccce35`. As oito imagens com
@@ -262,6 +266,212 @@ O `firmware.bin` como compilado varia o mesmo tanto que o `used` em todas as ima
 - **Na bancada (04/11/2026).** Um Pico W com um módulo 16x2 rodou o `pico_wire` da `d92b08a2`: a rota e a sombra, não a caixa (`firmware.bin` `51e6f51d`, 605.864 B). Às 22h37 um pedido sem sessão levou 401 e o do admin levou 200. Sessenta segundos a 4 Hz: 240 de 240 respostas 200, 12,9 ms a mediana e 14,2 ms a pior, um quadro novo a cada 500 ms (o `seq` andou de 2 em 2), `age_ms` no máximo 501, o heap plano. De 22h40 às 23h00, vinte minutos a 4 Hz: 4.797 de 4.797 respostas 200 e nenhum 503; 12,9 ms a mediana, 13,7 ms no percentil 95 e 288,3 ms a pior (um valor fora da curva, de causa não medida); 2.388 quadros diferentes; `age_ms` 250 a mediana e 505 o pior; `heap_free` entre 103.888 e 103.968 B e o maior bloco de pelo menos 93.105 B; o tempo ligado foi de 199 s a 1.390 s, sem reinício. Esses números fixam o período da página (250 ms, cerca de 5% de uma resposta de 13 ms) e o limite de desatualizado (2.000 ms, quatro renovações).
 - **Na bancada (05/11/2026).** A mesma placa rodou o `pico_wire` da `03d05e47`, a caixa com esta tabela (`firmware.bin` `ddb493bd`, 609.248 B), desde 00h12. Um script leu o que o aparelho serve, 19 conferências: 401 sem sessão e 200 com sessão, com `Cache-Control: no-store`; o dashboard traz a caixa do LCD e nada da do painel de toque; a `/license` não cita mais a fonte aberta; e o bloco de fonte que o aparelho serve é a `ROM_A00` dígito a dígito (1.344 dígitos, calculados do `rom_hd44780.py` e não lidos do `WebUI.h`; o bloco da imagem anterior difere dela em 92 de 96 glifos, o controle negativo da conferência). O mantenedor comparou a visão ao vivo no navegador dele com o módulo e a chamou de representação perfeita do display (00h21). Das 00h22 às 00h32, dez minutos a 4 Hz: 2.399 de 2.399 respostas 200 e nenhum 503; 12,6 ms a mediana, 13,4 ms no percentil 95 e 99,8 ms a pior; 1.191 quadros diferentes, um a cada 500 ms; `age_ms` 250 a mediana e 504 o pior; `heap_free` entre 103.856 e 103.888 B e o maior bloco de pelo menos 93.076 B; o tempo ligado foi de 594 s a 1.184 s, sem reinício.
 - **Não rodado numa placa.** O 403, e a `pico_w_alpha`: a bancada rodou só a imagem de cabo. A caixa também foi conferida no Chrome 156 sem janela contra um servidor local no lugar do aparelho (60 conferências com 1280 e 390 px de largura, a 1x e 3x: o canvas guarda exatamente a imagem de 639 x 137 que o `lcd.py` desenha com a tabela padrão, a caixa está acima dos cartões de estado, sem rolagem horizontal, Capturar, Ao vivo, Parar, ocupado e 403, e um `MutationObserver` vê a região viva intacta enquanto a idade é reescrita) e no mundo falso acima. Em 04/11/2026 o mantenedor viu na placa uma imagem anterior, cujos glifos eram de uma fonte aberta e não os do LCD de verdade, e pediu a tabela do LCD de verdade.
+
+### Por dentro
+
+- **Testes.** As onze suítes nativas têm **843** casos, contra 772 na v2.13.0 (o `tools/check_readme_numbers.py` os
+  conta, 05/11/2026): 5 a mais para a caixa dos limites de alarme (#307), 18 para as correções pequenas (#318), 29
+  para o quadro do alpha (#319) e 19 para a visão ao vivo (#320). O job `gates` cresceu com os scripts de host das
+  mudanças: `tools/tft_ui/test_alinhar.py` (#308), `tools/test_keypad_answer.py` (#311),
+  `tools/tft_ui/test_zona_minmax.py`, `tools/tft_ui/test_ap_progress.py` e C9 e C10 do
+  `tools/check_air_consistency.py` (#318), as conferências do print virtual em `tools/lcd_alpha/` (#319) e, para a
+  visão ao vivo (#320), o `tools/check_glass_seqlock.py`, os testes da página e da caixa sob o node (`test_lcd_js.py`,
+  `test_lcd_box.py`) e o da rota (`test_api_lcd.py`). A matriz de autorização tem 63 rotas, 53 com portão (o `GET
+  /api/lcd` tem portão, #320).
+- **A ação de atestado (#315).** A `actions/attest-build-provenance` passa da v2 para a v4 no
+  `.github/workflows/release-ota.yml` (uma linha). Ela ainda não rodou: a primeira execução é a tag desta release.
+- **O piso de economia e os custos do configurador (#316, #317).** O piso do `tft_graph` cai de 20.365 B para 20.135 B
+  (issue #314; a seção *Flash* das duas primeiras mudanças explica). Os custos que o configurador oferece
+  (`docs/configurador/model.json`, `tools/feature_costs.json`) foram medidos de novo na `main` depois que o #307, o
+  #308 e o #311 mudaram as imagens.
+- **Documentos (#309, #310, #313).** A bancada de 31/10/2026 em `docs/VERIFICATION*.md` e
+  `docs/analysis/UI_DRIVERS.md`: o Salvar dos limites de alarme e o alinhamento da tela conferidos nos dois painéis
+  (#309), o transitório daquele dia explicado como uma captura rasgada pela volta por inatividade (#310) e o `GET
+  /api/keypad` no Ângulo conferido no Pico 2 W (#313).
+
+### Flash
+
+Contra as imagens publicadas da v2.13.0, o `firmware.bin` assinado (a imagem mais a assinatura de 241 bytes; o `pico_w_test_https` não é assinado), as onze imagens construídas do zero nesta árvore em 05/11/2026 pelo shim do pio, com `-Werror`. As tabelas acima medem cada mudança na árvore que nomeiam; esta é a release inteira.
+
+| Imagem | v2.13.0 | v2.14.0 | Δ |
+|---|---:|---:|---:|
+| `pico_w_release` | 1.036.333 | 1.037.093 | +760 |
+| `pico_w_test` | 1.037.117 | 1.037.909 | +792 |
+| `pico_w_test_https` (sem assinatura) | 1.041.220 | 1.042.004 | +784 |
+| `pico_w_asserts` | 1.038.629 | 1.039.389 | +760 |
+| `pico_w_alpha` | 990.621 | 994.717 | +4.096 |
+| `pico_w_air` | 1.035.581 | 1.035.581 | 0 |
+| `pico2_w_release` | 1.038.345 | 1.038.929 | +584 |
+| `pico_wire` | 604.665 | 609.481 | +4.816 |
+| `pico_wiretft` | 788.009 | 788.433 | +424 |
+| `pico_wiretft_angulo` | 829.113 | 829.409 | +296 |
+| `pico2_w_original` | 1.000.297 | 1.001.049 | +752 |
+
+A linha da versão sozinha move sete imagens em −8 B: a página de login, cujo texto traz a versão, empacota 6 B menor (de 6.666 para 6.660 B) e o que vem depois dela fica 8 B mais perto; as outras quatro (o Air, o alpha e as duas imagens do Pico 2 W) mantêm o tamanho, o deslocamento sendo absorvido por enchimento adiante na imagem.
+
+Folga sob o teto de 1.040.384 B do envio pelo ar: release 3.291 B (4.051 na v2.13.0), `pico_w_test` 2.475 B (3.267), `pico_w_asserts` 995 B (1.755). O portão avisa nas três, como avisava, porque cada uma está a menos de um setor de flash, e não reprova nada. O alpha tem 45.667 B sobrando sob o teto e o Wire 430.903 B; o slot do Pico 2 W (1.568.768 B) guarda 529.839 B na imagem do Ângulo e 567.719 B na original.
+
+### A bancada
+
+O portão da release (`AGENTS.md` §2) ainda não rodou na candidata desta release. Esta seção é preenchida pela mudança de documentação do portão, a partir da candidata que o CI assina na `main`. Até lá, cada número acima nomeia o build e a data em que foi medido. O que rodou numa placa antes, em imagens de desenvolvimento (o Pico 2 W e o Pico W da bancada; cada registro fica fora do repositório, salvo onde uma seção acima traz os números):
+- 31/10/2026: o Salvar dos limites de alarme e o alinhamento da tela, no Pico W (o painel original) e no Pico 2 W (o Ângulo), na v2.13.0 e na `main` em `96f503aa` (#307, #308; o #309 e o #310 os registram); o `GET /api/keypad` no Pico 2 W, na candidata da v2.13.0 e na `main` em `2bead926` (#311, #313).
+- 04/11/2026: as treze correções pequenas (#318), no Pico 2 W e no Pico W como release, Air e SIMUT Wire, cada uma contra a imagem da v2.13.0 ou da `main`: onze falharam antes e passaram depois, a linha da tela Licença foi conferida nos bytes da imagem, e a tela do gesto do AP de configuração não pôde ser conferida. O print virtual (#319) e a rota da visão ao vivo (#320) num Pico W com módulo 16x2, como `pico_wire`: 4.797 de 4.797 respostas em 20 minutos a 4 Hz.
+- 05/11/2026: a caixa da visão ao vivo no mesmo módulo, como `pico_wire`: 19 conferências do que o aparelho serve, a comparação do mantenedor com o vidro e 2.399 de 2.399 respostas em dez minutos a 4 Hz.
+
+Não rodou numa placa: a conferência de retenção entre a v2.13.0 e esta release, nas duas placas, e o caminho de volta (rodam no portão, na candidata assinada pelo CI); o `pico_w_alpha` publicado com o print virtual e a visão ao vivo (a bancada rodou o build de cabo, `pico_wire`); o 403 do `GET /api/lcd`; o Aplicar da tela de alinhamento e as outras saídas dela (o comando `screen` do console, uma troca de tema, uma atualização com uma prévia no vidro); as telas do build de rádio, e as telas de boot, de rede e do AP de configuração, num módulo; a linha do endereço do AP no painel original e a página do AP do alpha; a tela do gesto do AP de configuração no boot (nunca desenhada, ver *Conhecido*). Visto só no computador: as 17 figuras de LCD do manual, e a caixa da visão ao vivo no Chrome 156 sem janela contra um servidor local de teste (60 conferências com 1280 e 390 px de largura).
+
+### Atualizando
+
+- **Os pacotes de idioma crescem 78 B e 81 B e continuam carregando na v2.13.0.** O pt-BR vai de 53.035 para 53.113 B
+  e o es-ES de 55.064 para 55.145 B (duas chaves novas para a caixa da visão ao vivo, #320); o teto é 65.536 B na
+  v2.13.0 e neste firmware (`LANG_FILE_MAX`), então a ordem das instalações não importa. Um pacote da v2.13.0 ainda
+  carrega neste firmware, já que uma chave que falta no pacote mostra o texto em inglês: num alpha ou num Wire, as
+  duas palavras novas da visão ao vivo (*Live view stopped*, *Stale frame*) aparecem em inglês até o pacote novo
+  entrar.
+- **A partir da v2.13.0, num Pico W (release, alpha ou Air):** pelo ar, na página Arquivos, com o `.bin` desta release
+  e com nenhuma outra página do aparelho aberta. Baixe antes o `.bkp` que a página oferece. A aplicação reformata o
+  sistema de arquivos e mantém só o `/config/system.bin`: o `/lang` some, então o aparelho mostra inglês até o pacote
+  voltar e ele reiniciar, e o histórico, os temas em `/themes` e as opções próprias do Air só voltam com o `.bkp`.
+  Restaure o `.bkp` (ele traz o pacote antigo de volta), envie **o pacote do idioma do aparelho** anexado a esta
+  release, por cima do antigo, e reinicie; o pacote é lido no boot. O Pico W continua com o painel original.
+- **A partir da v2.13.0, num Pico 2 W:** pelo ar, com o `.bin` desta release: a atualização vai para o outro slot,
+  deixa o sistema de arquivos em paz e inicia em teste, como desde a v2.11.0. A placa continua no Ângulo, e o pacote
+  em `/lang` fica: esta release muda só as duas chaves acima, que as páginas do Pico 2 W não usam. O número do tema
+  salvo é lido como na v2.13.0. A conferência de retenção entre as duas imagens ainda não rodou numa placa para esta
+  release (*A bancada*).
+- **De volta à v2.13.0:** pelo ar com o `.bin` assinado dela (as duas têm o nível de segurança 1 e a série 1), ou por
+  USB. Um pacote desta release em `/lang` está abaixo do teto da v2.13.0, então a v2.13.0 o carrega. O caminho de
+  volta pelo ar ainda não rodou numa placa para esta release (*A bancada*).
+- **A partir de uma versão mais antiga, ou a primeira instalação de um Pico 2 W:** como na v2.11.0, na entrada dela,
+  abaixo.
+- **Pacotes de idioma: envie só o do idioma do aparelho.** Com mais de um `language_*.lng` em `/lang`, o aparelho
+  carrega o primeiro em ordem alfabética (toda imagem faz isso, pelo código; todas menos a alpha também gravam o 622,
+  `I18N_PACK_MULTIPLE`), e o `language_es-ES.lng` vem antes do `language_pt-BR.lng`: um aparelho em português com os
+  dois vira espanhol (medido na imagem release do Pico W, 29/10/2026). O texto de Atualizando da v2.11.1 e das
+  releases antes dela manda enviar os dois; não envie. Um aparelho que já tem os dois volta ao idioma dele apagando o
+  outro pacote de `/lang` pela página Arquivos e reiniciando. Um pacote da v2.13.0 continua carregando neste firmware,
+  já que uma chave que o pacote não tem aparece no texto em inglês. Depois de um boot em inglês, a tela Idioma do
+  painel lista o pacote colocado em `/lang` (#294).
+- **Temas:** no painel original, um `.thm` restaurado de um `.bkp` mantém o nome com que foi instalado, em português
+  para os temas de fábrica de uma instalação mais antiga; a página web traduz os códigos deles (#298). O aparelho
+  carrega oito `.thm` (veja *Conhecido*). No Ângulo um `.thm` é guardado e não é usado.
+- **O simut-rx** não tem release publicada que conheça o `releasetwo`: o pull request #14 dele, que o adiciona, foi
+  mesclado em 04/11/2026, e a última release dele, a v1.9.1, é de 03/10/2026 (`gh pr view` e `gh release list`,
+  05/11/2026). Até uma release trazê-lo, o simut-rx não oferece atualização a um Pico 2 W; quando trouxer, oferece
+  esta release, com o Ângulo, a todo Pico 2 W, porque o painel original e o Ângulo são o mesmo `releasetwo` para a
+  atualização.
+
+### Conhecido, e não consertado aqui
+
+- **Fechados desde a lista da v2.13.0.** As linhas acentuadas da tela de boot do painel original imprimiam `?`, e o anel de boot do Ângulo, que não tinha sido conferido, desenhava um sufixo UTF-8 codificado uma segunda vez ("EstaÃ§Ã£o_SETUP") (#318). Salvar os limites de alarme pelo painel lia a cópia de trabalho sem cópia e sem trava (F3, #307). O `GET /api/keypad` no Ângulo descrevia o teclado do painel original (F4, #311). Uma prévia do alinhamento da tela que não foi salva sobrevivia à volta por inatividade, nos dois painéis (#308; uma saída ainda a mantém, na lista abaixo).
+- **Um arquivo recusado seguido de um aceito, no mesmo envio, ainda termina em "Upload concluído."** O aparelho zera a
+  recusa no começo de cada arquivo (`handleUploadData( )`), então só relata a do último. Envie um arquivo por vez
+  quando um puder ser recusado (#299).
+- **Quatro eventos do painel gravam a configuração sem a conferência de permissão no Core 0**: os sons, as duas
+  calibrações do toque e o deslocamento do display. O `tools/check_authz.py` os lista como avisos, e o CI segura a
+  lista. Adiado, pela palavra do mantenedor de 28/10/2026.
+- **Os `data/themes/*.thm` diferem do `tools/gen_theme_collection.py`** nas cores dos alarmes de limite desde a
+  2137ea15 (23/08/2026). As regras de contraste do gerador reprovam as cores novas em 36 pares, então regenerar os
+  arquivos deixaria o alarme de todo tema de fábrica vermelho de novo.
+- **Os textos em espanhol são uma proposta** até um falante nativo revisar: os nomes dos temas (#298), o texto de `fil_up_refused` (#299), os 380 textos da seção `@ANGULO` do Ângulo (#304) e os dois textos da caixa da visão ao vivo (#320). A revisão não bloqueia uma release (palavra do mantenedor de 30/10/2026).
+- **O console de emergência não tem o comando `language`**, e a web não tem chave para isso. Depois de um boot em
+  inglês, a tela Idioma do painel é a volta (#294), no Ângulo também (visto na bancada do Pico 2 W em 28/10/2026, numa
+  imagem de desenvolvimento, e na candidata da v2.13.0 em 31/10/2026).
+- **O seletor de temas da página web não dá retorno quando o aparelho recusa a mudança.** O `saveTheme( )` ignora a
+  resposta do `/api/save_sys`.
+- **Reduzir o alfabeto do PIN ou baixar o teto de tamanho ainda prende um PIN antigo** que use uma letra que saiu dos
+  cartões, ou que passe do teto novo: os cartões não oferecem a letra, e o Core 0 não confere a tempo o PIN longo. A
+  conta precisa de um PIN novo pelo item Usuários do painel, pela web ou pelo console.
+- **Num build com painel, uma falha de hardware do Core 1 não deixa o contador de programa no log**, nos dois chips. O
+  laço principal relança o Core 1 com 10 s sem batimento, antes do pânico que o registraria (medido no #249).
+- **No Pico W, uma gravação da configuração pelo painel durante um envio relança o Core 1 no meio do envio**, pelo
+  código. O envio segue gravando a flash com o Core 1 rodando a partir dela. Não foi visto na bancada. O envio do Pico
+  2 W não roda essa gravação.
+- **A página web não tenta de novo uma instalação recusada com 503** (um toque no painel nos 5 s antes), pelo código.
+- **Uma resposta grande pode ser cortada sob carga concorrente.** No Pico 2 W, uma captura de tela de 230.454 B lida em
+  paralelo com seis GET do tipo de uma página foi cortada em 1 de 749 pedidos e em 1 de 602 na candidata da v2.13.0 (30/10/2026
+  23:46 a 31/10/2026 00:00, com o servidor de telemetria fora do ar e depois no ar), e na v2.12.0, na mesma placa, em 1
+  de 805 (00:11 a 00:19), onde uma conexão zerada na leitura de status seguinte encerrou a rodada. Cada uma das três
+  capturas cortadas somou um ao `cgx` no `metr`, uma desconexão que inclui a queda que a placa mesma escolhe quando o
+  cliente não esvazia metade do buffer de envio do TCP em `WEB_SEND_STALL_MS` (4 s; `WebManager_Send.cpp:89-90`), e
+  nenhuma mexeu no prazo do handler (`cgd`) nem na guarda de aborto (`cgg`). Sem reinício e sem dado perdido. Aparece
+  como uma captura de tela cortada e, uma vez, como a página web carregando sem o dicionário (os nomes dos temas em
+  inglês daquela vez; deduzido do `ERR_CONTENT_LENGTH_MISMATCH` do navegador naquela carga, sem contador lido). É mais
+  velha que esta release: a v2.12.0 faz o mesmo, e a correção do #247 está na candidata da v2.13.0, então não é a expulsão que ela
+  fechou.
+- **`configure terminal` não exige `enable`**, embora a tabela de comandos do console diga que exige o modo
+  privilegiado. Não abre nada, mas a tabela e o comportamento discordam.
+- **Com dois sensores de pressão, a linha de medições manda a pressão na chave do primeiro e com o valor do último**,
+  pelo código.
+- **A lista de marcadores da linha de alarmes na página Telemetria para na v22.** O capítulo 22 do manual lista todos.
+- **Adotar uma sonda, ou o `sensor_wipe`, não recomeça o histórico do slot.** Os dois carimbam a época de
+  provisionamento do slot, e nada a lê: o histórico entrega todo registro de um slot sob o id atual dele. Na bancada,
+  depois que o slot 0 adotou outra sonda, as leituras dele de 4 de outubro voltaram sob o id da sonda nova.
+- **Depois de um boot, uma sonda que não é a do slot pode ter a primeira leitura gravada.** O caminho de leitura
+  confere a ROM a cada cinco leituras, a partir da quinta. Na bancada, com outra sonda no GPIO do slot, a leitura de
+  20 s depois do boot entrou no histórico como a do slot, e a quarentena começou no minuto seguinte.
+- **Um Air com telemetria por TLS e sem `/cert.pem` grava dois registros em todo despertar:** o 545
+  (`TEL_CERT_MISSING`, "Sem cert.pem, modo inseguro") e o 544 (`TEL_CERT_READ_ERR`, contexto 1: TLS ligado sem validar o
+  certificado). O `TelemetryManager::begin( )` os grava em toda partida, e a lista de preâmbulo do boot do
+  `LogPolicy.cpp`, que silencia os outros registros de partida de um despertar, não os tem. Não é novo: no mesmo Air, a
+  v2.11.1 os gravou em cada um de três despertares e a candidata da v2.12.0 em cada um de onze (29/10/2026).
+- **A alpha e o Air gravam um erro depois de cada atualização:** `Config changed: image CRC mismatch over 990720 B, want
+  4f5041ca` na alpha, `over 1035776 B, want 299abf18` no Air (`AppManager_Boot.cpp`; 29/10/2026, e o mesmo nos dois no
+  portão da v2.11.1, 05/10/2026). O slot é igual à imagem assinada exceto o setor de 4 KiB do banco de flash do BTstack,
+  que fica dentro da faixa que a conferência soma: a causa provável. A atualização instala e sobe, e a versão e a
+  configuração são as novas; a imagem release grava `image verified` no lugar.
+- **Só oito dos onze temas de fábrica carregam, no painel original.** O `MAX_CUSTOM_THEMES` é 8
+  (`src/ui/original/Themes.cpp`, desde a v1.0.0) e o diretório é lido em ordem, então com os onze `.thm` enviados o
+  `ubuntu`, o `unimed_claro` e o `unimed_escuro`, os últimos nessa ordem, ficam de fora: o `GET /api/themes` lista nove
+  linhas, o `simut_def` e oito, nas duas placas (29/10/2026, quando o Pico 2 W ainda rodava o painel original; de novo
+  na candidata da v2.13.0 do Pico W, 31/10/2026). Os pacotes trazem os onze nomes (#298); o R-R14 do
+  `docs/analysis/MODELO_DE_RECURSOS.md` tem o limite. O Ângulo não carrega arquivos `.thm`: num Pico 2 W com ele, o `GET
+  /api/themes` lista as 18 escolhas dele.
+- **Nenhum pacote de idioma traz um nome para o tema embutido `simut_def`,** então, no painel original, a página web
+  mostra "Simut Default" em todo idioma, pelo código (os pacotes da v2.12.0 e os da v2.13.0, 31/10/2026). O #298
+  nomeia os temas de fábrica no idioma do aparelho, e este é a exceção: está compilado e não tem chave `thm_`.
+- **Alguns toques injetados não são tomados** (o `POST /api/touch` da bancada). No painel original, "Nova conta" na
+  lista de usuários e o detalhe do gráfico (visto na `main` 2f4bc3d3 e no ramo do Ângulo, 21/10/2026). No Ângulo, o
+  primeiro toque longo de 3,5 s logo depois de um toque num slot não alterna o cartão fixado, e uma nova tentativa 2 s
+  depois alterna (21/10/2026 e 22/10/2026). Não foi visto com o dedo, e não é julgado defeito.
+- **A confirmação do Ângulo para iniciar a rede de configuração nunca foi confirmada numa placa.** A bancada apertou
+  Cancelar; Confirmar envia o `EVT_START_AP` e inicia a rede de configuração. Os quadros dela foram comparados com os
+  do host em pt-BR e em es-ES (0 de 76.800 pixels diferem).
+- **A tela do gesto do AP de configuração não é desenhada no boot.** Enquanto um dedo segura o painel desde o boot, o
+  AP abre, mas a tela do gesto ("Modo AP" e a barra) nunca foi desenhada, nem na imagem da `main` nem na do #318
+  (04/11/2026, Pico W, `pico_w_release`). A causa está em aberto. A correção do apagamento repetido da tela (#318)
+  está provada só pelo `tools/tft_ui/test_ap_progress.py`.
+- **Um segundo Salvar em outro sensor derruba o primeiro, sem aviso.** A caixa dos limites de alarme guarda um Salvar
+  (#307): se um segundo, em outro sensor, chega antes de o Core 0 tratar o primeiro, ele substitui o primeiro, e o
+  primeiro salvamento se perde sem som. Antes do #307 a mesma sequência gravava os limites do segundo sensor no
+  primeiro.
+- **Uma prévia do alinhamento da tela sobrevive a uma atualização do firmware.** Durante a atualização o Core 1 fica
+  estacionado e o Core 0 pinta a tela de atualização no vidro como ele está (#308); uma prévia deixada no vidro fica,
+  deslocada em até 4 px, até o reinício se a atualização der certo e até o Core 1 voltar se ela falhar.
+- **O LCD do alpha trunca a temperatura e a umidade, onde a pressão dele e o TFT arredondam.** O `AlphaFrame.h`
+  escreve `(int)(v * 10.0f)` para a temperatura e `(int)v` para a umidade (desde o `afe1d875`, 24/08/2026) e `(int)(v
+  * 10.0f + 0.5f)` para a pressão: 27,98 °C aparece como 27,9 no alpha e como 28,0 na release. Visto de passagem na
+  conferência em placa do #319 (04/11/2026) e não alterado. A visão ao vivo mostra o que o LCD mostra.
+- **Um nome em UTF-8 chega ao LCD do alpha sem dobrar.** O SSID do AP de configuração com acentos aparece como bytes
+  UTF-8, e não dobrado para os caracteres da ROM, porque o `isValidName( )` (`SystemDefs_Validate.h:316-323`) recusa
+  os bytes abaixo de 0x20, `"` e `\` e aceita o 0x7F e todo byte acima. Listado entre os achados do #318; não
+  alterado.
+- **No alpha, a virada de página do AP de configuração desenha um quadro com o título novo sobre o valor antigo**
+  (lista de achados do #318).
+- **O contador de quadros do Ângulo é incrementado às cegas.** O `uaPintar( )` incrementa o `s_seq` com um `s_seq =
+  s_seq + 1` cego duas vezes, em volta da publicação do estado do quadro (`src/ui/angulo/DisplayManager_UiA.cpp:296` e
+  `:308`), e o `uaEstado( )` toma a contagem ímpar por "escritor ocupado". Se o Core 1 é relançado entre os dois
+  incrementos (o laço principal faz isso depois de 10 s sem o sinal de vida dele; ver o item da falha de hardware do
+  Core 1), a contagem fica ímpar sem escritor rodando e toda pintura seguinte mantém a paridade invertida. O
+  `uaEstado( )` passa a achar a contagem ímpar em repouso e responde -1, "ocupado", depois de 2 ms de tentativas, em
+  toda chamada; e enquanto uma pintura publica a contagem é par, então uma cópia tirada dentro dessa escrita passa na
+  conferência. A sombra do vidro do alpha põe a contagem em ímpar seja qual for a paridade que encontra (`seq = (s +
+  1u) | 1u`, `src/display/LcdGlass.h:164`). Raro, porque precisa desse relançamento dentro de uma janela de dezenas de
+  microssegundos; pelo código, notado na revisão da sombra da visão ao vivo; não visto numa placa.
+- **No Air da bancada, a linha `[AIR] alarm` nunca chega ao computador.** A suíte do Air a espera antes do sono, mas o
+  USB cai na entrada do sono, antes de a linha ser impressa (na `main` também, 04/11/2026). O suspeito é o `b0bc5c36`
+  (13/10/2026, "a module stopped on its way up starts again; the Air asks net::…"); não confirmado. O T18 ao T20
+  rodaram de uma cópia que lê o período do despertar pelo `air status`.
 
 ## v2.13.0 (2026-10-31)
 
