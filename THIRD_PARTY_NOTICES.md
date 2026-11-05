@@ -16,6 +16,11 @@ their own fonts and icons as well: on `/license` in a block that the build cuts 
 every image with the original panel, and on the Angulo's License screen in the
 device's language.
 
+The images with the alpha's 16x2 LCD (`pico_w_alpha`, `pico_wire`) list the font of
+the dashboard's live view as well: on `/license` in a block that the build cuts from
+every image without the LCD view. Their License screen does not exist (no touch
+panel), so no panel text lists it.
+
 `pico_wiretft_angulo` is outside the nine: the Angulo touch panel on the SIMUT Wire
 (`ui = "angulo"` in tools/features.toml). This file lists it against the rows that
 name it. Its /license page is the Wire page with the Angulo block, and its License
@@ -57,6 +62,7 @@ of the original panel on the radio images.
 | [Lucide](#lucide) | Lucide Contributors (portions: Cole Bemis, as part of Feather) | ISC | pico2_w_release, and pico_wiretft_angulo |
 | [Liberation Sans Bold](#liberation-sans-bold) | Red Hat, Inc. (digitized data: Google, Arimo) | SIL Open Font License 1.1 | all images, and pico_wiretft_angulo, pico2_w_original |
 | [SHA-256 for JavaScript](#sha-256-for-javascript) | Geraint Luff | public domain | all images, and pico_wiretft_angulo, pico2_w_original |
+| [X.Org misc-fixed 5x7](#xorg-misc-fixed-5x7) | None: a public domain font of the X.Org distribution (font-misc-misc) | public domain | pico_w_alpha, pico_wire |
 
 ## Arduino-Pico core
 
@@ -334,6 +340,17 @@ Hashes the password in the login page before it leaves the browser.
 - Licence: public domain, text in [LICENSES/sha256-js-public-domain.txt](LICENSES/sha256-js-public-domain.txt)
 - Images: all images, and pico_wiretft_angulo, pico2_w_original
 - Source: <https://github.com/geraintluff/sha256>
+
+## X.Org misc-fixed 5x7
+
+Draws the characters of the 16x2 LCD in the dashboard's live view.
+
+- Copyright holder: None: a public domain font of the X.Org distribution (font-misc-misc)
+- Licence: public domain, text in [LICENSES/xorg-misc-fixed-public-domain.txt](LICENSES/xorg-misc-fixed-public-domain.txt)
+- Images: pico_w_alpha, pico_wire
+- Source: <https://gitlab.freedesktop.org/xorg/font/misc-misc>
+
+Only the dots of the 96 codes 0x20 to 0x7F travel in the page. The Hitachi HD44780 character ROM table is not in any image: it stays in tools/ for the manual's figures.
 
 ## Compiled, but not in any image
 

@@ -354,6 +354,23 @@ url = "https://github.com/geraintluff/sha256"
 what = "Hashes the password in the login page before it leaves the browser."
 text = "sha256-js-public-domain.txt"
 
+# The glyph dots of the live LCD view's canvas (2026-11-04): the X.Org misc-fixed 5x7 font, which WebUI.h carries as a block that tools/lcd_alpha/fonte_web.py generates from
+# tools/lcd_alpha/fonte_x11.py (read from the xfonts-base package: 5x7.pcf and 5x7-ISO8859-1.pcf, each with the property COPYRIGHT "Public domain font.  Share and enjoy.").
+# `web = "lcd"` takes the row out of the family lists and out of the panel's License screen and into the block of the /license page that WebUI.h guards with /* @IF lcd */
+# (tools/gen_notices.py, web_lcd): no family list can say "alpha and Wire only", and the panel text (HelpLicenseEN.h) is read only by the touch display's License screen, which
+# neither image has (the text "Third-party software" is in the binary of pico_wiretft and not in pico_w_alpha or pico_wire, 2026-11-04). The row has no `symbols`, as the SHA-256 row
+# has none: web code is not a symbol; `gen_notices.py --check` holds `images` to the images whose web features keep the block (those that do not cut `lcd`).
+[[component]]
+name = "X.Org misc-fixed 5x7"
+holder = "None: a public domain font of the X.Org distribution (font-misc-misc)"
+license = "public domain"
+images = ["alpha", "wire"]
+web = "lcd"
+url = "https://gitlab.freedesktop.org/xorg/font/misc-misc"
+what = "Draws the characters of the 16x2 LCD in the dashboard's live view."
+note = "Only the dots of the 96 codes 0x20 to 0x7F travel in the page. The Hitachi HD44780 character ROM table is not in any image: it stays in tools/ for the manual's figures."
+text = "xorg-misc-fixed-public-domain.txt"
+
 # Compiled during the build, then dropped by the linker in every image:
 # nothing of them reaches the device. Listed so that nobody adds them above by
 # reading platformio.ini or .pio/libdeps instead of the ELF.

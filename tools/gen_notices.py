@@ -64,6 +64,21 @@ that matches, and `images` must say so. A row's page label is its `images`, read
 `page_images` list that counted pico2_w_release, which links none of the original panel's FreeSans Bold faces, said the opposite on the
 Angulo pages until 2026-10-30; a key the generator does not know is refused now).
 
+THE LCD IMAGES (2026-11-04)
+---------------------------
+The dashboard of the two images with the alpha's 16x2 LCD (pico_w_alpha and pico_wire) draws the LCD's characters in a canvas
+with the glyphs of the X.Org misc-fixed 5x7 font, which a block of WebUI.h carries (tools/lcd_alpha/fonte_web.py). It is public
+domain and needs no notice, but the page lists what the image carries. No family list can say "alpha and Wire only": the radio
+page is one page for eight images and the Wire page one for two, and a row in a list reaches all of them (and the panel's
+License screen, HelpLicenseEN.h, whose images draw with the original or the Angulo panel and do not carry the font). So a row
+marked `web = "lcd"` follows the Angulo's precedent: it is in no family list and in no panel text, and the /license page lists it
+in a block of its own, /* @IF lcd */, between the Angulo block and the closing bar. The build cuts that block from every image
+that cuts the web feature `lcd` ([display.tft] and [display.nenhum] in tools/features.toml), so the pages of the nine other images
+stay byte for byte. THIRD_PARTY_NOTICES.md lists the row with its images. The row has no `symbols` (web code is not a symbol, as
+for the SHA-256 row); the honest equivalent that `--check` holds is that `images` are exactly the images whose web features keep
+the block: those whose profile does not cut `lcd` (custom_web_omit, resolved by tools/gen_features.py from the manifest). The
+marker takes one value, "lcd", and any other is refused, as `ui` is.
+
 USAGE
 -----
     python3 tools/gen_notices.py            # rewrite the outputs
@@ -102,9 +117,11 @@ WIRED = ["wire", "wiretft"]
 WORDS = {2: "two", 3: "three", 4: "four", 5: "five", 6: "six", 7: "seven", 8: "eight", 9: "nine"}
 
 WEB_IF_RADIO, WEB_IF_WIRED, WEB_ENDIF = "/* @IF wifi */", "/* @IF !wifi */", "/* @ENDIF */"
-ROW_KEYS = {"name", "holder", "license", "images", "url", "what", "note", "text", "also", "ui", "symbols"}   # a row says which images carry it in `images`, and only there
+ROW_KEYS = {"name", "holder", "license", "images", "url", "what", "note", "text", "also", "ui", "web", "symbols"}   # a row says which images carry it in `images`, and only there
 WEB_IF_ANGULO = "/* @IF ui_angulo */"   # cut from every image with the original panel ([ui.original].web_omit)
 CABEC_ANGULO = "Angulo touch panel: fonts and icons"
+WEB_IF_LCD = "/* @IF lcd */"   # cut from every image that cuts the web feature `lcd` ([display.tft], [display.nenhum])
+CABEC_LCD = "Live LCD view: font"
 
 # The opening of the License screen, in the order the /license page shows it.
 INTRO_KEYS = ["lic_sub", "lic_summary_title", "lic_summary", "lic_summary_note", "lic_legal_note"]
@@ -134,6 +151,10 @@ def load():
             sys.exit(f"gen_notices: {c['name']}: unknown image(s) {unknown}")
         if c.get("ui", "angulo") != "angulo":
             sys.exit(f"gen_notices: {c['name']}: ui = {c['ui']!r}, the only panel with rows of its own is \"angulo\"")
+        if c.get("web", "lcd") != "lcd":
+            sys.exit(f"gen_notices: {c['name']}: web = {c['web']!r}, the only web block with rows of its own is \"lcd\"")
+        if c.get("ui") and c.get("web"):
+            sys.exit(f"gen_notices: {c['name']}: a row is marked ui or web, not both")
         unknown_keys = sorted(set(c) - ROW_KEYS)
         if unknown_keys:
             sys.exit(f"gen_notices: {c['name']}: key(s) {unknown_keys} are not known to the generator (a row says which images carry it in `images`, and only there)")
@@ -183,8 +204,40 @@ def families(data):
 
 def of_family(data, family):
     """The components at least one image of `family` carries, in TOML order. The rows marked `ui` are not in
-    a family's list: they have a block of their own on the page (web_angulo) and a text on the Angulo's panel."""
-    return [c for c in data["component"] if not c.get("ui") and set(c["images"]) & set(family)]
+    a family's list: they have a block of their own on the page (web_angulo) and a text on the Angulo's panel.
+    Nor are the rows marked `web`: their block is web_lcd, and the panel's License screen never lists them."""
+    return [c for c in data["component"] if not c.get("ui") and not c.get("web") and set(c["images"]) & set(family)]
+
+
+def web_rows(data):
+    """The rows of the live LCD view's font, in TOML order: marked `web = "lcd"`."""
+    return [c for c in data["component"] if c.get("web") == "lcd"]
+
+
+def web_images(feature):
+    """The images (keys of ENV) whose web features keep the blocks of `feature`: those whose profile does not cut it.
+    custom_web_omit is resolved from the manifest by tools/gen_features.py, as the build reads it."""
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    import gen_features as gf
+    M = gf.load_manifest()
+    out = set()
+    for key, env in ENV.items():
+        omit = {w.strip() for w in (gf.compose(gf.resolve_profile(env, M["profiles"]), M)["web_omit"] or "").split(",")}
+        if feature not in omit:
+            out.add(key)
+    return out
+
+
+def web_rows_problems(data):
+    """What `images` of a `web` row says against the images whose web features keep its block (a row of web code has no symbol to probe:
+    this is the equivalent). A row that names an image that cuts the block, or leaves out one that keeps it."""
+    out = []
+    for c in web_rows(data):
+        kept, named = web_images(c["web"]), set(c["images"])
+        if kept != named:
+            out.append(f"{c['name']}: `images` names {sorted(ENV[i] for i in named)}, but the images whose web features keep the "
+                       f"{c['web']} block are {sorted(ENV[i] for i in kept)} (custom_web_omit, tools/features.toml)")
+    return out
 
 
 def angulo_rows(data):
@@ -225,6 +278,13 @@ def notices_md(data):
     para = ("The images with the Angulo touch panel (" + ", ".join(names) + ") list their own fonts and icons "
             "as well: on `/license` in a block that the build cuts from every image with the original panel, "
             "and on the Angulo's License screen in the device's language.")
+    out += textwrap.wrap(para, 86, break_on_hyphens=False, break_long_words=False) + [""]
+    lcd_names = []
+    for c in web_rows(data):
+        lcd_names += [f"`{ENV[i]}`" for i in c["images"] if f"`{ENV[i]}`" not in lcd_names]
+    para = ("The images with the alpha's 16x2 LCD (" + ", ".join(lcd_names) + ") list the font of the dashboard's live view "
+            "as well: on `/license` in a block that the build cuts from every image without the LCD view. Their "
+            "License screen does not exist (no touch panel), so no panel text lists it.")
     out += textwrap.wrap(para, 86, break_on_hyphens=False, break_long_words=False) + [""]
     for b, v in data["bench_images"].items():
         para = (f"`{ENV[b]}` is outside the nine: {v['what']}. This file lists it against the rows that "
@@ -283,9 +343,9 @@ def web_fields(c, images):
 def web_parts(data, family):
     """(list, trailer) of one family's block, escaped for the page. The list ends with the blank line after its
     last item; the trailer is the closing bar and the END line. The page keeps the trailer outside the family
-    blocks so that the Angulo block (web_angulo) can sit between the two: for an image without that block the
-    build's cut gives list + trailer, which is what the one block was, so the originals' pages stay byte for
-    byte (S10c C4, 2026-10-30)."""
+    blocks so that the Angulo block (web_angulo) and the LCD block (web_lcd, 2026-11-04) can sit between the two:
+    for an image without them the build's cut gives list + trailer, which is what the one block was, so the
+    pages of the images without them stay byte for byte (S10c C4, 2026-10-30)."""
     every = family
     lines = [WEB_BAR, "SIMUT \u2014 Sistema Integrado de Monitoramento Universal e Telemetria",
              "Third-Party Software Notices", WEB_BAR, ""]
@@ -322,6 +382,23 @@ def web_angulo(data):
              "below, besides the software listed above. The licence text of each one is reproduced in full in "
              f"THIRD_PARTY_NOTICES.md and the LICENSES directory of the source repository: {REPO}")
     lines = [WEB_BAR, CABEC_ANGULO, WEB_BAR] + textwrap.wrap(intro, WEB_W) + [""]
+    for n, c in enumerate(rows):
+        lines += [WEB_BAR, f"{chr(ord('A') + n)}. {c['name']}", WEB_BAR]
+        lines += web_fields(c, ", ".join(ENV[i] for i in c["images"]))
+    return web_escape("\n".join(lines) + "\n")
+
+
+def web_lcd(data):
+    """The LCD block: the rows marked `web = "lcd"`, lettered, after the Angulo block and before the closing bar. The build cuts it
+    from every image that cuts the web feature `lcd`, so the pages of those images are what they were."""
+    rows = web_rows(data)
+    names = []
+    for c in rows:
+        names += [ENV[i] for i in c["images"] if ENV[i] not in names]
+    intro = ("The images with the 16x2 LCD (" + ", ".join(names) + ") draw its characters on the dashboard with the "
+             "font below, besides the software listed above. The licence text is reproduced in full in "
+             f"THIRD_PARTY_NOTICES.md and the LICENSES directory of the source repository: {REPO}")
+    lines = [WEB_BAR, CABEC_LCD, WEB_BAR] + textwrap.wrap(intro, WEB_W) + [""]
     for n, c in enumerate(rows):
         lines += [WEB_BAR, f"{chr(ord('A') + n)}. {c['name']}", WEB_BAR]
         lines += web_fields(c, ", ".join(ENV[i] for i in c["images"]))
@@ -379,10 +456,10 @@ def replace_between(text, begin, end, inner, what):
 
 
 def new_webui(webui, data):
-    """The <pre> of /license holds one list per family, the Angulo block and the closing bar. Each @ENDIF
+    """The <pre> of /license holds one list per family, the Angulo block, the LCD block and the closing bar. Each @ENDIF
     closes the blank line after the last item of its block and the trailer follows on the next line, so the
-    cut (tools/build_webui_gz.py) leaves <pre>list + trailer</pre> for an image with the original panel,
-    byte for byte what the one-block page was."""
+    cut (tools/build_webui_gz.py) leaves <pre>list + trailer</pre> for an image with the original panel and
+    without the LCD view, byte for byte what the one-block page was."""
     radio, wired = families(data)
     i = webui.index('data-i18n="lic_notice"')
     a = webui.index("<pre>", i) + len("<pre>")
@@ -392,7 +469,8 @@ def new_webui(webui, data):
     assert trailer == trailer_w
     pre = (f"{WEB_IF_RADIO}\n{items_r}{WEB_ENDIF}\n"
            f"{WEB_IF_WIRED}\n{items_w}{WEB_ENDIF}\n"
-           f"{WEB_IF_ANGULO}\n{web_angulo(data)}{WEB_ENDIF}\n{trailer}")
+           f"{WEB_IF_ANGULO}\n{web_angulo(data)}{WEB_ENDIF}\n"
+           f"{WEB_IF_LCD}\n{web_lcd(data)}{WEB_ENDIF}\n{trailer}")
     return webui[:a] + pre + webui[b:]
 
 
@@ -461,6 +539,7 @@ def main():
     fwh = FWH.read_text(encoding="utf-8")
     want = {NOTICES: notices_md(data), WEBUI: new_webui(webui, data), FWH: new_fwh(fwh, webui, data)}
     problems = angulo_panel_problems(data, ANGULO_PANEL.read_text(encoding="utf-8"))
+    web_probs = web_rows_problems(data)
     elf_probs, elf_note = (elf_check(data, opt("--elf"), opt("--env"), opt("--nm")) if opt("--elf") else ([], ""))
     stale = []
     for path, text in want.items():
@@ -471,6 +550,8 @@ def main():
                 path.write_text(text, encoding="utf-8")
     for p in problems:
         print("[notices] FAIL: the Angulo's License screen disagrees with tools/third_party.toml: " + p, file=sys.stderr)
+    for p in web_probs:
+        print("[notices] FAIL: the web block's images disagree with the manifest: " + p, file=sys.stderr)
     for p in elf_probs:
         print("[notices] FAIL: " + p, file=sys.stderr)
     if check:
@@ -478,15 +559,16 @@ def main():
             print("[notices] FAIL: out of date with tools/third_party.toml or the /license page: "
                   + ", ".join(map(str, stale)) + " — run python3 tools/gen_notices.py",
                   file=sys.stderr)
-        if stale or problems or elf_probs:
+        if stale or problems or web_probs or elf_probs:
             return 1
         on_lists = len({c["name"] for fam in families(data) for c in of_family(data, fam)})
         print(f"[notices] OK: {on_lists} components, the same in the three lists; "
               f"{len(angulo_rows(data))} more for the Angulo images (the Angulo block of /license, the Angulo's "
-              "License screen, THIRD_PARTY_NOTICES.md)" + elf_note)
+              "License screen, THIRD_PARTY_NOTICES.md); "
+              f"{len(web_rows(data))} for the LCD images (the lcd block of /license, THIRD_PARTY_NOTICES.md, held to the manifest's web features)" + elf_note)
         return 0
     print("[notices] wrote " + (", ".join(map(str, stale)) if stale else "nothing (all current)"))
-    return 1 if (problems or elf_probs) else 0
+    return 1 if (problems or web_probs or elf_probs) else 0
 
 
 if __name__ == "__main__":
