@@ -18427,7 +18427,7 @@ log { source(s_simut); filter(f_simut_seguranca); destination(d_simut_seguranca)
 <tr class="odd">
 <td>release</td>
 <td>62</td>
-<td>Todas, menos <code>GET /api/ui</code></td>
+<td>Todas, menos <code>GET /api/lcd</code> (só as imagens com o LCD do alpha) e <code>GET /api/ui</code></td>
 </tr>
 <tr class="even">
 <td>releasetwo, com o painel Ângulo</td>
@@ -18436,13 +18436,13 @@ log { source(s_simut); filter(f_simut_seguranca); destination(d_simut_seguranca)
 </tr>
 <tr class="odd">
 <td>alpha</td>
-<td>54</td>
-<td>Sem as 5 rotas do painel, sem <code>GET /api/themes</code> e <code>POST /api/reset_touch_cal</code>, e sem <code>POST /api/tls</code></td>
+<td>55</td>
+<td>Sem as 5 rotas do painel, sem <code>GET /api/themes</code> e <code>POST /api/reset_touch_cal</code>, e sem <code>POST /api/tls</code>; com <code>GET /api/lcd</code></td>
 </tr>
 <tr class="even">
 <td>Air</td>
 <td>54</td>
-<td>As mesmas da alpha, e só enquanto o Air está acordado em M0 (<a href="#cap-19">capítulo 19</a>)</td>
+<td>As da alpha, menos <code>GET /api/lcd</code>, e só enquanto o Air está acordado em M0 (<a href="#cap-19">capítulo 19</a>)</td>
 </tr>
 </tbody>
 </table></div>
@@ -22260,8 +22260,8 @@ echo</code></pre>
 <tr class="odd">
 <td>Rotas da API</td>
 <td>62</td>
-<td>56</td>
-<td>56, só acordado (M0)</td>
+<td>55</td>
+<td>54, só acordado (M0)</td>
 <td><a href="#cap-26-imagens">cap. 26</a></td>
 </tr>
 <tr class="even">
@@ -22962,7 +22962,7 @@ echo</code></pre>
 <tbody>
 <tr class="odd">
 <td>Rotas</td>
-<td><span class="selo selo-img">release</span> 62, das quais 52 exigem permissão ou sessão e 10 são públicas. <span class="selo selo-img">alpha</span> <span class="selo selo-img">air</span> 56</td>
+<td><span class="selo selo-img">release</span> 62, das quais 52 exigem permissão ou sessão e 10 são públicas. <span class="selo selo-img">alpha</span> 55, com o <code>GET /api/lcd</code>. <span class="selo selo-img">air</span> 54</td>
 <td><a href="#cap-26-imagens">cap. 26</a></td>
 </tr>
 <tr class="even">
