@@ -29,6 +29,12 @@ that says fence( ) is not one, and one under an `if` (a block, or a statement wi
 check reads the order of the text, and the compiler keeps it only because the fence is a compiler barrier too; that it is `dmb ish`
 on the M0+ and the M33 was read from the disassembly (docs/CONCURRENCY.md).
 
+WHAT IT DOES NOT CATCH. It pins the functions it names and the members it lists, and nothing else. A NEW public writer that stores into the shadow without
+open( ) and close( ) (a `poke( )` that sets a cell or the count) gives "OK: G1-G9 clean" (the review of 2026-11-04 planted one and got that line), and so does
+a new function that reads the shadow without the fences: only the existing putBlank( ), putFrame( ) and putGlyph( ) are held to open( ) first and close( )
+last, only read( ) is held to the reader's order, and a new MEMBER is a G2 finding but a new function is not. --selftest holds the gap as an expected
+failure (the case "known gap"): when a rule catches the planted writer, that case fails, and the rule's number replaces this paragraph.
+
 Exit code: 0 clean, 1 findings, 2 cannot read the header.
 Run: python3 tools/check_glass_seqlock.py [--header FILE] [--verbose]
      python3 tools/check_glass_seqlock.py --selftest     the gate's own cases: the clean header, the mutants, the command line
@@ -452,6 +458,12 @@ def selftest():
         got = [(i, phrase in m) for i, _, m in findings]
         case(f'{label}: exactly one {want_id} finding ("{phrase}")', got == [(want_id, True)],
              '; '.join(f'{i} line {n}: {m}' for i, n, m in findings) or 'no finding')
+
+    # a documented gap, held as an expected failure (xfail): a new public writer that pokes the shadow without open( )/close( ) is not seen. If a rule starts to catch it
+    # this case fails (XPASS): the gap is closed, so the case and the paragraph of the docstring go, and the new rule gets its own mutant.
+    poke = mutate(clean, r'\nprivate:\n', '\n\tvoid poke(uint8_t v) { ddram[0][0] = v; }\n\nprivate:\n')
+    case('known gap (xfail): a new public writer that pokes the shadow is not seen', check(poke) == [],
+         'XPASS: a rule now catches it; remove this case and the "WHAT IT DOES NOT CATCH" paragraph')
 
     # the instrument: a mutant that applies nowhere, or twice, must be refused and not pass
     for what, pattern in (('nowhere', r'this text is not in the header'), ('twice', r'probe\.storeDone\( \);')):
