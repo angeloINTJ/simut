@@ -7,12 +7,16 @@
  *          and the sensor screen clears). Nothing of the composition is copied here: the headers come from src/ and what this file adds is the order of a
  *          pass, the loop's own (the link glyph, one screen, the blit), and the data of each state.
  *          The program prints, for every sample, the glass after its last blit( ): the DDRAM's two rows and the eight CGRAM slots, as hex, in the JSON
- *          that tools/lcd_alpha/lcd.py reads; and under "icones", for each RSSI of RSSIS, CGRAM slot 7 after alphaLoadLinkGlyph( ) on a fresh glass (the
+ *          that tools/lcd_alpha/lcd.py reads, and each sample's object is the one GET /api/lcd sends: the shadow of the fake LCD (the driver's own,
+ *          display/LcdGlass.h) read by readGlass( ) and put through lcdGlassJson( ) (display/LcdGlassJson.h), the formatter the device runs. The outer
+ *          object around the samples is this program's. Under "icones", for each RSSI of RSSIS, CGRAM slot 7 after alphaLoadLinkGlyph( ) on a fresh glass (the
  *          signal icon's figure, 12-wifi-niveis.png, and the table of chapter 12 that host_lcd.py --selftest holds it to). tools/lcd_alpha/host_lcd.py builds it twice (the radio's, and the cable's with -DSIMUT_NET_ENC28J60=1),
  *          runs it and draws the frames; the manual's figures are drawn by tools/lcd_alpha/manual_lcd.py from the same program.
  *
- *          usage: amostras VERSION      the version the splash and the boot screens print after "SIMUT " (data of the sample, not SIMUT_VERSION: the
- *                                       loop builds that banner from SIMUT_VERSION, DisplayManager_Alpha.cpp, and AlphaFrameIn takes it as a string)
+ *          usage: amostras VERSION          the version the splash and the boot screens print after "SIMUT " (data of the sample, not SIMUT_VERSION: the
+ *                                           loop builds that banner from SIMUT_VERSION, DisplayManager_Alpha.cpp, and AlphaFrameIn takes it as a string)
+ *                 amostras VERSION SAMPLE   only that sample's object, exactly what lcdGlassJson( ) wrote and a newline: the file lcd.py --quadro reads
+ *                                           (exit 2 for a name no sample has)
  *
  *          The AP samples exist only in the radio's build: a wired build has no setup network and alphaDrawFrame( ) draws nothing for that screen.
  *
@@ -25,6 +29,7 @@
 #include <string>
 #include "display/AlphaFrame.h"   /* its first include is net/NetCaps.h: SIMUT_NET_LAN and SIMUT_NET_WIFI come from the -D of the build */
 #include "FakeHd44780.h"
+#include "display/LcdGlassJson.h"   /* the formatter the device's GET /api/lcd runs */
 
 namespace simut_native { uint32_t fake_millis_value = 0; }   /* declared by the Arduino.h stub; nothing here reads the clock */
 
@@ -149,19 +154,34 @@ const int32_t RSSIS[] = { -45, -50, -51, -60, -61, -70, -71, -80, -81, -90, -91,
 
 void hex(const uint8_t* p, size_t n) { for (size_t i = 0; i < n; i++) printf("%02x", (unsigned)p[i]); }
 
+/* A sample's glass as GET /api/lcd sends it: the fake LCD's shadow, read the way the handler reads the driver's, through lcdGlassJson( ). The clock is the fake's
+ * (nowMs 0, the stamp of every blit), so age_ms is 0 and `seq` counts the publishes the sample's history made: both are data of the sample. */
+bool objeto(const Vidro& v, char (&buf)[LCD_GLASS_JSON_MAX]) {
+	LcdGlass g;
+	if (v.lcd.readGlass(g) != LCD_GLASS_OK) return false;   /* every sample ends in a blit( ): a glass with no frame is a bug of the sample */
+	return lcdGlassJson(g, v.lcd.nowMs, buf, sizeof(buf)) != 0;
+}
+
 }  // namespace
 
 int main(int argc, char** argv) {
-	if (argc != 2 || !argv[1][0]) { fprintf(stderr, "usage: amostras VERSION\n"); return 2; }
+	if (argc < 2 || argc > 3 || !argv[1][0] || (argc == 3 && !argv[2][0])) { fprintf(stderr, "usage: amostras VERSION [SAMPLE]\n"); return 2; }
 	g_banner = std::string("SIMUT ") + argv[1];
+	char json[LCD_GLASS_JSON_MAX];
+	if (argc == 3) {   /* one sample, as the device would send it and nothing around it */
+		for (size_t i = 0; i < sizeof(AMOSTRAS) / sizeof(AMOSTRAS[0]); i++) {
+			if (strcmp(AMOSTRAS[i].nome, argv[2])) continue;
+			if (!objeto(AMOSTRAS[i].faz( ), json)) { fprintf(stderr, "amostras: sample %s has no glass to send\n", argv[2]); return 1; }
+			puts(json);
+			return 0;
+		}
+		fprintf(stderr, "amostras: no sample named %s\n", argv[2]);
+		return 2;
+	}
 	printf("{\"rede\":\"%s\",\"amostras\":{", SIMUT_NET_LAN ? "cabo" : "wifi");
 	for (size_t i = 0; i < sizeof(AMOSTRAS) / sizeof(AMOSTRAS[0]); i++) {
-		const Vidro v = AMOSTRAS[i].faz( );
-		printf("%s\"%s\":{\"linhas\":[\"", i ? "," : "", AMOSTRAS[i].nome);
-		hex(v.lcd.ddram[0], 16); printf("\",\""); hex(v.lcd.ddram[1], 16);
-		printf("\"],\"cgram\":[");
-		for (int s = 0; s < 8; s++) { printf("%s\"", s ? "," : ""); hex(v.lcd.cgram[s], 8); printf("\""); }
-		printf("]}");
+		if (!objeto(AMOSTRAS[i].faz( ), json)) { fprintf(stderr, "amostras: sample %s has no glass to send\n", AMOSTRAS[i].nome); return 1; }
+		printf("%s\"%s\":%s", i ? "," : "", AMOSTRAS[i].nome, json);
 	}
 	printf("},\"icones\":{");
 	for (size_t i = 0; i < sizeof(RSSIS) / sizeof(RSSIS[0]); i++) {

@@ -28,6 +28,9 @@ Exit 2 when it cannot run, with what is missing: g++ absent, the build fails, Pi
     cable's edge), slot 7 is the icon the table names, written out here: 5 bars at -50 dBm or more, 4 from -60 to -51, 3 from -70 to -61, 2 from -80 to
     -71, 1 from -90 to -81, the X below -90; on the cable, its glyph above -100 dBm and the X from there down;
   * the cable: the four differences above, and every other cell as on the radio;
+  * the formatter: the text lcdGlassJson( ) (display/LcdGlassJson.h, the one GET /api/lcd runs) writes for three samples (`amostras VERSION SAMPLE`), straight into a
+    file, draws through the command line of lcd.py (--quadro) to the pixels of the sample, and is an object with the keys linhas, cgram, seq and age_ms in that order;
+    with its rows swapped it draws other pixels (so the comparison can tell), and a cut file and a file with a letter that is not hex are refused, exit 2;
   * the sources the harness leans on: the loop still builds its banner as "SIMUT " and SIMUT_VERSION; the demonstration key is one the firmware could
     generate (ApPsk.h's alphabet and length); the address is in 192.0.2.0/24 (RFC 5737); every frame draws (a code with no glyph is an error);
   * the checker bites: an expectation changed in one cell, a frame changed in one cell or one CGRAM bit, a sample missing and a sample extra, an icon
@@ -331,6 +334,9 @@ def mudaram(a, b):
 CONTA = [0]
 FALHAS = []
 
+# The samples whose formatter text is drawn by lcd.py's command line: text only (the splash), the link glyph (slot 7), the big digits (slots 0-6).
+FORMATADOR = ('splash', 'conectado', 'temperatura')
+
 
 def confere(cond, msg, ok=None):
     CONTA[0] += 1
@@ -340,6 +346,63 @@ def confere(cond, msg, ok=None):
     elif ok:
         print('ok  ', ok)
     return bool(cond)
+
+
+def pelo_lcd_py(arq, png):
+    """lcd.py's command line on a frame file: (its exit status, its stderr, the image it wrote or None)."""
+    r = subprocess.run([sys.executable, '-I', str(HERE / 'lcd.py'), '--quadro', str(arq), '--out', str(png)], capture_output=True, text=True, timeout=60)
+    img = None
+    if r.returncode == 0:
+        try:
+            from PIL import Image
+        except ImportError as e:
+            raise Falta(f'Pillow is needed to compare the images ({e}): pip install pillow')
+        with Image.open(png) as im:
+            img = im.convert('RGB')
+            img.load()
+    return r.returncode, r.stderr.strip(), img
+
+
+def confere_formatador(exe, versao, amostras, tmp):
+    """The text lcdGlassJson( ) wrote for a sample, in a file, is a frame lcd.py --quadro draws to the pixels of the sample: the formatter and the reader agree on the keys, the
+    order of the two rows and the hex. The program writes the file itself (`amostras VERSION SAMPLE`, its stdout into the file): nothing here retypes the text. Controls on one
+    of them: the rows swapped in the file draw other pixels, a cut file and a file with a letter that is not hex are refused (exit 2)."""
+    tmp = pathlib.Path(tmp)
+    arqs = {}
+    for nome in FORMATADOR:
+        arq = tmp / f'formatador_{nome}.json'
+        with open(arq, 'wb') as f:
+            r = subprocess.run([str(exe), versao, nome], stdout=f, stderr=subprocess.PIPE, timeout=60)
+        if r.returncode:
+            raise Falta(f'{pathlib.Path(exe).name} {versao} {nome} exited {r.returncode}: {r.stderr.decode(errors="replace").strip()}')
+        arqs[nome] = arq
+        texto = arq.read_text(encoding='utf-8')
+        try:
+            objeto = json.loads(texto)
+        except ValueError:
+            objeto = None
+        confere(isinstance(objeto, dict) and list(objeto) == ['linhas', 'cgram', 'seq', 'age_ms'] and objeto['age_ms'] == 0 and objeto['seq'] % 2 == 0 and texto.endswith('}\n') and texto.count('\n') == 1,
+                f'{nome}: the formatter wrote {texto[:60]!r}..., not one object with the keys linhas, cgram, seq and age_ms, an even count and an age of 0',
+                f'{nome}: the formatter\'s file is one object with linhas, cgram, seq and age_ms')
+        rc, err, img = pelo_lcd_py(arq, tmp / f'formatador_{nome}.png')
+        quer = desenhar(amostras[nome])
+        confere(rc == 0 and img is not None and img.size == quer.size and img.tobytes() == quer.tobytes(),
+                f'{nome}: lcd.py --quadro on the formatter\'s file exited {rc} ({err}) and drew {"other" if img is not None else "no"} pixels than the sample',
+                f'{nome}: lcd.py --quadro draws the formatter\'s file to the pixels of the sample')
+    texto = arqs['conectado'].read_text(encoding='utf-8')
+    quer = desenhar(amostras['conectado'])
+    trocado = json.loads(texto)
+    trocado['linhas'].reverse()
+    (tmp / 'controle_trocado.json').write_text(json.dumps(trocado), encoding='utf-8')
+    rc, err, img = pelo_lcd_py(tmp / 'controle_trocado.json', tmp / 'controle_trocado.png')
+    confere(rc == 0 and img is not None and img.tobytes() != quer.tobytes(), 'control "the rows swapped": lcd.py drew the same pixels as the sample, so the comparison cannot tell',
+            'control "the rows swapped in the file": other pixels')
+    (tmp / 'controle_cortado.json').write_text(texto[:len(texto) // 2], encoding='utf-8')
+    rc, err, _ = pelo_lcd_py(tmp / 'controle_cortado.json', tmp / 'controle_cortado.png')
+    confere(rc == 2, f'control "a cut file": lcd.py exited {rc}, not 2', 'control "a cut file": refused, exit 2')
+    (tmp / 'controle_nao_hex.json').write_text(texto.replace('"20', '"2g', 1), encoding='utf-8')
+    rc, err, _ = pelo_lcd_py(tmp / 'controle_nao_hex.json', tmp / 'controle_nao_hex.png')
+    confere(rc == 2, f'control "a letter that is not hex": lcd.py exited {rc}, not 2', 'control "a letter that is not hex": refused, exit 2')
 
 
 def fontes_ok(w):
@@ -385,6 +448,7 @@ def selftest():
         amostras = {rede: s[0] for rede, s in saidas.items()}
         icones = {rede: s[1] for rede, s in saidas.items()}
         resultados = [f.result() for f in muts]
+        confere_formatador(tmp / 'wifi' / 'amostras_wifi', versao, amostras['wifi'], tmp)   # the files it writes live in tmp, which goes with this block
 
     # the glass of the radio and of the cable
     for rede, quer in (('wifi', w), ('cabo', c)):
