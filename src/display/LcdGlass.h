@@ -80,7 +80,10 @@ struct LcdGlassShadow {
 	/* No initializers, on purpose: the state at the start is all zero, which a static gets from the loader. The driver's `_lcd` is a static,
 	 * and `DisplayManager::_driver`, an alpha driver nothing reads, is a member of a class that is built once: an initializer here made
 	 * both construct the shadow, +160 B in DisplayManager::DisplayManager( ) and +48 B in the static initializer of the unit (the pico_wire
-	 * image, 2026-11-04). An instance that is not static is value-initialized by whoever makes it: `LcdGlassShadow s{}`. */
+	 * image, 2026-11-04). An instance that is not static is value-initialized by whoever makes it: `LcdGlassShadow s{}`. The one exception
+	 * is `DisplayManager::_driver`: the DisplayManager is made on the heap (`make_unique` in AppManager) by a user-provided constructor, so
+	 * its copy is neither zeroed nor used. Nothing publishes into it or reads it in the alpha, and it costs 108 B of heap (the size
+	 * AppManager passes to operator new went from 2,600 to 2,708 B in the pico_wire image; the review of 2026-11-04). */
 	volatile uint32_t seq;   /**< even: the shadow is whole; odd: Core 1 is writing it (or died writing it) */
 	uint8_t  ddram[2][16];
 	uint8_t  cgram[8][8];

@@ -83,8 +83,10 @@ The 16x2 cannot be read back, so the driver keeps a shadow of what it wrote (`sr
 it yet). It keeps the rules above:
 
 - **No lock, no heap, no log on Core 1** (invariants 2 and 3). The shadow is a seqlock, the pattern of the Ângulo's frame
-  record (`s_seq` and `uaEstado( )` in `ui/angulo/DisplayManager_UiA.cpp`): the writer counts to an odd number, copies,
-  fences, counts to the next even one; the reader trusts a copy only if it saw the same even number before and after. A
+  record (`s_seq` and `uaEstado( )` in `ui/angulo/DisplayManager_UiA.cpp`): the writer counts to an odd number, fences,
+  copies, fences again and counts to the next even one; the reader trusts a copy only if it saw the same even number before
+  and after, with a fence on each side of its copy. Both of the writer's fences matter: without the first, the copy can be
+  seen before the odd count. A
   mutex Core 1 held when Core 0 started a flash write would freeze Core 1 with the mutex held.
 - **After the bus, never before.** `blit( )` and `createChar( )` publish after their bus writes, so the shadow never leads
   the glass; `print( )`, `clear( )` and `setCursor( )` compose in the framebuffer and publish nothing. The cells and the eight
@@ -101,8 +103,10 @@ it yet). It keeps the rules above:
   the count. What a host cannot see is the fence: it is `dmb ish`, read from the disassembly of the pico_wire image.
 - **What it costs.** The publish of a `blit( )` is 33 instructions after the bus loops (24 in `blit( )`, 9 in `open( )`), two
   16-byte `memcpy` calls and a `millis( )` (pico_wire image; counted, not timed on a board), against at least 3.5 ms of bus
-  time for the blit (34 bytes, two nibbles each, 52 us of delays per nibble). The shadow is 108 B of RAM, and 216 B of flash in
-  `pico_w_alpha` and `pico_wire`; the reader is 160 B in the object and is dropped from the image until something calls it.
+  time for the blit (34 bytes, two nibbles each, 52 us of delays per nibble). The shadow is 216 B of RAM: 108 B of static RAM in
+  the driver's `_lcd`, and 108 B of heap in `DisplayManager::_driver`, an alpha driver nothing uses that is a member of the
+  class (the review of 2026-11-04 read it in the pico_wire image: `.bss` +108 B, and the size AppManager passes to operator new
+  2,600 to 2,708 B). It is 216 B of flash in `pico_w_alpha` and `pico_wire`; the reader is 160 B in the object and is dropped from the image until something calls it.
 
 ## Reading the new metrics
 
