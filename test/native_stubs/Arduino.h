@@ -256,18 +256,33 @@ template <typename T, typename U>
 inline auto max(T a, U b) -> std::decay_t<decltype(a > b ? a : b)> { return a > b ? a : b; }
 
 /* ── Serial ──────────────────────────────────────────────────────────────
- * The console. Discards everything by default so a host run stays quiet, and
- * counts what it was asked to print, which is occasionally the assertion
- * (the setup AP publishes its WPA2 key here and nowhere else). */
+ * The console. Prints nothing, so a host run stays quiet, and counts what it
+ * was asked to print, which is occasionally the assertion (the setup AP
+ * publishes its WPA2 key here and nowhere else). It also keeps the text, up
+ * to 64 KB, for a test that reads a line back; such a test clears it first.
+ * println( ) ends in CR LF, as the framework's Print::println( ) does. */
 class FakeSerial {
 public:
     unsigned writes = 0;
+    std::string text;
     explicit operator bool( ) const { return true; }
-    template <typename... A> int printf(const char*, A...) { writes++; return 0; }
-    void println(const char* = nullptr) { writes++; }
-    void print(const char* = nullptr)   { writes++; }
+    template <typename... A> int printf(const char* fmt, A... a) {
+        writes++;
+        if constexpr (sizeof...(A) == 0) {
+            keep(fmt);
+        } else {
+            char b[256];
+            snprintf(b, sizeof(b), fmt, a...);
+            keep(b);
+        }
+        return 0;
+    }
+    void println(const char* s = nullptr) { writes++; keep(s); keep("\r\n"); }
+    void print(const char* s = nullptr)   { writes++; keep(s); }
     void flush( ) {}
     void begin(unsigned long) {}
+private:
+    void keep(const char* s) { if (s && text.size( ) < 65536) text += s; }
 };
 extern FakeSerial Serial;
 

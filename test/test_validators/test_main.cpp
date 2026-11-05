@@ -1755,6 +1755,62 @@ void test_langident_terminates_and_respects_cap(void) {
 }
 
 /* ===========================================================================
+ *  THE ALPHA'S PACK HEADER — langHeaderIdent (SystemDefs_Validate.h)
+ *
+ *  The alpha reads the first 255 bytes of a pack for @NAME and @CODE, which
+ *  /api/perms serves. It copied the two lines as they were, so the quote that
+ *  langIdentSanitize( ) strips (V-04) reached the page on the alpha's build, and
+ *  the 15- and 7-byte fields could end inside a UTF-8 sequence, a lead byte at
+ *  the end of a JSON string.
+ * =========================================================================== */
+static std::string packIdent(const char* head, const char* tag, size_t cap) {
+    std::vector<char> out(cap, 'X');
+    langHeaderIdent(head, tag, out.data( ), cap);
+    return std::string(out.data( ));
+}
+
+void test_langheader_strips_what_json_cannot_hold(void) {
+    /* a quote, a control byte and a backslash in @NAME; @CODE follows it and is found all the same */
+    const char* head = "# SIMUT\n@NAME Po\"rt\x01" "\\\n@CODE pt\"-BR\n@DICT\nx\n";
+    TEST_ASSERT_EQUAL_STRING("Port", packIdent(head, "@NAME ", 16).c_str( ));
+    TEST_ASSERT_EQUAL_STRING("pt-BR", packIdent(head, "@CODE ", 8).c_str( ));
+    /* the shipped packs' lines, untouched */
+    TEST_ASSERT_EQUAL_STRING("Portugues", packIdent("@NAME Portugues\r\n@CODE pt-BR\r\n", "@NAME ", 16).c_str( ));
+    TEST_ASSERT_EQUAL_STRING("pt-BR", packIdent("@NAME Portugues\r\n@CODE pt-BR\r\n", "@CODE ", 8).c_str( ));
+}
+
+void test_langheader_ends_on_a_whole_character(void) {
+    /* the field holds 15 bytes; a sequence that would be cut by it is left out whole */
+    TEST_ASSERT_EQUAL_STRING("Abcdefghijklmn", packIdent("@NAME Abcdefghijklmn\xC3\xA9\n", "@NAME ", 16).c_str( ));     /* 14 + 2: cut after the lead */
+    TEST_ASSERT_EQUAL_STRING("Abcdefghijklm\xC3\xA9", packIdent("@NAME Abcdefghijklm\xC3\xA9\n", "@NAME ", 16).c_str( )); /* 13 + 2 = 15: whole */
+    TEST_ASSERT_EQUAL_STRING("Abcdefghijklm", packIdent("@NAME Abcdefghijklm\xE2\x82\xAC\n", "@NAME ", 16).c_str( ));   /* 13 + 3: cut after 2 of 3 */
+    TEST_ASSERT_EQUAL_STRING("Abcdefghijkl", packIdent("@NAME Abcdefghijkl\xF0\x9F\x98\x80\n", "@NAME ", 16).c_str( )); /* 12 + 4: cut after 3 of 4 */
+    TEST_ASSERT_EQUAL_STRING("Abcdefghijk\xF0\x9F\x98\x80", packIdent("@NAME Abcdefghijk\xF0\x9F\x98\x80\n", "@NAME ", 16).c_str( )); /* 11 + 4 = 15: whole */
+    /* the code field holds 7 */
+    TEST_ASSERT_EQUAL_STRING("pt-BR\xC3\xA9", packIdent("@CODE pt-BR\xC3\xA9\n", "@CODE ", 8).c_str( )); /* 5 + 2 = 7: whole */
+    TEST_ASSERT_EQUAL_STRING("pt-BRx", packIdent("@CODE pt-BRx\xC3\xA9\n", "@CODE ", 8).c_str( )); /* 6 + 2 = 8: cut after the lead */
+    /* the head ends inside a sequence, with no newline after it */
+    TEST_ASSERT_EQUAL_STRING("Port", packIdent("@NAME Port\xC3", "@NAME ", 16).c_str( ));
+}
+
+void test_langheader_missing_tag_leaves_the_field_empty(void) {
+    TEST_ASSERT_EQUAL_STRING("", packIdent("# no name here\n@CODE x\n", "@NAME ", 16).c_str( ));
+    TEST_ASSERT_EQUAL_STRING("", packIdent("", "@NAME ", 16).c_str( ));
+    TEST_ASSERT_EQUAL_STRING("", packIdent("@NAME \n", "@NAME ", 16).c_str( ));
+}
+
+void test_utf8_whole_len(void) {
+    TEST_ASSERT_EQUAL_UINT32(0, utf8WholeLen("", 0));
+    TEST_ASSERT_EQUAL_UINT32(3, utf8WholeLen("abc", 3));
+    TEST_ASSERT_EQUAL_UINT32(2, utf8WholeLen("\xC3\xA9", 2));
+    TEST_ASSERT_EQUAL_UINT32(0, utf8WholeLen("\xC3", 1));
+    TEST_ASSERT_EQUAL_UINT32(1, utf8WholeLen("a\xE2\x82", 3));
+    TEST_ASSERT_EQUAL_UINT32(1, utf8WholeLen("a\xF0\x9F\x98", 4));
+    TEST_ASSERT_EQUAL_UINT32(4, utf8WholeLen("\xF0\x9F\x98\x80", 4));
+    TEST_ASSERT_EQUAL_UINT32(3, utf8WholeLen("\xE2\x82\xAC", 3));
+}
+
+/* ===========================================================================
  *  LANGUAGE-PACK INDEX — LangPackScanner (LangPackIndex.h)
  *
  *  The loader used to read every byte before @WEBDICT into one malloc just to
@@ -2192,6 +2248,209 @@ void test_fold_respects_capacity(void) {
 
 void test_fold_symbols(void) {
     TEST_ASSERT_EQUAL_STRING("25oC (C) 2026", fold("25\xc2\xb0" "C (\xc2\xa9) 2026").c_str( ));
+}
+
+/* ===========================================================================
+ *  THE BOOT TERMINAL'S LINES — latin1FoldNext, bootLineAscii (Utf8Fold.h)
+ *
+ *  A line of the boot terminal is two texts in two encodings: tr( ) returns
+ *  Latin-1 (the TFT fonts index glyphs by Latin-1 code) and the suffix is what
+ *  the boot formatted in, UTF-8 (a device name, an SSID). The box draws with the
+ *  built-in 5x7 font, which is 7-bit, so each part is folded by its own table.
+ *  Joined and folded as UTF-8, the key's "Conex\xC3\xA3o" (43 6F 6E 65 78 E3 6F)
+ *  read as a lead byte with no continuation and drew "Conex?o".
+ * =========================================================================== */
+static std::string bootLine(const char* key, const char* suffix, size_t cols = 0, size_t cap = 96) {
+    std::vector<char> out(cap ? cap : 1, 'X');
+    bootLineAscii(key, suffix, out.data( ), cap, cols);
+    return cap ? std::string(out.data( )) : std::string( );
+}
+
+void test_bootline_latin1_key_then_utf8_suffix(void) {
+    /* the case that was wrong: a Latin-1 key, then a UTF-8 name */
+    TEST_ASSERT_EQUAL_STRING("Conexao Jose", bootLine("Conex\xE3o", " Jos\xC3\xA9").c_str( ));
+    /* a raw legacy line has no key, and an English one has an ASCII key: unchanged */
+    TEST_ASSERT_EQUAL_STRING("PSK abc", bootLine("", "PSK abc").c_str( ));
+    TEST_ASSERT_EQUAL_STRING("Mounting FS... ok", bootLine("Mounting FS...", " ok").c_str( ));
+}
+
+void test_bootline_every_latin1_byte_folds_like_its_utf8_pair(void) {
+    /* one table for both encodings: the upper half of Latin-1 against the two-byte sequence of the same code point */
+    for (int b = 0x80; b <= 0xFF; b++) {
+        const char latin1[2] = { (char)b, '\0' };
+        const char pair[3] = { (char)(b < 0xC0 ? 0xC2 : 0xC3), (char)(0x80 | (b & 0x3F)), '\0' };
+        char msg[40];
+        snprintf(msg, sizeof msg, "Latin-1 byte 0x%02X", b);
+        TEST_ASSERT_EQUAL_STRING_MESSAGE(fold(pair).c_str( ), bootLine(latin1, "").c_str( ), msg);
+    }
+    /* and the letters of the shipped packs, by name (the UTF-8 twin is test_fold_keeps_ascii_and_latin_letters) */
+    TEST_ASSERT_EQUAL_STRING("Acao Nandu Uber ate e Ola",
+        bootLine("A\xE7\xE3o \xD1" "and\xFA \xDC" "ber at\xE9 \xE9 Ol\xE1", "").c_str( ));
+}
+
+void test_bootline_drops_the_spanish_opening_marks(void) {
+    TEST_ASSERT_EQUAL_STRING("Listo? Si!", bootLine("\xBF" "Listo? \xA1" "S\xED!", "").c_str( ));
+}
+
+void test_bootline_pads_after_the_fold(void) {
+    /* the suffix's accent is two bytes in and one out: a pad counted on the bytes leaves a column of the longer line that was there */
+    const std::string line = bootLine("Conex\xE3o", " Jos\xC3\xA9", 46);
+    TEST_ASSERT_EQUAL_UINT32(46, line.size( ));
+    TEST_ASSERT_EQUAL_STRING("Conexao Jose", line.substr(0, 12).c_str( ));
+    TEST_ASSERT_EQUAL_STRING(std::string(34, ' ').c_str( ), line.substr(12).c_str( ));
+}
+
+void test_bootline_respects_capacity(void) {
+    /* the screen's buffer is 48 B: 47 columns, terminated, whatever the text */
+    const std::string full = "Conexao Jose and a device name much too long for the box";
+    TEST_ASSERT_EQUAL_STRING(full.substr(0, 47).c_str( ),
+        bootLine("Conex\xE3o", " Jos\xC3\xA9 and a device name much too long for the box", 46, 48).c_str( ));
+    TEST_ASSERT_EQUAL_STRING("abc", bootLine("abc", "def", 0, 4).c_str( ));
+    TEST_ASSERT_EQUAL_STRING("", bootLine("abc", "def", 46, 1).c_str( ));
+}
+
+/* ===========================================================================
+ *  THE ANGULO'S BOOT RING — bootLineUtf8 (Utf8Fold.h)
+ *
+ *  The ring's lines have the same two parts and the same two encodings as the
+ *  original's terminal: the key's text is Latin-1 (tr( )), the suffix is UTF-8
+ *  (a device name, an SSID). The kit draws UTF-8, so the key is converted and the
+ *  suffix is kept. The Angulo joined the two and converted the WHOLE line from
+ *  Latin-1, which encoded the suffix a second time: the AP's "Esta\xC3\xA7\xC3\xA3o_SETUP"
+ *  came out as "Esta\xC3\x83\xC2\xA7\xC3\x83\xC2\xA3o_SETUP", drawn "EstaÃ§Ã£o_SETUP".
+ * =========================================================================== */
+static std::string ringLine(const char* key, const char* suffix, size_t cap = 72) {
+    std::vector<char> out(cap ? cap : 1, 'X');
+    bootLineUtf8(key, suffix, out.data( ), cap);
+    return cap ? std::string(out.data( )) : std::string( );
+}
+
+static bool validUtf8(const std::string& s) {
+    for (size_t i = 0; i < s.size( ); ) {
+        const unsigned char c = (unsigned char)s[i];
+        const size_t w = c < 0x80 ? 1 : (c >= 0xC2 && c <= 0xDF) ? 2 : (c >= 0xE0 && c <= 0xEF) ? 3 : (c >= 0xF0 && c <= 0xF4) ? 4 : 0;
+        if (!w || i + w > s.size( )) return false;
+        for (size_t k = 1; k < w; k++) if (((unsigned char)s[i + k] & 0xC0) != 0x80) return false;
+        i += w;
+    }
+    return true;
+}
+
+void test_ringline_converts_the_key_and_keeps_the_suffix(void) {
+    /* a Latin-1 key, then a UTF-8 name: the key's "ã" becomes C3 A3 and the name's "é" stays C3 A9 (the bytes the host reproduced on 2026-11-04) */
+    TEST_ASSERT_EQUAL_STRING("Conex\xC3\xA3o Jos\xC3\xA9", ringLine("Conex\xE3o", " Jos\xC3\xA9").c_str( ));
+    /* a line with no key is the suffix alone, unconverted: the AP's SSID, device name and "_SETUP" */
+    TEST_ASSERT_EQUAL_STRING("Esta\xC3\xA7\xC3\xA3o_SETUP", ringLine("", "Esta\xC3\xA7\xC3\xA3o_SETUP").c_str( ));
+    TEST_ASSERT_EQUAL_STRING("PSK abc", ringLine("", "PSK abc").c_str( ));
+    /* an ASCII key with a UTF-8 suffix, and the key alone */
+    TEST_ASSERT_EQUAL_STRING("Rede: Esta\xC3\xA7\xC3\xA3o_SETUP", ringLine("Rede: ", "Esta\xC3\xA7\xC3\xA3o_SETUP").c_str( ));
+    TEST_ASSERT_EQUAL_STRING("Conex\xC3\xA3o", ringLine("Conex\xE3o", "").c_str( ));
+}
+
+void test_ringline_every_latin1_key_byte_is_its_code_point(void) {
+    for (int b = 0x80; b <= 0xFF; b++) {
+        const char key[2] = { (char)b, '\0' };
+        const char want[3] = { (char)(0xC0 | (b >> 6)), (char)(0x80 | (b & 0x3F)), '\0' };
+        char msg[40];
+        snprintf(msg, sizeof msg, "Latin-1 key byte 0x%02X", b);
+        TEST_ASSERT_EQUAL_STRING_MESSAGE(want, ringLine(key, "").c_str( ), msg);
+    }
+}
+
+void test_ringline_cut_is_at_a_whole_character(void) {
+    /* a key and a suffix with 1-, 2-, 3- and 4-byte characters, cut at every capacity from 1 to past its end: never half a sequence, never over
+     * the capacity, and always the longest whole prefix that fits */
+    const char* key = "Conex\xE3o";
+    const char* suffix = " Jos\xC3\xA9 \xE2\x82\xAC \xF0\x9F\x98\x80 end";
+    const std::string full = ringLine(key, suffix, 200);
+    TEST_ASSERT_EQUAL_STRING("Conex\xC3\xA3o Jos\xC3\xA9 \xE2\x82\xAC \xF0\x9F\x98\x80 end", full.c_str( ));   /* the key converted once, the suffix as it came */
+    TEST_ASSERT_TRUE(validUtf8(full));
+    for (size_t cap = 1; cap <= full.size( ) + 3; cap++) {
+        const std::string got = ringLine(key, suffix, cap);
+        std::string want;
+        for (size_t i = 0; i < full.size( ); ) {
+            const unsigned char c = (unsigned char)full[i];
+            const size_t w = c < 0x80 ? 1 : c < 0xE0 ? 2 : c < 0xF0 ? 3 : 4;
+            if (want.size( ) + w + 1 > cap) break;
+            want += full.substr(i, w);
+            i += w;
+        }
+        char msg[48];
+        snprintf(msg, sizeof msg, "capacity %u", (unsigned)cap);
+        TEST_ASSERT_TRUE_MESSAGE(validUtf8(got), msg);
+        TEST_ASSERT_TRUE_MESSAGE(got.size( ) < cap, msg);
+        TEST_ASSERT_EQUAL_STRING_MESSAGE(want.c_str( ), got.c_str( ), msg);
+    }
+    char untouched = 'X';
+    bootLineUtf8("abc", "def", &untouched, 0);
+    TEST_ASSERT_EQUAL_CHAR('X', untouched);          /* a zero capacity writes nothing */
+}
+
+void test_ringline_a_suffix_that_is_not_utf8_is_marks_and_the_line_stays_valid(void) {
+    /* what is drawn is well formed in structure (validUtf8( ) above: each lead byte with all its continuation bytes), as bootLineUtf8( ) promises; it is not strict RFC 3629 (Utf8Fold.h) */
+    TEST_ASSERT_EQUAL_STRING("a?b", ringLine("", "a\x80" "b").c_str( ));                /* a stray continuation byte */
+    TEST_ASSERT_EQUAL_STRING("a?", ringLine("", "a\xC3").c_str( ));                     /* a lead byte at the end */
+    TEST_ASSERT_EQUAL_STRING("?x", ringLine("", "\xE2\x82x").c_str( ));                /* a three-byte sequence that stops short */
+    TEST_ASSERT_EQUAL_STRING("?", ringLine("", "\xFF").c_str( ));                       /* a byte that is no lead at all */
+    TEST_ASSERT_TRUE(validUtf8(ringLine("Conex\xE3o", "\xC0\x80\xE2\x28\xA1 ok")));
+}
+
+void test_ringline_a_key_that_does_not_fit_leaves_the_suffix_out(void) {
+    /* 40 Latin-1 bytes at 0xE9 are 80 bytes of UTF-8: the key stops at 35 characters (70 bytes) in 72, and the suffix is not appended after it */
+    const std::string key(40, '\xE9');
+    const std::string got = ringLine(key.c_str( ), "XYZ", 72);
+    TEST_ASSERT_EQUAL_UINT32(70, got.size( ));
+    TEST_ASSERT_TRUE(validUtf8(got));
+    TEST_ASSERT_TRUE(got.find("XYZ") == std::string::npos);
+}
+
+/* The lead-byte table of bootLineUtf8( ), byte by byte. The cases above pin it at C3, E2 and F0 (and C0, FF and 80 as non-leads); the review of 2026-11-04 found
+ * seven mutants of its boundaries alive after them (C2, DF, E0, EF and F4 not leads, F5..FF leads, a continuation test loosened to `& 0x80`), and the
+ * validUtf8( ) above cannot tell, since it carries the same table. So the expected output here comes from RFC 3629, section 4, written out as the RFC writes it
+ * (UTF8-2, UTF8-3 and UTF8-4, a row for each alternative) and read back from neither bootLineUtf8( ) nor validUtf8( ). Only what the function holds is pinned: the
+ * lead's range and the continuation bytes (80..BF). The rest of the RFC's rule (E0 80..9F and F0 80..8F overlong, ED A0..BF a surrogate, F4 90.. past U+10FFFF) is not,
+ * on purpose (Utf8Fold.h says so), and no case here depends on it. */
+static size_t rfc3629LeadLength(int b) {
+    static const struct { int lo, hi; size_t len; } leads[] = {
+        { 0xC2, 0xDF, 2 },                                                                          /* UTF8-2 = %xC2-DF UTF8-tail */
+        { 0xE0, 0xE0, 3 }, { 0xE1, 0xEC, 3 }, { 0xED, 0xED, 3 }, { 0xEE, 0xEF, 3 },                  /* UTF8-3 = %xE0 ... / %xE1-EC ... / %xED ... / %xEE-EF ... */
+        { 0xF0, 0xF0, 4 }, { 0xF1, 0xF3, 4 }, { 0xF4, 0xF4, 4 },                                    /* UTF8-4 = %xF0 ... / %xF1-F3 ... / %xF4 ... */
+    };
+    for (const auto& r : leads) if (b >= r.lo && b <= r.hi) return r.len;
+    return 0;                                                                                       /* 80..BF are tails; C0, C1 and F5..FF open nothing */
+}
+
+void test_ringline_the_lead_byte_table_byte_by_byte(void) {
+    /* 1. Every byte 0x80..0xFF as a lead, then three continuation bytes and a letter: the sequence its lead opens, whole, then one '?' for each continuation byte
+     *    that is left over; a byte that opens nothing is one '?', and so is each of the three after it. */
+    for (int b = 0x80; b <= 0xFF; b++) {
+        const char in[6] = { (char)b, (char)0x80, (char)0x80, (char)0x80, 'z', '\0' };
+        const size_t len = rfc3629LeadLength(b);
+        std::string want;
+        if (len) want.append(in, len);
+        want.append(len ? 4 - len : 4, '?');
+        want += 'z';
+        char msg[64];
+        snprintf(msg, sizeof msg, "lead byte 0x%02X, then 80 80 80 z", b);
+        TEST_ASSERT_EQUAL_STRING_MESSAGE(want.c_str( ), ringLine("", in).c_str( ), msg);
+    }
+    /* 2. The last byte of a 2-, 3- and 4-byte sequence, every value 0x01..0xFF in turn, then a letter: 80..BF completes the sequence, and anything else cuts it short,
+     *    so the lead and the continuation bytes before it are one '?' and the byte is read again as itself (a 7-bit byte stays; a lead or a non-lead is one '?' of its own). */
+    static const struct { unsigned char lead; size_t len; } opens[] = { { 0xC2, 2 }, { 0xE2, 3 }, { 0xF1, 4 } };
+    for (const auto& o : opens) {
+        for (int c = 0x01; c <= 0xFF; c++) {
+            std::string in(1, (char)o.lead);
+            in.append(o.len - 2, (char)0x80);
+            in += (char)c;
+            in += 'z';
+            std::string want;
+            if (c >= 0x80 && c <= 0xBF) want = in;
+            else { want = "?"; want += c < 0x80 ? std::string(1, (char)c) : std::string("?"); want += 'z'; }
+            char msg[64];
+            snprintf(msg, sizeof msg, "%u-byte lead 0x%02X, last byte 0x%02X", (unsigned)o.len, (unsigned)o.lead, c);
+            TEST_ASSERT_EQUAL_STRING_MESSAGE(want.c_str( ), ringLine("", in.c_str( )).c_str( ), msg);
+        }
+    }
 }
 
 /* ===========================================================================
@@ -6051,6 +6310,10 @@ int main(int /*argc*/, char** /*argv*/) {
     RUN_TEST(test_langident_strips_json_breakers);
     RUN_TEST(test_langident_keeps_legitimate_names);
     RUN_TEST(test_langident_terminates_and_respects_cap);
+    RUN_TEST(test_langheader_strips_what_json_cannot_hold);
+    RUN_TEST(test_langheader_ends_on_a_whole_character);
+    RUN_TEST(test_langheader_missing_tag_leaves_the_field_empty);
+    RUN_TEST(test_utf8_whole_len);
     RUN_TEST(test_langidx_finds_every_section);
     RUN_TEST(test_langidx_section_before_webdict_stops_at_the_marker);
     RUN_TEST(test_langidx_chunking_does_not_matter);
@@ -6090,6 +6353,17 @@ int main(int /*argc*/, char** /*argv*/) {
     RUN_TEST(test_fold_never_reads_past_the_end);
     RUN_TEST(test_fold_respects_capacity);
     RUN_TEST(test_fold_symbols);
+    RUN_TEST(test_bootline_latin1_key_then_utf8_suffix);
+    RUN_TEST(test_bootline_every_latin1_byte_folds_like_its_utf8_pair);
+    RUN_TEST(test_bootline_drops_the_spanish_opening_marks);
+    RUN_TEST(test_bootline_pads_after_the_fold);
+    RUN_TEST(test_bootline_respects_capacity);
+    RUN_TEST(test_ringline_converts_the_key_and_keeps_the_suffix);
+    RUN_TEST(test_ringline_every_latin1_key_byte_is_its_code_point);
+    RUN_TEST(test_ringline_cut_is_at_a_whole_character);
+    RUN_TEST(test_ringline_a_suffix_that_is_not_utf8_is_marks_and_the_line_stays_valid);
+    RUN_TEST(test_ringline_a_key_that_does_not_fit_leaves_the_suffix_out);
+    RUN_TEST(test_ringline_the_lead_byte_table_byte_by_byte);
     RUN_TEST(test_wdv_finds_a_value);
     RUN_TEST(test_wdv_decodes_escapes);
     RUN_TEST(test_wdv_matches_the_key_exactly);

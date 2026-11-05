@@ -1,27 +1,31 @@
 /**
  * @file UiTouchChain.h
  * @brief The original's touch chain: what a touch does on each screen, one branch per _uiMode. Old lines 408-1225 of
- *        src/DisplayManager_Touch.cpp (50828bdf), word for word. Included INSIDE handleTouch( ) by src/ui/UiDriverTouch.h, after the early
- *        gates; x and y are its locals.
+ *        src/DisplayManager_Touch.cpp (50828bdf), word for word but the dashboard's min/max zones (2026-11-04, the first
+ *        branch). Included INSIDE handleTouch( ) by src/ui/UiDriverTouch.h, after the early gates; x and y are its locals.
  *
  * Not self-contained and no include guard: it is a fragment of a function body.
  */
  if (_uiMode == MODE_DASHBOARD) {
- if (y > 35 && y < 110) {
- /* The min/max graph button, on touch-down, over the whole rectangle it is
-  * painted on and not a hand-written slice of it. It used to read `x > 266`
-  * while the button is drawn from CARD_X + minMaxBtnX(CARD_W) = 245 to 302, so
-  * its left third fell through to the short-tap path and turned min/max OFF —
-  * the mirror image of the mode-indicator bug (see actTopCardPress( )), on the same button. Both
-  * zones now come from the same three numbers the drivers draw with. */
+ /* The min/max graph button of either card, on touch-down, over the whole rectangle it is
+  * painted on and not a hand-written slice of it. Both cards are painted by the same code
+  * (drawSlotPanel( ), at CARD_W and blitted at CARD_X; only cardY differs), so the button
+  * is at CARD_X + minMaxBtnX(CARD_W) = 245 to 302 on each, and both zones come from the same
+  * three numbers the drivers draw with. Both used to read `x > 266`; v2.4.8-beta (2026-09-18)
+  * brought the upper card's to the painted rectangle and the lower card's kept it until
+  * 2026-11-04: its left third, x 245..266, fell through to the short-tap path and turned
+  * min/max OFF — the mirror image of the mode-indicator bug (see actTopCardPress( )), on the
+  * same button — and x 303..319, 17 columns past the button and the card, opened the graph
+  * from the margin. tools/tft_ui/test_zona_minmax.py runs both zones over every column. */
  constexpr int16_t MM_BTN_X0 = CARD_X + minMaxBtnX(CARD_W);
  constexpr int16_t MM_BTN_X1 = MM_BTN_X0 + MINMAX_BTN_W;   /* exclusive */
+ if (y > 35 && y < 110) {
  actTopCardPress( x >= MM_BTN_X0 && x < MM_BTN_X1 );
  return;
  }
  if (y > 115 && y < 190) {
  if (!acceptTouch(1)) return;
- actBottomCardTap( x > 266 );
+ actBottomCardTap( x >= MM_BTN_X0 && x < MM_BTN_X1 );
  return;
  }
  if (y > 195) {
