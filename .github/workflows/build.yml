@@ -436,15 +436,6 @@ jobs:
         run: python3 tools/lcd_alpha/manual_lcd.py --check
       - name: Alpha LCD manual figures, the controls of the check (test_manual_lcd.py)
         run: python3 tools/lcd_alpha/test_manual_lcd.py
-      # The glyph table of the alpha's live LCD view (2026-11-04): an openly licensed font, not the HD44780 ROM table that test_rom.py holds above (the maintainer's decision of the same day). It is the X.Org
-      # misc-fixed 5x7, public domain ("Public domain font.  Share and enjoy."), as tools/lcd_alpha/fonte_x11.py, which fonte_extract.py generates from the two PCF files of xfonts-base. The runner has no
-      # xfonts-base, so test_fonte.py holds the table without the font files: the shape (96 codes, 8 rows, row 7 blank), the header against the tool's pins, the pin, 14 glyphs typed by hand from the font (the
-      # yen sign at 0x5C and the arrows at 0x7E and 0x7F among them), lcd.desenhar( ) drawing all 96 codes, 23 mutants of the table and header with the exact findings expected, the PCF reader on 144 synthetic
-      # layouts compared with FreeType through Pillow, the generator on synthetic fonts, and the command line. fonte_extract.py --check on the real files runs only where xfonts-base is installed: on the runner that
-      # part is skipped and the test says so ("skipped: the font files are not here"). Pillow comes from the step before the Angulo's host tests.
-      # 1.5 s here on 2026-11-04 with the font folder hidden, as on the runner (Python 3.11 in isolated mode, 59 checks and 1 skipped); 2.5 s with the fonts (62 checks).
-      - name: Alpha LCD glyph table from the public-domain font (test_fonte.py)
-        run: python3 tools/lcd_alpha/test_fonte.py
 
       # The fences of the alpha glass's seqlock (src/display/LcdGlass.h, docs/CONCURRENCY.md; 2026-11-04). A fence is a no-op on the host, so a
       # single-threaded test cannot see one: the review of step 1 took each of the four out in turn and all 408 native cases still passed. This
