@@ -239,6 +239,11 @@ class Font:
         self.metrics = read_metrics(data, *toc[PCF_METRICS])
         self.bitmaps = read_bitmaps(data, *toc[PCF_BITMAPS], self.metrics)
         self.encoding = read_encodings(data, *toc[PCF_BDF_ENCODINGS])
+        bad = sorted(code for code, i in self.encoding.items() if i >= len(self.metrics) or i >= len(self.bitmaps))
+        if bad:
+            # An encoding that points past the glyphs raised IndexError in cell( ) on a corrupted copy (the review of 2026-11-04, one in about
+            # 3,470 truncated or bit-flipped files): refused here, as every other inconsistency of the file is.
+            raise Unreadable('the encoding table points past the %d glyphs for %d code(s), the first U+%04X' % (len(self.metrics), len(bad), bad[0]))
         self.accel = read_accelerators(data, *toc[accel])
         self.formats = {t: toc[t][0] for t in toc}
 
@@ -513,7 +518,9 @@ def run(args):
             print()
     src = module_source(table)
     if args.check:
-        with open(args.module, encoding='utf-8') as f:
+        # newline='': no translation of line ends, so the comparison is of the bytes as they are (a CRLF copy passed as "byte for byte"
+        # in text mode; the review of 2026-11-04).
+        with open(args.module, encoding='utf-8', newline='') as f:
             have = f.read()
         if have != src:
             findings.append('%s differs from the fonts, first at line %d' % (args.module, first_difference(have, src)))

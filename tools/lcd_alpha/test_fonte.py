@@ -10,6 +10,8 @@ What is held, on the real module (standard library and Pillow only; no font file
                must be exactly that), the path, the gz's sha256 and the sha256 of the decompressed PCF of both files, the date read, the METHOD, the table's own
                digest, and the three substitutions (0x5C, 0x7E, 0x7F) with their code points; the docstring carries them; and the header equals what
                fonte_extract.py pins, so the tool and the module cannot be edited apart;
+  * pin twice  the table's digest equals EXPECTED_TABLE_SHA256, written in this file, so a change to the table touches two files (the review
+               of 2026-11-04 changed a dot of 'x' and recomputed the module's digest, and nothing in CI saw it);
   * pin        the sha256 of the table as text equals TABLE_SHA256. A change detector and nothing more: it says the table is the one that
                fonte_extract.py --check proved equal to the font files on 2026-11-04, so a hand edit or a regeneration from other files shows;
   * golden     14 glyphs, TYPED BY HAND from the font on 2026-11-04, BEFORE fonte_x11.py existed (the first run of this file, with no module, was at
@@ -455,6 +457,12 @@ def write_fonts(folder, latin1=None, unicode_=None):
                 f.write(gzip.compress(data))
 
 
+# The table's digest, written here as well as in the module: in CI (no xfonts-base) a glyph outside the golden and the stems is held by
+# TABLE_SHA256 alone, which sits in the file it guards, so one dot of 'x' changed together with a recomputed digest passed (the review of
+# 2026-11-04). With the digest here too, a change to the table has to touch two files.
+EXPECTED_TABLE_SHA256 = '0dd276969dbadc1ef616a4f45a0a81b195aeb34c478de288d7a70af2e253d3a1'
+
+
 def main():
     fails = 0
     skipped = []
@@ -477,6 +485,8 @@ def main():
         header = {k: getattr(fonte, k, None) for k in HEADER_KEYS}
         doc = fonte.__doc__ or ''
         real = findings(table, header, doc)
+        report(digest(table) == EXPECTED_TABLE_SHA256, 'the table is the one this test pins as well (EXPECTED_TABLE_SHA256 %s, the table %s)'
+               % (EXPECTED_TABLE_SHA256[:12], digest(table)[:12]))
         report(not real, 'the module: %d codes, 8 rows each, rows 0..31, row 7 blank, header, pin, golden, typography: %s'
                % (len(table), 'no findings' if not real else real))
         report(len(table) == 96 and min(table) == 0x20 and max(table) == 0x7F, 'the table holds 0x20..0x7F, 96 codes')
@@ -736,9 +746,15 @@ def main():
                 report(rc == 2 and 'pinned' in se and not os.path.exists(out), 'CLI: %s with the right COPYRIGHT and files that are not the pinned ones exits 2 (exit %d)' % (flag, rc))
 
         # -- the real fonts, where they are installed ---------------------------------------------------------------------------------------------------
-        have = all(os.path.exists(os.path.join(fx.FONT_DIR, d['name'])) for d in (fx.LATIN1, fx.UNICODE))
+        here = [os.path.join(fx.FONT_DIR, d['name']) for d in (fx.LATIN1, fx.UNICODE)]
+        have = all(os.path.exists(p) for p in here)
+        pinned = have and all(hashlib.sha256(open(p, 'rb').read()).hexdigest() == d['gz_sha256'] for p, d in zip(here, (fx.LATIN1, fx.UNICODE)))
         if not have:
             skip('the real font files: the font files are not here (%s); only fonte_extract.py --check on them is skipped, the module is held above' % fx.FONT_DIR)
+        elif not pinned:
+            # Another build of xfonts-base: the tool refuses files it has not pinned (exit 2), which is right for --write; for this test it is a
+            # reason to skip and say so, not a red run (the review of 2026-11-04).
+            skip('the real font files: the files in %s are not the pinned ones (another xfonts-base?); fonte_extract.py --check refuses them, the module is held above' % fx.FONT_DIR)
         elif fonte is None:
             report(False, 'the real font files are here but fonte_x11.py cannot be imported')
         else:
