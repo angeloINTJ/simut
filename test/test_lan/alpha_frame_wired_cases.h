@@ -59,3 +59,31 @@ static void test_alpha_frame_wired_has_no_setup_ap_screen(void) {
 	p.pass(-50, in);
 	alphaExpectGlass(p.lcd, "xxxxxxxxxxxxxxxx", "xxxxxxxxxxxxxxxx", "the setup AP's screen draws nothing on the cable");
 }
+
+/* What the other core reads from the cable's glass (display/LcdGlass.h): the same shadow as the radio's, with the glyph of the cable in slot 7.
+ * The glyph is published when it is loaded, ahead of the frame it belongs to, and again only when the link changes. */
+static void test_alpha_frame_wired_glass_shadow_follows_the_cable_glyph(void) {
+	AlphaPass p; p.previousFrame( );
+	LcdGlass g;
+	TEST_ASSERT_EQUAL_INT8_MESSAGE(LCD_GLASS_NONE, p.lcd.readGlass(g), "begin( ) and the glyph load: no frame yet");
+	TEST_ASSERT_EQUAL_MEMORY_MESSAGE(BF_WIFI0, g.cgram[7], 8, "the X is in slot 7 before the first pass");
+	TEST_ASSERT_EQUAL_UINT32_MESSAGE(2 * 9, g.seq, "the clear and the eight glyphs: nine publishes");
+	AlphaFrameIn in(ALPHA_SCREEN_SENSOR);
+	in.slots = 1; in.slot = 0; in.channel = CH_TEMP; in.valid = true; in.value = 23.4f;
+	p.lcd.nowMs = 4000;
+	p.pass(-50, in);                        /* link up: slot 7 takes the cable, then the frame is blitted */
+	TEST_ASSERT_EQUAL_INT8(LCD_GLASS_OK, p.lcd.readGlass(g));
+	TEST_ASSERT_EQUAL_MEMORY_MESSAGE(BF_WIRED, g.cgram[7], 8, "link up: the cable's glyph is what a reader gets");
+	TEST_ASSERT_EQUAL_MEMORY_MESSAGE(p.lcd.ddram[0], g.ddram[0], 16, "row 0 is the glass's");
+	TEST_ASSERT_EQUAL_MEMORY_MESSAGE(p.lcd.ddram[1], g.ddram[1], 16, "row 1 is the glass's");
+	TEST_ASSERT_EQUAL_UINT32(4000, g.blitMs);
+	TEST_ASSERT_EQUAL_UINT32_MESSAGE(2 * 11, g.seq, "the glyph and the blit: two more publishes");
+	p.pass(-50, in);                        /* the link did not change: no glyph, one blit */
+	TEST_ASSERT_EQUAL_INT8(LCD_GLASS_OK, p.lcd.readGlass(g));
+	TEST_ASSERT_EQUAL_UINT32_MESSAGE(2 * 12, g.seq, "a pass that loads no glyph publishes once");
+	p.pass(-127, in);                       /* link down: the X, then the blit */
+	TEST_ASSERT_EQUAL_INT8(LCD_GLASS_OK, p.lcd.readGlass(g));
+	TEST_ASSERT_EQUAL_MEMORY_MESSAGE(BF_WIFI0, g.cgram[7], 8, "link down: the X");
+	TEST_ASSERT_EQUAL_UINT32(2 * 14, g.seq);
+	for (int s = 0; s < 8; s++) TEST_ASSERT_EQUAL_MEMORY_MESSAGE(p.lcd.cgram[s], g.cgram[s], 8, "every glyph is the glass's");
+}
