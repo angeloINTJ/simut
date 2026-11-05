@@ -76,6 +76,34 @@ pause waited out the full park timeout.
      then feeding inside that bound is safe — that pairing is what
      `tools/arduino_pico_overrides` restores for BearSSL.
 
+## The alpha's glass: Core 1 publishes, Core 0 reads
+
+The 16x2 cannot be read back, so the driver keeps a shadow of what it wrote (`src/display/LcdGlass.h`) and
+`DisplayManager::lcdGlass( )` gives Core 0 one consistent copy of it (the web handler of a later step; nothing calls
+it yet). It keeps the rules above:
+
+- **No lock, no heap, no log on Core 1** (invariants 2 and 3). The shadow is a seqlock, the pattern of the Ângulo's frame
+  record (`s_seq` and `uaEstado( )` in `ui/angulo/DisplayManager_UiA.cpp`): the writer counts to an odd number, copies,
+  fences, counts to the next even one; the reader trusts a copy only if it saw the same even number before and after. A
+  mutex Core 1 held when Core 0 started a flash write would freeze Core 1 with the mutex held.
+- **After the bus, never before.** `blit( )` and `createChar( )` publish after their bus writes, so the shadow never leads
+  the glass; `print( )`, `clear( )` and `setCursor( )` compose in the framebuffer and publish nothing. The cells and the eight
+  glyphs are one snapshot under one count.
+- **A publish that dies heals in one publish.** A Core 1 relaunched mid-publish (`APP_CORE1_DEAD`, "Core 1 dead >10s") keeps the
+  driver, so the count stays odd. The next publish makes it odd again in a single store (a blind `+ 1`, as the Ângulo's
+  writer does, turns the parity around for good), and drops the frame flag: the reader says "no frame" until the next
+  `blit( )` rewrites all thirty-two cells.
+- **The reader is bounded.** It waits for an odd count at most 2 ms (a 20 us step, the Ângulo's) and returns 1 copied, 0 no
+  frame yet, -1 busy: the numbers of `uaEstado( )`. The caller answers "busy", not "none", for -1.
+- **How it is held** (2026-11-04). `alpha_glass.cpp` and `alpha_driver_twin.cpp` in `test/test_validators/` stop the writer
+  after each of its stores and land a whole publish at each byte of the reader's copy (a host thread would find a tear only
+  by chance), and the same harnesses report a mix on a writer without the odd count and on two readers that skip one look at
+  the count. What a host cannot see is the fence: it is `dmb ish`, read from the disassembly of the pico_wire image.
+- **What it costs.** The publish of a `blit( )` is 33 instructions after the bus loops (24 in `blit( )`, 9 in `open( )`), two
+  16-byte `memcpy` calls and a `millis( )` (pico_wire image; counted, not timed on a board), against at least 3.5 ms of bus
+  time for the blit (34 bytes, two nibbles each, 52 us of delays per nibble). The shadow is 108 B of RAM, and 216 B of flash in
+  `pico_w_alpha` and `pico_wire`; the reader is 160 B in the object and is dropped from the image until something calls it.
+
 ## Reading the new metrics
 
 `show metrics` → `[STORAGE]`:
