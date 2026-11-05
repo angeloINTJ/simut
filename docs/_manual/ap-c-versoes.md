@@ -2,6 +2,12 @@
 
 O que cada versão da linha 2.x trouxe para quem usa o aparelho, da mais nova para a mais antiga. O registro completo, com as medições de cada mudança, está no `CHANGELOG.pt-BR.md` do repositório.
 
+## Linha 2.14 — estável
+
+| Versão | Data | O que trouxe |
+|---|---|---|
+| v2.14.0 | 05/11/2026 | O painel web do alpha e do SIMUT Wire com LCD 16x2 ganha uma caixa que mostra o LCD, capturado uma vez ou ao vivo, até quatro vezes por segundo, com os caracteres do LCD de verdade; as 17 figuras de LCD do manual passam a ser desenhadas pelo código do firmware. O Salvar do editor de limites de alarme salva o que estava na tela no toque, a prévia do alinhamento da tela não sobrevive mais à saída da tela (salvo numa atualização do firmware) e treze correções pequenas chegam: as marcas das regras de senha e o `°C` na página web, o botão de gráfico do cartão de baixo, a última linha da tela Licença, os acentos da tela de boot, o endereço do AP de configuração com a porta web e outras. Os pacotes de idioma ganham duas chaves (pt-BR com 53.113 B, es-ES com 55.145 B) e continuam carregando na v2.13.0. |
+
 ## Linha 2.13 — estável
 
 | Versão | Data | O que trouxe |

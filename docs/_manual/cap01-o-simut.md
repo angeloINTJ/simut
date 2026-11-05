@@ -99,9 +99,16 @@ O aparelho em blocos: os sensores entram pelo Core 0, a tela fica com o Core 1, 
 
 ## Versões {#cap-01-versoes}
 
-Este manual descreve a **v2.13.0**, de 31/10/2026, a versão publicada mais recente. A linha 2.7 saiu do beta com a v2.7.0.
+Este manual descreve a **v2.14.0**, de 05/11/2026, a versão publicada mais recente. A linha 2.7 saiu do beta com a v2.7.0.
 
-O que a v2.13.0 mudou para quem usa o aparelho:
+O que a v2.14.0 mudou para quem usa o aparelho:
+
+- no alpha e no SIMUT Wire com LCD 16x2, o painel web ganha uma caixa que mostra o LCD: o **Capturar** desenha o vidro uma vez e o **Ao vivo** o desenha até quatro vezes por segundo, com os caracteres do LCD de verdade ([capítulo 12](#cap-12-boot));
+- o Salvar do editor de limites de alarme do painel passa a salvar os limites que estavam na tela no toque, e uma prévia do alinhamento da tela que não foi salva não sobrevive mais à saída da tela, salvo numa atualização do firmware ([capítulo 11](#cap-11));
+- treze correções pequenas: as marcas das regras de senha e o `°C` na página web, o botão de gráfico do cartão de baixo, a última linha da tela **Licença**, os acentos da tela de boot, o endereço do AP de configuração com a porta web, um caminho desconhecido numa porta diferente de 80, a mensagem do `system history_interval`, o nome do idioma do alpha, o `air stop` num despertar de telemetria e o `ap` durante o ciclo de hibernação, que agora é recusado e diz o que fazer;
+- para quem integra: o `GET /api/lcd` (só no alpha e no Wire) e o `GET /api/keypad` do Ângulo, que deixa de descrever o teclado do painel original (capítulo 26).
+
+A v2.13.0, de 31/10/2026, tinha trazido:
 
 - no Pico 2 W, a release passa a desenhar o painel **Ângulo**, com telas próprias ([capítulo 11A](#cap-11a)); o Pico W continua com o painel original ([capítulo 11](#cap-11));
 - o tema do Ângulo é um modo (claro, escuro ou automático) mais uma de seis cores de destaque, 18 escolhas ao todo; um arquivo `.thm` enviado a um Pico 2 W é guardado, mas não é aplicado;
@@ -109,18 +116,7 @@ O que a v2.13.0 mudou para quem usa o aparelho:
 - a barra de status do Ângulo mostra o sinal do Wi-Fi em quatro níveis, e a página **Avisos de Terceiros** e a tela **Licença** do painel listam as fontes e os ícones dele;
 - o manual ganha o capítulo 11A, conta quatro imagens publicadas e descreve o *rollback* dos dois slots do Pico 2 W.
 
-A v2.12.0, de 29/10/2026, tinha trazido:
-
-- no Pico W, o barramento do painel passa a ser ajustado a 66,5 MHz, onde rodava a 24 MHz (lido na bancada em 15/10/2026);
-- um rádio que para de responder não é mais associado às cegas: o aparelho reinicia pelo caminho planejado em vez de pelo watchdog, e o log registra `SYS_WIFI_CONNECT` com contexto 4 ([capítulo 9](#cap-09-mudo));
-- um ponto de acesso que some enquanto o aparelho espera a hora é notado, e a descarga do Air não dorme mais sem enviar quando a hora demora a chegar;
-- uma resposta da web não chega mais ao navegador com pedaços faltando, e uma aba `http://` esquecida na porta HTTPS não reinicia mais o aparelho;
-- depois de um boot em inglês, a tela **Idioma** do painel lista o pacote de `/lang`, e escolhê-lo grava o idioma para o próximo boot ([capítulo 11](#cap-11-menu));
-- o tema e o idioma escolhidos no painel pedem a permissão **Sistema**, como o relógio e as contas já faziam;
-- a página web mostra os nomes dos temas de fábrica no idioma do aparelho;
-- a página **Arquivos** mostra, em vermelho, o motivo de um arquivo que o aparelho recusou, em vez de "Upload concluído." ([capítulo 17](#cap-17-enviar)).
-
-Um aparelho com a v2.12.0 não tem os itens da v2.13.0, e o que as versões anteriores trouxeram está no apêndice [Histórico de versões](#ap-c). Onde este manual diz "na v2.7.1" ou "pelo código da v2.7.1", o texto vale também para as versões seguintes, salvo nas mudanças que o apêndice registra da v2.7.2 em diante. Como conferir a versão do seu aparelho está no [capítulo 17](#cap-17-ota-conferir).
+Um aparelho com a v2.13.0 não tem os itens da v2.14.0, e o que as versões anteriores trouxeram está no apêndice [Histórico de versões](#ap-c). Onde este manual diz "na v2.7.1" ou "pelo código da v2.7.1", o texto vale também para as versões seguintes, salvo nas mudanças que o apêndice registra da v2.7.2 em diante. Como conferir a versão do seu aparelho está no [capítulo 17](#cap-17-ota-conferir).
 
 ## Como ler este manual {#cap-01-como-ler}
 
