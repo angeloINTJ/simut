@@ -109,9 +109,18 @@ def main():
                 'the 17 glasses drawn at 639 x 137, the diagram at 639 x 271 as geometria( ) and its captura= say')
         r = cli('--check')
         confere(r.returncode == 0 and r.stdout.rstrip().endswith('0 finding(s)'), f'the command line on the committed tree exited {r.returncode}: {r.stdout.strip()[-200:]} {r.stderr.strip()[-200:]}', 'command line: exit 0 on the committed tree')
-        quando = m.versao_do_firmware( )
-        confere(quando == m.VERSAO and 'note:' not in r.stdout, f'with the firmware at {quando} the command line printed a note: {r.stdout.strip()[-200:]}',
-                f'the firmware is SIMUT {quando}, the figures show it: no note')
+        # The firmware at the figures' version: no note. The tree's own SIMUT_VERSION moves at every release while the figures are pinned on purpose, so
+        # this control sets the version the command reads and does not read the tree's (it was red at the first release bump, v2.14.0, 2026-11-05).
+        antes = m.versao_do_firmware
+        m.versao_do_firmware = lambda: m.VERSAO
+        saida = io.StringIO()
+        try:
+            with contextlib.redirect_stdout(saida):
+                rc = m.main(['--check'])
+        finally:
+            m.versao_do_firmware = antes
+        confere(rc == 0 and 'note:' not in saida.getvalue(), f'with the firmware at {m.VERSAO} the command line printed a note: {saida.getvalue().strip()[-200:]}',
+                f'the firmware is SIMUT {m.VERSAO}, the figures show it: no note')
         # A firmware ahead of the figures: a note in the log and still exit 0 (the figures are pinned on purpose; review of 2026-11-04).
         antes = m.versao_do_firmware
         m.versao_do_firmware = lambda: '9.9.9'
