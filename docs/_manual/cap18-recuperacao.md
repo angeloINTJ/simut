@@ -98,7 +98,7 @@ Se o console mostrar `[AP] FAILED to start`, o AP não subiu, e o log registra *
 
 1. **Confira a chave.** Ela tem 10 caracteres, maiúsculas e algarismos, sem `O`, `0`, `I` e `1`. Leia-a no console USB, na linha `[AP] PSK :`, na resposta do comando `ap`, na tela de boot do painel ou no LCD do alpha.
 2. **Confira a versão.** Até a v2.7.0, um AP aberto enquanto o aparelho procurava uma rede inexistente ficava visível e não aceitava conexões. A v2.7.1 corrigiu isso. Numa versão anterior, desligue e ligue o aparelho e abra o AP de novo.
-3. **Abra o endereço certo.** Com o celular na rede, abra `http://192.168.4.1`. Um AP aberto com o aparelho em operação mantém o protocolo do servidor web: com HTTPS instalado, use `https://192.168.4.1` ([capítulo 9](#cap-09-ap-aberto)).
+3. **Abra o endereço certo.** Com o celular na rede, abra `http://192.168.4.1`. Se a porta do servidor web foi mudada, acrescente-a, como `http://192.168.4.1:8080`: o console, o painel e o LCD do alpha mostram o endereço com ela. Um AP aberto com o aparelho em operação mantém o protocolo do servidor web: com HTTPS instalado, use `https://192.168.4.1` ([capítulo 9](#cap-09-ap-aberto)).
 
 ### A rede configurada está errada {#cap-18-ap-volta}
 

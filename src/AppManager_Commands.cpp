@@ -16,6 +16,7 @@
 #include "DisplayManager.h"
 #include "LogManager.h"
 #include "NetworkManager.h"
+#include "WebAddress.h" /* o endereço do AP leva a porta do servidor web */
 #include "SensorManager.h"
 #include "StorageManager.h"
 #include "SystemDefs.h"
@@ -78,7 +79,9 @@ void AppManager::startApMode(uint8_t why) {
  const char* psk = _netMgr->getApPsk( );
  /* And to the display, for the build where the display is the only channel
   * the operator has (alpha; a no-op elsewhere). */
- _displayMgr->setApInfo(_netMgr->getApSsid( ), psk);
+ char addr[28];
+ webAddress(addr, sizeof(addr), SIMUT_AP_IP_TEXT, _netMgr->getServicePort( ), _netMgr->isServiceTls( ), WEB_ADDR_TYPED);
+ _displayMgr->setApInfo(_netMgr->getApSsid( ), psk, addr);
  if (psk && *psk) {
   _cmdMgr->printSuccess(String(_cmdMgr->isPt( )
    ? "Modo AP iniciado (WPA2). Senha: " : "AP mode started (WPA2). Key: ") + psk);
@@ -87,9 +90,13 @@ void AppManager::startApMode(uint8_t why) {
    ? "Modo AP iniciado (rede ABERTA — build SIMUT_AP_OPEN)"
    : "AP mode started (OPEN network — SIMUT_AP_OPEN build)");
  }
- _cmdMgr->printInfo(_cmdMgr->isPt( )
-  ? "Conecte-se ao AP e acesse http://192.168.4.1"
-  : "Join the AP and open http://192.168.4.1");
+ /* The server keeps its port and its protocol in AP mode: the address says
+  * both (WebAddress.h). */
+ char line[72];
+ safeCopy(line, _cmdMgr->isPt( ) ? "Conecte-se ao AP e acesse " : "Join the AP and open ", sizeof(line));
+ const size_t k = strlen(line);
+ webAddress(line + k, sizeof(line) - k, SIMUT_AP_IP_TEXT, _netMgr->getServicePort( ), _netMgr->isServiceTls( ));
+ _cmdMgr->printInfo(line);
 }
 #endif /* SIMUT_NET_WIFI */
 
@@ -117,7 +124,8 @@ void AppManager::showApOnPanel( ) {
  _displayMgr->setBootStatusKey((LangKey)TR_KEYS_COUNT, apLine, false);
  snprintf(apLine, sizeof(apLine), "PSK %s", (apPsk && *apPsk) ? apPsk : "(open)");
  _displayMgr->setBootStatusKey((LangKey)TR_KEYS_COUNT, apLine, false);
- _displayMgr->setBootStatusKey(TR_BOOT_AP_IP);
+ webAddress(apLine, sizeof(apLine), nullptr, _netMgr->getServicePort( ), _netMgr->isServiceTls( ), WEB_ADDR_SUFFIX);
+ _displayMgr->setBootStatusKey(TR_BOOT_AP_IP, apLine);
  _displayMgr->setBootStatusKey(TR_BOOT_AP_ACTIVE, nullptr, false);
 }
 
@@ -594,8 +602,9 @@ void AppManager::executeCommand(CliDemand cmd) {
  case CMD_SET_HISTORY_INTERVAL: {
  const bool pt = _cmdMgr->isPt( );
  if (!cmd.intVal1Valid) {
- _cmdMgr->printError(pt ? "Numero invalido para lote minimo"
- : "Invalid number for minimum batch");
+ /* Its own text: until 2026-11-04 it was CMD_SET_TEL_INTERVAL's, which names the minimum batch. */
+ _cmdMgr->printError(pt ? "Numero invalido para intervalo do historico"
+ : "Invalid number for history interval");
  break;
  }
  if (cmd.intVal1 < HISTORY_INTERVAL_MIN_MIN || cmd.intVal1 > HISTORY_INTERVAL_MAX_MIN) {
@@ -1053,6 +1062,21 @@ void AppManager::executeCommand(CliDemand cmd) {
 
 #if SIMUT_NET_WIFI
  case CMD_AP:
+#if SIMUT_AIR
+ /* The AP needs the radio and the web server, and a wake has neither to keep:
+  * the cycle goes on under the command (the M1 loop still reads it), its SLEEP
+  * phase powers the radio down, and startApMode( ) touches neither _airActive
+  * nor the web server, so the AP this opened died with the wake, announced and
+  * serving nothing. Refused, with the way out, and not an implicit `air stop`:
+  * that would disarm the operator's cycle in flash as a side effect of another
+  * command (the maintainer's decision, 2026-11-04). */
+ if (_airActive) {
+  _cmdMgr->printError(_cmdMgr->isPt( )
+   ? "Modo AP indisponivel com o ciclo de hibernacao ativo: o radio desliga ao fim do despertar. Envie 'air stop' antes."
+   : "AP mode is unavailable while the sleep cycle is active: the radio goes down when the wake ends. Send 'air stop' first.");
+  break;
+ }
+#endif
  startApMode( );
  break;
 #endif
@@ -1137,16 +1161,25 @@ void AppManager::executeCommand(CliDemand cmd) {
    * _netMgr->begin( ) the device answered pings and synced NTP while every
    * /api/ call still failed, because nothing was listening on port 80. The
    * web callbacks are registered outside the skipped block at boot, so
-   * begin( ) here finds them already in place. */
+   * begin( ) here finds them already in place.
+   *
+   * They are two questions, each with its own flag. A wake that sends
+   * telemetry has the radio and still no listener (the boot starts the server
+   * in M0 only, AppManager_Boot.cpp), so the server is not asked about under
+   * the radio's flag: until 2026-11-04 it was, and `air stop` on a telemetry
+   * wake left M0 with the network up and nothing on port 80. */
   if (!_airRadioUp) {
    _netMgr->begin(_storageMgr->getConfig( ),
                   _storageMgr->isDnsAuto( ),
                   _storageMgr->isNtpEnabled( ),
                   _storageMgr->getSecondaryDns( ));
-   _webMgr->begin(_storageMgr.get( ), _sensorMgr.get( ), _netMgr.get( ),
-                  _displayMgr.get( ), _telemetryMgr.get( ), _soundMgr.get( ));
    _airRadioUp = true;
    _airRadioWake = true;
+  }
+  if (!_airWebUp) {
+   _webMgr->begin(_storageMgr.get( ), _sensorMgr.get( ), _netMgr.get( ),
+                  _displayMgr.get( ), _telemetryMgr.get( ), _soundMgr.get( ));
+   _airWebUp = true;
   }
   airSetLed(true);
   _cmdMgr->printInfo(_cmdMgr->isPt( )

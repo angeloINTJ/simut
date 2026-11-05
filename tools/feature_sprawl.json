@@ -3,7 +3,7 @@
   "AppManager.h": 2,
   "AppManager_Air.cpp": 1,
   "AppManager_Boot.cpp": 19,
-  "AppManager_Commands.cpp": 2,
+  "AppManager_Commands.cpp": 3,
   "AppManager_Loop.cpp": 2,
   "CommandManager.cpp": 1,
   "CommandParser.cpp": 1,

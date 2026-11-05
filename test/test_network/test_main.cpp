@@ -31,6 +31,7 @@
 #include <new>
 #include "NetworkManager.h"
 #include "MetricsManager.h"
+#include "WebAddress.h"
 #include "pico/cyw43_arch.h"   /* cyw43_state and the two return codes the radio reads */
 #include <lwip/dns.h>
 #include <vector>
@@ -1164,6 +1165,80 @@ static void test_the_ap_limit_reads_no_leftover_bytes(void) {
     net->~NetworkManager( );
 }
 
+/* ── the AP's address names the web port ──────────────────────────────────
+ *
+ * The web server listens on the configured port, in AP mode too, and the
+ * console sent the operator to `http://192.168.4.1` whatever that port was.
+ * On the rig, configured for 8080 and with the AP up, port 80 refused the
+ * connection (2026-10-13, the #268 bench). The port WebManager::begin( )
+ * hands over for mDNS is the one the server listens on, so the line uses it;
+ * with nothing handed over, or the default, it is the same bytes as the
+ * println( ) it used to be, CR LF included. */
+static void test_the_ap_console_line_names_the_web_port(void) {
+    NetworkManager net;
+    WiFi.reset( );
+    net.setServiceAdvert(8080, false);
+    Serial.text.clear( );
+    TEST_ASSERT_TRUE(net.beginAP("simut-test", ""));
+    TEST_ASSERT_NOT_NULL_MESSAGE(strstr(Serial.text.c_str( ), "[AP] URL : http://192.168.4.1:8080\r\n"),
+        "the console sent the operator to port 80");
+
+    NetworkManager plain;
+    WiFi.reset( );
+    Serial.text.clear( );
+    TEST_ASSERT_TRUE(plain.beginAP("simut-test", ""));
+    TEST_ASSERT_NOT_NULL_MESSAGE(strstr(Serial.text.c_str( ), "[AP] URL : http://192.168.4.1\r\n"),
+        "the default port's line changed");
+}
+
+/* The forms, one per reader: the console and the `ap` reply print a URL, the
+ * alpha's page what a person types, and the panel completes a translated line
+ * that already ends in the address. A port shows only when it is not the
+ * scheme's own, and TLS is always said, because a browser guesses http. */
+static void test_the_web_address_forms(void) {
+    char b[40];
+    const char* ip = SIMUT_AP_IP_TEXT;
+    TEST_ASSERT_EQUAL_STRING("http://192.168.4.1",       webAddress(b, sizeof(b), ip, 80, false));
+    TEST_ASSERT_EQUAL_STRING("http://192.168.4.1:8080",  webAddress(b, sizeof(b), ip, 8080, false));
+    TEST_ASSERT_EQUAL_STRING("https://192.168.4.1",      webAddress(b, sizeof(b), ip, 443, true));
+    TEST_ASSERT_EQUAL_STRING("https://192.168.4.1:8443", webAddress(b, sizeof(b), ip, 8443, true));
+    TEST_ASSERT_EQUAL_STRING_MESSAGE("http://192.168.4.1", webAddress(b, sizeof(b), ip, 0, false),
+        "a port nobody set is the default");
+    TEST_ASSERT_EQUAL_STRING("http://192.168.4.1:443",   webAddress(b, sizeof(b), ip, 443, false));
+    TEST_ASSERT_EQUAL_STRING("https://192.168.4.1:80",   webAddress(b, sizeof(b), ip, 80, true));
+
+    TEST_ASSERT_EQUAL_STRING("192.168.4.1",              webAddress(b, sizeof(b), ip, 80, false, WEB_ADDR_TYPED));
+    TEST_ASSERT_EQUAL_STRING("192.168.4.1:8080",         webAddress(b, sizeof(b), ip, 8080, false, WEB_ADDR_TYPED));
+    TEST_ASSERT_EQUAL_STRING_MESSAGE("https://192.168.4.1", webAddress(b, sizeof(b), ip, 443, true, WEB_ADDR_TYPED),
+        "dropped the https:// a browser would not guess");
+
+    TEST_ASSERT_EQUAL_STRING("",              webAddress(b, sizeof(b), ip, 80, false, WEB_ADDR_SUFFIX));
+    TEST_ASSERT_EQUAL_STRING("",              webAddress(b, sizeof(b), ip, 0, false, WEB_ADDR_SUFFIX));
+    TEST_ASSERT_EQUAL_STRING(":8080",         webAddress(b, sizeof(b), ip, 8080, false, WEB_ADDR_SUFFIX));
+    TEST_ASSERT_EQUAL_STRING(" (https)",      webAddress(b, sizeof(b), ip, 443, true, WEB_ADDR_SUFFIX));
+    TEST_ASSERT_EQUAL_STRING(":8443 (https)", webAddress(b, sizeof(b), ip, 8443, true, WEB_ADDR_SUFFIX));
+
+    char s[8];
+    TEST_ASSERT_EQUAL_STRING_MESSAGE("http://", webAddress(s, sizeof(s), ip, 8080, false),
+        "wrote past a short buffer");
+    TEST_ASSERT_EQUAL_STRING(":8443 (", webAddress(s, sizeof(s), ip, 8443, true, WEB_ADDR_SUFFIX));
+}
+
+/* The captive redirect asks whether a request named this device. The Host
+ * header carries the port whenever the server is not on its scheme's own, so
+ * the device's own address at :8080 never matched the bare IP and every
+ * unknown path was redirected, to an address without the port (the rig,
+ * 2026-10-14). */
+static void test_a_host_header_is_compared_without_its_port(void) {
+    TEST_ASSERT_EQUAL_UINT(11, webHostLen("192.168.4.1:8080"));
+    TEST_ASSERT_EQUAL_UINT(11, webHostLen("192.168.4.1"));
+    TEST_ASSERT_EQUAL_UINT(14, webHostLen("simuttft.local:8080"));
+    TEST_ASSERT_EQUAL_UINT_MESSAGE(9, webHostLen("[fe80::1]:8080"), "cut an IPv6 literal at its own colons");
+    TEST_ASSERT_EQUAL_UINT(9, webHostLen("[fe80::1]"));
+    TEST_ASSERT_EQUAL_UINT(0, webHostLen(""));
+    TEST_ASSERT_EQUAL_UINT(0, webHostLen(nullptr));
+}
+
 /* ══ a radio that will not take the join ═════════════════════════════════
  *
  * WiFi.begin( ) queues the join and returns; it answers WL_IDLE_STATUS only
@@ -1393,6 +1468,9 @@ int main(int, char**) {
     RUN_TEST(test_an_ap_given_the_network_gives_way_to_it);
     RUN_TEST(test_an_ap_with_no_network_stays_open);
     RUN_TEST(test_the_ap_limit_reads_no_leftover_bytes);
+    RUN_TEST(test_the_ap_console_line_names_the_web_port);
+    RUN_TEST(test_the_web_address_forms);
+    RUN_TEST(test_a_host_header_is_compared_without_its_port);
 
     RUN_TEST(test_a_manual_clock_corrects_what_the_provisional_one_stamped);
     RUN_TEST(test_a_second_manual_set_moves_nothing);

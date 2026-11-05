@@ -10,7 +10,10 @@ code review of 2026-09-06 (docs/analysis/SIMUT_AIR_PLANO_FIX.md) said must hold:
   * the awake window is bounded by the work, not by the telemetry cadence (F05);
   * the M0 idle timer is reset by web activity, not only by the CLI (F21);
   * offline wakes are stamped with the real elapsed time (F04);
-  * `air idle` rejects what the uint16 field cannot hold (F09).
+  * `air idle` rejects what the uint16 field cannot hold (F09);
+  * `air stop` on a wake that raised the radio brings the web server up too (T18);
+  * `ap` while the sleep cycle is active is refused, with `air stop` as the way out (T19);
+  * `system history_interval abc` names the history interval, not the minimum batch (T20).
 
 Three instruments, all optional except the target's USB CDC:
 
@@ -787,6 +790,108 @@ def tcp_open(host, port, timeout=2.0):
         return False
 
 
+# What `ap` answers while the sleep cycle is active (src/AppManager_Commands.cpp, case CMD_AP:), in both CLI languages, and what it
+# answered before (startApMode( )). --selftest holds the first to the firmware's own two strings.
+AP_REFUSED_RE = re.compile(r'(?:AP mode is unavailable|Modo AP indisponivel)[^\r\n]*air stop')
+# What `air stop` answers (case CMD_AIR_STOP: of src/AppManager_Commands.cpp), in both CLI languages: the proof that the command ran at all.
+AIR_STOP_ACK_RE = re.compile(r'Hibernation cancelled|Hibernacao cancelada')
+AP_STARTED_RE = re.compile(r'AP mode started|Modo AP iniciado')
+
+
+PROMPT_PREFIX_RE = re.compile(r'^SIMUT(?:\([a-z0-9-]+\))?\s*[#>]\s*')
+
+
+def console_answer(reply, command=None):
+    """What a console command answered, without blank lines, without the prompt and without the echo of the line that was typed: '' when nothing came
+    back, or only those did.
+
+    Target.cmd( ) returns what it read before the port went away, so a wake that closed between the write and the answer gives '' (or the prompt
+    alone). The firmware also echoes every character it reads (CommandManager::processInput( ), unconditional), so the transcript starts with the typed
+    line, and a wake that closes after the echo and before the answer gives that line alone: with `command` given, the first line that is the command
+    (a prompt in front of it allowed) is the echo and is dropped. Both are conditions of the instrument, which a verdict must read neither as the
+    defect nor as the fix."""
+    lines = [line.strip() for line in (reply or '').splitlines() if line.strip() and not PROMPT_RE.search(line.strip())]
+    if command is not None:
+        for i, line in enumerate(lines):
+            if PROMPT_PREFIX_RE.sub('', line).strip() == command.strip():
+                del lines[i]
+                break
+    return '\n'.join(lines)
+
+
+def ap_refusal_verdict(reply, armed_before, armed_after, slept):
+    """T19's verdict over what the bench saw: ('pass' | 'fail' | 'skip', text). `reply` is the console's answer to `ap` on a wake, armed_* the
+    `armed=` of `air status` before and after it, `slept` whether the device went back to sleep by itself afterwards. No answer at all
+    (the wake closed before the command ran, or the console did not answer) is a skip: not a pass, and not the defect either."""
+    if not console_answer(reply, 'ap'):
+        return 'skip', 'no answer to ap (nothing, only the prompt, or only the echo of the line): the wake closed before the command ran, or the console did not answer'
+    reply = reply or ''
+    if AP_STARTED_RE.search(reply):
+        return 'fail', f'ap OPENED an access point during the sleep cycle: {reply.strip()[-100:]!r}'
+    if not AP_REFUSED_RE.search(reply):
+        return 'fail', f'ap during the sleep cycle was not refused with the `air stop` hint: {reply.strip()[-120:]!r}'
+    if armed_before != armed_after:
+        return 'fail', f'the refusal changed the cycle: armed={armed_before} before, {armed_after} after'
+    if not slept:
+        return 'fail', 'the device did not go back to sleep after the refusal: the cycle was not left alone'
+    return 'pass', f'ap refused with the `air stop` hint; the cycle went on (armed={armed_after}, slept again)'
+
+
+# What `system history_interval abc` answers in config mode (src/AppManager_Commands.cpp): the history interval is named, and the minimum batch,
+# whose text the case was copied with, is not (92103fb5).
+HIST_ERR_RE = re.compile(r'Invalid number for history interval|Numero invalido para intervalo do historico')
+HIST_ERR_OLD_RE = re.compile(r'Invalid number for minimum batch|Numero invalido para lote minimo')
+
+
+def history_interval_verdict(reply, hist_before, hist_after):
+    """T20's verdict: ('pass' | 'fail', text). `reply` is the console's answer, hist_* the `hist=` of `air status` before and after it."""
+    reply = reply or ''
+    if HIST_ERR_OLD_RE.search(reply):
+        return 'fail', f'the answer names the minimum batch, not the history interval: {reply.strip()[-100:]!r}'
+    if not HIST_ERR_RE.search(reply):
+        return 'fail', f'no answer naming the history interval: {reply.strip()[-120:]!r}'
+    if hist_before != hist_after:
+        return 'fail', f'hist= changed from {hist_before} to {hist_after} s: the refused command saved something'
+    return 'pass', f'the answer names the history interval; hist={hist_after} s unchanged'
+
+
+def http_status(host, path, timeout=2.0):
+    """The status code of an unauthenticated GET on port 80, or None when nothing answered (refused, timed out).
+
+    Any code at all means a listener: /api/status answers 401 to a client with no session, and that is as good as 200 here."""
+    if requests is None:
+        raise TestSkip('requests missing')
+    try:
+        return requests.get(f'http://{host}{path}', timeout=timeout, allow_redirects=False).status_code
+    except requests.RequestException:
+        return None
+
+
+def air_stop_web_verdict(radio, web_before, web_after, stop_reply):
+    """T18's verdict over what the bench saw on a wake: ('pass' | 'fail' | 'skip', text).
+
+    radio is the `radio=` field of `air status`, web_before and web_after the status code of GET /api/status (or None) before and after
+    `air stop`, stop_reply the console's answer to it. Without the acknowledgement of `air stop` (Hibernation cancelled / Hibernacao
+    cancelada) the command may not have run (a wake that closed before it, a console that did not answer), and what the web server did
+    says nothing about the fix: a skip, never a pass and never the defect. Kept apart from the test so that the selftest can show it
+    tells the defect from the fix."""
+    if radio is None:
+        return 'skip', 'firmware without the radio= field of air status'
+    if not radio:
+        return 'skip', 'this wake did not raise the radio (radio=0): the check needs a telemetry wake'
+    if web_before is not None:
+        return 'skip', f'the web server already answered ({web_before}) before air stop: nothing to tell the fix apart'
+    if not AIR_STOP_ACK_RE.search(stop_reply or ''):
+        # Computed apart and not inside the f-string: a quote of the f-string's own kind inside its braces is
+        # Python 3.12 syntax (PEP 701), and CI's gates job runs 3.11, where the whole file failed to parse.
+        answer = console_answer(stop_reply, 'air stop')
+        return 'skip', (f'air stop was not acknowledged (reply {answer[-100:]!r}): the wake closed before the command ran, '
+                        'or the console did not answer, so the web server says nothing about the fix')
+    if web_after is None:
+        return 'fail', 'air stop on a telemetry wake (radio=1) left the web server down: port 80 gave no answer for 20 s after the stop'
+    return 'pass', f'the web server answered {web_after} after air stop (nothing answered before it)'
+
+
 def host_ip_toward(target_ip):
     if os.environ.get('SIMUT_COLLECTOR_IP'):
         return os.environ['SIMUT_COLLECTOR_IP']
@@ -1011,6 +1116,9 @@ class Suite:
             ('T15', 'wip_writes_per_cycle', self.t15_wip_writes_per_cycle, None, {'target'}),
             ('T16', 'wake_writes_no_preamble', self.t16_wake_writes_no_preamble, None, {'target'}),
             ('T17', 'admin_reset_persists', self.t17_admin_reset_persists, None, {'target', 'web'}),
+            ('T18', 'air_stop_web_on_telemetry_wake', self.t18_air_stop_web_on_telemetry_wake, None, {'target', 'web'}),
+            ('T19', 'ap_refused_in_the_cycle', self.t19_ap_refused_in_the_cycle, None, {'target', 'web'}),
+            ('T20', 'history_interval_names_the_interval', self.t20_history_interval_names_the_interval, None, {'target'}),
         ]
 
     def selected(self):
@@ -2372,6 +2480,104 @@ class Suite:
 
     # ---- runner -----------------------------------------------------------
 
+    def t18_air_stop_web_on_telemetry_wake(self):
+        """`air stop` on a wake that raised the radio must bring the web server up, not only the network.
+
+        A telemetry wake has the radio (radio=1) and, by design, no listener (T10: the web server is M0's, the boot skips it on every
+        wake). `air stop` used to start the network and the web server only under `if (!_airRadioUp)`, which a telemetry wake has already
+        set, so on one it started nothing: M0 came back with the Wi-Fi up and port 80 refused, against docs/_manual/cap19-air.md (the
+        console "liga o rádio e a interface web") and F13 of the plan ("`air stop` num wake continua subindo a web sozinho"), both of which
+        held only for a reading-only wake. _airWebUp is the flag that makes them true on every wake (2026-11-04).
+
+        The wake is made a telemetry one with a minimum batch of 1 (point_telemetry_here), so every wake is due and carries the radio; the
+        collector this suite runs takes the send, so the failure back-off (AIR_TEL_FAIL_SKIP_WAKES) does not turn the next wake into a
+        reading-only one. The device answers GET /api/status with 401 to a client with no session, which is as good as 200: any code is a
+        listener. Fails before the fix, passes after it. An `air stop` the console did not acknowledge (Hibernation cancelled / Hibernacao
+        cancelada) is a skip and not a verdict: a wake that closes before the command runs leaves an empty reply, and that condition of the
+        instrument must not read as the defect (the review of the Air fixes, 2026-11-04, found T18 failing on an empty reply)."""
+        if not self.host:
+            raise TestSkip('no host IP')
+        self.need_web()
+        self.point_telemetry_here(min_batch=1)
+        seen = {}
+
+        def on_wake(row):
+            self.target.open(30)
+            st = self.target.air_status(retry_s=25)
+            seen['radio'] = st.get('radio')
+            seen['web_before'] = http_status(self.host, '/api/status', 2.0)
+            if seen['radio'] and seen['web_before'] is None:
+                seen['stop_reply'] = self.target.cmd('air stop', 8)
+                deadline = time.time() + 20       # begin( ) opens the listener inside the command; the allowance is for the first SYN
+                seen['web_after'] = None
+                while seen['web_after'] is None and time.time() < deadline:
+                    seen['web_after'] = http_status(self.host, '/api/status', 2.0)
+                    if seen['web_after'] is None:
+                        time.sleep(1.0)
+
+        self.hibernate_and_observe(stop_on_wake=True, on_wake=on_wake)
+        outcome, text = air_stop_web_verdict(seen.get('radio'), seen.get('web_before'), seen.get('web_after'), seen.get('stop_reply'))
+        if outcome == 'skip':
+            raise TestSkip(text)
+        if outcome == 'fail':
+            raise TestFail(f"{text}; reply to air stop: {(seen.get('stop_reply') or '').strip()[-120:]!r}")
+        return text
+
+    def t19_ap_refused_in_the_cycle(self):
+        """`ap` while the sleep cycle is active is refused, says what to do, and leaves the cycle alone.
+
+        The AP needs the radio and the web server, and a wake has neither to keep: the SLEEP phase powers the radio down, so the AP that
+        `ap` used to open on a wake died with it, announced ("Join the AP and open http://192.168.4.1") and serving nothing, because
+        startApMode( ) touches neither _airActive nor the web server. The maintainer decided on 2026-11-04 to refuse, with no implicit
+        `air stop` (it would disarm the cycle in flash as a side effect). The wake is made a telemetry one (minimum batch 1, the suite's
+        collector taking the sends) only to make it long enough to type into. Catches a wake, sends `enable` and `ap`, and checks the answer
+        (it names `air stop`; no "AP mode started"), that `armed=` did not change, and that the device goes back to sleep by itself
+        afterwards instead of staying awake in an AP. Fails before the fix: the answer is "AP mode started (WPA2). Key: ...".
+        Nothing here is run against the Air's M0, where `ap` works as ever: the refusal is the cycle's. No answer to `ap` at all (the wake
+        closed before it ran, or only the echo of the line came back) is a skip, not a verdict (the review of the Air fixes, 2026-11-04, found T19 failing on an empty reply)."""
+        self.need_web()
+        self.point_telemetry_here(min_batch=1)
+        seen = {}
+
+        def on_wake(row):
+            self.target.open(30)
+            seen['before'] = self.target.air_status(retry_s=25)
+            self.target.cmd('enable', 4)
+            seen['reply'] = self.target.cmd('ap', 10)
+            seen['after'] = self.target.air_status(retry_s=10)
+            # No `disable` here, unlike T20: this is a wake, a wake is a boot, and a boot starts the console in user EXEC again; one more write into a
+            # window that closes would turn a wake that closed in between into an error raised from on_wake( ).
+
+        self.hibernate_and_observe(stop_on_wake=False, on_wake=on_wake)
+        self.target.close()
+        slept = self.target.usb.wait(False, self.args.flush_cap + 60) is not None
+        self.ensure_m0()
+        outcome, text = ap_refusal_verdict(seen.get('reply'), (seen.get('before') or {}).get('armed'),
+                                           (seen.get('after') or {}).get('armed'), slept)
+        if outcome == 'skip':
+            raise TestSkip(text)
+        if outcome == 'fail':
+            raise TestFail(text)
+        return text
+
+    def t20_history_interval_names_the_interval(self):
+        """`system history_interval abc` in config mode names the history interval, not the minimum batch (92103fb5).
+
+        The case was copied from the telemetry interval's, whose text ("Invalid number for minimum batch") is right there and wrong here. Runs in M0, over
+        serial, on the Air's full console: `enable`, `configure terminal`, the command, `end`, `disable` (the console is left in the user EXEC it was found in). Nothing may be saved: `hist=` of `air status` is read before
+        and after. Fails before 92103fb5 with the minimum batch's text."""
+        before = self.target.air_status()
+        self.target.cmd('enable', 4)
+        self.target.cmd('configure terminal', 4)
+        reply = self.target.cmd('system history_interval abc', 6)
+        self.target.cmd('end', 4)
+        self.target.cmd('disable', 4)           # `end` leaves the console at privileged EXEC; back to the user EXEC it was found in (RAM only, nothing saved)
+        after = self.target.air_status()
+        outcome, text = history_interval_verdict(reply, before.get('hist'), after.get('hist'))
+        if outcome == 'fail':
+            raise TestFail(text)
+        return text
+
     def run(self):
         selected = self.selected()
         # Every test that talks to the device assumes M0: a live console, a web
@@ -2628,6 +2834,97 @@ def selftest():
     # file that no pattern in the secret gate was looking at (V-02, 2026-09-07).
     check('sha256 latin-1', sha256_frontend('Str1ngDeTeste') == hashlib.sha256(b'Str1ngDeTeste').hexdigest())
     check('by-id paths', by_id_path('X', True).endswith('Pico_W_X-if00') and by_id_path('Y', False).endswith('Pico_Y-if00'))
+    # T18's verdict tells the defect from the fix, and does not call a wake that cannot show it a pass.
+    # the firmware's own answers to `air stop`, cut from the source, and the bench's pattern for them
+    stop_src = open(os.path.join(HERE, '..', 'src', 'AppManager_Commands.cpp'), encoding='utf-8').read()
+    ack_texts = re.findall(r'"((?:Hibernation cancelled|Hibernacao cancelada)[^"]*)"', stop_src)
+    check('T18 reads both answers of the firmware to `air stop` (the proof that the command ran)',
+          len(ack_texts) == 2 and all(AIR_STOP_ACK_RE.search(t) for t in ack_texts))
+    ack = ack_texts[-1] if ack_texts else 'Hibernation cancelled. Returning to operational mode (M0)...'
+    check('T18 verdict: air stop, acknowledged, brings the web up on a telemetry wake -> pass',
+          air_stop_web_verdict(1, None, 401, ack)[0] == 'pass' and air_stop_web_verdict(1, None, 200, ack)[0] == 'pass')
+    check('T18 verdict: radio up, no web after an acknowledged air stop (the defect) -> fail', air_stop_web_verdict(1, None, None, ack)[0] == 'fail')
+    check('T18 verdict: a reading-only wake, a web already up, a firmware without radio= -> skip',
+          air_stop_web_verdict(0, None, 200, None)[0] == 'skip' and air_stop_web_verdict(1, 200, 200, ack)[0] == 'skip'
+          and air_stop_web_verdict(None, None, None, None)[0] == 'skip')
+    # a wake that closed before the command ran leaves an empty reply (Target.cmd returns what it read before the port went): that is the
+    # instrument, not the defect and not the fix, so it is a skip, whatever the web did
+    check('T18 verdict: no acknowledgement of air stop (nothing, blanks, only the prompt, an error) -> skip, never a pass and not the defect',
+          all(air_stop_web_verdict(1, None, web, reply)[0] == 'skip'
+              for web in (None, 401) for reply in ('', None, '  \r\n', 'SIMUT# ', 'ERROR: Command not available in this mode.')))
+    # `ap` in the cycle: the bench's regexes held to the firmware's own two strings, which C10 of check_air_consistency.py cuts out of case CMD_AP:
+    import check_air_consistency as cac
+    refusal = cac.ap_refusal_texts()
+    check('the firmware refuses `ap` in the cycle in both CLI languages (C10 finds the two texts)', refusal is not None)
+    if refusal:
+        check('T19 reads both refusals of the firmware', all(AP_REFUSED_RE.search(t) for t in refusal))
+    started = ['AP mode started (WPA2). Key: abc', 'Modo AP iniciado (WPA2). Senha: abc']
+    check('T19 tells a started AP from a refusal', all(AP_STARTED_RE.search(t) and not AP_REFUSED_RE.search(t) for t in started))
+    ok_reply = refusal[1] if refusal else 'AP mode is unavailable while the sleep cycle is active. Send \'air stop\' first.'
+    check('T19 verdict: refused, armed unchanged, slept again -> pass', ap_refusal_verdict(ok_reply, 1, 1, True)[0] == 'pass')
+    check('T19 verdict: an AP opened (the defect) -> fail', ap_refusal_verdict(started[0], 1, 1, True)[0] == 'fail')
+    # T20: the patterns against the firmware's own two strings (read from the source), and the verdict against the defect
+    cmds_src = open(os.path.join(HERE, '..', 'src', 'AppManager_Commands.cpp'), encoding='utf-8').read()
+    hist_texts = ['Numero invalido para intervalo do historico', 'Invalid number for history interval']
+    check('T20 patterns read the two history-interval texts the firmware has', all(('"' + t + '"') in cmds_src and HIST_ERR_RE.search(t) for t in hist_texts))
+    check('T20 verdict: names the interval, hist unchanged -> pass', history_interval_verdict(hist_texts[1], 60, 60)[0] == 'pass')
+    check('T20 verdict: the minimum batch (the defect), no answer, a changed hist -> fail',
+          history_interval_verdict('Invalid number for minimum batch', 60, 60)[0] == 'fail'
+          and history_interval_verdict('Numero invalido para lote minimo', 60, 60)[0] == 'fail'
+          and history_interval_verdict('', 60, 60)[0] == 'fail' and history_interval_verdict(hist_texts[0], 60, 120)[0] == 'fail')
+    check('T19 verdict: a changed cycle, a device that stayed awake -> fail',
+          ap_refusal_verdict(ok_reply, 1, 0, True)[0] == 'fail' and ap_refusal_verdict(ok_reply, 1, 1, False)[0] == 'fail')
+    check('T19 verdict: an answer that is not the refusal (an error, anything else) -> fail',
+          ap_refusal_verdict('ERROR: Command not available in this mode.', 1, 1, True)[0] == 'fail')
+    check('T19 verdict: no answer at all (nothing, blanks, only the prompt) -> skip, never a pass and not the defect',
+          all(ap_refusal_verdict(reply, 1, 1, True)[0] == 'skip' for reply in ('', None, '  \r\n', 'SIMUT# ', '\r\nSIMUT> \r\n')))
+    # The firmware echoes every character it reads (CommandManager::processInput( ), unconditional), so the transcript Target.cmd( ) returns starts with the typed line:
+    # a reply that holds only that line is no answer either (a wake that closes after the echo and before the answer), and an answer behind the echo is still read.
+    check('T19 verdict: only the echo of `ap` (the answer never came) -> skip, never the defect',
+          all(ap_refusal_verdict(reply, 1, 1, True)[0] == 'skip' for reply in ('ap\r\n', 'ap\r\n\r\nSIMUT> \r\n', 'SIMUT> ap\r\n', ' ap \r\n')))
+    check('T19 verdict: the echo in front of an answer does not hide it (refusal -> pass, an AP opened -> fail, another error -> fail)',
+          ap_refusal_verdict('ap\r\n' + ok_reply + '\r\nSIMUT> ', 1, 1, True)[0] == 'pass'
+          and ap_refusal_verdict('ap\r\n' + started[0] + '\r\nSIMUT> ', 1, 1, True)[0] == 'fail'
+          and ap_refusal_verdict('ap\r\nERROR: Command not available in this mode.\r\nSIMUT> ', 1, 1, True)[0] == 'fail')
+    # Only a WHOLE line equal to the command is the echo: an answer line that begins with the command, or holds it, is an answer and is judged.
+    # Without these, a filter widened to startswith( ) or `in` passed the whole selftest (the fourth review's mutants D1 and D2, 2026-11-04).
+    check('T19 verdict: an answer line that begins with or holds `ap` is judged, not dropped as the echo (-> fail, not skip)',
+          all(ap_refusal_verdict(reply, 1, 1, True)[0] == 'fail' for reply in
+              ('apx\r\n', 'ap: unexpected\r\nSIMUT> ', 'the ap is off\r\n', 'ap\r\nap: unexpected\r\nSIMUT> ')))
+    check('T18 verdict: only the echo of `air stop` is no acknowledgement -> skip (the web server says nothing about the fix)',
+          all(air_stop_web_verdict(1, None, web, 'air stop\r\n')[0] == 'skip' for web in (None, 401)))
+    check('T20 verdict: with the echo in front, the defect still fails, the fix passes and an echo alone fails',
+          history_interval_verdict('system history_interval abc\r\nERROR: Invalid number for minimum batch\r\nSIMUT(config)# ', 60, 60)[0] == 'fail'
+          and history_interval_verdict('system history_interval abc\r\nERROR: ' + hist_texts[1] + '\r\nSIMUT(config)# ', 60, 60)[0] == 'pass'
+          and history_interval_verdict('system history_interval abc\r\n', 60, 60)[0] == 'fail')
+    # T20 raises the console's mode (`enable`, `configure terminal`, `end` leave it at privileged EXEC: CMD_ENABLE, CMD_CONFIGURE and CMD_END of
+    # src/AppManager_Commands.cpp, RAM only) and must put it back: run through its own method against a console that follows those rules.
+    class ModeConsole:
+        def __init__(self):
+            self.mode, self.sent = 'user', []
+
+        def cmd(self, text, timeout=6.0):
+            self.sent.append(text)
+            if text == 'enable':
+                self.mode = 'priv'
+            elif text == 'disable':
+                self.mode = 'user'
+            elif text == 'configure terminal' and self.mode == 'priv':
+                self.mode = 'config'
+            elif text == 'end':
+                self.mode = 'priv'
+            elif text == 'exit':
+                self.mode = {'config': 'priv', 'priv': 'user'}.get(self.mode, 'user')
+            return text + '\r\n' + ('ERROR: Invalid number for history interval\r\n' if text.startswith('system history_interval') else '') + 'SIMUT# '
+
+        def air_status(self, retry_s=12):
+            return {'hist': 60}
+
+    t20_suite = Suite.__new__(Suite)
+    t20_suite.target = ModeConsole()
+    t20_suite.t20_history_interval_names_the_interval()
+    check('T20 leaves the console in the mode it found (user EXEC): `disable` after `end`',
+          t20_suite.target.mode == 'user' and 'disable' in t20_suite.target.sent and t20_suite.target.sent.index('disable') > t20_suite.target.sent.index('end'))
     try:
         import history_v5  # noqa: F401
         check('history_v5 importable', True)
