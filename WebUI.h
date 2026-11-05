@@ -97,8 +97,8 @@ static const char LOGIN_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
         .req-list { text-align: left; font-size: 13px; color: var(--tinta-2); margin-top: 6px; line-height: 1.5; }
         .req-list span { display: block; }
         .req-list span.ok { color: var(--positivo); }
-        .req-list span.ok::before { content: "¹3 "; }
-        .req-list span:not(.ok)::before { content: "¹5 "; color: var(--perigo); }
+        .req-list span.ok::before { content: "\2713 "; }
+        .req-list span:not(.ok)::before { content: "\2715 "; color: var(--perigo); }
     </style>
     <script>
     /* F-LANGPACK β: dict.pt vem de GET /api/lang (servido do .lng). */
@@ -572,7 +572,7 @@ static const char DASH_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                 let tabHtml = '';
                 if (sysData.sensors && sysData.sensors.length > 0) {
                     sysData.sensors.forEach((sn) => {
-                        let v = (sn.val === 'Error' || sn.val === '--') ? sn.val : parseFloat(sn.val).toFixed(2) + ' ºC';
+                        let v = (sn.val === 'Error' || sn.val === '--') ? sn.val : parseFloat(sn.val).toFixed(2) + ' °C';
                         if(sn.hum) v += ' | ' + parseFloat(sn.hum).toFixed(1) + '%';
                         if(sn.press) v += ' | ' + parseFloat(sn.press).toFixed(1) + ' hPa';
                         const typeLabel = sn.type || '?';

@@ -213,8 +213,8 @@ constexpr uint32_t DASH_HOLD_GAP_MS = 120;
  * Lifting off a resistive panel is not a clean edge. Pressure decays, the
  * controller keeps reporting contact, and the X/Y it reports while decaying
  * drifts — often to an extreme of the axis. Every branch in this region is
- * reachable by that garbage: x>280 flips pinned/interactive on touch-down,
- * x>266 opens the graph, and a release with holdStart set runs the tap action.
+ * reachable by that garbage: a touch-down on a card's min/max button opens the
+ * graph, and a release with holdStart set runs the tap action (UiTouchChain.h).
  * Guarding them one at a time is whack-a-mole, so the whole region goes deaf
  * for the length of a lift instead. The gesture already did what it was asked;
  * nothing else it produces on the way up is wanted.
@@ -473,11 +473,11 @@ public:
 	void setSystemStatus(int rssi, bool bt, String timeStr);
 	/** Tells the alpha LCD whether the device is serving the Access Point. */
 	void setApMode(bool ap);
-	/** SSID and WPA2 key of the setup AP, for a build whose display is the
-	 * only channel its operator has. Real on the alpha, a no-op everywhere
-	 * else: the TFT already prints the key on its boot line and the
-	 * headless builds have no glass to print it on. */
-	void setApInfo(const char* ssid, const char* psk);
+	/** SSID, WPA2 key and web address of the setup AP, for a build whose
+	 * display is the only channel its operator has. Real on the alpha, a
+	 * no-op everywhere else: the TFT already prints them on its boot lines
+	 * and the headless builds have no glass to print them on. */
+	void setApInfo(const char* ssid, const char* psk, const char* addr);
 
 	/** Boot status: stores a TR key (resolved at render via tr()) plus
 	 * optional suffix. Use for messages that should follow the active language.
@@ -783,13 +783,14 @@ private:
 	/* What the setup network is called and what opens it. Alpha only: this is
 	 * the build with no touch panel to start AP mode from and no TFT to print
 	 * the key on, so the 16x2 is the whole distribution mechanism for an
-	 * operator who is standing in front of the device with a phone. 40 + 16 B
-	 * of RAM, in the one image that has room for them. */
+	 * operator who is standing in front of the device with a phone. 40 + 16
+	 * + 28 B of RAM, in the one image that has room for them. */
 	char _apSsidLcd[40] = {0};
 	char _apPskLcd[16] = {0};
+	char _apAddrLcd[28] = {0};
 public:
 	/* The alpha's glass for Core 0: what the 16x2 shows as of the last blit, one consistent copy of the driver's shadow (display/LcdGlass.h),
-	 * for the handler of a later step. 1 copied, 0 copied but no frame has been blitted yet, -1 Core 1 kept the shadow under update for the whole
+	 * for GET /api/lcd (handleApiLcd( ), WebManager_History.cpp). 1 copied, 0 copied but no frame has been blitted yet, -1 Core 1 kept the shadow under update for the whole
 	 * wait of 2 ms and the caller answers "busy" and not "none": the three numbers of uaEstado( ), the Angulo's. Neither side takes a lock
 	 * (a lock Core 1 held when a flash write froze it would never be released). It is declared inside this block, as a public member, so
 	 * that tools/feature_sprawl.json keeps its one SIMUT_DISPLAY_ALPHA site in this file. */

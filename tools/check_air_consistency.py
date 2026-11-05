@@ -24,6 +24,11 @@ check_authz / check_fsguard.
       firmware code outside AirConfig.h (F17) — informational.
   C8  LogManager's scratch register map documents the Air marker in
       scratch[0] (F19).
+  C9  `air stop` starts the network and the web server each under its own
+      flag: a wake that raises the radio has the network and no listener
+      (2026-11-04).
+  C10 `ap` is refused while the sleep cycle is active, in both CLI languages,
+      with the way out (`air stop`) in the text (2026-11-04).
 
 Exit code: 0 clean, 1 findings. Run: python3 tools/check_air_consistency.py [--verbose]
 
@@ -317,6 +322,117 @@ def c7_obsolete_fields_unused():
             print(f'[air-consistency] C7 info: AirConfig.{f} is stored but never read (dead field, plan F17)')
 
 
+# C9 — `air stop` starts the web server under its own flag ----------------
+
+def block_body(src, start):
+    """The text inside the {...} block whose '{' is the first one at or after `start`, nested braces counted."""
+    i = src.index('{', start)
+    depth = 0
+    for j in range(i, len(src)):
+        if src[j] == '{':
+            depth += 1
+        elif src[j] == '}':
+            depth -= 1
+            if depth == 0:
+                return src[i + 1:j], j
+    raise ValueError('unbalanced braces')
+
+
+# The call, with its first argument: the boot's BLOG( ) lines name `_webMgr->begin( )` inside string literals, which a bare
+# `_webMgr->begin(` would match.
+WEB_BEGIN_RE = re.compile(r'_webMgr->begin\(\s*_storageMgr\b')
+
+
+def c9_air_stop_starts_the_web():
+    """A telemetry wake raises the radio (_airRadioUp) and still has no web server: the boot starts the server in M0 only
+    (AppManager_Boot.cpp, "web skipped (wake)"). `air stop` used to start the network AND the server under
+    `if (!_airRadioUp)`, so on a telemetry wake it started neither the server nor anything else and left M0 with no
+    browser, against docs/_manual/cap19-air.md and F13 of the plan. Held by three facts: _airWebUp exists and starts false;
+    the boot sets it, `!_airActive`, in the #if SIMUT_AIR block that skips the server on a wake (so it is true exactly when
+    the boot starts the server); `air stop` starts the server under `if (!_airWebUp)`, outside the radio's block."""
+    hdr = read(os.path.join(SRC, 'AppManager.h'))
+    m = re.search(r'#if SIMUT_AIR(.*?)#endif /\* SIMUT_AIR \*/', hdr, re.DOTALL)
+    if not m or not re.search(r'\bbool\s+_airWebUp\s*=\s*false\s*;', blank_comments(m.group(1))):
+        problem('C9', 'src/AppManager.h: the SIMUT_AIR block does not declare `bool _airWebUp = false;`')
+    boot = blank_comments(read(os.path.join(SRC, 'AppManager_Boot.cpp')))
+    begins = [x.start() for x in WEB_BEGIN_RE.finditer(boot)]
+    sets = list(re.finditer(r'\b_airWebUp\s*=\s*([^;]*);', boot))
+    if len(begins) != 1 or len(sets) != 1 or ' '.join(sets[0].group(1).split()) != '!_airActive':
+        problem('C9', 'src/AppManager_Boot.cpp: the boot must assign the flag once, `_airWebUp = !_airActive;`: it starts the server exactly when this is not a wake')
+    else:
+        s0 = sets[0].start()
+        between = boot[sets[0].end():begins[0]] if s0 < begins[0] else ''
+        skip = re.search(r'if\s*\(\s*_airActive\s*\)\s*\{[^{}]*\}\s*else', between)
+        if not [g for n, _l, g in guarded_lines(boot) if n == boot.count('\n', 0, s0) + 1 and g]:
+            problem('C9', 'src/AppManager_Boot.cpp: `_airWebUp = !_airActive;` is outside #if SIMUT_AIR')
+        elif not skip or re.search(r'#\s*(?:if|endif)', between[:skip.start()]):
+            problem('C9', 'src/AppManager_Boot.cpp: `_airWebUp = !_airActive;` must sit in the same #if SIMUT_AIR block as the `if (_airActive) { ... } else` '
+                          'that skips the web server on a wake, before the one `_webMgr->begin(`')
+    cmds = blank_comments(read(os.path.join(SRC, 'AppManager_Commands.cpp')))
+    i = cmds.find('case CMD_AIR_STOP:')
+    j = cmds.find('case CMD_AIR_IDLE', i)
+    if i < 0 or j < 0:
+        problem('C9', 'src/AppManager_Commands.cpp: `case CMD_AIR_STOP:` not found')
+        return
+    stop = cmds[i:j]
+    radio = re.search(r'if\s*\(\s*!\s*_airRadioUp\s*\)\s*\{', stop)
+    web = re.search(r'if\s*\(\s*!\s*_airWebUp\s*\)\s*\{', stop)
+    if not radio:
+        problem('C9', 'src/AppManager_Commands.cpp: `air stop` has no `if (!_airRadioUp) {` block for the network')
+        return
+    radio_body, radio_end = block_body(stop, radio.end() - 1)
+    if '_netMgr->begin(' not in radio_body:
+        problem('C9', 'src/AppManager_Commands.cpp: `air stop` does not start the network under `if (!_airRadioUp)`')
+    if WEB_BEGIN_RE.search(radio_body):
+        problem('C9', 'src/AppManager_Commands.cpp: `air stop` starts the web server inside `if (!_airRadioUp)`: a telemetry wake has the radio and no server')
+    if not web:
+        problem('C9', 'src/AppManager_Commands.cpp: `air stop` has no `if (!_airWebUp) {` block for the web server')
+        return
+    web_body, _ = block_body(stop, web.end() - 1)
+    if web.start() < radio_end:
+        problem('C9', 'src/AppManager_Commands.cpp: the `if (!_airWebUp)` block of `air stop` is inside the radio block')
+    if not WEB_BEGIN_RE.search(web_body) or not re.search(r'\b_airWebUp\s*=\s*true\s*;', web_body):
+        problem('C9', 'src/AppManager_Commands.cpp: `if (!_airWebUp)` must call `_webMgr->begin(` and set `_airWebUp = true;`')
+
+
+# C10 — `ap` is refused while the sleep cycle is active ---------------------
+
+AP_REFUSAL_RE = re.compile(
+    r'#if\s+SIMUT_AIR\s*\n\s*if\s*\(\s*_airActive\s*\)\s*\{\s*'
+    r'_cmdMgr->printError\(\s*_cmdMgr->isPt\(\s*\)\s*\?\s*"(?P<pt>(?:[^"\\]|\\.)*)"\s*:\s*"(?P<en>(?:[^"\\]|\\.)*)"\s*\)\s*;\s*'
+    r'break\s*;\s*\}\s*#endif\s*startApMode\s*\(\s*\)\s*;')
+
+
+def ap_refusal_texts():
+    """(pt, en): what `ap` answers while the sleep cycle is active, cut out of `case CMD_AP:` of AppManager_Commands.cpp, or None when that
+    case does not hold the refusal in its place (under #if SIMUT_AIR, on _airActive, with a break, before startApMode( ))."""
+    cmds = blank_comments(read(os.path.join(SRC, 'AppManager_Commands.cpp')))
+    i = cmds.find('case CMD_AP:')
+    if i < 0:
+        return None
+    j = cmds.find('case CMD_', i + 10)
+    m = AP_REFUSAL_RE.search(cmds[i:j if j > 0 else len(cmds)])
+    return (m.group('pt'), m.group('en')) if m else None
+
+
+def c10_ap_refused_during_the_cycle():
+    """A wake has neither the radio nor the web server to keep, and the cycle goes on under the command: the SLEEP phase powers the
+    radio down, so the AP that `ap` opened (startApMode( ) never touches _airActive or the web server) died with the wake, announced
+    and serving nothing. The maintainer's decision of 2026-11-04: refuse, say what to do (`air stop` first), in both CLI languages,
+    and do not stop the cycle on the operator's behalf. The pt text is unaccented ASCII, like every other pt message of the file."""
+    texts = ap_refusal_texts()
+    if texts is None:
+        problem('C10', 'src/AppManager_Commands.cpp: `case CMD_AP:` must refuse under `#if SIMUT_AIR` on `_airActive` with '
+                       '`_cmdMgr->printError(_cmdMgr->isPt( ) ? "pt" : "en"); break;` before `startApMode( )`')
+        return
+    pt, en = texts
+    for lang, text in (('pt', pt), ('en', en)):
+        if "air stop" not in text:
+            problem('C10', f'src/AppManager_Commands.cpp: the {lang} refusal of `ap` does not say what to do: it must name `air stop`')
+    if not pt.isascii():
+        problem('C10', 'src/AppManager_Commands.cpp: the pt refusal of `ap` has a non-ASCII character (the CLI\'s pt messages are unaccented)')
+
+
 # C8 — LogManager scratch map documents the Air marker --------------------
 
 def c8_scratch_map():
@@ -335,7 +451,8 @@ def c8_scratch_map():
 def main():
     for check in (c1_air_markers, c2_emergency_help_guard, c3_packs_have_every_command,
                   c4_cli_help_gate_is_build_aware, c5_declared_methods_defined,
-                  c6_env_comment_matches_flag, c7_obsolete_fields_unused, c8_scratch_map):
+                  c6_env_comment_matches_flag, c7_obsolete_fields_unused, c8_scratch_map,
+                  c9_air_stop_starts_the_web, c10_ap_refused_during_the_cycle):
         try:
             check()
         except Exception as exc:  # a broken check must not pass silently
@@ -347,7 +464,7 @@ def main():
         print(f'[air-consistency] FAIL: {len(problems)} finding(s) ' +
               ', '.join(f'{k}={v}' for k, v in sorted(by.items())))
         return 1
-    print('[air-consistency] OK: C1–C8 clean')
+    print('[air-consistency] OK: C1–C10 clean')
     return 0
 
 

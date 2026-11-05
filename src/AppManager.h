@@ -285,6 +285,11 @@ private:
   *  on the wireless chip — the onboard LED included, since LED_BUILTIN on the
   *  Pico W is one of its GPIOs and writing it would power the radio back up. */
  bool     _airRadioUp = true;
+ /** The web server was started this boot: by setup( ) in M0, or by `air stop`
+  *  on a wake. A wake that raises the radio to send telemetry has the radio and
+  *  no listener (the boot starts the server in M0 only), so _airRadioUp cannot
+  *  stand for it and `air stop` asks this one. */
+ bool     _airWebUp = false;
  /** Wakes still to skip after a failed telemetry wake (AIR_TEL_FAIL_SKIP_WAKES
   *  booked, one spent per wake). Carried across the sleep in scratch[1]. */
  uint8_t  _airSkipWakes = 0;

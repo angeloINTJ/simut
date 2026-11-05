@@ -6,6 +6,7 @@
 #include "display/AlphaFrame.h"
 #include "display/AlphaMarquee.h"
 #include "Utf8Fold.h"
+#include "SystemDefs_Validate.h"   /* langHeaderIdent: the pack's @NAME and @CODE */
 #include "sensors/SensorHelpers.h"
 #include <LittleFS.h>
 #include <string.h>
@@ -69,10 +70,11 @@ static float alphaChannelValue(const SlotSnapshot& s, uint8_t ch) {
 }
 
 /* Core 0 hands the setup network over once, when it comes up. */
-void DisplayManager::setApInfo(const char* ssid, const char* psk) {
+void DisplayManager::setApInfo(const char* ssid, const char* psk, const char* addr) {
 	mutex_enter_blocking(&_stateMutex);
 	safeCopy(_apSsidLcd, ssid ? ssid : "", sizeof(_apSsidLcd));
 	safeCopy(_apPskLcd,  psk  ? psk  : "", sizeof(_apPskLcd));
+	safeCopy(_apAddrLcd, addr ? addr : "", sizeof(_apAddrLcd));
 	mutex_exit(&_stateMutex);
 }
 
@@ -253,16 +255,19 @@ void DisplayManager::loopCore1( ) {
 			 *
 			 * Three pages of 3 s. The value gets the whole second line, so a
 			 * long device name still has sixteen columns to scroll through. */
-			char ssid[sizeof(_apSsidLcd)], psk[sizeof(_apPskLcd)];
+			char ssid[sizeof(_apSsidLcd)], psk[sizeof(_apPskLcd)], addr[sizeof(_apAddrLcd)];
 			{
 				mutex_enter_blocking(&_stateMutex);
 				safeCopy(ssid, _apSsidLcd, sizeof(ssid));
 				safeCopy(psk,  _apPskLcd,  sizeof(psk));
+				safeCopy(addr, _apAddrLcd, sizeof(addr));
 				mutex_exit(&_stateMutex);
 			}
 			static uint8_t  apPage = 0;
 			static uint16_t apStep = 0;
-			const char* apVal = (apPage == 0) ? "192.168.4.1"
+			/* The address with the web port when it is not 80: 16 columns
+			 * hold "192.168.4.1:8080", and a longer one scrolls. */
+			const char* apVal = (apPage == 0) ? (addr[0] ? addr : "192.168.4.1")
 			                  : (apPage == 1) ? (ssid[0] ? ssid : "?")
 			                                  : (psk[0]  ? psk  : "(aberta)");
 			/* A page lasts 3 s, or one whole scroll when its value is wider
@@ -587,27 +592,14 @@ bool DisplayManager::findAndLoadLangFile( ) {
 		f.close( );
 		if (n > 0) {
 			head[n] = '\0';
-			/* Bounded copy, no in-place mutation of head: nulling the @NAME
-			 * newline would otherwise hide @CODE from strstr and leave the web
-			 * selector EN-only. */
-			const char* p = strstr(head, "@NAME ");
-			if (p) {
-				p += 6;
-				const char* e = strpbrk(p, "\r\n");
-				size_t len = e ? (size_t)(e - p) : strlen(p);
-				if (len >= sizeof(_alphaLangName)) len = sizeof(_alphaLangName) - 1;
-				memcpy(_alphaLangName, p, len);
-				_alphaLangName[len] = '\0';
-			}
-			p = strstr(head, "@CODE ");
-			if (p) {
-				p += 6;
-				const char* e = strpbrk(p, "\r\n");
-				size_t len = e ? (size_t)(e - p) : strlen(p);
-				if (len >= sizeof(_alphaLangCode)) len = sizeof(_alphaLangCode) - 1;
-				memcpy(_alphaLangCode, p, len);
-				_alphaLangCode[len] = '\0';
-			}
+			/* langHeaderIdent( ) (SystemDefs_Validate.h) reads the head without
+			 * changing it: nulling the @NAME newline would otherwise hide @CODE
+			 * from strstr and leave the web selector EN-only. Both values are
+			 * sanitised the way the TFT build's loader does (langIdentSanitize( ),
+			 * V-04: /api/perms serves them) and end on a whole UTF-8 character;
+			 * until 2026-11-04 the bytes were copied as they were. */
+			langHeaderIdent(head, "@NAME ", _alphaLangName, sizeof(_alphaLangName));
+			langHeaderIdent(head, "@CODE ", _alphaLangCode, sizeof(_alphaLangCode));
 		}
 	}
 	return true;

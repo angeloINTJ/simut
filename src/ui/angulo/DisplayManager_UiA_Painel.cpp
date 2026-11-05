@@ -21,6 +21,7 @@
 
 #include "../../net/WiredLink.h"
 #include "../../sensors/SensorChannels.h"
+#include "../../Utf8Fold.h"   /* bootLineUtf8( ): the boot ring's line */
 #include "Angulo.h"
 #include "UiA.h"
 #include "telas/PainelAlarme.h"
@@ -90,16 +91,20 @@ bool DisplayManager::uaMontarPainel( UaQuadro &q ) {
      * bootLogs[4] (DisplayManager.cpp). An entry nobody wrote still holds
      * the constructor's key == TR_KEYS_COUNT and an empty suffix
      * (the constructor, in DisplayManager.cpp): it has no text and is left out. The text is
-     * composed as the old box did (render( ), in DisplayManager_Render.cpp), in Latin-1
-     * from tr( ), and goes to the kit in UTF-8. */
+     * composed as the old box did (render( ), in DisplayManager_Render.cpp): the key's text
+     * from tr( ), in Latin-1, then the suffix, in UTF-8 (a device name, an SSID); it goes to
+     * the kit in UTF-8. */
     int n = 0;
     for ( int i = 0; i < 5; i++ ) {
       const BootLogEntry &e = _lastRenderedState.bootLogs[i];
-      char cru[96];
-      if ( e.key >= 0 && e.key < (int16_t)TR_KEYS_COUNT ) snprintf( cru, sizeof cru, "%s%s", tr( (LangKey)e.key ), e.suffix );
-      else snprintf( cru, sizeof cru, "%s", e.suffix );
-      if ( !cru[0] ) continue;
-      uaLatin1ParaUtf8( cru, vm.passos[n++], sizeof vm.passos[0] );
+      /* Each part by its own encoding (bootLineUtf8( ), Utf8Fold.h): the key is converted from
+       * Latin-1 and the suffix kept. Until 2026-11-04 the joined line went through
+       * uaLatin1ParaUtf8( ), which encoded the suffix a second time: the AP's "Estação_SETUP"
+       * (the device's name and "_SETUP") was drawn "EstaÃ§Ã£o_SETUP". A raw legacy line
+       * (key == TR_KEYS_COUNT) is the suffix alone. */
+      const char *chave = ( e.key >= 0 && e.key < (int16_t)TR_KEYS_COUNT ) ? tr( (LangKey)e.key ) : "";
+      if ( !chave[0] && !e.suffix[0] ) continue;
+      bootLineUtf8( chave, e.suffix, vm.passos[n++], sizeof vm.passos[0] );
     }
     vm.nPassos = (uint8_t)n;
     /* The version the old screen printed under the brand (render( ), in DisplayManager_Render.cpp). */

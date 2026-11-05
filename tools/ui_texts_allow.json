@@ -57,9 +57,7 @@
     ],
     "src/ui/angulo/DisplayManager_UiA_Painel.cpp": [
      "%02X:%02X:%02X:%02X:%02X:%02X",
-     "%s",
-     "%s %d",
-     "%s%s"
+     "%s %d"
     ],
     "src/ui/angulo/GraficosPreencher.h": [
      "%s %d"

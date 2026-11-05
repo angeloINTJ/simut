@@ -205,6 +205,45 @@ inline void langIdentSanitize(const char* src, size_t srcLen, char* dst, size_t 
  dst[o] = '\0';
 }
 
+/** How many of the first `len` bytes of s are whole UTF-8 characters: `len`, or less by the bytes of a sequence that stops short at the end
+ *  (a lead byte with fewer continuation bytes than it announces). Only the last 3 bytes are looked at: a sequence is at most 4. */
+inline size_t utf8WholeLen(const char* s, size_t len) {
+ for (size_t back = 1; back <= 3 && back <= len; back++) {
+ const unsigned char c = (unsigned char)s[len - back];
+ if ((c & 0xC0) == 0x80) continue;                    /* a continuation byte: its lead byte is further back */
+ const size_t want = c >= 0xF0 ? 4 : c >= 0xE0 ? 3 : c >= 0xC0 ? 2 : 1;
+ return back >= want ? len : len - back;              /* the sequence is whole, or it stops short: leave it out */
+ }
+ return len;
+}
+
+/**
+ * @brief The value of a header line of a .lng pack ("@NAME ", "@CODE "), out of
+ *        the pack's first bytes, in a fixed field.
+ *
+ * The alpha does not run the pack's parser: it reads the first 255 bytes of the
+ * file for these two lines, which /api/perms serves (DisplayManager_Alpha.cpp).
+ * Until 2026-11-04 it copied them as they were, so the bytes langIdentSanitize( )
+ * drops (V-04: the quote that took the whole interface down) reached the page on
+ * that build, and a field of 15 or 7 bytes could end inside a UTF-8 sequence, a
+ * lead byte at the end of a JSON string. The value is the rest of the line after
+ * the tag, sanitised, and cut back to its last whole character. The head is
+ * searched whole and not changed, so @CODE is found after @NAME. An absent tag
+ * leaves the field empty.
+ *
+ * `head` must be NUL-terminated. Always NUL-terminates when cap > 0.
+ */
+inline void langHeaderIdent(const char* head, const char* tag, char* dst, size_t cap) {
+ if (!dst || cap == 0) return;
+ dst[0] = '\0';
+ const char* p = (head && tag) ? strstr(head, tag) : nullptr;
+ if (!p) return;
+ p += strlen(tag);
+ const char* e = strpbrk(p, "\r\n");
+ langIdentSanitize(p, e ? (size_t)(e - p) : strlen(p), dst, cap);
+ dst[utf8WholeLen(dst, strlen(dst))] = '\0';
+}
+
 /* Panel PIN (v24): the character rule is PinKb::FIRST..LAST, and it is written
  * there, next to the keypad that deals exactly that range, so that what the
  * panel can type and what the web and the CLI accept cannot drift apart. The

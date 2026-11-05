@@ -54,9 +54,9 @@ Toda consulta feita com uma sessão aberta reinicia a contagem de ociosidade do 
 
 Sem sessão aberta, o aparelho leva você para a página de entrada.
 
-O nome também serve, se o mDNS estiver ativo: é o nome do aparelho seguido de `.local`, como `http://simut.local`. Onde descobrir o endereço está no [capítulo 4](#cap-04) e no [capítulo 9](#cap-09). No ponto de acesso de configuração, o endereço é `http://192.168.4.1`, e qualquer outro endereço digitado leva à página **Rede** ([capítulo 4](#cap-04)).
+O nome também serve, se o mDNS estiver ativo: é o nome do aparelho seguido de `.local`, como `http://simut.local`. Onde descobrir o endereço está no [capítulo 4](#cap-04) e no [capítulo 9](#cap-09). No ponto de acesso de configuração, o endereço é `http://192.168.4.1`, com a porta se ela foi mudada, e, com o servidor web na porta 80, qualquer outro endereço digitado leva à página **Rede** ([capítulo 4](#cap-04)).
 
-Um caminho que não existe responde `404: Not Found`.
+Um caminho que não existe responde `404: Not Found`. Até a v2.13.0, num aparelho com rádio e outra porta no servidor web, ele respondia com um redirecionamento para a página **Rede** sem a porta, e esse endereço recusava a conexão (medido em bancada em 14/10/2026, com a porta 8080).
 
 ## A página de entrada {#cap-13-entrada}
 
@@ -356,7 +356,7 @@ A tabela lista os sensores ativos, um por linha:
 | **Leitura** (*Reading*) | O valor atual, com as grandezas do sensor separadas por barras |
 | **Nome** (*Sensor Name*) | O nome dado ao slot |
 
-A leitura segue o formato do navegador, com ponto decimal: a temperatura com duas casas e `ºC`, a umidade com uma casa e `%`, e a pressão com uma casa e `hPa`. Um BME280, por exemplo, aparece como `23.45 ºC | 55.2% | 1013.2 hPa`. Um sensor em erro mostra `Error`; um sensor que ainda não tem leitura mostra `--`.
+A leitura segue o formato do navegador, com ponto decimal: a temperatura com duas casas e `°C`, a umidade com uma casa e `%`, e a pressão com uma casa e `hPa`. Um BME280, por exemplo, aparece como `23.45 °C | 55.2% | 1013.2 hPa`. Um sensor em erro mostra `Error`; um sensor que ainda não tem leitura mostra `--`.
 
 Enquanto carrega, a tabela mostra **Carregando sensores...** (*Loading sensors...*). Sem sensores ativos, mostra `No active sensors.`; os sensores são criados na página **Configurações** ([capítulo 6](#cap-06)). Quando a consulta falha, a tabela mostra `Connection Error` em vermelho: o aparelho está fora do ar, reiniciando, ou a sessão acabou. Recarregue a página.
 
