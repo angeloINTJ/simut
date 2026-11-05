@@ -5,7 +5,7 @@
  * @details Core 1 draws the LCD and is the only one that knows what is on it: the two rows of codes (the DDRAM, as of
  * the last blit( )) and the eight glyphs the codes 0-7 draw (the CGRAM, as createChar( ) left it). The controller
  * answers no read (the driver never reads the busy flag and RW is tied low), so the driver keeps a shadow of what it
- * wrote, and Core 0 (the web handler of a later step) reads the shadow. Core 0 must get ONE state of the glass: the
+ * wrote, and Core 0 (the handler of GET /api/lcd, WebManager::handleApiLcd( )) reads the shadow. Core 0 must get ONE state of the glass: the
  * frame of one blit with the glyphs that were loaded at that moment, never half of this blit and half of the last.
  *
  * The shadow is a seqlock, the pattern of the Ângulo's frame record (ui/angulo/DisplayManager_UiA.cpp, s_seq and

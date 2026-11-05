@@ -79,8 +79,8 @@ pause waited out the full park timeout.
 ## The alpha's glass: Core 1 publishes, Core 0 reads
 
 The 16x2 cannot be read back, so the driver keeps a shadow of what it wrote (`src/display/LcdGlass.h`) and
-`DisplayManager::lcdGlass( )` gives Core 0 one consistent copy of it (the web handler of a later step; nothing calls
-it yet). It keeps the rules above:
+`DisplayManager::lcdGlass( )` gives Core 0 one consistent copy of it (the handler of `GET /api/lcd`,
+`WebManager::handleApiLcd( )`, calls it once per request). It keeps the rules above:
 
 - **No lock, no heap, no log on Core 1** (invariants 2 and 3). The shadow is a seqlock, the pattern of the Ângulo's frame
   record (`s_seq` and `uaEstado( )` in `ui/angulo/DisplayManager_UiA.cpp`): the writer counts to an odd number, fences,

@@ -2448,6 +2448,51 @@ void WebManager::registerScreenRoutes( ) { }
 
 #endif /* SIMUT_DISPLAY_TFT */
 
+#if SIMUT_DISPLAY_ALPHA
+#include "display/LcdGlassJson.h" /* lcdGlassJson( ): the formatter tools/lcd_alpha/ shares; only this image includes it */
+
+/* GET /api/lcd: what the alpha's 16x2 shows NOW, as one JSON object, {"linhas":[row 0,row 1],"cgram":[eight glyphs],"seq":N,"age_ms":M} (display/
+ * LcdGlassJson.h), the frame tools/lcd_alpha/lcd.py --quadro draws. The controller cannot be read back, so the driver on Core 1 keeps a shadow of what
+ * it wrote and DisplayManager::lcdGlass( ) hands Core 0 one consistent copy of it (display/LcdGlass.h, docs/CONCURRENCY.md): a copy in RAM, so unlike
+ * the TFT mirror above there is no malloc, no chunking, no park, no pauseRendering and no SPI here. The route registers in registerLcdRoutes( ), beside
+ * registerScreenRoutes( ) and not in it: tools/build_webui_gz.py counts every route of that registrar as the `tft` web feature's, and this one is the
+ * `lcd` feature's. */
+void WebManager::handleApiLcd( ) {
+ /* First line, as in the panel mirror and the Ângulo's GET /api/ui: the setup network's page 3 puts the AP key on this glass (DisplayManager_Alpha.cpp),
+  * so whoever reads the LCD reads the key, and the bit is the screenshot's. 401 is "log in again", 403 "this account cannot". */
+ if (!requirePerm(PERM_SYS_CONFIG)) return;
+
+ if (!_displayRef) {
+ _server->send(500, "application/json", "{\"erro\":\"o aparelho não tem LCD\"}");
+ return;
+ }
+ /* The answers of the Ângulo's GET /api/ui (src/ui/angulo/WebManager_UiA.cpp), for the same two states of the same kind of record: 503 with Retry-After: 1 when
+  * Core 1 kept the shadow under update for the reader's whole wait (-1: busy) and when nothing was blitted yet (0: no frame), the caller reading "try again". */
+ LcdGlass g;
+ const int8_t r = _displayRef->lcdGlass(g);
+ if (r <= 0) {
+ _server->sendHeader("Retry-After", "1");
+ _server->send(503, "application/json",
+               r < 0 ? "{\"erro\":\"o LCD estava sendo redesenhado; tente de novo\"}"
+                     : "{\"erro\":\"nenhum quadro no LCD ainda\"}");
+ return;
+ }
+ /* One buffer on the stack (282 B at the longest) and one write. Core 0's stack has 8 KB and one handler runs at a time. */
+ char json[LCD_GLASS_JSON_MAX];
+ const size_t n = lcdGlassJson(g, millis( ), json, sizeof json);
+ if (n == 0) { /* cannot happen: the buffer is the longest text and its NUL */
+ _server->send(500, "application/json", "{\"erro\":\"o quadro não coube na resposta\"}");
+ return;
+ }
+ _server->sendHeader("Cache-Control", "no-store");
+ _server->send(200, "application/json", json, n);
+}
+
+void WebManager::registerLcdRoutes( ) {
+ _server->on("/api/lcd", HTTP_GET, std::bind(&WebManager::handleApiLcd, this));
+}
+#endif /* SIMUT_DISPLAY_ALPHA */
+
 void WebManager::handleApiHistoryDays( ) {
  if ((getAuthPerms( ) & PERM_HISTORY) == 0) { _server->send(403); return; }
 

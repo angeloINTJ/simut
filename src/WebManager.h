@@ -496,8 +496,17 @@ private:
 	 * defined — real or no-op — in the feature's own translation unit, so the
 	 * web core no longer needs an #if to know a panel or the HTTPS server
 	 * exists. docs/analysis/MODELO_DE_RECURSOS.md, P2 (costura das rotas). */
-	void registerScreenRoutes( ); /**< the 5 panel-mirror routes; WebManager_History.cpp */
+	void registerScreenRoutes( ); /**< the 7 TFT-only routes: the panel mirror's five (/api/screenshot, /api/screenshot_chunk, /api/screen_stream, /api/touch, /api/keypad), /api/themes and /api/reset_touch_cal; WebManager_History.cpp */
 	void registerTlsRoutes( );    /**< POST /api/tls; WebManager_Tls.cpp */
+	/* The alpha's LCD route, GET /api/lcd (the `lcd` web feature; handler and registrar in WebManager_History.cpp). Where there is no LCD the registrar is an
+	 * empty inline in the class, and the call in begin( ) leaves nothing in the image, as the original panel's hook in UiDriverWeb.h does: an out-of-line stub
+	 * like the two above would leave a call and a function in every image without the LCD. */
+#if SIMUT_DISPLAY_ALPHA
+	void registerLcdRoutes( );
+	void handleApiLcd( );            /**< the alpha's 16x2 as one JSON object, from the driver's shadow (display/LcdGlassJson.h) */
+#else
+	__attribute__((always_inline)) void registerLcdRoutes( ) { }
+#endif
 	/* The UI driver's routes, if it has any: the Ângulo's GET /api/ui (src/ui/UiDriverWeb.h). */
 #include "ui/UiDriverWeb.h"
 #if SIMUT_DISPLAY_TFT
