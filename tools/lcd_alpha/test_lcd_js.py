@@ -172,7 +172,7 @@ def construir_quadros():
         draw(f'fonte/{c[0]:02x}-{c[-1]:02x}', (c[:16], c[16:]), slots_variados())
     draw('cgram/espelho', (bytes(range(16)), bytes(range(15, -1, -1))), slots_variados())
     draw('fallback/10-1f+80-8f', (bytes(range(0x10, 0x20)), bytes(range(0x80, 0x90))), slots_variados(), completa)
-    draw('fallback/a0-ff-misturado', (b'ABC' + bytes([0xA0, 0xDF, 0xFF]) + b'xyz' + bytes([0x1F, 0x10, 0x00]) + b'09~', bytes(range(0xE0, 0xF0))),
+    draw('fallback/a0-ff-misturado', (b'ABC' + bytes([0xA0, 0xDF, 0xFF]) + b'xyz' + bytes([0x1F, 0x10, 0x00]) + b'09~!', bytes(range(0xE0, 0xF0))),
          slots_variados(), completa)
     ok = [h.hex() for h in slots_variados()]
     base = {'linhas': ['20' * 16, '20' * 16], 'cgram': ok, 'seq': 2, 'age_ms': 7}
@@ -218,7 +218,8 @@ try {
             __res.frames[f.id] = { ok: true, file: n + '.rgba' };
         } catch (e) { __res.frames[f.id] = { ok: false, error: String((e && e.message) || e) }; }
     });
-    try { lcdPaint(new Uint8ClampedArray(16), [new Uint8Array(16), new Uint8Array(16)], [], __font); __res.meta.smallBufferRefused = false; }
+    const __sp = function () { return new Uint8Array(16).fill(0x20); };   /* spaces: the font path, so only the buffer guard can refuse */
+    try { lcdPaint(new Uint8ClampedArray(16), [__sp(), __sp()], [], __font); __res.meta.smallBufferRefused = false; }
     catch (e) { __res.meta.smallBufferRefused = true; }
 } catch (e) { __res.fatal = String((e && e.stack) || e); }
 console.log(JSON.stringify(__res));
@@ -402,7 +403,7 @@ def ferramenta():
         if not m:
             confere(False, 'T2 the font block holds its digits as quoted hex strings (a row of 16 glyphs each)')
             return
-        i = m.start(1) + 40
+        i = src.find(FONT_BEGIN) + m.start(1) + 40      # m is a match in the block, i a position in the file
         trocado = src[:i] + ('0' if src[i] != '0' else '1') + src[i + 1:]
         copia.write_text(trocado, encoding='utf-8')
         r = cli('--check', webui=copia)
