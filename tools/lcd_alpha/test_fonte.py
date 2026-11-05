@@ -614,9 +614,8 @@ def main():
 
     # -- the placement in the 5 x 8 cell, the refusals ------------------------------------------------------------------------------------------------
     cell_fn = getattr(fx, 'cell', None)
-    if cell_fn is None:
-        report(False, 'fonte_extract.cell( ) does not exist yet')
-    else:
+
+    def placement():
         small = [(0x41, 1, 5, 4, ['.#.', '###', '#.#', '#.#', '..#']),      # lsb 1, ascent 4, descent 1: rows 2..6 of the cell, columns 1..3
                  (0x42, 0, 5, 6, ['#....', '.....', '....#', '.....', '.....', '.....', '#...#'])]
         font = fx.Font(pcf_bytes(small, 6, 1, fx.COPYRIGHT))
@@ -639,10 +638,13 @@ def main():
         report(fx.compare_reads(a_read, {**b_read, 0x41: None}) == [0x41], 'control: a code point that read B gives as ink outside the window is reported')
 
         def refuses(rows, lsb=0, adv=5, asc=6, box=(6, 1), code=0x41, ask=0x41):
+            """-> the refusal's text, or None when the tool took the glyph; any other exception is not a refusal (the tool would die with a traceback)."""
             try:
                 cell_fn(fx.Font(pcf_bytes([(code, lsb, adv, asc, rows)], *box, fx.COPYRIGHT)), ask, 'test')
             except fx.Unreadable as err:
                 return str(err)
+            except Exception as err:
+                report(False, 'a glyph that should be refused ends in %s: %s' % (type(err).__name__, err))
             return None
 
         for what, args in (("a glyph taller than the box's ascent", dict(rows=['#'] * 8, asc=7)),
@@ -654,6 +656,50 @@ def main():
                            ("a code the font does not have", dict(rows=['#'], ask=0x42))):
             msg = refuses(**args)
             report(msg is not None, 'refusal (exit 2 in the tool): %s -> %s' % (what, msg))
+
+    if cell_fn is None:
+        report(False, 'fonte_extract.cell( ) does not exist yet')
+    else:
+        try:
+            placement()
+        except Exception as err:        # the tool under test dying is a failed check, not a crash of this test
+            report(False, 'the placement checks stopped on %s: %s' % (type(err).__name__, err))
+
+    # -- the generator's mapping, on synthetic fonts built from the table itself: it must give the table back ---------------------------------------------
+    def generator():
+        def rows7(rows):
+            return [''.join('#' if v & (16 >> j) else '.' for j in range(5)) for v in rows[:7]]
+
+        def ordinary(c):          # the font's own glyph at an ASCII code: the table's, except at the two codes where the table has what the HD44780 shows
+            return {0x5C: BACKSLASH, 0x7E: TILDE}.get(c, table[c])
+
+        l1 = [(c, 0, 5, 6, rows7(ordinary(c))) for c in range(0x20, 0x7F)] + [(0xA5, 0, 5, 6, rows7(table[0x5C]))]
+        un = [(c, 0, 5, 6, rows7(ordinary(c))) for c in range(0x20, 0x7F)] + [(0x2190, 0, 5, 6, rows7(table[0x7F])), (0x2192, 0, 5, 6, rows7(table[0x7E]))]
+
+        def font_of(specs, two_byte):
+            return fx.Font(pcf_bytes(specs, 6, 1, fx.COPYRIGHT, two_byte=two_byte))
+
+        t2, found = fx.build_table(font_of(l1, False), font_of(un, True))
+        report(t2 == table and found == [], 'the generator, on two synthetic fonts built from the table (the font\'s backslash and tilde at 0x5C and 0x7E, the yen sign in the first, the '
+               'arrows in the second), gives the table back: the 3 substitutions come from the right file and code point')
+        bad_a = [(c, 0, 5, 6, ([('#' if r[0][0] == '.' else '.') + r[0][1:]] + r[1:]) if c == 0x41 else r) for c, _l, _a, _s, r in un]
+        t3, found = fx.build_table(font_of(l1, False), font_of(bad_a, True))
+        report(t3 == table and found == ['the two files give a different glyph for 0x41'],
+               'control: a dot of the A changed in the second file only is reported, for 0x41 and no other code (%s)' % (found,))
+        for what, specs_l1, specs_un, word in (('the arrow U+2190 missing from the Unicode file', l1, [g for g in un if g[0] != 0x2190], 'U+2190'),
+                                               ('the yen sign U+00A5 missing from the Latin-1 file', [g for g in l1 if g[0] != 0xA5], un, 'U+00A5')):
+            try:
+                fx.build_table(font_of(specs_l1, False), font_of(specs_un, True))
+                msg = None
+            except fx.Unreadable as err:
+                msg = str(err)
+            report(msg is not None and word in msg, 'refusal (exit 2 in the tool): %s -> %s' % (what, msg))
+
+    if table is not None and getattr(fx, 'build_table', None) is not None:
+        try:
+            generator()
+        except Exception as err:
+            report(False, 'the generator checks stopped on %s: %s' % (type(err).__name__, err))
 
     # -- the command line, on synthetic font folders ---------------------------------------------------------------------------------------------------
     if not os.path.exists(os.path.join(HERE, 'fonte_extract.py')):
