@@ -476,6 +476,15 @@ jobs:
       - name: Alpha LCD page font block is what fonte_x11.py says (fonte_web.py --check)
         run: python3 tools/lcd_alpha/fonte_web.py --check
 
+      # The box of the alpha's live LCD view on the dashboard (2026-11-04): the three `@IF lcd` blocks of DASH_PAGE (CSS, markup, JS) and the loop in them. test_lcd_box.py reads the source for what node cannot see
+      # (the canvas is the size of lcdSize( ), every id the JS asks for is in the markup, the status line is a live region, the live button holds two labels so that applyLang( ) keeps the right one, no literal
+      # colour and the 4 px grid in the CSS, every word in both packs, /api/lcd named nowhere else) and runs the loop under node, as written and minified, on a fake world: a virtual clock, a scripted fetchSafe( ) and
+      # a fake DOM. Eleven cases (a request every 250 ms and one at a time, a slow request followed at once, a hidden tab asks nothing, 503 and its Retry-After, 401 and 403 stop, three failures in a row stop,
+      # stale past 2000 ms, Capture is one GET, Stop, the seq after a failure, the loading overlay and the smoothing) and 13 copies of the JS, each broken one way, that must each fail a case. The numbers in the
+      # cases are the bench's: 240 of 240 answers at 4 Hz, 13 ms the median, a new frame every 500 ms. node ships with the runner. 4 s here on 2026-11-04.
+      - name: Alpha LCD live view box and loop (test_lcd_box.py)
+        run: python3 tools/lcd_alpha/test_lcd_box.py
+
       # patch.sh runs again and again: after every override that merges, and in the
       # firmware jobs on a warm ~/.platformio cache that already carries them (see
       # "Apply framework overrides" below). Each step skips itself when a grep finds

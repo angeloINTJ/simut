@@ -127,7 +127,7 @@ def fiacao(src):
     confere(m is not None and f'width="{w}"' in m.group(0) and f'height="{h}"' in m.group(0),
             f'B2 the canvas is {w} x {h}, the size of the image lcd.py draws and lcdSize( ) computes', m.group(0) if m else 'no canvas')
     ids_html = set(re.findall(r'\bid="([\w-]+)"', html))
-    ids_js = set(re.findall(r"getElementById\(\s*'([\w-]+)'\s*\)", js))
+    ids_js = set(re.findall(r"(?:getElementById|lcdEl)\(\s*'([\w-]+)'\s*\)", js))
     confere(set(IDS) <= ids_html and ids_js <= ids_html, 'B3 every id the JS asks for is in the markup, and the markup has the nine of the harness',
             f'missing from the markup: {sorted((ids_js | set(IDS)) - ids_html)}')
     confere(re.search(r'<div\b[^>]*\bid="lcdStat"[^>]*\brole="status"', html) is not None or re.search(r'<div\b[^>]*\brole="status"[^>]*\bid="lcdStat"', html) is not None,
@@ -233,14 +233,15 @@ S.s1 = async function (W, A, f) {
     if (!same(W.starts().slice(0, 21), range(21, 250))) f('the requests did not start 250 ms apart: ' + W.starts().slice(0, 8));
     if (W.log.length !== 21) f(W.log.length + ' requests in 5 s, wanted 21');
     if (W.maxInflight !== 1) f('requests overlapped: ' + W.maxInflight + ' at once');
-    if (W.ctx.puts !== 11) f('the canvas was drawn ' + W.ctx.puts + ' times for 11 different seq values (a repeated seq must not redraw)');
+    // 20 answers are in by t = 5000 (the 21st is out): seq 0, 0, 2, 2, ... 18, 18 is ten different values
+    if (W.ctx.puts !== 10) f('the canvas was drawn ' + W.ctx.puts + ' times for 10 different seq values (a repeated seq must not redraw)');
     if (W.log[0].url !== '/api/lcd') f('asked for ' + W.log[0].url);
     if (W.log[0].opts.retries !== 0) f('fetchSafe( ) was allowed to retry: the loop is the retry');
     if (!(W.log[0].opts.timeout > 0 && W.log[0].opts.timeout <= 10000)) f('no sane timeout on the request: ' + W.log[0].opts.timeout);
     if (W.els.lcdStat.textContent !== '0.10 s') f('the status line reads ' + JSON.stringify(W.els.lcdStat.textContent) + ', wanted the frame\'s age, "0.10 s"');
     if (W.els.lcdStat.className !== '') f('a fresh frame is not a warning: ' + W.els.lcdStat.className);
     if (!A.on) f('the view stopped by itself');
-    if (W.pending() !== 1) f(W.pending() + ' timers pending, wanted the one for the next request');
+    if (W.pending() !== 1) f(W.pending() + ' timers pending, wanted one, the request in flight');
 };
 S.s2 = async function (W, A, f) {
     W.script.fn = function (i) { return { status: 200, body: frame(2 * i, 100), latency: 400 }; };
@@ -315,7 +316,7 @@ S.s7 = async function (W, A, f) {
     for (const [age, stale] of [[2500, true], [2001, true], [2000, false], [501, false]]) {
         const W2 = world(), A2 = load(W2);
         W2.script.fn = function () { return OK(2, age); };
-        A2.toggle(); await W2.advance(10);
+        A2.toggle(); await W2.advance(20);
         const t = W2.els.lcdStat.textContent;
         if (t.indexOf((age / 1000).toFixed(2) + ' s') !== 0) f('age ' + age + ' reads ' + JSON.stringify(t));
         if ((t.indexOf('T[dash_disp_stale]') >= 0) !== stale) f('age ' + age + ': stale should be ' + stale + ', the line reads ' + JSON.stringify(t));
@@ -323,7 +324,7 @@ S.s7 = async function (W, A, f) {
     }
     const W3 = world(), A3 = load(W3);
     W3.script.fn = function () { return { status: 200, body: { linhas: ['20'.repeat(16), '20'.repeat(16)], cgram: Array.from({ length: 8 }, function () { return '00'.repeat(8); }), seq: 2 } }; };
-    A3.toggle(); await W3.advance(10);
+    A3.toggle(); await W3.advance(20);
     if (W3.ctx.puts !== 1 || W3.els.lcdStat.textContent !== '') f('a frame without age_ms is drawn and says nothing about its age: ' + JSON.stringify(W3.els.lcdStat.textContent));
 };
 S.s8 = async function (W, A, f) {
@@ -343,7 +344,7 @@ S.s8 = async function (W, A, f) {
                                        [{ status: 200, body: { linhas: [], cgram: [] } }, 'T[dash_disp_err]', 'faixa-perigo']]) {
         const W2 = world(), A2 = load(W2);
         W2.script.fn = function () { return spec; };
-        await A2.capture(); await W2.advance(3000);
+        const p2 = A2.capture(); await W2.advance(3000); await p2;
         if (W2.els.lcdStat.textContent !== want || W2.els.lcdStat.className.indexOf(tone) < 0) f('a capture answered ' + (spec.throws ? 'by a network error' : spec.status) + ' says ' + JSON.stringify(W2.els.lcdStat.textContent) + ' / ' + W2.els.lcdStat.className + ', wanted ' + want);
         if (W2.log.length !== 1 || W2.pending() !== 0) f('a capture must not retry: ' + W2.log.length + ' requests');
         if (W2.els.lcdCap.disabled) f('Capture stayed disabled after ' + want);
@@ -426,9 +427,9 @@ MUTANTES = [
     ('three failures in a row -> one', 'LCD_FAILS_MAX = 3', 'LCD_FAILS_MAX = 1'),
     ('stale from 2000 ms on, not past it', 'ms > LCD_STALE_MS', 'ms >= LCD_STALE_MS'),
     ('the next request armed before the answer is in', 'let res = await lcdGet();', 'setTimeout(lcdTick, LCD_PERIOD_MS); let res = await lcdGet();'),
-    ('the answer after Stop is drawn', 'if (!lcdOn) { lcdUi(); return; }', 'lcdUi();'),
+    ('the answer after Stop is drawn', 'if (!lcdOn) return;', ''),
     ('the seq not forgotten after a failure', 'lcdSeq = -1;\n            if (res.k === \'busy\')', "if (res.k === 'busy')"),
-    ('Capture enabled while the view is live', 'lcdEl(\'lcdCap\').disabled = lcdOn || lcdReq;', 'lcdEl(\'lcdCap\').disabled = lcdReq;'),
+    ('Capture enabled while the view is live', 'lcdOn || lcdReq > 0;', 'lcdReq > 0;'),
 ]
 
 

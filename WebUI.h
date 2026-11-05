@@ -382,6 +382,25 @@ static const char DASH_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
         #themeSel { width: auto; margin: 0; }
         .tools { margin-top: 16px; display: flex; gap: 8px; width: 100%; justify-content: center; flex-wrap: wrap; }
         /* @ENDIF */
+        /* @IF lcd */
+        /* The glass is 639 px wide, so the box takes a row of its own above the status cards: in the 360 px column of the touch panel's box it would be
+           shown at half size. The structure and the classes are those of that box. */
+        .layout-grid .side-content { order: -1; }
+        .display-box { background: var(--superficie); border: 1px solid var(--linha); padding: 20px; border-radius: 12px; display: flex; flex-direction: column; align-items: center; }
+        .display-box h2 { align-self: flex-start; font-size: 18px; line-height: 24px; margin: 0 0 12px; }
+        #lcdView { position: relative; width: 100%; max-width: 639px; }
+        .shot { width: 100%; aspect-ratio: 639/137; border-radius: 6px; background: var(--superficie-2); border: 1px solid var(--linha); box-sizing: border-box; }
+        #lcdPlaceholder { display: flex; align-items: center; justify-content: center; color: var(--tinta-2); font-size: 14px; border-style: dashed; }
+        /* The dots are drawn pixel for pixel, so the canvas is shown pixelated: interpolating would invent colours the module does not show. lcdFit( ) turns that off
+           when the canvas is shown smaller than its 639 px (a phone): a nearest-neighbour shrink drops the 1 px gaps of the grid unevenly, which the manual's figures
+           showed on 2026-11-04. The colours of the glass are the canvas's own, not the interface's. */
+        #lcdv { display: none; image-rendering: pixelated; border: 0; }
+        #lcdStat { margin-top: 8px; font-size: 12px; line-height: 16px; color: var(--tinta-2); min-height: 16px; }
+        #lcdStat.faixa { margin: 8px 0 0; font-size: 14px; line-height: 20px; align-self: stretch; }
+        /* No dark veil: a nearly opaque surface reads in both themes. */
+        #lcdOverlay { display: none; position: absolute; inset: 0; align-items: center; justify-content: center; border-radius: 6px; background: var(--superficie); opacity: 0.92; color: var(--tinta-2); font-size: 14px; }
+        .tools { margin-top: 16px; display: flex; gap: 8px; width: 100%; justify-content: center; flex-wrap: wrap; }
+        /* @ENDIF */
     </style>
     <script>
         /* window.t/applyLang/setLang/showToast/fetchSafe vem de /lang.js */
@@ -467,6 +486,23 @@ static const char DASH_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                         <select id="themeSel" onchange="saveTheme()"><option value="0">Loading...</option></select>
                         <button id="capBtn" class="sxb" onclick="captureScreen()"><svg class="ic"><use href="#i-cam"/></svg><span data-i18n="dash_disp_btn">Capture screen</span></button>
                         <button id="mirBtn" class="sxb" onclick="mirrorToggle()"><svg class="ic"><use href="#i-cam"/></svg><span id="mirLbl" data-i18n="dash_disp_live">Live view</span></button>
+                    </div>
+                </div>
+            </div>
+            /* @ENDIF */
+            /* @IF lcd */
+            <div class="side-content">
+                <div class="display-box">
+                    <h2 data-i18n="dash_disp">Display Capture</h2>
+                    <div id="lcdView">
+                        <div id="lcdPlaceholder" class="shot" data-i18n="dash_disp_msg">Click Capture to view screen</div>
+                        <canvas id="lcdv" class="shot" width="639" height="137"></canvas>
+                        <div id="lcdOverlay"><span data-i18n="dash_disp_cap">Capturing Display...</span></div>
+                    </div>
+                    <div id="lcdStat" role="status"></div>
+                    <div class="tools">
+                        <button id="lcdCap" class="sxb" onclick="lcdCapture()"><svg class="ic"><use href="#i-cam"/></svg><span data-i18n="dash_disp_btn">Capture screen</span></button>
+                        <button id="lcdLive" class="sxb" onclick="lcdToggle()"><svg class="ic"><use href="#i-cam"/></svg><span id="lcdLiveLbl" data-i18n="dash_disp_live">Live view</span><span id="lcdStopLbl" data-i18n="dash_disp_stop" hidden>Stop</span></button>
                     </div>
                 </div>
             </div>
@@ -1011,8 +1047,148 @@ static const char DASH_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
             }
         }
         /* lcd: end of the pure part */
-        /* @ENDIF */
 
+        /* lcd: the box */
+        /* The box: Capture is one GET /api/lcd and one draw; Live view asks again and again. The numbers are the bench's (Pico W with the LCD, 2026-11-04, 60 s at
+           4 Hz): 240 of 240 answers, 13 ms the median and 14 ms the worst, a new frame every 500 ms (seq moves by 2), age_ms at most 501, the heap flat. So: one request
+           every 250 ms, counted start to start, and a new one the moment the last ends when it took longer; the same seq is not drawn twice (about every other answer);
+           a frame older than 2000 ms, four refreshes, is stale; one request at a time, as the device serves one. A hidden tab asks nothing and looks again every second,
+           as the touch panel's mirror does: nobody sees the frames, and the device would answer them instead of someone who does. */
+        const LCD_PERIOD_MS = 250, LCD_HIDDEN_MS = 1000, LCD_BUSY_MS = 1500, LCD_RETRY_MS = 1000, LCD_STALE_MS = 2000, LCD_TIMEOUT_MS = 5000;
+        /* Three failures in a row stop the view. One is a lost packet or a request that met a flash write; two can still be a device that just restarted or a Wi-Fi
+           hand-over; three, about 3 s of asking at 1 s apart, is not going to mend by itself (it is off, the cable is out, an update removed the route), and an
+           unattended tab must not keep a single-threaded server busy for nothing: the view stops and says so. A 401 or a 403 will not mend either: it stops at once. */
+        const LCD_FAILS_MAX = 3;
+        /* lcdReq: 0 nothing out, 1 a Live view request, 2 a Capture request. */
+        let lcdOn = false, lcdReq = 0, lcdTimer = null, lcdSeq = -1, lcdFails = 0, lcdGlyphs = null;
+        function lcdEl(id) { return document.getElementById(id); }
+        /* kind: '' for plain text, 'alerta' (busy, stale) or 'perigo' (a failed read) for the faixa classes of the shared sheet. */
+        function lcdSay(text, kind) {
+            const e = lcdEl('lcdStat');
+            e.textContent = text;
+            e.className = kind ? 'faixa faixa-' + kind : '';
+        }
+        function lcdWait(on) { lcdEl('lcdOverlay').style.display = on ? 'flex' : 'none'; }
+        function lcdUi() {
+            lcdEl('lcdCap').disabled = lcdOn || lcdReq > 0;
+            lcdEl('lcdLive').disabled = lcdReq === 2;
+            lcdEl('lcdLiveLbl').hidden = lcdOn;
+            lcdEl('lcdStopLbl').hidden = !lcdOn;
+        }
+        function lcdFit() {
+            const cv = lcdEl('lcdv');
+            cv.style.imageRendering = cv.clientWidth * (window.devicePixelRatio || 1) >= cv.width ? 'pixelated' : 'auto';
+        }
+        function lcdShow(d) {
+            const f = lcdDecode(d), sz = lcdSize(LCD_STYLE), cv = lcdEl('lcdv'), ctx = cv.getContext('2d');
+            if (!lcdGlyphs) lcdGlyphs = lcdFont(LCD_FONT_HEX);
+            const img = ctx.createImageData(sz[0], sz[1]);
+            lcdPaint(img.data, f.rows, f.cgram, lcdGlyphs);
+            ctx.putImageData(img, 0, 0);
+            lcdEl('lcdPlaceholder').style.display = 'none';
+            cv.style.display = 'block';
+            lcdFit();
+        }
+        /* The frame's age in seconds, from age_ms, and whether it is stale; nothing when the answer has none. */
+        function lcdAge(d) {
+            const ms = d && d.age_ms;
+            if (typeof ms !== 'number' || !isFinite(ms) || ms < 0) return { text: '', stale: false };
+            const stale = ms > LCD_STALE_MS;
+            return { text: (ms / 1000).toFixed(2) + ' s' + (stale ? ' \u00b7 ' + window.t('dash_disp_stale', 'stale') : ''), stale: stale };
+        }
+        /* One request: {k: 'frame', d}, {k: 'busy', wait} (503: the device is rendering or has no frame yet; wait is the Retry-After in ms), {k: 'denied', status}
+           (401, 403) or {k: 'fail', status} (a network error, a 5xx that fetchSafe( ) throws, any other status, an answer that is not JSON: status 0 or the code). */
+        async function lcdGet() {
+            try {
+                const r = await fetchSafe('/api/lcd', { retries: 0, timeout: LCD_TIMEOUT_MS });
+                if (r.status === 503) {
+                    const s = parseInt(r.headers.get('Retry-After'), 10);
+                    return { k: 'busy', wait: s > 0 ? Math.min(s, 10) * 1000 : LCD_BUSY_MS };
+                }
+                if (r.status === 401 || r.status === 403) return { k: 'denied', status: r.status };
+                if (!r.ok) return { k: 'fail', status: r.status };
+                return { k: 'frame', d: await r.json() };
+            } catch (e) { return { k: 'fail', status: 0 }; }
+        }
+        /* What the loop does after an answer: the wait before the next request (ms), the failures in a row, whether to stop. */
+        function lcdNext(res, took, fails) {
+            if (res.k === 'frame') return { wait: Math.max(0, LCD_PERIOD_MS - took), fails: 0, stop: false };
+            if (res.k === 'busy') return { wait: res.wait, fails: 0, stop: false };
+            if (res.k === 'denied') return { wait: 0, fails: fails + 1, stop: true };
+            return { wait: LCD_RETRY_MS, fails: fails + 1, stop: fails + 1 >= LCD_FAILS_MAX };
+        }
+        /* Draws what the request brought (unless it is the frame already shown) and says it in the status line; a frame that is not a glass becomes a failed read.
+           After anything but a frame the next frame is drawn whatever its seq: the device may have restarted, and its counter with it. Returns the outcome. */
+        function lcdApply(res) {
+            if (res.k === 'frame') {
+                try {
+                    if (!(typeof res.d.seq === 'number' && res.d.seq === lcdSeq)) lcdShow(res.d);
+                    lcdSeq = typeof res.d.seq === 'number' ? res.d.seq : -1;
+                    const a = lcdAge(res.d);
+                    lcdSay(a.text, a.stale ? 'alerta' : '');
+                    return res;
+                } catch (e) { res = { k: 'fail', status: 0 }; }
+            }
+            lcdSeq = -1;
+            if (res.k === 'busy') lcdSay(window.t('display_busy', 'Display in use. Try again shortly.'), 'alerta');
+            else lcdSay(window.t('dash_disp_err', 'Read Failed') + (res.status ? ' (' + res.status + ')' : ''), 'perigo');
+            return res;
+        }
+        async function lcdTick() {
+            lcdTimer = null;
+            if (!lcdOn || lcdReq > 0) return;
+            if (document.hidden) { lcdTimer = setTimeout(lcdTick, LCD_HIDDEN_MS); return; }
+            const t0 = performance.now();
+            lcdReq = 1; lcdUi();
+            let res = await lcdGet();
+            lcdReq = 0; lcdUi();
+            if (!lcdOn) return;
+            try {
+                lcdWait(false);
+                res = lcdApply(res);
+                const nx = lcdNext(res, performance.now() - t0, lcdFails);
+                lcdFails = nx.fails;
+                if (nx.stop) { lcdStopLive(''); return; }
+                lcdTimer = setTimeout(lcdTick, nx.wait);
+            } catch (e) {
+                lcdStopLive('');
+                lcdSay(window.t('dash_disp_err', 'Read Failed'), 'perigo');
+            }
+        }
+        /* text '' leaves the status line as it is (the failed read that stopped the view says why); Stop says it stopped. */
+        function lcdStopLive(text) {
+            lcdOn = false;
+            if (lcdTimer) { clearTimeout(lcdTimer); lcdTimer = null; }
+            lcdWait(false);
+            lcdUi();
+            if (text) lcdSay(text, '');
+        }
+        function lcdToggle() {
+            if (lcdOn) { lcdStopLive(window.t('dash_disp_stopped', 'Live view stopped')); return; }
+            if (lcdReq === 2) return;
+            lcdOn = true; lcdFails = 0; lcdSeq = -1;
+            lcdSay('', '');
+            lcdWait(lcdEl('lcdv').style.display !== 'block');
+            lcdUi();
+            /* A request of a view stopped a moment ago may still be out: its tick carries on when it ends (lcdOn is true again), and a second one must not start. */
+            if (lcdReq === 0) lcdTick();
+        }
+        async function lcdCapture() {
+            if (lcdOn || lcdReq > 0) return;
+            lcdReq = 2;
+            lcdSay('', '');
+            lcdWait(lcdEl('lcdv').style.display !== 'block');
+            lcdUi();
+            const res = await lcdGet();
+            lcdReq = 0;
+            lcdWait(false);
+            lcdApply(res);
+            lcdUi();
+        }
+        window.addEventListener('resize', lcdFit);
+        window.addEventListener('beforeunload', () => { lcdOn = false; });
+        /* lcd: end of the box */
+        /* @ENDIF */
         window.onLangChange = function() { fetchLoop(); };
 
 
