@@ -112,7 +112,11 @@ The 16x2 cannot be read back, so the driver keeps a shadow of what it wrote (`sr
   time for the blit (34 bytes, two nibbles each, 52 us of delays per nibble). The shadow is 216 B of RAM: 108 B of static RAM in
   the driver's `_lcd`, and 108 B of heap in `DisplayManager::_driver`, an alpha driver nothing uses that is a member of the
   class (the review of 2026-11-04 read it in the pico_wire image: `.bss` +108 B, and the size AppManager passes to operator new
-  2,600 to 2,708 B). It is 216 B of flash in `pico_w_alpha` and `pico_wire`; the reader is 160 B in the object and is dropped from the image until something calls it.
+  2,600 to 2,708 B). It is 216 B of flash in `pico_w_alpha` and `pico_wire`; the reader is 160 B in the object, and until `GET /api/lcd` called it the linker dropped it.
+  With the handler (2026-11-04, clean builds at 975f4aaf and a730a58b, not measured on a board) the reader, the JSON formatter and the handler are in both images:
+  `pico_w_alpha` 976,484 to 977,348 B of flash used (+864 B; its `.bin` stays 990,380 B, the linker's fill takes the growth) and `pico_wire` 592,636 to 593,740 B
+  (+1,104 B; `.bin` 604,672 to 605,776 B), static RAM +0 B in both: the longest text, 282 B, is on Core 0's stack for the length of one request. The other nine
+  images are byte for byte what they were (sha256 of `firmware.bin`).
 
 ## Reading the new metrics
 
