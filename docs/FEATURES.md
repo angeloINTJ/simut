@@ -56,7 +56,7 @@ Everything the firmware does, in detail. The [README](../README.md) has the summ
 - **Version on the login page** — the firmware version shows under the name before anyone signs in.
 - **Wi-Fi scan** — pick the network from a list, even from inside the setup access point.
 - **History graphs and CSV export in the browser** — the page downloads the raw binary day files, then decodes, buckets (min/max/mean) and exports them itself. The recent, unsealed hour comes from `/api/history/open`. The chart renderer is embedded — no CDN.
-- **HTTP API** — 62 routes. Each one is either gated by a permission or public by design, and CI checks it.
+- **HTTP API** — 63 routes. Each one is either gated by a permission or public by design, and CI checks it.
 
 ## Telemetry and integrations
 - **Four transports** — HTTP, HTTPS, MQTT and MQTTS:
