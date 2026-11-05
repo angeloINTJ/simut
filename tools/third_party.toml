@@ -358,7 +358,8 @@ text = "sha256-js-public-domain.txt"
 # tools/lcd_alpha/fonte_web.py writes from ROM_A00 of tools/lcd_alpha/rom_hd44780.py, is the Hitachi HD44780U's character generator ROM A00 (Table 4 of its datasheet), carried
 # in those two images. It is not third-party software that comes with a licence to comply with: Caution 6 of the datasheet (page 60) asks for Hitachi's written approval to
 # reproduce the document, in whole or in part, and none was asked for. So it has no row, no /license text and no LICENSES/ file, and this comment keeps that deviation from being
-# silent. The maintainer's decision of 2026-11-04, and what it means for the published images, are in the Rights paragraph of tools/lcd_alpha/rom_hd44780.py.
+# silent. The maintainer's decision of 2026-11-04, and what it means for the two images (pico_w_alpha, an asset of every release, and pico_wire, built by CI
+# and not a release asset), are in the Rights paragraph of tools/lcd_alpha/rom_hd44780.py.
 
 # Compiled during the build, then dropped by the linker in every image:
 # nothing of them reaches the device. Listed so that nobody adds them above by
