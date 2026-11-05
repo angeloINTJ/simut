@@ -17,6 +17,13 @@ Rights     Caution 6 on page 60 of the same document: "No one is permitted to re
            and no such approval was asked for. The maintainer decided on 2026-11-04 to keep it in the repository, knowing this: lcd.py draws
            the manual's LCD figures with it, and CI draws them again with it to compare them pixel by pixel. rom_a00_golden.txt, the
            reviewer's own reading of the same page, is kept on the same decision.
+           Added later on 2026-11-04: the alpha and Wire images carry this table too. Their dashboard page draws the live view of the LCD with it, as the font
+           block of WebUI.h, which tools/lcd_alpha/fonte_web.py writes from ROM_A00 and `fonte_web.py --check` holds to it in CI, so the published alpha and Wire
+           images (pico_w_alpha, pico_wire) reproduce it, not only the repository. This is the maintainer's decision of 2026-11-04, taken after he saw the live
+           view with an open font on the board: that font and ROM_A00 differ in 92 of the 96 codes, and he said (as it was relayed to the agent that made this
+           change) "A fonte que aparece no live display deve ser a mesma que aparece no display real. Não quero uma representação imprecisa." (the font in the
+           live display must be the same one the real display shows; he does not want an imprecise representation). Caution 6 therefore also concerns the
+           published alpha and Wire images, and no approval from Hitachi was asked for for them either.
 
 Shape      ROM_A00[code] is 8 integers, one per dot row of the 5 x 8 cell. Element 0 is the TOP row; in each integer bit 4 (value 16) is the
            LEFTMOST dot and bit 0 the rightmost, a lit dot being a 1: the convention of the firmware's CGRAM bitmaps (src/display/BigFont_HD44780.h:
