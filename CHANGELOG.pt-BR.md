@@ -6,7 +6,7 @@ Todas as mudanças notáveis do firmware SIMUT.
 
 ## v2.14.0 (2026-11-05)
 
-**O painel do alpha e do SIMUT Wire com um LCD 16x2 pode mostrar o LCD: uma caixa, *Tela* (*Display Capture* em inglês), desenha o vidro ponto a ponto, uma vez no Capturar e até quatro vezes por segundo no Ao vivo, a partir do `GET /api/lcd` (#320). Por trás dela está o print virtual (#319), o LCD do alpha desenhado no computador a partir do código do próprio firmware, que faz as 17 figuras de LCD do manual e que a página repete pixel a pixel. Os caracteres são da Hitachi (Tabela 4 do datasheet do HD44780U): o `pico_w_alpha` publicado passa a trazer a ROM A00, reproduzida sem a aprovação escrita que a Advertência 6 pede, por decisão do mantenedor de 04/11/2026. A versão traz ainda treze correções pequenas, achadas lendo o código e pelas notas da bancada (#318), e três mudanças que fecham itens da lista *Conhecido* da v2.13.0: o Salvar dos limites de alarme do painel (F3, #307), a prévia do alinhamento da tela que sobrevivia à saída da tela (#308) e o `GET /api/keypad` no Ângulo (F4, #311). O resto é um renome que não muda nenhuma imagem (#312), testes, ferramentas, a ação de atestado e documentos.**
+**O painel do alpha e do SIMUT Wire com um LCD 16x2 pode mostrar o LCD: uma caixa, *Tela* (*Display Capture* em inglês), desenha o vidro ponto a ponto, uma vez no Capturar e até quatro vezes por segundo no Ao vivo, a partir do `GET /api/lcd` (#320). Por trás dela está o print virtual (#319), o LCD do alpha desenhado no computador a partir do código do próprio firmware, que faz as 17 figuras de LCD do manual e que a página repete pixel a pixel. Os caracteres são da Hitachi (Tabela 4 do datasheet do HD44780U): o `pico_w_alpha` publicado passa a trazer a ROM A00, reproduzida sem a aprovação escrita que a Advertência 6 pede, por decisão do mantenedor de 04/11/2026. A versão traz ainda treze correções pequenas, achadas lendo o código e pelas notas da bancada (#318), e três mudanças que fecham itens da lista *Conhecido* da v2.13.0: o Salvar dos limites de alarme do painel (F3, #307), a prévia do alinhamento da tela que sobrevivia à saída da tela (#308) e o `GET /api/keypad` no Ângulo (F4, #311). O resto é uma mudança de lugar de nomes entre dois cabeçalhos, que não muda nenhuma imagem (#312), testes, ferramentas, a ação de atestado e documentos.**
 
 A `CONFIG_VERSION` continua em 26 e o nível de segurança em 1. `keys/` e `src/ota/ota_layout.h` são os arquivos da v2.13.0 (`git diff v2.13.0 HEAD -- keys src/ota/ota_layout.h` está vazio, 05/11/2026), então a v2.13.0 verifica a assinatura desta release e o caminho de volta está aberto pelos arquivos; o portão ainda não rodou esse vai e volta numa placa (*A bancada*). Os treze pull requests mesclados desde a v2.13.0 estão cada um na seção a que pertencem (#307, #308, #311 e #312 primeiro, depois #318, #319 e #320) ou em *Por dentro* (#309, #310, #313, #315, #316 e #317).
 
@@ -370,10 +370,10 @@ Não rodou numa placa: a conferência de retenção entre a v2.13.0 e esta relea
 - **Quatro eventos do painel gravam a configuração sem a conferência de permissão no Core 0**: os sons, as duas
   calibrações do toque e o deslocamento do display. O `tools/check_authz.py` os lista como avisos, e o CI segura a
   lista. Adiado, pela palavra do mantenedor de 28/10/2026.
+- **Os `data/themes/*.thm` diferem do `tools/gen_theme_collection.py`** nas cores dos alarmes de limite desde a
+  2137ea15 (23/08/2026). As regras de contraste do gerador reprovam as cores novas em 36 pares, então regenerar os
+  arquivos deixaria o alarme de todo tema de fábrica vermelho de novo.
 - **Os textos em espanhol são uma proposta** até um falante nativo revisar: os nomes dos temas (#298), o texto de `fil_up_refused` (#299), os 380 textos da seção `@ANGULO` do Ângulo (#304) e os dois textos da caixa da visão ao vivo (#320). A revisão não bloqueia uma release (palavra do mantenedor de 30/10/2026).
-- **Os textos em espanhol são uma proposta** até um falante nativo revisar: os nomes dos temas (#298), o texto do
-  `fil_up_refused` (#299) e os 380 textos da seção `@ANGULO` do Ângulo (#304). A revisão não bloqueia uma release
-  (palavra do mantenedor, 30/10/2026).
 - **O console de emergência não tem o comando `language`**, e a web não tem chave para isso. Depois de um boot em
   inglês, a tela Idioma do painel é a volta (#294), no Ângulo também (visto na bancada do Pico 2 W em 28/10/2026, numa
   imagem de desenvolvimento, e na candidata da v2.13.0 em 31/10/2026).
@@ -448,20 +448,26 @@ Não rodou numa placa: a conferência de retenção entre a v2.13.0 e esta relea
 - **Uma prévia do alinhamento da tela sobrevive a uma atualização do firmware.** Durante a atualização o Core 1 fica
   estacionado e o Core 0 pinta a tela de atualização no vidro como ele está (#308); uma prévia deixada no vidro fica,
   deslocada em até 4 px, até o reinício se a atualização der certo e até o Core 1 voltar se ela falhar.
-- **O LCD do alpha trunca a temperatura e a umidade, e arredonda a pressão.** O `AlphaFrame.h` escreve `(int)(v *
-  10.0f)` para a temperatura e `(int)v` para a umidade (desde a tela de vários slots, `afe1d875`, 24/08/2026) e
-  `(int)(v * 10.0f + 0.5f)` para a pressão, então 27,98 °C aparece como 27,9. Visto em 04/11/2026, quando o print
-  virtual foi comparado com um módulo; arredondar ou não é decisão do mantenedor. A visão ao vivo mostra o que o LCD
-  mostra.
+- **O LCD do alpha trunca a temperatura e a umidade, onde a pressão dele e o TFT arredondam.** O `AlphaFrame.h`
+  escreve `(int)(v * 10.0f)` para a temperatura e `(int)v` para a umidade (desde o `afe1d875`, 24/08/2026) e `(int)(v
+  * 10.0f + 0.5f)` para a pressão: 27,98 °C aparece como 27,9 no alpha e como 28,0 na release. Visto de passagem na
+  conferência em placa do #319 (04/11/2026) e não alterado. A visão ao vivo mostra o que o LCD mostra.
 - **Um nome em UTF-8 chega ao LCD do alpha sem dobrar.** O SSID do AP de configuração com acentos aparece como bytes
-  UTF-8, e não dobrado para os caracteres da ROM, porque o `isValidName( )` (`SystemDefs_Validate.h:316`) recusa só
-  controles, `"` e `\` e aceita bytes de 0x80 em diante. Achado lendo o código no trabalho do #318; não alterado.
+  UTF-8, e não dobrado para os caracteres da ROM, porque o `isValidName( )` (`SystemDefs_Validate.h:316-323`) recusa
+  os bytes abaixo de 0x20, `"` e `\` e aceita o 0x7F e todo byte acima. Listado entre os achados do #318; não
+  alterado.
 - **No alpha, a virada de página do AP de configuração desenha um quadro com o título novo sobre o valor antigo**
   (lista de achados do #318).
 - **O contador de quadros do Ângulo é incrementado às cegas.** O `uaPintar( )` incrementa o `s_seq` com um `s_seq =
-  s_seq + 1` cego em dois pontos (`src/ui/angulo/DisplayManager_UiA.cpp:296` e `:308`); a sombra do vidro do alpha põe
-  a contagem em ímpar seja qual for a paridade que encontra (`seq = (s + 1u) | 1u`, `src/display/LcdGlass.h:164`).
-  Pelo código, notado na revisão da sombra da visão ao vivo; não visto numa placa.
+  s_seq + 1` cego duas vezes, em volta da publicação do estado do quadro (`src/ui/angulo/DisplayManager_UiA.cpp:296` e
+  `:308`), e o `uaEstado( )` toma a contagem ímpar por "escritor ocupado". Se o Core 1 é relançado entre os dois
+  incrementos (o laço principal faz isso depois de 10 s sem o sinal de vida dele; ver o item da falha de hardware do
+  Core 1), a contagem fica ímpar sem escritor rodando e toda pintura seguinte mantém a paridade invertida. O
+  `uaEstado( )` passa a achar a contagem ímpar em repouso e responde -1, "ocupado", depois de 2 ms de tentativas, em
+  toda chamada; e enquanto uma pintura publica a contagem é par, então uma cópia tirada dentro dessa escrita passa na
+  conferência. A sombra do vidro do alpha põe a contagem em ímpar seja qual for a paridade que encontra (`seq = (s +
+  1u) | 1u`, `src/display/LcdGlass.h:164`). Raro, porque precisa desse relançamento dentro de uma janela de dezenas de
+  microssegundos; pelo código, notado na revisão da sombra da visão ao vivo; não visto numa placa.
 - **No Air da bancada, a linha `[AIR] alarm` nunca chega ao computador.** A suíte do Air a espera antes do sono, mas o
   USB cai na entrada do sono, antes de a linha ser impressa (na `main` também, 04/11/2026). O suspeito é o `b0bc5c36`
   (13/10/2026, "a module stopped on its way up starts again; the Air asks net::…"); não confirmado. O T18 ao T20

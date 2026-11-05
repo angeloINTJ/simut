@@ -6,7 +6,7 @@ All notable changes to SIMUT firmware.
 
 ## v2.14.0 (2026-11-05)
 
-**The dashboard of the SIMUT alpha and of the SIMUT Wire with a 16x2 LCD can show the LCD: a Display Capture box draws the glass dot by dot, once on Capture and up to four times a second on Live view, from `GET /api/lcd` (#320). Behind it is the print virtual (#319), the alpha's LCD drawn on the host from the firmware's own code, which makes the manual's 17 LCD figures and which the page repeats pixel for pixel. The characters are Hitachi's (Table 4 of the HD44780U datasheet): the published `pico_w_alpha` now carries ROM A00, reproduced without the written approval its Caution 6 asks for, on the maintainer's decision of 2026-11-04. The release also has thirteen small fixes found by reading the code and by the bench's notes (#318), and three changes that close items of v2.13.0's *Known* list: the panel's alarm-limits save (F3, #307), the display-alignment preview that outlived its screen (#308) and `GET /api/keypad` on the Ângulo (F4, #311). The rest is a rename that changes no image (#312), tests, tools, the attestation action and documents.**
+**The dashboard of the SIMUT alpha and of the SIMUT Wire with a 16x2 LCD can show the LCD: a Display Capture box draws the glass dot by dot, once on Capture and up to four times a second on Live view, from `GET /api/lcd` (#320). Behind it is the print virtual (#319), the alpha's LCD drawn on the host from the firmware's own code, which makes the manual's 17 LCD figures and which the page repeats pixel for pixel. The characters are Hitachi's (Table 4 of the HD44780U datasheet): the published `pico_w_alpha` now carries ROM A00, reproduced without the written approval its Caution 6 asks for, on the maintainer's decision of 2026-11-04. The release also has thirteen small fixes found by reading the code and by the bench's notes (#318), and three changes that close items of v2.13.0's *Known* list: the panel's alarm-limits save (F3, #307), the display-alignment preview that outlived its screen (#308) and `GET /api/keypad` on the Ângulo (F4, #311). The rest is a move of names between two headers that changes no image (#312), tests, tools, the attestation action and documents.**
 
 `CONFIG_VERSION` stays at 26 and the security version at 1. `keys/` and `src/ota/ota_layout.h` are the files of v2.13.0 (`git diff v2.13.0 HEAD -- keys src/ota/ota_layout.h` is empty, 2026-11-05), so v2.13.0 verifies this release's signature and the way back is open by the files; the gate has not run that round trip on a board (*The bench*). The thirteen pull requests merged since v2.13.0 are each named in the section they belong to (#307, #308, #311 and #312 first, then #318, #319 and #320) or in *Under the hood* (#309, #310, #313, #315, #316 and #317).
 
@@ -365,10 +365,10 @@ Not run on a board: the retention check between v2.13.0 and this release, on eit
 - **Four panel events save the configuration without Core 0's permission check**: the sounds, the two touch
   calibrations and the display offset. `tools/check_authz.py` lists them as warnings, and CI holds the list. Deferred
   at the maintainer's word of 2026-10-28.
+- **`data/themes/*.thm` differ from `tools/gen_theme_collection.py`** in the limit-alarm colours since 2137ea15
+  (2026-08-23). The generator's contrast rules fail the new colours on 36 pairs, so regenerating the files would turn
+  every stock theme's alarm red again.
 - **The Spanish texts are a proposal** until a native speaker reviews them: the names of the themes (#298), the text of `fil_up_refused` (#299), the 380 texts of the Ângulo's `@ANGULO` section (#304) and the two texts of the live view's box (#320). The review does not block a release (the maintainer's word of 2026-10-30).
-- **The Spanish texts are a proposal** until a native speaker reviews them: the names of the themes (#298), the text
-  of `fil_up_refused` (#299) and the 380 texts of the Ângulo's `@ANGULO` section (#304). The review does not block a
-  release (the maintainer's word of 2026-10-30).
 - **The emergency console has no `language` command**, and the web has no key for it. After a boot in English, the
   panel's Idioma screen is the way back (#294), on the Ângulo too (seen on the Pico 2 W's bench on 2026-10-28, on a
   development image, and on v2.13.0's candidate on 2026-10-31).
@@ -442,20 +442,24 @@ Not run on a board: the retention check between v2.13.0 and this release, on eit
 - **A display-alignment preview survives a firmware update.** During an update Core 1 is parked and Core 0 paints the
   update screen on the glass as it is (#308), so a preview left on the glass stays, shifted by up to 4 px, until the
   restart if the update succeeds and until Core 1 resumes if it fails.
-- **The alpha's LCD truncates the temperature and the humidity, and rounds the pressure.** `AlphaFrame.h` writes
-  `(int)(v * 10.0f)` for the temperature and `(int)v` for the humidity (since the multi-slot display, `afe1d875`,
-  2026-08-24) and `(int)(v * 10.0f + 0.5f)` for the pressure, so 27.98 °C reads 27.9. Seen on 2026-11-04, when the
-  print virtual was compared with a module; whether to round is the maintainer's decision. The live view shows what
-  the LCD shows.
+- **The alpha's LCD truncates the temperature and the humidity, where its pressure and the TFT round.** `AlphaFrame.h`
+  writes `(int)(v * 10.0f)` for the temperature and `(int)v` for the humidity (since `afe1d875`, 2026-08-24), and
+  `(int)(v * 10.0f + 0.5f)` for the pressure: 27.98 °C reads 27.9 on the alpha and 28.0 on the release. Seen on the
+  way in #319's board check (2026-11-04) and not changed. The live view shows what the LCD shows.
 - **A UTF-8 name reaches the alpha's LCD unfolded.** A setup-AP SSID with accents is shown as UTF-8 bytes, not folded
-  to the characters of the ROM, because `isValidName( )` (`SystemDefs_Validate.h:316`) refuses only controls, `"` and
-  `\` and accepts bytes from 0x80 up. Found by reading the code in #318's work; not changed.
+  to the characters of the ROM, because `isValidName( )` (`SystemDefs_Validate.h:316-323`) refuses bytes below 0x20,
+  `"` and `\` and accepts 0x7F and every byte above. Listed among #318's findings; not changed.
 - **On the alpha, the setup AP's page flip draws one frame with the new title over the old value** (#318's list of
   findings).
-- **The Ângulo's frame counter is bumped blindly.** `uaPintar( )` bumps `s_seq` with a blind `s_seq = s_seq + 1` at
-  two places (`src/ui/angulo/DisplayManager_UiA.cpp:296` and `:308`); the alpha's glass shadow sets its count odd
-  whatever parity it finds (`seq = (s + 1u) | 1u`, `src/display/LcdGlass.h:164`). By the code, noticed in the review
-  of the live view's shadow; not seen on a board.
+- **The Ângulo's frame counter is bumped blindly.** `uaPintar( )` raises `s_seq` with `s_seq = s_seq + 1` twice,
+  around the publication of the frame's state (`src/ui/angulo/DisplayManager_UiA.cpp:296` and `:308`), and `uaEstado(
+  )` takes an odd count for "writer busy". If Core 1 is relaunched between the two bumps (the main loop does it after
+  10 s without its heartbeat; see the Core 1 hard fault item), the count stays odd with no writer running and every
+  later paint keeps the parity inverted. `uaEstado( )` then finds the odd count at rest and answers -1, "busy", after
+  2 ms of retries, on every call; and while a paint publishes the count is even, so a copy taken inside that write
+  passes the check. The alpha's glass shadow sets its count odd whatever parity it finds (`seq = (s + 1u) | 1u`,
+  `src/display/LcdGlass.h:164`). Rare, because it needs that relaunch inside a window of tens of microseconds; by the
+  code, noticed in the review of the live view's shadow; not seen on a board.
 - **On the bench's Air, the `[AIR] alarm` line never reaches the host.** The Air suite waits for it before the sleep,
   but the USB drops during the sleep entry, before the line is printed (`main` too, 2026-11-04). The suspect is
   `b0bc5c36` (2026-10-13, "a module stopped on its way up starts again; the Air asks net::…"); not confirmed. T18 to
