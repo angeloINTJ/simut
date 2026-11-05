@@ -301,5 +301,36 @@ v = verdict(fora)
 check("uma chamada a busca fora do @IF wifi e recusada pelo nome da rota",
       v is not None and "/api/wifi/scan" in v, repr(v))
 
+# 12. O LCD do alpha (2026-11-04): GET /api/lcd e da feature `lcd`, que so as imagens com o LCD do alpha levam. A rota e do registerLcdRoutes( ), ao lado do
+#     registerScreenRoutes( ) no WebManager_History.cpp e fora dele: este e contado como o `tft`, e o LCD nao e o painel de toque. Nenhuma pagina chama a
+#     rota ainda, entao nao ha bloco `@IF lcd` no WebUI.h: o encanamento aceita uma feature que nenhum bloco usa (o WebUI.h da secao 10 passa com ela
+#     conhecida), e o passo que traz a pagina a poe dentro do bloco.
+lcd_rotas = feature_routes("lcd")
+check("a rota do LCD e a unica do registerLcdRoutes( )", lcd_rotas == {"/api/lcd"}, f"obtido {sorted(lcd_rotas)}")
+check("... e o registerScreenRoutes( ) nao a registra: nao e do painel de toque", "/api/lcd" not in feature_routes("tft"))
+v = verdict("<script>fetch('/api/lcd');</script>\n")
+check("uma chamada a /api/lcd fora do @IF lcd e recusada pelo nome da rota",
+      v is not None and "/api/lcd so e registrada com lcd" in v, repr(v))
+dentro_lcd = """
+/* @IF lcd */
+<canvas id="vidro"></canvas>
+<script>async function pintaVidro() { return fetch('/api/lcd'); } pintaVidro();</script>
+/* @ENDIF */
+"""
+check("... e dentro do @IF lcd passa", verdict(dentro_lcd) is None, repr(verdict(dentro_lcd)))
+check("o bloco @IF lcd fica na imagem com o LCD e sai das outras",
+      "vidro" in cut(dentro_lcd, set()) and "vidro" not in cut(dentro_lcd, {"lcd"}) and "@IF" not in cut(dentro_lcd, {"lcd"}))
+v = verdict("/* @IF !lcd */\n<script>fetch('/api/lcd');</script>\n/* @ENDIF */\n")
+check("a rota do LCD chamada dentro do @IF !lcd e recusada (la nao existe)",
+      v is not None and "/api/lcd so e registrada com lcd" in v, repr(v))
+# O manifesto: so as imagens com o LCD do alpha ficam com os blocos `lcd`. As do TFT e as sem mostrador (o Air) os cortam; o `compose( )` e o que o
+# platformio.ini recebe em custom_web_omit.
+for nome in sorted(_M["profiles"]):
+    perfil = gf.resolve_profile(nome, _M["profiles"])
+    omit = {n.strip() for n in (gf.compose(perfil, _M)["web_omit"] or "").split(",")}
+    tem_lcd = perfil["display"] == "alpha_paralelo"
+    check(f"{nome} ({perfil['display']}) {'mantem' if tem_lcd else 'corta'} os blocos do LCD", ("lcd" in omit) != tem_lcd,
+          f"custom_web_omit {sorted(omit)}")
+
 print(f"{ok} ok, {fail} falha(s)")
 sys.exit(1 if fail else 0)

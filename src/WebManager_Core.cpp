@@ -189,8 +189,10 @@ void WebManager::begin(StorageManager* storage, SensorManager* sensors,
   * from their own translation units, each a no-op where its feature is
   * compiled out — so this core no longer tests SIMUT_DISPLAY_TFT or
   * SIMUT_WEB_HTTPS to place them. Definitions in WebManager_History.cpp and
-  * WebManager_Tls.cpp. docs/analysis/MODELO_DE_RECURSOS.md, P2 (costura das rotas). */
+  * WebManager_Tls.cpp. docs/analysis/MODELO_DE_RECURSOS.md, P2 (costura das rotas).
+  * The alpha's LCD route is the same, with its no-op inline in WebManager.h. */
  registerScreenRoutes( );
+ registerLcdRoutes( );   /* GET /api/lcd, the alpha's LCD glass (WebManager_History.cpp); nothing in the other images */
  registerUiDriverRoutes( );   /* the UI driver's routes, if it has any (src/ui/UiDriverWeb.h); the original's call leaves nothing */
  registerTlsRoutes( );
  _server->on("/api/sec_status", HTTP_GET, std::bind(&WebManager::handleApiSecStatus, this));

@@ -36,6 +36,24 @@
 #include "display/BigFont_HD44780.h" /* the alpha LCD glyphs */
 #include "alpha_frame_cases.h"      /* what the alpha LCD's screens write, cell by cell (display/AlphaFrame.h) */
 void test_alpha_fake_lcd_leaves_the_glass_the_real_driver_leaves(void);   /* alpha_driver_twin.cpp: the fake LCD those cases run on, against the real driver */
+void test_alpha_real_driver_shadow_is_the_glass_after_every_operation(void);          /* alpha_driver_twin.cpp: the shadow the driver keeps for the other core, against the same model */
+void test_alpha_real_driver_shadow_does_not_move_during_the_bus_writes(void);
+void test_alpha_real_driver_shows_the_previous_frame_until_the_blit(void);
+void test_alpha_glass_reader_gets_what_the_writer_published(void);                    /* alpha_glass.cpp: the shadow (display/LcdGlass.h), one state or busy, never a mix */
+void test_alpha_glass_stopped_writer_gives_busy_the_old_glass_or_the_new_never_a_mix(void);
+void test_alpha_glass_publish_landing_in_the_readers_copy_never_gives_a_mix(void);
+void test_alpha_glass_the_harnesses_see_a_mix_when_there_is_one(void);
+void test_alpha_glass_odd_count_heals_in_one_publish(void);
+void test_alpha_glass_writer_killed_at_any_store_never_leaves_a_torn_frame_visible(void);
+void test_alpha_glass_reader_gives_up_within_its_limit(void);
+void test_alpha_glass_reader_waits_out_a_publish_that_ends_within_its_limit(void);
+void test_alpha_glass_fake_lcd_publishes_at_the_blit_not_at_the_composition(void);
+void test_alpha_glass_json_exact_text_for_a_known_glass(void);   /* alpha_glass_json.cpp: the glass as the JSON of GET /api/lcd and of lcd.py --quadro (display/LcdGlassJson.h) */
+void test_alpha_glass_json_of_a_fake_lcd_after_a_glyph_and_a_blit(void);
+void test_alpha_glass_json_cap_of_length_plus_one_fits_and_length_does_not(void);
+void test_alpha_glass_json_null_buffer_and_zero_cap_write_nothing(void);
+void test_alpha_glass_json_age_is_unsigned_across_the_wrap(void);
+void test_alpha_glass_json_equals_a_reference_at_every_digit_count_and_on_random_glasses(void);
 #include "TelemetryCursor.h"  /* what the telemetry cursor may advance to */
 #include "TelemetryPosition.h" /* the cursor as a write position (A-04) */
 #include <algorithm>
@@ -6552,6 +6570,24 @@ int main(int /*argc*/, char** /*argv*/) {
     RUN_TEST(test_alpha_frame_ap_scrolls_a_value_wider_than_the_screen);
     RUN_TEST(test_alpha_frame_ota_lines);
     RUN_TEST(test_alpha_fake_lcd_leaves_the_glass_the_real_driver_leaves);
+    RUN_TEST(test_alpha_real_driver_shadow_is_the_glass_after_every_operation);
+    RUN_TEST(test_alpha_real_driver_shadow_does_not_move_during_the_bus_writes);
+    RUN_TEST(test_alpha_real_driver_shows_the_previous_frame_until_the_blit);
+    RUN_TEST(test_alpha_glass_reader_gets_what_the_writer_published);
+    RUN_TEST(test_alpha_glass_stopped_writer_gives_busy_the_old_glass_or_the_new_never_a_mix);
+    RUN_TEST(test_alpha_glass_publish_landing_in_the_readers_copy_never_gives_a_mix);
+    RUN_TEST(test_alpha_glass_the_harnesses_see_a_mix_when_there_is_one);
+    RUN_TEST(test_alpha_glass_odd_count_heals_in_one_publish);
+    RUN_TEST(test_alpha_glass_writer_killed_at_any_store_never_leaves_a_torn_frame_visible);
+    RUN_TEST(test_alpha_glass_reader_gives_up_within_its_limit);
+    RUN_TEST(test_alpha_glass_reader_waits_out_a_publish_that_ends_within_its_limit);
+    RUN_TEST(test_alpha_glass_fake_lcd_publishes_at_the_blit_not_at_the_composition);
+    RUN_TEST(test_alpha_glass_json_exact_text_for_a_known_glass);
+    RUN_TEST(test_alpha_glass_json_of_a_fake_lcd_after_a_glyph_and_a_blit);
+    RUN_TEST(test_alpha_glass_json_cap_of_length_plus_one_fits_and_length_does_not);
+    RUN_TEST(test_alpha_glass_json_null_buffer_and_zero_cap_write_nothing);
+    RUN_TEST(test_alpha_glass_json_age_is_unsigned_across_the_wrap);
+    RUN_TEST(test_alpha_glass_json_equals_a_reference_at_every_digit_count_and_on_random_glasses);
     RUN_TEST(test_tel_cursor_stops_at_what_the_payload_kept);
     RUN_TEST(test_tel_cursor_nothing_delivered_keeps_the_floor);
     RUN_TEST(test_tel_cursor_takes_the_newest_and_clamps_the_future);

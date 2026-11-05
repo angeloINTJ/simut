@@ -788,6 +788,14 @@ private:
 	char _apSsidLcd[40] = {0};
 	char _apPskLcd[16] = {0};
 	char _apAddrLcd[28] = {0};
+public:
+	/* The alpha's glass for Core 0: what the 16x2 shows as of the last blit, one consistent copy of the driver's shadow (display/LcdGlass.h),
+	 * for GET /api/lcd (handleApiLcd( ), WebManager_History.cpp). 1 copied, 0 copied but no frame has been blitted yet, -1 Core 1 kept the shadow under update for the whole
+	 * wait of 2 ms and the caller answers "busy" and not "none": the three numbers of uaEstado( ), the Angulo's. Neither side takes a lock
+	 * (a lock Core 1 held when a flash write froze it would never be released). It is declared inside this block, as a public member, so
+	 * that tools/feature_sprawl.json keeps its one SIMUT_DISPLAY_ALPHA site in this file. */
+	int8_t lcdGlass(LcdGlass &out) const;
+private:
 #endif
 	bool _isDirty;
 	mutex_t _stateMutex;

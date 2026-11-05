@@ -46,6 +46,8 @@
  "SIMUT_DISPLAY_ALPHA": {
   "DisplayManager.cpp": 8,
   "DisplayManager.h": 1,
+  "WebManager.h": 1,
+  "WebManager_History.cpp": 1,
   "display/DisplayDriver.h": 1
  },
  "SIMUT_DISPLAY_TFT": {

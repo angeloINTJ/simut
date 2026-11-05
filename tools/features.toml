@@ -66,6 +66,7 @@ filesystem_size = "1020k"
 # O default do simut_config.h ja e TFT=1, ALPHA=0, entao nada e emitido.
 flags   = []
 exclude = ["DisplayManager_Alpha.cpp"]   # a implementacao alpha nao entra
+web_omit = "lcd"                          # a pagina recorta o bloco @IF lcd: a visao ao vivo do LCD do alpha (GET /api/lcd) so existe com o LCD
 
 [display.alpha_paralelo]
 flags   = ["-DSIMUT_DISPLAY_TFT=0", "-DSIMUT_DISPLAY_ALPHA=1", "-DHD44780_MODE_PARALLEL=1"]
@@ -92,7 +93,7 @@ exclude = [
 ]
 include             = ["DisplayManager_None.cpp"]
 ignore_display_libs = true
-web_omit            = "tft"
+web_omit            = "tft, lcd"   # sem painel e sem LCD: a pagina recorta os dois blocos
 
 [libs]
 display = ["Adafruit ILI9341", "Adafruit GFX Library", "XPT2046_Touchscreen"]
@@ -274,6 +275,10 @@ web_omit = "ui_angulo"
 # outros quatro, e o emaranhamento desceu 1 (369 -> 368: SIMUT_UI_ANGULO em ui/UiDriverTouch.h, de 1 para 0). A marca que o mantenedor confirma no merge e a de 368, e nao a de 369. Ela fica 14 acima da da
 # main (354 em origin/main 43b275d8, medida em 2026-10-30; por macro: SIMUT_UI_ANGULO +4, SIMUT_UI_PACK_TEXTS +4, SIMUT_NET_WIFI +3, SIMUT_UI_CUSTOM_THEMES +2, SIMUT_NET_LAN +2, SIMUT_DISPLAY_TFT -1). Os
 # desvios registrados acima (D2, D7 e o `if constexpr`) seguem contados: a A5 tirou da conta so um cabecalho de selecao.
+# O WebManager.h e o WebManager_History.cpp ganharam em 2026-11-04 (a visao ao vivo do LCD do alpha, passo 3) um `#if SIMUT_DISPLAY_ALPHA` cada, e o emaranhamento subiu 2 (368 -> 370: SIMUT_DISPLAY_ALPHA, de 0
+# para 1 em cada um dos dois arquivos), um desvio registrado como o do D7: o cabecalho declara o handler e o registrador so com o LCD e, nas outras imagens, define o registrador VAZIO, inline na classe, de modo que a
+# chamada incondicional do WebManager_Core.cpp nao deixa nada nelas (o que o UiDriverWeb.h faz com a rota do driver de UI; um stub fora de linha, como o do registerScreenRoutes( ), deixaria uma chamada e uma funcao em
+# cada imagem sem LCD); o .cpp define handler e registrador sob o mesmo macro, o corte que o arquivo ja faz para o painel (`#if SIMUT_DISPLAY_TFT`). A marca nova e a de 370.
 # O .bin do Angulo cabeado difere do do C8 em 579 bytes de 826736, e o veneer_proof.py (exit 0) os prova so da ordem dos veneers do ligador e dos operandos dos desvios que os chamam.
 # A DisplayManager_Calibration.cpp entrou em 2026-10-24 (S10c, D3): as duas entradas de modo das telas de calibracao, showTouchCalibration( ) e
 # showSettingsDisplayOffset( ), que o core0Yield( ), o handleResetTouchCal e a CLI chamam, so guardavam do original dois restos: as sete memorias de
@@ -640,9 +645,11 @@ ota_trust_bench     = true   # imagem de soak no rig, como a pico_w_test
 
 # pico_w_alpha — LCD HD44780 16x2 no lugar do TFT. Economiza ~30 KB tirando a UI grafica.
 #   Mantem BluetoothManager.cpp + SerialBT (console BT para o modo AP). O painel de toque
-#   nao existe: o #if SIMUT_DISPLAY_TFT do WebManager_Core.cpp nao registra
-#   /api/screen_stream, /touch, /screenshot nem /keypad, e custom_web_omit=tft recorta o
-#   bloco @IF tft da pagina.
+#   nao existe: o registerScreenRoutes( ) do WebManager_History.cpp (um stub vazio sem
+#   SIMUT_DISPLAY_TFT) nao registra as sete rotas do painel (/api/screen_stream, /touch,
+#   /screenshot, /keypad ...), e custom_web_omit=tft recorta o bloco @IF tft da pagina. O LCD
+#   tem a rota dele, GET /api/lcd (registerLcdRoutes( ), no mesmo arquivo, so com
+#   SIMUT_DISPLAY_ALPHA), e o recurso web `lcd`, que as outras imagens cortam.
 [profiles.pico_w_alpha]
 display       = "alpha_paralelo"
 net           = "cyw43"

@@ -17,6 +17,7 @@
 #pragma once
 #include <Arduino.h>
 #include "DisplayConfig.h"  /* → simut_config.h for pin defaults */
+#include "LcdGlass.h"       /* the shadow of what the glass shows, for the other core */
 
 /* Alpha build: GFX library excluded. Forward-declare only for TFT build. */
 #if SIMUT_DISPLAY_TFT
@@ -47,6 +48,10 @@ struct Hd44780_16x2 {
 	/* Character framebuffer — 2 lines x 16 columns */
 	char    line[2][17];
 	uint8_t cursorCol = 0, cursorRow = 0;
+
+	/* What the glass shows, as of the last blit( ) and the last createChar( ): written here, by the core that draws,
+	 * after the bus writes; read by the other core (readGlass( ), display/LcdGlass.h). The controller cannot be read. */
+	LcdGlassShadow glass;
 
 	/* Screen dimensions (characters, for GFX compatibility) */
 	static constexpr int16_t width  = 16;
@@ -92,6 +97,7 @@ struct Hd44780_16x2 {
 #if HD44780_MODE_PARALLEL
 		_initLcd( );
 #endif
+		glass.putBlank( );   /* the init ends with the display's clear */
 		initialized = true;
 	}
 
@@ -104,6 +110,7 @@ struct Hd44780_16x2 {
 				_writeData(line[row][col]);
 			}
 		}
+		glass.putFrame(line, millis( ));   /* after the bus: the shadow never leads the glass */
 	}
 
 	/* ── Character output ────────────────────────────────────────── */
@@ -133,11 +140,23 @@ struct Hd44780_16x2 {
 	 *  @param bitmap 8-byte pixel pattern (LSB = top row) */
 	void createChar(uint8_t num, const uint8_t* bitmap) {
 		if (!initialized) return;
+		uint8_t glyph[8];   /* what went to the bus, kept for the shadow: the bitmap is read once */
 		_writeCmd(0x40 + (num & 0x07) * 8);
 		for (uint8_t i = 0; i < 8; i++) {
-			_writeData(pgm_read_byte(&bitmap[i]));
+			glyph[i] = pgm_read_byte(&bitmap[i]);
+			_writeData(glyph[i]);
 		}
 		_writeCmd(0x80);  /* back to DDRAM address 0 */
+		glass.putGlyph(num, glyph);
+	}
+
+	/** The other core's view of the glass: one consistent copy of the shadow (LCD_GLASS_OK, LCD_GLASS_NONE or LCD_GLASS_BUSY). */
+	int8_t readGlass(LcdGlass &out) const {
+		struct Micros {
+			uint32_t now( ) { return micros( ); }
+			void pause(uint32_t us) { delayMicroseconds(us); }
+		} clock;
+		return glass.read(out, clock);
 	}
 
 	size_t print(const char* s) {

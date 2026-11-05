@@ -76,6 +76,52 @@ pause waited out the full park timeout.
      then feeding inside that bound is safe — that pairing is what
      `tools/arduino_pico_overrides` restores for BearSSL.
 
+## The alpha's glass: Core 1 publishes, Core 0 reads
+
+The 16x2 cannot be read back, so the driver keeps a shadow of what it wrote (`src/display/LcdGlass.h`) and
+`DisplayManager::lcdGlass( )` gives Core 0 one consistent copy of it (the handler of `GET /api/lcd`,
+`WebManager::handleApiLcd( )`, calls it once per request). It keeps the rules above:
+
+- **No lock, no heap, no log on Core 1** (invariants 2 and 3). The shadow is a seqlock, the pattern of the Ângulo's frame
+  record (`s_seq` and `uaEstado( )` in `ui/angulo/DisplayManager_UiA.cpp`): the writer counts to an odd number, fences,
+  copies, fences again and counts to the next even one; the reader trusts a copy only if it saw the same even number before
+  and after, with a fence on each side of its copy. Both of the writer's fences matter: without the first, the copy can be
+  seen before the odd count. A
+  mutex Core 1 held when Core 0 started a flash write would freeze Core 1 with the mutex held.
+- **After the bus, never before.** `blit( )` and `createChar( )` publish after their bus writes, so the shadow never leads
+  the glass; `print( )`, `clear( )` and `setCursor( )` compose in the framebuffer and publish nothing. The cells and the eight
+  glyphs are one snapshot under one count.
+- **A publish that dies heals in one publish.** A Core 1 relaunched mid-publish (`APP_CORE1_DEAD`, "Core 1 dead >10s") keeps the
+  driver, so the count stays odd. The next publish makes it odd again in a single store (a blind `+ 1`, as the Ângulo's
+  writer does, turns the parity around for good), and drops the frame flag: the reader says "no frame" until the next
+  `blit( )` rewrites all thirty-two cells.
+- **The reader is bounded.** It waits for an odd count at most 2 ms (a 20 us step, the Ângulo's) and returns 1 copied, 0 no
+  frame yet, -1 busy: the numbers of `uaEstado( )`. The caller answers "busy", not "none", for -1.
+- **The handler.** `GET /api/lcd` (`WebManager::handleApiLcd( )`) takes one copy with `lcdGlass( )` and formats it into a 282 B buffer on Core 0's stack (the
+  handler's frame is 448 B in the pico_wire image: five registers pushed and `sub sp, #428`, objdump, 2026-11-04; the callees add theirs, against the ~4 KB of
+  invariant 5): no allocation of its own (`send( )` builds String headers, as in every handler), no SPI, no pause of Core 1, no park. A busy shadow (-1) and no
+  frame yet (0) are 503 with `Retry-After: 1`.
+- **How it is held** (2026-11-04). `alpha_glass.cpp` and `alpha_driver_twin.cpp` in `test/test_validators/` stop the writer
+  after each of its stores and land a whole publish at each byte of the reader's copy (a host thread would find a tear only
+  by chance), and the same harnesses report a mix on a writer without the odd count and on two readers that skip one look at
+  the count. What a host cannot see is the fence: it is `dmb ish`, read from the disassembly of the pico_wire image, and the source check now
+  holds the order (`tools/check_glass_seqlock.py`, in the `gates` job): in the text of `LcdGlass.h` the writer's odd store, a fence, the data, a
+  fence and the even store, and the reader's first look at the count, a fence, the copy, a fence and the second look, each fence a statement of its
+  own and not in a comment or under an `if`. All 408 native cases passed with any one of the four fences taken out (the review of step 1,
+  2026-11-04); the check gives exactly one finding for each of those, and for a store or a look moved across a fence. The disassembly showed `dmb ish`
+  on the M0+ (the pico_wire image) and on the M33 (a copy of the writer compiled for the RP2350, since the alpha images are RP2040 builds), GCC 14.3,
+  the review of 2026-11-04.
+- **What it costs.** The publish of a `blit( )` is 33 instructions after the bus loops (24 in `blit( )`, 9 in `open( )`), two
+  16-byte `memcpy` calls and a `millis( )` (pico_wire image; counted, not timed on a board), against at least 3.5 ms of bus
+  time for the blit (34 bytes, two nibbles each, 52 us of delays per nibble). The shadow is 216 B of RAM: 108 B of static RAM in
+  the driver's `_lcd`, and 108 B of heap in `DisplayManager::_driver`, an alpha driver nothing uses that is a member of the
+  class (the review of 2026-11-04 read it in the pico_wire image: `.bss` +108 B, and the size AppManager passes to operator new
+  2,600 to 2,708 B). It is 216 B of flash in `pico_w_alpha` and `pico_wire`; the reader is 160 B in the object, and until `GET /api/lcd` called it the linker dropped it.
+  With the handler (2026-11-04, clean builds at 975f4aaf and 24681803, not measured on a board) the reader, the JSON formatter and the handler are in both images:
+  `pico_w_alpha` 976,484 to 977,348 B of flash used (+864 B; its `.bin` stays 990,380 B, the linker's fill takes the growth) and `pico_wire` 592,636 to 593,724 B
+  (+1,088 B; `.bin` 604,672 to 605,760 B), static RAM +0 B in both: the longest text, 282 B, is on Core 0's stack for the length of one request. The other nine
+  images are byte for byte what they were (sha256 of `firmware.bin`).
+
 ## Reading the new metrics
 
 `show metrics` → `[STORAGE]`:

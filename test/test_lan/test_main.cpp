@@ -275,5 +275,6 @@ int main(int, char**) {
     RUN_TEST(test_alpha_frame_wired_link_glyph_is_the_cable_or_the_x);
     RUN_TEST(test_alpha_frame_wired_offline_says_rede);
     RUN_TEST(test_alpha_frame_wired_has_no_setup_ap_screen);
+    RUN_TEST(test_alpha_frame_wired_glass_shadow_follows_the_cable_glyph);
     return UNITY_END( );
 }

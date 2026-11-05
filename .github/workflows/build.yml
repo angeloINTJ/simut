@@ -437,6 +437,45 @@ jobs:
       - name: Alpha LCD manual figures, the controls of the check (test_manual_lcd.py)
         run: python3 tools/lcd_alpha/test_manual_lcd.py
 
+      # The fences of the alpha glass's seqlock (src/display/LcdGlass.h, docs/CONCURRENCY.md; 2026-11-04). A fence is a no-op on the host, so a
+      # single-threaded test cannot see one: the review of step 1 took each of the four out in turn and all 408 native cases still passed. This
+      # reads the order from the text of the header (the writer: the odd store, a fence, the data, a fence, the even store; the reader: the count,
+      # a fence, the copy, a fence, the count again). Its --selftest applies 23 mutants to a copy of the header (each fence out, a store or a look
+      # moved across one, a fence in a comment or under an if, the second look out, the fence weakened, ...), each of which must give exactly one
+      # finding, then runs the command line as a process. Standard library only.
+      - name: Alpha glass seqlock fences (the order in LcdGlass.h, its mutants)
+        run: |
+          python3 tools/check_glass_seqlock.py --selftest
+          python3 tools/check_glass_seqlock.py
+
+      # GET /api/lcd, the alpha's glass for the web (2026-11-04). The handler lives in WebManager, which needs the arduino-pico WebServer, so no native suite runs it: test_api_lcd.py cuts
+      # WebManager::handleApiLcd( ) out of WebManager_History.cpp, verbatim, and compiles it with g++ against a server that records every header and every send( ), a requirePerm that
+      # answers as the real one and a display with ONE method, lcdGlass( ) (a handler that paused rendering, parked Core 1 or touched the SPI would not compile). Eight cases (ok, the
+      # clock's wrap, busy, none, no display, the formatter's overflow, denied, denied with no display: the permission is the first line) and eight mutants of the function, each of which must fail exactly its cases.
+      # g++ is the runner's own, as for the LCD steps above; standard library only.
+      - name: Alpha LCD web route on the host (test_api_lcd.py)
+        run: python3 tools/lcd_alpha/test_api_lcd.py
+
+      # The page's renderer for the alpha's live LCD view (2026-11-04). WebUI.h carries the glass's font, a block that fonte_web.py generates from ROM_A00 of rom_hd44780.py (the table lcd.py draws with by default, the print virtual's own), and a pure
+      # renderer, both in the JS of the dashboard's `@IF lcd` block. test_lcd_js.py cuts them out by their markers and runs them under node, as written and as the build's minifier leaves them, and compares 64
+      # frames byte for byte with lcd.desenhar( ) and its default table, so the page is the print virtual: the radio's 17 and the cable's 13 samples (host_lcd.py builds them with g++), the link glyph of 28 RSSIs, the 96 font codes, the CGRAM mirror and a fallback; answers
+      # that are not a glass, and a buffer too small, must be refused. The one deliberate difference: a code with no glyph draws every dot unlit, where lcd.py raises. 25 copies of the JS, each broken one way (a colour or
+      # a gap off by one, the bit order, the CGRAM mirror, a font row, a block made from another table, the fallback, the checks of the answer), must each fail a case; fonte_web.py is held on copies of WebUI.h. node ships with the runner, g++ and
+      # Pillow come from the steps above. Standard library and Pillow; 2.5 s here on 2026-11-04.
+      - name: Alpha LCD page renderer under node (test_lcd_js.py)
+        run: python3 tools/lcd_alpha/test_lcd_js.py
+      - name: Alpha LCD page font block is what rom_hd44780.py says (fonte_web.py --check)
+        run: python3 tools/lcd_alpha/fonte_web.py --check
+
+      # The box of the alpha's live LCD view on the dashboard (2026-11-04): the three `@IF lcd` blocks of DASH_PAGE (CSS, markup, JS) and the loop in them. test_lcd_box.py reads the source for what node cannot see
+      # (the canvas is the size of lcdSize( ), every id the JS asks for is in the markup, the state words are a live region and the frame's age is not, the live button holds two labels so that applyLang( ) keeps the right one, no literal
+      # colour and the 4 px grid in the CSS, every word in both packs, /api/lcd named nowhere else) and runs the loop under node, as written and minified, on a fake world: a virtual clock, a scripted fetchSafe( ) and
+      # a fake DOM. Thirteen cases (a request every 250 ms and one at a time, a slow request followed at once, a hidden tab asks nothing, 503 and its Retry-After, 401 and 403 stop, three failures in a row stop,
+      # stale past 2000 ms, Capture is one GET, Stop, the seq after a failure, the loading overlay and the smoothing, only a frame resets the count of failures, a body that never arrives) and 16 copies of the JS, each broken one way, that must each fail a case. The numbers in the
+      # cases are the bench's: 240 of 240 answers at 4 Hz, 13 ms the median, a new frame every 500 ms. node ships with the runner, and Pillow (lcd.tamanho( ), the canvas size) comes from the step before the Angulo's host tests: without it the test exits 2, not 1. 5 s here on 2026-11-04.
+      - name: Alpha LCD live view box and loop (test_lcd_box.py)
+        run: python3 tools/lcd_alpha/test_lcd_box.py
+
       # patch.sh runs again and again: after every override that merges, and in the
       # firmware jobs on a warm ~/.platformio cache that already carries them (see
       # "Apply framework overrides" below). Each step skips itself when a grep finds

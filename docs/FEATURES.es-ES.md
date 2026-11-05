@@ -56,7 +56,7 @@ Todo lo que hace el firmware, en detalle. El [README](../README.es-ES.md) tiene 
 - **Versión en la página de inicio de sesión** — la versión del firmware aparece bajo el nombre antes de iniciar sesión.
 - **Búsqueda de redes Wi-Fi** — elige la red de una lista, incluso desde dentro del punto de acceso de configuración.
 - **Gráficos de histórico y exportación CSV en el navegador** — la página descarga los archivos binarios crudos de cada día y ella misma los decodifica, agrupa en cubetas (mín/máx/media) y exporta. La hora reciente, aún sin sellar, viene de `/api/history/open`. El renderizador de gráficos va embebido — sin CDN.
-- **API HTTP** — 62 rutas. Cada una está protegida por un permiso o es pública por diseño, y el CI lo comprueba.
+- **API HTTP** — 63 rutas. Cada una está protegida por un permiso o es pública por diseño, y el CI lo comprueba.
 
 ## Telemetría e integraciones
 - **Cuatro transportes** — HTTP, HTTPS, MQTT y MQTTS:

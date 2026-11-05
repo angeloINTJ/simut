@@ -50,7 +50,7 @@ Los tres comparten el mismo núcleo:
 | **Release actual** | **v2.13.0** (31/10/2026); el [changelog](CHANGELOG.md) dice qué cambió cada versión. SIMUT salió de beta con la v2.7.0, sobre mediciones: un soak de 8,18 h sin ningún reinicio y 6 de 6 actualizaciones por el aire sin perder nada. |
 | **Imágenes publicadas** | Cuatro imágenes, cada una en `.uf2` y `.bin`. Para la Pico W: `release` (panel táctil TFT), `alpha` (LCD 16×2 con consola Bluetooth) y `air` (registrador a batería sin pantalla). Para la Pico 2 W (RP2350): `releasetwo`, la release, cuyo `.uf2` lleva su tabla de particiones y cuyo `.bin` arranca a prueba. Junto a ellas van los packs de idioma pt-BR y es-ES y un manifiesto de OTA. Una imagen con otro conjunto de funciones sale del [configurador de build](https://angelointj.github.io/simut/configurador/), y el CI la compila desde `main`, también para la Pico 2 W. |
 | **Madurez** | <ul><li>`release`: **estable**.</li><li>`alpha`: publicado y probado en el banco, con su LCD 16×2 incluido desde el 26/09/2026.</li><li>`air`: **experimental**. Su único soak largo falló: un sueño en el ciclo 119 nunca despertó (F28). Hoy lo mitiga un watchdog a lo largo del despertar; la causa raíz no está confirmada.</li><li>`releasetwo`: **nueva** en la v2.11.0, probada en el banco en una Pico 2 W (RP2350 A2). Se actualiza por el aire en el otro slot, a prueba, y vuelve sola cuando la actualización no se confirma.</li></ul> |
-| **Pruebas** | Cada pull request ejecuta 824 casos de test en el host en 11 suites, 60 s de fuzzing y análisis estático, y compila las once imágenes de firmware con la caché fría. El comportamiento en hardware real se verifica en un banco — ver [Verificación en hardware](docs/VERIFICATION.es-ES.md). |
+| **Pruebas** | Cada pull request ejecuta 843 casos de test en el host en 11 suites, 60 s de fuzzing y análisis estático, y compila las once imágenes de firmware con la caché fría. El comportamiento en hardware real se verifica en un banco — ver [Verificación en hardware](docs/VERIFICATION.es-ES.md). |
 
 **Limitaciones conocidas.** Cada una está documentada donde aplica.
 - **Actualización.** En la Pico W, la actualización por el aire reformatea el sistema de archivos:
@@ -148,7 +148,7 @@ Consulta la **[guía de cableado](docs/WIRING.md)** para el pinout completo y lo
 - **Panel táctil** (`release`) — panel principal, gráficos del histórico y calendario, e identidad en el panel: la cuenta y luego su PIN. La release de la Pico 2 W lo dibuja en el aspecto Ángulo; la de la Pico W conserva el panel original. La v2.12.0 y las anteriores dibujaban el panel original en la Pico 2 W.
 - **LCD de caracteres** (`alpha`) — cada slot por turno, el punto de acceso de configuración y una consola Bluetooth.
 - **Interfaz web** — 11 páginas, el espejo del panel en vivo, gráficos del histórico y exportación CSV en el navegador.
-- **API HTTP** — 62 rutas. Cada una está protegida por un permiso o es pública por diseño, y el CI lo comprueba. Las imágenes con el panel Ángulo añaden `GET /api/ui`, protegida.
+- **API HTTP** — 63 rutas. Cada una está protegida por un permiso o es pública por diseño, y el CI lo comprueba. Las imágenes con el panel Ángulo añaden `GET /api/ui`, protegida.
 - **Telemetría** — HTTP, HTTPS, MQTT y MQTTS, en lotes por cantidad, y una segunda línea, con confirmación, para las alarmas; Home Assistant, Prometheus y syslog.
 - **Red y hora** — Wi-Fi que se reconecta solo, punto de acceso de configuración abierto a pedido, y NTP con un reloj provisional hasta sincronizar.
 - **Almacenamiento** — el histórico binario V5 (unos 116 días en 1 MB), la configuración con CRC32 y `.bak`, y un log de eventos con 170 códigos de evento.
@@ -293,7 +293,7 @@ La consola serie está disponible por USB (115200 baudios) y, en el alpha y el A
 
 ### API Web
 El dispositivo expone una API REST en `http://<ip-del-dispositivo>/api/`:
-- **62 rutas** — 52 protegidas por un permiso, 10 públicas por diseño, ninguna sin protección, comprobadas por `tools/check_authz.py` en el CI;
+- **63 rutas** — 53 protegidas por un permiso, 10 públicas por diseño, ninguna sin protección, comprobadas por `tools/check_authz.py` en el CI;
 - las imágenes con el panel Ángulo también sirven `GET /api/ui`, protegida por `PERM_SYS_CONFIG` y contada aparte, fuera de las 62;
 - la tabla de rutas está en el [manual de usuario](docs/MANUAL.md);
 - [docs/AUTHORIZATION.md](docs/AUTHORIZATION.md) asocia cada ruta con su permiso;
@@ -304,10 +304,10 @@ El dispositivo expone una API REST en `http://<ip-del-dispositivo>/api/`:
 ### Tests en el host
 
 ```bash
-pio test -e native             # validadores, cursor de telemetría, etiquetas, parsers, paquetes de idioma, las pantallas Licencia y de actualización, el menú de Ajustes, la verificación de contraseña, la sesión web, las pantallas del LCD de la alpha (411 casos)
+pio test -e native             # validadores, cursor de telemetría, etiquetas, parsers, paquetes de idioma, las pantallas Licencia y de actualización, el menú de Ajustes, la verificación de contraseña, la sesión web, las pantallas del LCD de la alpha y la sombra de su vidrio (429 casos)
 pio test -e native_history_v5  # códec del histórico V5 (62)
 pio test -e native_cli         # parser de la CLI (34)
-pio test -e native_lan         # parser de la CLI, ayuda del paquete, menú de Ajustes y códigos de log en una build cableada (18)
+pio test -e native_lan         # parser de la CLI, ayuda del paquete, menú de Ajustes, códigos de log y las celdas del cable en el LCD de la alpha en una build cableada (19)
 pio test -e native_logpolicy   # persistencia de log por transición, franjas de la autopsia, lectura del táctil (59)
 pio test -e native_alarmqueue  # cola de la telemetría de alarmas (54)
 pio test -e native_network     # máquina de estados de la reconexión Wi-Fi (54)

@@ -242,6 +242,7 @@ FS_PAGES = _resolve_diet()
 # Nas imagens com a feature ele sai inteiro, entao elas saem como eram.
 WEB_FEATURES = {
     "tft": "painel de toque: espelho, captura, temas e teclado do painel",
+    "lcd": "a visao ao vivo do LCD 16x2 do alpha (GET /api/lcd): o bloco da pagina que o mostra; a rota e o bloco so existem nas imagens com o LCD (web_omit de [display.tft] e [display.nenhum])",
     "web_history": "a pagina de historico e eventos (/history) e o link dela no menu",
     "syslog": "a secao Syslog remoto da pagina de configuracao",
     "tel_tls": "a chave de TLS da telemetria e o aviso de certificado",
@@ -268,6 +269,8 @@ WEB_FEATURES = {
 # no bloco @IF do menu; o navMap e uma tabela de permissao, nao uma chamada.
 WEB_FEATURE_ROUTES = {
     "tft": (os.path.join("src", "WebManager_History.cpp"), "registerScreenRoutes"),
+    # O LCD do alpha (2026-11-04): o registrador mora ao lado do registerScreenRoutes( ) e nao dentro dele, que esta conta como as rotas do `tft`.
+    "lcd": (os.path.join("src", "WebManager_History.cpp"), "registerLcdRoutes"),
     "wifi": (os.path.join("src", "WebManager_Core.cpp"), "#if SIMUT_NET_WIFI"),
     "web_history": (os.path.join("src", "WebManager_Core.cpp"), "#if SIMUT_WEB_HISTORY"),
     # Sem bloco na interface: nenhuma pagina as chama, e a conferencia garante
