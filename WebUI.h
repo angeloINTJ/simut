@@ -1056,7 +1056,7 @@ static const char DASH_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
            as the touch panel's mirror does: nobody sees the frames, and the device would answer them instead of someone who does. */
         const LCD_PERIOD_MS = 250, LCD_HIDDEN_MS = 1000, LCD_BUSY_MS = 1500, LCD_RETRY_MS = 1000, LCD_STALE_MS = 2000, LCD_TIMEOUT_MS = 5000;
         /* Three failures in a row stop the view. One is a lost packet or a request that met a flash write; two can still be a device that just restarted or a Wi-Fi
-           hand-over; three, about 3 s of asking at 1 s apart, is not going to mend by itself (it is off, the cable is out, an update removed the route), and an
+           hand-over; three, about 2 s of asking at 1 s apart (requests at 0, 1.0 and 2.0 s, the test's own case), is not going to mend by itself (it is off, the cable is out, an update removed the route), and an
            unattended tab must not keep a single-threaded server busy for nothing: the view stops and says so. A 401 or a 403 will not mend either: it stops at once. */
         const LCD_FAILS_MAX = 3;
         /* lcdReq: 0 nothing out, 1 a Live view request, 2 a Capture request. */
