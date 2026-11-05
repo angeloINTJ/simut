@@ -8030,30 +8030,6 @@ C. Lucide
                   lucide-static 0.468.0 package ships it.
 
 /* @ENDIF */
-/* @IF lcd */
-================================================================================
-Live LCD view: font
-================================================================================
-The images with the 16x2 LCD (pico_w_alpha, pico_wire) draw its characters on
-the dashboard with the font below, besides the software listed above. The
-licence text is reproduced in full in THIRD_PARTY_NOTICES.md and the LICENSES
-directory of the source repository: https://github.com/angeloINTJ/simut
-
-================================================================================
-A. X.Org misc-fixed 5x7
-================================================================================
-   Description:   Draws the characters of the 16x2 LCD in the dashboard's live
-                  view.
-   Holder:        None: a public domain font of the X.Org distribution
-                  (font-misc-misc)
-   License:       public domain
-   Images:        pico_w_alpha, pico_wire
-   URL:           https://gitlab.freedesktop.org/xorg/font/misc-misc
-   Note:          Only the dots of the 96 codes 0x20 to 0x7F travel in the page.
-                  The Hitachi HD44780 character ROM table is not in any image:
-                  it stays in tools/ for the manual's figures.
-
-/* @ENDIF */
 ================================================================================
 
 END OF THIRD-PARTY NOTICES</pre>
