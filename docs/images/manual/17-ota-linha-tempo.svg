@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 380" role="img" class="dg">
+<rect class="dg-caixa-ok" x="24.5" y="60.5" width="15" height="31" rx="0"/>
+<rect class="dg-caixa-ok" x="24.5" y="32.5" width="15" height="15" rx="6"/>
+<text class="dg-n dg-b" x="32" y="44" text-anchor="middle">1</text>
+<rect class="dg-caixa-aviso" x="40.5" y="60.5" width="139" height="31" rx="0"/>
+<rect class="dg-caixa-aviso" x="100.5" y="32.5" width="15" height="15" rx="6"/>
+<text class="dg-n dg-b" x="108" y="44" text-anchor="middle">2</text>
+<text class="dg-n" x="108" y="80" text-anchor="middle">35 a 36 s</text>
+<rect class="dg-caixa-perigo" x="180.5" y="60.5" width="99" height="31" rx="0"/>
+<rect class="dg-caixa-perigo" x="220.5" y="32.5" width="15" height="15" rx="6"/>
+<text class="dg-n dg-b" x="228" y="44" text-anchor="middle">3</text>
+<text class="dg-n" x="228" y="80" text-anchor="middle">cerca de 25 s</text>
+<rect class="dg-caixa-ok" x="280.5" y="60.5" width="99" height="31" rx="0"/>
+<rect class="dg-caixa-ok" x="320.5" y="32.5" width="15" height="15" rx="6"/>
+<text class="dg-n dg-b" x="328" y="44" text-anchor="middle">4</text>
+<text class="dg-n" x="328" y="80" text-anchor="middle">cerca de 25 s</text>
+<polyline class="dg-fio-fino" points="388,96 388,104 404,104 404,96"/>
+<text class="dg-n" x="416" y="108">interface web de volta, 52 a 56 s depois da</text>
+<text class="dg-n" x="416" y="124">aplicação</text>
+<text class="dg-t dg-b" x="16" y="132">o que um corte de energia custa em cada etapa</text>
+<rect class="dg-caixa-ok" x="16.5" y="148.5" width="15" height="15" rx="6"/>
+<text class="dg-n dg-b" x="24" y="160" text-anchor="middle">1</text>
+<text class="dg-t" x="44" y="160"><tspan class="dg-b">backup .bkp baixado</tspan>, segundos</text>
+<text class="dg-n" x="44" y="176">um corte aqui não muda nada: o firmware e a configuração ficam</text>
+<rect class="dg-caixa-aviso" x="16.5" y="196.5" width="15" height="15" rx="6"/>
+<text class="dg-n dg-b" x="24" y="208" text-anchor="middle">2</text>
+<text class="dg-t" x="44" y="208"><tspan class="dg-b">envio e conferência da imagem</tspan>, 35 a 36 s</text>
+<text class="dg-n" x="44" y="224">sistema de arquivos já sobrescrito</text>
+<text class="dg-n" x="44" y="240">um corte perde os arquivos, e a configuração fica</text>
+<rect class="dg-caixa-perigo" x="16.5" y="260.5" width="15" height="15" rx="6"/>
+<text class="dg-n dg-b" x="24" y="272" text-anchor="middle">3</text>
+<text class="dg-t" x="44" y="272"><tspan class="dg-b">aplicação</tspan>, cerca de 25 s</text>
+<text class="dg-n" x="44" y="288">única janela em que um corte de energia deixa o aparelho sem firmware: exige BOOTSEL e o cabo USB</text>
+<rect class="dg-caixa-ok" x="16.5" y="308.5" width="15" height="15" rx="6"/>
+<text class="dg-n dg-b" x="24" y="320" text-anchor="middle">4</text>
+<text class="dg-t" x="44" y="320"><tspan class="dg-b">boot da imagem nova</tspan>, cerca de 25 s</text>
+<text class="dg-n" x="44" y="336">um corte aqui não muda nada: a imagem nova já está gravada</text>
+<text class="dg-n dg-c2" x="16" y="360">A figura é do Pico W. No Pico 2 W a imagem vai para o outro slot e o sistema de arquivos não é tocado.</text>
+</svg>

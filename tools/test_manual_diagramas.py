@@ -78,6 +78,9 @@ APP_CORE = 'src/AppManager_Core.cpp'
 LOGCODES = 'tools/logcodes.tsv'
 LOGPOLICY_H = 'src/LogPolicy.h'
 LOGPOLICY_CPP = 'src/LogPolicy.cpp'
+WEBUI = 'WebUI.h'
+OTA_STAGING = 'src/ota/staging.cpp'
+OTA_APPLIER = 'src/ota/applier.cpp'
 BOOT = 'src/AppManager_Boot.cpp'
 
 
@@ -335,6 +338,15 @@ def main():
         confere(all(f'**{correcao["eventos"][chave][1]}** ({correcao["eventos"][chave][0]})' in cap10 for chave in ('provisorio', 'corrigindo', 'corrigidos', 'caches')) and f'Se a diferença passa de {correcao["limiar"]} s' in cap10,
                 f'chapter 10 does not call the events as the log code table does: {correcao["eventos"]}, threshold {correcao["limiar"]} s',
                 'the time correction\'s events (524, 408, 409, 410) are named in chapter 10 as tools/logcodes.tsv names them, and its threshold is the code\'s 5 s')
+        # the update timeline's measured times (constants of the tool) and the apply's "cerca de 25 s", against chapter 17
+        cap17 = (m.CAPITULOS / 'cap17-atualizacao-backup.md').read_text(encoding='utf-8')
+        virgula = lambda x: f'{x:.1f}'.replace('.', ',')
+        ota = m.Numeros(fonte).ota_linha_do_tempo()
+        confere(f'| Envio e conferência da imagem | {virgula(m.ENVIO_MEDIDO_S[0])} a {virgula(m.ENVIO_MEDIDO_S[1])} s ({m.MEDIDO_EM}, 6 atualizações) |' in cap17
+                and f'| Da aplicação até o aparelho voltar | {m.VOLTA_MEDIDA_S[0]} a {m.VOLTA_MEDIDA_S[1]} s ({m.MEDIDO_EM}, 6 de 6 atualizações bem-sucedidas) |' in cap17
+                and f'Aplicação, os cerca de {ota["aplicacao"]} s em que a imagem é copiada' in cap17,
+                f'chapter 17 does not say the times of the figure: send {m.ENVIO_MEDIDO_S}, back {m.VOLTA_MEDIDA_S}, apply {ota["aplicacao"]} s',
+                'the update timeline\'s times (the measured send and the measured return, with their version and date, and the apply\'s "cerca de 25 s" read from the web page) are the ones chapter 17 gives')
 
         # ---- the builder's guards --------------------------------------------------------------------------------------------------------------------------
         s = m.Svg('99-teste', 100)
@@ -548,6 +560,8 @@ def main():
                 ('the heartbeat of the log policy 1 h -> 2 h', [(LOGPOLICY_H, '#define LOGPOL_HEARTBEAT_MS 3600000UL', '#define LOGPOL_HEARTBEAT_MS 7200000UL', 1)], {'16-transicao.svg'}),
                 ('the cadence of the suppressed accounting 1 h -> 2 h', [(LOGPOLICY_H, '#define LOGPOL_REPORT_MS 3600000UL', '#define LOGPOL_REPORT_MS 7200000UL', 1)], {'16-transicao.svg'}),
                 ('the name of the accounting event 5 in the log code table', [(LOGCODES, 'Routine log records suppressed\tRegistros de rotina suprimidos\t', 'Routine log records suppressed\tRegistros suprimidos\t', 1)], {'16-transicao.svg'}),
+                ('the web page\'s estimate of the apply 25 s -> 30 s', [(WEBUI, 'Apply + reboot: ~25 s', 'Apply + reboot: ~30 s', 1)], {'17-ota-linha-tempo.svg'}),
+                ('the web page\'s estimate of the boot 25 s -> 30 s', [(WEBUI, 'Full boot: ~25 s', 'Full boot: ~30 s', 1)], {'17-ota-linha-tempo.svg'}),
                 ('the BME280 probe pair (4, 5) -> (6, 7)', [(BME_SENSOR, 'probe(4, 5, BME280_ADDR_PRIMARY)', 'probe(6, 7, BME280_ADDR_PRIMARY)', 1)], {'02-bmx280.svg'}),
                 ('the BME280 addresses 0x76/0x77 -> 0x75/0x78 in the driver, code and comments', [(BME_DRIVER, '0x76', '0x75', None), (BME_DRIVER, '0x77', '0x78', None)], {'02-bmx280.svg'}),
             ]
@@ -635,6 +649,8 @@ def main():
             ('the first failure of a family is no longer written', [(LOGPOLICY_CPP, ' gf.faulty = true;\n gf.lastPersistMs = nowMs;\n return true;', ' gf.faulty = true;\n gf.lastPersistMs = nowMs;\n return false;', 1)], 'first failure', '16-transicao.svg'),
             ('a family that keeps failing is no longer held to one record an hour', [(LOGPOLICY_CPP, 'if (elapsed(nowMs, gf.lastPersistMs, LOGPOL_HEARTBEAT_MS)) {', 'if (true) {', 1)], 'an hour', '16-transicao.svg'),
             ('the telemetry failure is no longer a fault of its family', [(LOGPOLICY_CPP, 'LOGPOL_RULE(SYS_TEL_FAIL,             LOGGRP_TEL,  1),', 'LOGPOL_RULE(SYS_TEL_FAIL,             LOGGRP_TEL,  0),', 1)], 'one family', '16-transicao.svg'),
+            ('the stage no longer writes the staging area', [(OTA_STAGING, 'uint32_t flash_offs = OTA_STAGING_OFFSET + offset_in_staging;', 'uint32_t flash_offs = OTA_APP_OFFSET + offset_in_staging;', None)], 'staging area', '17-ota-linha-tempo.svg'),
+            ('the applier no longer rewrites the program from the start of the flash', [(OTA_APPLIER, 'flash_range_program(i * OTA_FLASH_SECTOR_SIZE,', 'flash_range_program(OTA_STAGING_OFFSET + i * OTA_FLASH_SECTOR_SIZE,', 1)], 'program', '17-ota-linha-tempo.svg'),
             ('the discovery configs are no longer published retained', [(TELEMETRY, 'ok = _mqttClient.publish(topic, payload, true);', 'ok = _mqttClient.publish(topic, payload, false);', 1)],
              'retained', '23-fluxo.svg'),
             ('the online message is no longer published retained', [(TELEMETRY, 'onlinePayload.c_str( ), true);', 'onlinePayload.c_str( ), false);', 1)], 'retained', '23-fluxo.svg'),

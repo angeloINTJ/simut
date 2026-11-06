@@ -83,6 +83,9 @@ APP_CORE = 'src/AppManager_Core.cpp'
 LOGCODES = 'tools/logcodes.tsv'
 LOGPOLICY_H = 'src/LogPolicy.h'
 LOGPOLICY_CPP = 'src/LogPolicy.cpp'
+WEBUI = 'WebUI.h'
+OTA_STAGING = 'src/ota/staging.cpp'
+OTA_APPLIER = 'src/ota/applier.cpp'
 LOG_MANAGER = 'src/LogManager.cpp'
 NET_LINK = 'src/net/NetLink.h'
 
@@ -149,6 +152,10 @@ FIGURAS = (
            'três horas da família Telemetria no log de eventos: o console vê todos os eventos, e a flash só as transições (o primeiro envio depois do boot, a primeira falha, a primeira volta) e um registro por hora, '
            'com a contagem dos suprimidos a cada hora; o que a política grava e quando vem de um espelho de src/LogPolicy.cpp, que o teste confere com o código compilado, com a cadência de src/LogPolicy.h e '
            'os nomes dos eventos de tools/logcodes.tsv; o cenário (um envio a cada 10 min e o coletor fora do ar entre os minutos 65 e 95) é o exemplo da figura'),
+    Figura('fig-17-ota-linha-tempo', '17-ota-linha-tempo.svg', 'cap17-atualizacao-backup.md', 'desenho_ota_linha_tempo',
+           'as etapas de uma atualização no Pico W, numa linha em escala (o backup, o envio e a conferência da imagem, a aplicação, o boot da imagem nova), e o que um corte de energia custa em cada uma; '
+           'os tempos do envio e da volta da interface web são os medidos que o capítulo traz (v2.7.0, 22/09/2026), os da aplicação e do boot são as estimativas da janela de confirmação de WebUI.h, e que o envio '
+           'só escreve na área de preparo e que só a aplicação reescreve o programa são trechos de src/ota/staging.cpp e src/ota/applier.cpp que o código tem de manter'),
     Figura('fig-15-caminho', '15-caminho.svg', 'cap15-historico.md', 'desenho_caminho_historico',
            'o caminho de um registro: o bloco aberto na RAM, a cópia em .wip, a selagem no arquivo do dia e a fila de arquivos diários, com o limite de ocupação que apaga o mais antigo; '
            'os registros por bloco vêm de src/HistoryV5.h, o limite de src/StorageManager.cpp e os nomes de src/StorageManager.h e src/HistoryV5.h'),
@@ -334,6 +341,9 @@ HORAS_DESLIGADO, BLOCOS_EXEMPLO = 2, 3
 # The scenario of the log-policy figure: three hours of a device that sends telemetry every 10 minutes, the collector down between minutes 65 and 95. The firmware knows none of it; the figure
 # says it is an example. What the policy does with it is the code's (the mirror below, held to the code by the test).
 DURACAO_H, ENVIOS_CADA_MIN, FORA_DO_AR_MIN = 3, 10, (65, 95)
+# The measured times of an update, chapter 17's table of "Tempos medidos" (cap17-atualizacao-backup.md, the first two rows): the send and the check of the image, 34,9 to 35,9 s, and the return of the
+# web interface after the apply, 52 to 56 s, both on the bench with v2.7.0 on 2026-09-22 (six updates). Measurements, not code: the test checks that the chapter still says them.
+ENVIO_MEDIDO_S, VOLTA_MEDIDA_S, MEDIDO_EM = (34.9, 35.9), (52, 56), 'v2.7.0, 22/09/2026'
 
 IMAGEM_DO_PERFIL = {'release': 'pico_w_release', 'alpha': 'pico_w_alpha', 'air': 'pico_w_air'}
 
@@ -818,6 +828,19 @@ class Numeros:
                                (r'if \(!elapsed\(nowMs, _lastReportMs, LOGPOL_REPORT_MS\)\) return 0;', 'the accounting is reported once an hour')):
             f.exigir(LOGPOLICY_CPP, padrao, f'the figure of the filter draws that {porque}')
         return {'batimento_ms': batimento, 'relatorio_ms': relatorio, 'envio': self.codigo('SYS_TEL_SENT'), 'falha': self.codigo('SYS_TEL_FAIL'), 'resumo': self.codigo('SYS_LOG_SUPPRESSED')}
+
+
+    def ota_linha_do_tempo(self):
+        """What the update timeline draws that the code says: the web page's estimates of the apply and of the boot (WebUI.h, the text of the confirmation: "Apply + reboot: ~25 s", "Full boot: ~25 s"),
+        in seconds. Premises, refused when the code drifts: the stage writes only the staging area, the file system's partition; and the applier rewrites the program from the start of the flash, the
+        one window in which a cut leaves the device without firmware. The measured times are constants of the tool (ENVIO_MEDIDO_S, VOLTA_MEDIDA_S)."""
+        f = self.f
+        aplicacao = int(f.achar(WEBUI, r'Apply \+ reboot: ~(\d+) s').group(1))
+        boot = int(f.achar(WEBUI, r'Full boot: ~(\d+) s').group(1))
+        f.exigir(OTA_STAGING, r'uint32_t flash_offs = OTA_STAGING_OFFSET \+ offset_in_staging;', 'the stage writes only the staging area, the file system\'s partition, which is what the figure of the update draws')
+        f.exigir(OTA_APPLIER, r'flash_range_program\(i \* OTA_FLASH_SECTOR_SIZE,\s+s_applier_buf, OTA_FLASH_SECTOR_SIZE\);',
+                 'the applier rewrites the program from the start of the flash, the one window in which a cut leaves the device without firmware, which is what the figure of the update draws')
+        return {'aplicacao': aplicacao, 'boot': boot}
 
 
 def pino_de(gpio):
@@ -2029,6 +2052,49 @@ def desenho_transicao(num, slug):
     for h in range(DURACAO_H + 1):
         s.linha([(x_de(h * 60), y_eixo), (x_de(h * 60), y_eixo + 8)], 'dg-fio')
         s.texto(x_de(h * 60), y_eixo + 28, 'boot' if h == 0 else f'{h}\u00a0h', 'dg-n', 'middle')
+    return s.render()
+
+
+def desenho_ota_linha_tempo(num, slug):
+    o = num.ota_linha_do_tempo()
+    s = Svg(slug)
+    por_s = 4                                                   # px a second: the send, the apply and the boot are to scale; the backup's "segundos" is a box of its own
+    virgula = lambda x: str(x).replace('.', ',')
+    envio = f'{round(ENVIO_MEDIDO_S[0])} a {round(ENVIO_MEDIDO_S[1])}\u00a0s'
+    volta = f'{VOLTA_MEDIDA_S[0]} a {VOLTA_MEDIDA_S[1]}\u00a0s'
+    estagios = ((1, 'ok', 16, None, [('dg-b', 'backup .bkp baixado'), ('', ', segundos')], ['um corte aqui não muda nada: o firmware e a configuração ficam']),
+                (2, 'aviso', por_s * round(sum(ENVIO_MEDIDO_S) / 2), envio, [('dg-b', 'envio e conferência da imagem'), ('', f', {envio}')],
+                 ['sistema de arquivos já sobrescrito', 'um corte perde os arquivos, e a configuração fica']),
+                (3, 'perigo', por_s * o['aplicacao'], f'cerca de {o["aplicacao"]}\u00a0s', [('dg-b', 'aplicação'), ('', f', cerca de {o["aplicacao"]}\u00a0s')],
+                 ['única janela em que um corte de energia deixa o aparelho sem firmware: exige BOOTSEL e o cabo USB']),
+                (4, 'ok', por_s * o['boot'], f'cerca de {o["boot"]}\u00a0s', [('dg-b', 'boot da imagem nova'), ('', f', cerca de {o["boot"]}\u00a0s')],
+                 ['um corte aqui não muda nada: a imagem nova já está gravada']))
+    # the line, to scale: a box for each stage in the colour of what a cut costs there, its number above and its time inside
+    x, y_l, inicio_aplicacao = 24, 60, None
+    for numero, estado, largura, dentro, _, _ in estagios:
+        if numero == 3:
+            inicio_aplicacao = x
+        s.caixa(x, y_l, largura, 32, f'dg-caixa-{estado}', 0)
+        s.caixa((x + largura // 2) // GRADE * GRADE - 8, 32, 16, 16, f'dg-caixa-{estado}', 6)
+        s.texto((x + largura // 2) // GRADE * GRADE, 44, str(numero), 'dg-n dg-b', 'middle')
+        if dentro and largura >= 96:
+            s.texto((x + largura // 2) // GRADE * GRADE, y_l + 20, dentro, 'dg-n', 'middle')
+        x += largura
+    # the web interface comes back 52 to 56 s after the apply began: a bracket on the same scale, past the end of the boot
+    x1, x2 = inicio_aplicacao + por_s * VOLTA_MEDIDA_S[0], inicio_aplicacao + por_s * VOLTA_MEDIDA_S[1]
+    s.linha([(x1, y_l + 36), (x1, y_l + 44), (x2, y_l + 44), (x2, y_l + 36)], 'dg-fio-fino')
+    rotulo(s, x2 + 12, y_l + 48, quebrar(f'interface web de volta, {volta} depois da aplicação', 716 - (x2 + 12) - 8, 12), 716)
+    # what a cut costs at each stage
+    y = 136
+    s.texto(16, y - 4, 'o que um corte de energia custa em cada etapa', 'dg-t dg-b')
+    y += 12
+    for numero, estado, _, _, titulo, detalhes in estagios:
+        s.caixa(16, y, 16, 16, f'dg-caixa-{estado}', 6)
+        s.texto(24, y + 12, str(numero), 'dg-n dg-b', 'middle')
+        rotulo(s, 44, y + 12, [titulo], 716, 'dg-t')
+        rotulo(s, 44, y + 28, detalhes, 716)
+        y += 16 + 16 * len(detalhes) + 16
+    s.texto(16, y + 4, 'A figura é do Pico W. No Pico 2 W a imagem vai para o outro slot e o sistema de arquivos não é tocado.', 'dg-n dg-c2')
     return s.render()
 
 
