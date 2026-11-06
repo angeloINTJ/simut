@@ -164,6 +164,15 @@ const char* DisplayManager::tr(LangKey key) {
  return DICTIONARY_EN[key];
 }
 
+#if SIMUT_BOOT_TAGS
+/* For `screen boot`'s list (2026-11-06): the English a key draws when no pack is loaded, read from the table and not through tr( ), whose
+ * rotating scratch is the one Core 1 draws from while this runs on Core 0. */
+const char* bootKeyTextEn(int16_t key) {
+ if (key < 0 || key >= (int16_t)TR_KEYS_COUNT) return "";
+ return DICTIONARY_EN[key] ? DICTIONARY_EN[key] : "";
+}
+#endif
+
 #if SIMUT_DISPLAY_TFT
 static_assert(LANG_COUNT == LANG_CHOICE_ROWS,
               "the Idioma screen lists English and one pack: display/LangChoice.h counts those rows");

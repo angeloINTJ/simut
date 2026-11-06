@@ -77,7 +77,10 @@ locally. When one fires, it is usually right:
   recorded as `"bin"`: an image that grows records the new size, and its row in
   the OTA headroom table of `docs/analysis/PLANO_STABLE.md` §3.1, in the same
   change (`--table` checks the two agree; the gate prints the numbers).
-  `pico_w_test_https` is exempt from the OTA ceiling (`ota_exempt`).
+  `pico_w_test_https` (since 2026-10-02) and `pico_w_test` (since 2026-11-06) are
+  exempt from the OTA ceiling (`ota_exempt`): bench images that reach the rig over
+  USB, which `release-ota.yml` does not publish. Exempt means no ceiling and no
+  `"bin"` for them; their flash budget still holds.
 - **Log codes** — a new `LogCode` means editing `tools/logcodes.tsv` and
   running `tools/gen_logcodes.py`, never the generated `.h`.
 - **Language packs** — a new `TRL("…")` literal must be added to the `@TRL`

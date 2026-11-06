@@ -88,12 +88,12 @@ de recebê-la pelo ar: o aparelho a recusa no stage, na validação e no aplicad
 | `pico_w_air` | 1.035.581 | 4.803 |
 | `pico_w_alpha` | 994.717 | 45.667 |
 | `pico2_w_release` | 1.039.681 | 529.087 |
-| `pico_w_test` | 1.038.653 | 1.731 |
 | `pico_w_asserts` | 1.040.125 | 259 |
 | `pico_wire` | 610.273 | 430.111 |
 | `pico_wiretft` | 789.177 | 251.207 |
 | `pico_wiretft_angulo` | 830.161 | 210.223 |
 | `pico2_w_original` | 1.001.793 | 566.975 |
+| `pico_w_test` | isenta | — |
 | `pico_w_test_https` | isenta | — |
 <!-- ota-headroom:end -->
 
@@ -109,10 +109,22 @@ de recebê-la pelo ar: o aparelho a recusa no stage, na validação e no aplicad
   de OTA no painel 3,3 KB. A folga da release cabia três telas dessas, ou seis
   A-04.
 - **A `pico_w_test_https` é isenta** (B6): imagem de bancada, gravada pela USB.
+- **A `pico_w_test` é isenta desde 2026-11-06** (B6; decisão do mantenedor): imagem de bancada, gravada pela USB, que a
+  `release-ota.yml` não publica. Acima do teto o aparelho a recusa no stage, e é só isso que se perde: instalá-la pelo ar. A
+  bancada continua recebendo pelo ar, sobre ela, a candidata de release (`ota_trust_bench`), e o job dela continua conferindo o
+  orçamento de flash. Nenhum procedimento do `AGENTS.md` nem de `tools/` a instala pelo ar (conferido por grep em 2026-11-06).
 - **Histórico da `pico_w_test`:** em 2026-10-28, depois do C1 do sync 6, ela ficou
   101 B acima do teto (`check_flash_budget.py pico_w_test` saía com 1); o #297, que
   serve a página de licença dela pelo LittleFS, tirou-a de lá neste merge (sync 6b,
-  2026-10-28), e a linha da tabela é a medida dele.
+  2026-10-28), e a linha da tabela era a medida dele (desde 2026-11-06 a imagem é isenta: a nota abaixo).
+- **A `pico_w_test` passou do teto em 2026-11-06 e foi isentada.** As tags `screen boot` e `screen clkboot` (o gravador do
+  terminal de boot, `src/display/BootReplay.h`) somaram 2.248 B de `.bin`: sobre a v2.14.0 elas deixavam a folga em 227 B (assinado
+  1.040.157 contra 1.040.384, de 2.475 B), e os textos da web do #324 (+744 B) já a tinham levado a 1.731 B na `main`. Juntos, o
+  `.bin` assinado é de 1.040.901 B, 517 B acima do teto. O que sobra à imagem é o slot do programa: o `.bin` de 1.040.660 B está a
+  3.820 B dos 1.044.480 B, onde o linker a recusa. As tags só existem na `pico_w_test`: a `pico_w_test_https`, que também tem o console
+  completo e o painel, não as leva, porque depois da #324 ela tinha 1.828 B livres no slot e as tags pedem 2.248 B (o `ld` disse
+  `region FLASH overflowed by 420 bytes`, 2026-11-06), e a isenção do teto de OTA não muda o slot. As dez imagens sem as tags, compiladas do zero,
+  têm o mesmo `used` e o mesmo `.bin` da `main`.
 - **A folga da `pico2_w_release` é contra o slot, não contra o teto acima.**
   Desde o passo 4 do [OTA_AB_RP2350.md](OTA_AB_RP2350.md) ela atualiza pelo ar
   no outro slot de uma tabela de partições, e o teto dela é esse slot,

@@ -213,7 +213,12 @@ do modo User EXEC continuam disponíveis.**
 
 | Comando | Descrição |
 |---------|-----------|
-| `screen <nome>` | Navega diretamente para uma tela TFT. Nomes: `dash` (dashboard), `set` (configurações), `thm` (temas), `lng` (idioma), `pwd` (senha), `lic` (licença), `sts` (status), `alm` (alarmes), `gra` (gráfico), `touchcal` (calibração touch), `touchsens` (sensibilidade touch), `offset` (offset do display), `clk` (data e hora) |
+| `screen <nome>` | Navega diretamente para uma tela TFT. Nomes: `dash` (dashboard), `set` (configurações), `thm` (temas), `lng` (idioma), `pwd` (senha), `lic` (licença), `sts` (status), `alm` (alarmes), `gra` (gráfico), `touchcal` (calibração touch), `touchsens` (sensibilidade touch), `offset` (offset do display), `clk` (data e hora), `clkboot` (a mesma pergunta como o boot a faz: com a linha **Sem Wi-Fi, os dados levam esta hora.** e o botão PULAR, esteja o Wi-Fi como estiver; só na `pico_w_test`: na `pico_w_test_https` e no `pico_w_air` a resposta é `?screen`) |
+| `screen boot` | Só na `pico_w_test` (console completo e painel TFT, sem o servidor HTTPS: a `pico_w_test_https` não leva as tags e responde `?screen`, como o `pico_w_air`). Lista as chamadas que o último boot fez ao terminal de boot, na ordem: índice, operação, chave (o número e o texto dela em inglês), sufixo e `skip` ou `pct`. Os pontinhos de uma linha (**Aguardando roteador**, **Sincronizando Relógio Global**) são um registro só, o último; a lista guarda até 40 chamadas e diz quantas passaram disso |
+| `screen boot <i>` | Põe o terminal de boot no vidro como estava depois da chamada `i` da lista, pelas mesmas seis funções que o boot chamou. Um índice fora da lista é recusado (`?screen boot`) |
+| `screen boot <i> <pct>` | O mesmo, e depois a barra do gesto de segurar a tela, em `pct` (0 a 100) |
+| `screen boot <i> cancel` | O mesmo, e depois as duas chamadas que o boot faz ao soltar o gesto (**Modo AP Cancelado.**) |
+| `screen boot end` | Devolve o painel (`endBoot( )` e a tela inicial). Também devolvem: um toque, 30 s sem toque e qualquer outra tag. O toque no PULAR do terminal recomposto não aciona o PULAR do boot |
 | `touch sim <X> <Y>` | Injeta toque simulado na tela (X: 0–319, Y: 0–239). Uso: automação de screenshots |
 | `touch hold <X> <Y> [ms]` | Injeta um toque **mantido** (segurar) por `ms` (padrão 3500, faixa 100–15000), depois solta. Aciona os gestos de toque longo — como o segurar de 3 s que fixa o cartão de cima — que o tap de `touch sim` não alcança. Uso: automação de screenshots |
 

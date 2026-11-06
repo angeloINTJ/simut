@@ -288,6 +288,31 @@ assim:
   não há fila. `screen <tag>` continua servindo para saltar de tela — e desde a
   v24 abre a árvore de configuração como admin, porque a lista é filtrada pelos
   bits da sessão e um `screen set` sem sessão mostrava três itens.
+- **O terminal de boot e a pergunta de hora do boot têm tag, só na `pico_w_test`
+  (2026-11-06).** A `pico_w_test_https`, que também tem o console completo e o painel, não as leva: depois da
+  #324 ela tinha 1.828 B livres no slot de 1.044.480 B e as tags pedem 2.248 B (o `ld` disse ``region `FLASH'
+  overflowed by 420 bytes`` em 06/11/2026), e o `BootReplay.h` a deixa de fora pelo servidor HTTPS. O
+  `/api/screenshot` não vê o terminal enquanto o aparelho
+  liga: o `setup()` o desenha e o servidor só atende no `loop()`. Por isso o painel grava, na
+  ordem, cada chamada que o boot faz às seis funções que escrevem o terminal
+  (`src/display/BootReplay.h`; 40 registros, e o boot mais longo que anda reto faz 29, contados em
+  `AppManager_Boot.cpp` em 2026-11-06), e uma tag as repete pelas mesmas seis. `screen boot` lista o
+  gravado: índice, operação, chave (o número do `LangKey` e o texto dela em inglês), sufixo e
+  `skip` ou `pct`. `screen boot <i>` põe o terminal como estava depois da chamada `i`;
+  `screen boot <i> <pct>` desenha, além disso, a barra do gesto (0 a 100); `screen boot <i> cancel`
+  faz o que o boot faz ao soltar o gesto (**Modo AP Cancelado.**); `screen boot end` devolve o
+  painel; `screen clkboot` abre a pergunta de hora como o boot a abre, com a linha em âmbar
+  **Sem Wi-Fi, os dados levam esta hora.** e o PULAR, esteja o Wi-Fi como estiver. A linha
+  **Aguardando roteador** é o primeiro registro `setkey` dessa chave; o `replkey` que vem depois
+  traz os pontinhos (uma sequência de pontinhos da mesma chave é um registro só, o último).
+  Três armadilhas. Enquanto o terminal recomposto está no vidro o painel é o do boot (`isBooting`): não
+  pisca alarme e a tela de atualização espera. A lista é a do **último boot**: um boot que não esperou o roteador não tem essa
+  linha, e um boot em AP não tem `end`, porque nunca chama `endBoot()`. Um toque, 30 s sem toque,
+  qualquer outra tag e `screen boot end` devolvem o painel, e o toque no PULAR do terminal
+  recomposto **não** arma o PULAR do boot (só devolve o painel). E num boot em AP, que nunca
+  termina, o `screen boot <i>` já troca a caixa com o nome da rede e a chave pelo terminal recomposto, e a
+  volta (um toque, 30 s, outra tag, `screen boot end`) termina em `endBoot()` e na tela inicial; o
+  `screen boot end` também a tira, sem replay antes. O rádio segue ligado, e a caixa não volta sozinha.
 - **`/api/screenshot` responde 503 nos 5 s após um toque**, inclusive para
   a sessão web que injetou o toque (medido em 19/09: 503 até ~3 s depois; a
   exceção vale só para o fluxo do espelho, `/api/screen_stream`). Capture
@@ -459,6 +484,15 @@ python3 tools/test_flash_budget.py                   # as duas regras que mantê
   aparelho a recusa no stage, e ela entra pela USB. O limite que sobra é o do
   slot do programa, onde o linker a recusa: 4.484 B adiante quando a isenção
   entrou (#233).
+- **A `pico_w_test` também é isenta do teto de OTA, desde 06/11/2026** (`ota_exempt`, B6 do
+  `PLANO_STABLE.md`; decisão do mantenedor). É a imagem de bancada das suítes (CLI completa e painel
+  TFT), não é imagem de campo e a `release-ota.yml` não a publica. As tags de boot (#325) e os textos
+  da web (#324) levaram o `.bin` assinado dela a 1.040.901 B, 517 B acima do teto: acima dele o
+  aparelho a recusa no stage, então ela entra pela USB. O que a bancada recebe pelo ar sobre ela, a
+  candidata de release, não muda (`ota_trust_bench`). Nenhum procedimento deste manual nem de `tools/`
+  instala a `pico_w_test` pelo ar (conferido por grep em 06/11/2026). O orçamento de flash dela
+  continua valendo, e o limite que sobra é o do slot do programa, onde o linker a recusa: 3.820 B
+  adiante (`.bin` de 1.040.660 B contra 1.044.480 B).
 - O `pio run` já roda os portões de fonte como *extra scripts*: `-Werror` em
   `src/`, códigos de log, packs de idioma, matriz de autorização, ajuda da CLI,
   sondas de flash em SRAM.

@@ -279,6 +279,14 @@ web_omit = "ui_angulo"
 # para 1 em cada um dos dois arquivos), um desvio registrado como o do D7: o cabecalho declara o handler e o registrador so com o LCD e, nas outras imagens, define o registrador VAZIO, inline na classe, de modo que a
 # chamada incondicional do WebManager_Core.cpp nao deixa nada nelas (o que o UiDriverWeb.h faz com a rota do driver de UI; um stub fora de linha, como o do registerScreenRoutes( ), deixaria uma chamada e uma funcao em
 # cada imagem sem LCD); o .cpp define handler e registrador sob o mesmo macro, o corte que o arquivo ja faz para o painel (`#if SIMUT_DISPLAY_TFT`). A marca nova e a de 370.
+# As tags `screen boot` e `screen clkboot` (2026-11-06, o gravador do terminal de boot, para as figuras do manual que nenhuma captura alcanca) trouxeram o SIMUT_BOOT_TAGS, que e o console completo E o
+# TFT, sem o servidor HTTPS (so a pico_w_test: a pico_w_test_https nao as leva, ver o BootReplay.h), e o emaranhamento subiu 10 (371 -> 381: SIMUT_BOOT_TAGS, de 0 para 10, em sete arquivos: AppManager_Boot.cpp 1, AppManager_Commands.cpp 2, CommandParser.cpp 1,
+# DisplayManager.cpp 2, DisplayManager.h 2, DisplayManager_i18n.cpp 1 e display/BootReplay.h 1), um desvio registrado como os de cima. O que se pode tirar sem mexer em byte ja saiu: o macro e um #define
+# (como o SIMUT_NET_WIFI do NetCaps.h), as seis chamadas do DisplayManager.cpp passam por um macro BOOT_NOTE( ), e o toque (DisplayManager_Touch.cpp) chama dois inlines VAZIOS fora das tags, o que deixou
+# esse arquivo sem sitio. O que fica nao se extrai para uma unidade propria: o gravador tem de estar dentro das seis funcoes que escrevem o terminal, que so existem no DisplayManager.cpp, e um stub fora de
+# linha deixaria uma chamada e uma funcao em cada imagem sem as tags, quando as dez tem de seguir byte a byte (sha256, as onze do zero dos dois lados). Nem a chamada do boot nem a do tratador podem
+# ser inline vazio: a do AppManager::setup( ) mexeu em dois slots de pilha e o firmware.bin do Air deixou de ser o da base (2 bytes, achado pelo sha256 do segundo build do zero), entao as duas ficam
+# atras do #if. A marca nova e a de 381.
 # O .bin do Angulo cabeado difere do do C8 em 579 bytes de 826736, e o veneer_proof.py (exit 0) os prova so da ordem dos veneers do ligador e dos operandos dos desvios que os chamam.
 # A DisplayManager_Calibration.cpp entrou em 2026-10-24 (S10c, D3): as duas entradas de modo das telas de calibracao, showTouchCalibration( ) e
 # showSettingsDisplayOffset( ), que o core0Yield( ), o handleResetTouchCal e a CLI chamam, so guardavam do original dois restos: as sete memorias de
@@ -577,6 +585,10 @@ publish             = true
 #   data/web/license.html.gz para /web/ antes de uma suite
 #   (AGENTS.md, "Gravar firmware"): o web_test_suite.py abre /license e acusa "Page asset
 #   missing" sem ele.
+#   Isenta do teto de OTA desde 2026-11-06 (ota_exempt em tools/flash_budget.json, B6 do
+#   PLANO_STABLE.md, decisao do mantenedor): as tags de boot (#325, SIMUT_BOOT_TAGS) e os
+#   textos da web (#324) a levaram acima do teto; o portao nao a confere mais contra o teto
+#   nem contra o "bin", e o orcamento de flash dela continua valendo.
 [profiles.pico_w_test]
 display       = "tft"
 net           = "cyw43"
@@ -626,6 +638,9 @@ custom_fs_pages = ["LICENSE_PAGE"]
 #   aberta; NET 4.304 B pode ser a que poe um aparelho novo no Wi-Fi; LICENSE 4.260 B; USR
 #   3.140 B. Suba tambem data/web/license.html.gz: o web_test_suite.py abre /license e
 #   acusa "Page asset missing" sem ele.
+#   Sem as tags de boot (SIMUT_BOOT_TAGS) desde 2026-11-06: depois da #324 o .bin dela era de
+#   1.042.652 B, 1.828 B sob o slot de 1.044.480 B, e as tags pedem 2.248 B; o ld disse "region
+#   `FLASH' overflowed by 420 bytes". O src/display/BootReplay.h a deixa de fora pelo servidor HTTPS.
 [profiles.pico_w_test_https]
 extends         = "pico_w_test"
 web_https       = true

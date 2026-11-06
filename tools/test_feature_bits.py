@@ -24,6 +24,14 @@ Os bits vem de dois lugares do manifesto (2026-10-13): as chaves ([toggles.*]) e
 classes de rede ([net_class.*]) que tem `bit`. A rede e uma escolha por perfil (`net`),
 e o bit de uma classe vale quando a imagem escolhe um driver dessa classe: o bit 18, a
 classe `lan` (o ENC28J60), era o da chave `lan`.
+
+As tags de boot (2026-11-06, secao 4): o SIMUT_BOOT_TAGS, de src/display/BootReplay.h, vale 1 so na
+pico_w_test. O teste pre-processa o cabecalho de verdade com os flags de cada perfil e confere o
+conjunto de imagens que levam as tags contra a regra escrita nele (console completo, painel TFT e
+nenhum servidor HTTPS); cada condicao tirada de uma copia do cabecalho muda o conjunto exatamente
+como o manifesto manda. `--header ARQUIVO` julga outra copia do cabecalho no lugar do da arvore (o
+controle negativo: o do commit anterior, em que a pico_w_test_https tambem levava as tags e deixou
+de linkar).
 """
 import copy
 import os
@@ -359,6 +367,103 @@ else:
                   f"esperado {mask_of(cfg):#07x}, obtido {got if got is None else hex(got)} {err or ''}")
     shutil.rmtree(tmp, ignore_errors=True)
     check("cobriu os seis perfis e as inversoes validas", cases > 6 * 10, f"{cases} casos")
+
+# 4. As tags de boot (2026-11-06): o SIMUT_BOOT_TAGS, de src/display/BootReplay.h, so vale 1 na pico_w_test.
+#    A condicao e o console completo, o painel TFT e a falta do servidor HTTPS. A pico_w_test_https tem os dois
+#    primeiros e nao tem lugar para as tags: depois da #324 o .bin dela estava 1.828 B abaixo do slot de 1.044.480 B,
+#    as tags pedem 2.248 B, e o ld disse "region `FLASH' overflowed by 420 bytes" em 2026-11-06. O teste pre-processa
+#    o cabecalho de verdade, com os flags que o build compoe para cada perfil, e confere o conjunto de imagens que
+#    levam as tags contra a regra escrita aqui, que nao sai do cabecalho. O console tirado do cabecalho so aparece numa
+#    variante (todo perfil com painel e sem servidor tem console), por isso a pico_w_test sem console e um dos casos.
+TAGS_IMAGES = {"pico_w_test"}      # o que o AGENTS.md, o CHANGELOG, o manual e o CLI-Manual dizem
+TAGS_DEFINE_RE = re.compile(r"^#define SIMUT_BOOT_TAGS \(.*\)$", re.M)
+TAGS_DEFINE = "#define SIMUT_BOOT_TAGS (SIMUT_CLI_FULL && SIMUT_DISPLAY_TFT && !SIMUT_FEAT_WEB_HTTPS)"
+tags_header = os.path.join(ROOT, "src", "display", "BootReplay.h")
+tags_other = "--header" in sys.argv
+if tags_other:
+    tags_header = os.path.abspath(sys.argv[sys.argv.index("--header") + 1])
+
+
+def tags_rule(cfg, panel):
+    """A regra, escrita aqui e nao lida do cabecalho: o console completo, o painel TFT e nenhum servidor HTTPS."""
+    return bool(cfg["cli_full"]) and panel and not cfg["web_https"]
+
+
+def tags_cases():
+    """[(rotulo, flags, esperado)]: as onze imagens e a variante que separa o console das outras duas condicoes."""
+    cases = []
+    for name in M["profiles"]:
+        prof = gf.resolve_profile(name, M["profiles"])
+        cases.append((name, gf.compose(prof, M)["flags"], tags_rule(gf.config_of(prof), prof.get("display") == "tft")))
+    prof = dict(gf.resolve_profile("pico_w_test", M["profiles"]), cli_full=False)
+    check("a variante pico_w_test sem o console e uma combinacao valida (nenhuma regra a recusa)",
+          not gf.rule_violations(gf.config_of(prof), M) and not gf.net_refusal(prof, M))
+    cases.append(("pico_w_test sem o console", gf.compose(prof, M)["flags"], tags_rule(gf.config_of(prof), True)))
+    return cases
+
+
+def tags_on(flags, tmp, header_dir=None):
+    """True ou False: o SIMUT_BOOT_TAGS como o cpp do host o avalia com `flags`; None se o cpp falha. `header_dir`, se dado,
+    tem um display/BootReplay.h que vale no lugar do da arvore."""
+    probe = os.path.join(tmp, "tags_probe.c")
+    with open(probe, "w") as fh:
+        fh.write('#include "display/BootReplay.h"\n#if SIMUT_BOOT_TAGS\nTAGS_ON\n#else\nTAGS_OFF\n#endif\n')
+    # O cabecalho puxa o SystemDefs_Cli.h, que inclui o <Arduino.h>: o do host, o que as suites nativas veem.
+    inc = ["-I" + os.path.join(ROOT, "src"), "-I" + os.path.join(ROOT, "test", "native_stubs")]
+    if header_dir:
+        inc = ["-I" + header_dir] + inc
+    r = subprocess.run(["cpp", "-x", "c++", "-std=gnu++17", "-P"] + inc + flags + [probe], capture_output=True, text=True)
+    if r.returncode != 0:
+        return None
+    lines = r.stdout.splitlines()
+    return True if "TAGS_ON" in lines and "TAGS_OFF" not in lines else False if "TAGS_OFF" in lines and "TAGS_ON" not in lines else None
+
+
+def tags_wrong(cases, tmp, header_dir=None):
+    """Os rotulos em que o cabecalho diz o contrario da regra (ou nao diz nada)."""
+    return {label for label, flags, want in cases if tags_on(flags, tmp, header_dir) is not want}
+
+
+if shutil.which("cpp") is None:
+    check("cpp do host disponivel para as tags de boot", False, "instale o gcc: o teste pre-processa o cabecalho")
+else:
+    tmp = tempfile.mkdtemp(prefix="boot_tags_")
+    cases = tags_cases()
+    check("a regra, aplicada ao manifesto, da as tags so a " + ", ".join(sorted(TAGS_IMAGES)),
+          {label for label, _, want in cases[:len(M["profiles"])] if want} == TAGS_IMAGES,
+          repr([(label, want) for label, _, want in cases]))
+    https = [c for c in cases if c[0] == "pico_w_test_https"][0]
+    check("a pico_w_test_https tem console e painel, e so o servidor HTTPS a deixa sem as tags",
+          gf.resolve_profile("pico_w_test_https", M["profiles"]).get("cli_full")
+          and gf.resolve_profile("pico_w_test_https", M["profiles"]).get("display") == "tft"
+          and gf.resolve_profile("pico_w_test_https", M["profiles"]).get("web_https") and https[2] is False)
+    if tags_other:
+        d = os.path.join(tmp, "outro", "display")
+        os.makedirs(d)
+        shutil.copy(tags_header, os.path.join(d, "BootReplay.h"))
+        wrong = tags_wrong(cases, tmp, os.path.join(tmp, "outro"))
+        check(f"{tags_header}: as tags estao so onde a regra manda", not wrong, f"contra a regra: {sorted(wrong)}")
+    else:
+        wrong = tags_wrong(cases, tmp)
+        check("src/display/BootReplay.h: as tags estao so onde a regra manda (a pico_w_test)", not wrong,
+              f"contra a regra: {sorted(wrong)}")
+        src = open(tags_header, encoding="utf-8").read()
+        check("a definicao do SIMUT_BOOT_TAGS e a que o teste conhece (um controle que mexe numa linha que nao esta la nao prova nada)",
+              TAGS_DEFINE_RE.findall(src) == [TAGS_DEFINE], repr(TAGS_DEFINE_RE.findall(src)))
+        # Os controles: cada condicao tirada de uma copia do cabecalho muda o conjunto exatamente como o manifesto manda.
+        mutants = (("sem o servidor HTTPS", "#define SIMUT_BOOT_TAGS (SIMUT_CLI_FULL && SIMUT_DISPLAY_TFT)", {"pico_w_test_https"}),
+                   ("sem o painel", "#define SIMUT_BOOT_TAGS (SIMUT_CLI_FULL && !SIMUT_FEAT_WEB_HTTPS)", {"pico_w_air"}),
+                   ("sem o console", "#define SIMUT_BOOT_TAGS (SIMUT_DISPLAY_TFT && !SIMUT_FEAT_WEB_HTTPS)", {"pico_w_test sem o console"}),
+                   ("sempre 0", "#define SIMUT_BOOT_TAGS 0", {"pico_w_test"}))
+        for k, (nome, nova, esperado) in enumerate(mutants):
+            d = os.path.join(tmp, f"mut{k}", "display")
+            os.makedirs(d)
+            with open(os.path.join(d, "BootReplay.h"), "w", encoding="utf-8") as fh:
+                fh.write(TAGS_DEFINE_RE.sub(lambda m: nova, src))
+            wrong = tags_wrong(cases, tmp, os.path.join(tmp, f"mut{k}"))
+            check(f"controle: a definicao {nome} e acusada, e so em {sorted(esperado)}", wrong == esperado,
+                  f"acusou {sorted(wrong)}")
+    shutil.rmtree(tmp, ignore_errors=True)
 
 print(f"{ok} ok, {fail} falha(s)")
 sys.exit(1 if fail else 0)

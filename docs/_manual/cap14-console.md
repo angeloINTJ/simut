@@ -601,10 +601,12 @@ Todos os comandos `user` precisam de `write memory` para ficar.
 
 | Comando | Efeito |
 |---|---|
-| `screen <tag>` | Abre uma tela do painel direto, como administrador: `dash`, `set`, `thm`, `lng`, `pwd`, `lic`, `sts`, `alm`, `gra`, `touchcal`, `touchsens`, `offset`, `usr`, `clk`, `pin` ([referência das telas](#cap-11-referencia)). Nenhuma imagem com o painel Ângulo tem este comando ([capítulo 11A](#cap-11a-referencia)) |
+| `screen <tag>` | Abre uma tela do painel direto, como administrador: `dash`, `set`, `thm`, `lng`, `pwd`, `lic`, `sts`, `alm`, `gra`, `touchcal`, `touchsens`, `offset`, `usr`, `clk`, `pin` ([referência das telas](#cap-11-referencia)) e as duas do boot, `clkboot` e `boot`, logo abaixo. Nenhuma imagem com o painel Ângulo tem este comando ([capítulo 11A](#cap-11a-referencia)) |
 | `touch sim <X> <Y>` | Simula um toque no ponto (X de 0 a 319, Y de 0 a 239) |
 | `touch hold <X> <Y> [ms]` | Simula um toque **mantido** por `ms` milissegundos (padrão 3500, de 100 a 15000) e depois solta: alcança os gestos de toque longo, como o de 3 s que fixa o cartão de cima, que o `touch sim` não alcança |
 | `show display keypad` | Mostra o que cada tecla do teclado de PIN embaralhado tem na tela agora |
+
+**As duas tags do boot.** Só existem na `pico_w_test`: a `pico_w_test_https` e o `pico_w_air`, que também têm o comando `screen`, respondem `?screen` a elas (o Air não tem painel, e a imagem HTTPS não tem lugar para as tags). Elas refazem o que o painel desenha antes de o servidor web atender, e por isso o `GET /api/screenshot` não as alcança durante o boot ([as telas de boot](#cap-11-boot)). `screen clkboot` abre a pergunta de data e hora como o boot a abre, com a linha **Sem Wi-Fi, os dados levam esta hora.** e o botão **PULAR**, esteja o Wi-Fi como estiver. `screen boot` lista o que o último boot disse ao terminal de boot, uma linha por chamada, com o número do registro, a operação, a chave e o texto dela em inglês, o sufixo e o botão **PULAR** ou a barra. `screen boot <n>` põe o terminal de volta no vidro como estava depois da chamada `n`; `screen boot <n> <pct>` desenha também a barra do gesto de segurar a tela (de 0 a 100); `screen boot <n> cancel` faz o que o boot faz ao soltar o dedo (**Modo AP Cancelado.**); e `screen boot end` devolve o painel, o que também fazem um toque, 30 s sem toque e qualquer outra tag. O toque num terminal recomposto não aciona o **PULAR** do boot. A lista guarda até 40 chamadas, os pontinhos de uma linha valem um registro só, e um número fora da lista é recusado.
 
 ### Manutenção {#cap-14-manutencao}
 

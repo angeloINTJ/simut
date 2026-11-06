@@ -12,6 +12,7 @@
 #include "CommandParser.h"
 #include "SystemDefs_Records.h"
 #include "SystemDefs_Network.h"
+#include "display/BootReplay.h"   /* what the handler makes of the words after `screen boot` */
 #include <cstring>
 
 namespace simut_native {
@@ -286,6 +287,116 @@ void test_touch_hold_without_ms_marks_intval_invalid(void) {
     TEST_ASSERT_FALSE(d.intVal1Valid);
 }
 
+/* ---- `screen` and the boot tags (2026-11-06) ----
+ *
+ * `screen <tag>` carried one word, and the handler (AppManager_Commands.cpp) read it from strVal1. The boot tags take
+ * two more: `screen boot 3 50` recomposes the boot terminal after call 3 and draws the bar at 50 %, `screen boot 3
+ * cancel` adds what the boot does when the gesture is let go, `screen boot end` gives the panel back. The parser does
+ * not judge them: it hands the two words over in strVal2 and strVal3, lowercase like every matched token, and
+ * bootreplay::parse( ) (display/BootReplay.h, held on the host in test_validators) says what they mean. The last case
+ * here ties the two halves, because a word that arrives in the wrong field reads as a different command. */
+
+void test_screen_tag_alone_carries_only_the_tag(void) {
+    CliDemand d = parse("screen dash");
+    TEST_ASSERT_EQUAL(CMD_GOTO_SCREEN, d.type);
+    assertStr1(d, "dash");
+    TEST_ASSERT_EQUAL_STRING("", d.strVal2);
+    TEST_ASSERT_EQUAL_STRING("", d.strVal3);
+}
+
+void test_screen_boot_without_argument_lists(void) {
+    CliDemand d = parse("screen boot");
+    TEST_ASSERT_EQUAL(CMD_GOTO_SCREEN, d.type);
+    assertStr1(d, "boot");
+    TEST_ASSERT_EQUAL_STRING("", d.strVal2);
+    TEST_ASSERT_EQUAL_STRING("", d.strVal3);
+}
+
+void test_screen_boot_index_arrives_in_strval2(void) {
+    CliDemand d = parse("screen boot 3");
+    TEST_ASSERT_EQUAL(CMD_GOTO_SCREEN, d.type);
+    assertStr1(d, "boot");
+    TEST_ASSERT_EQUAL_STRING("3", d.strVal2);
+    TEST_ASSERT_EQUAL_STRING("", d.strVal3);
+}
+
+void test_screen_boot_index_and_percent_arrive_in_strval2_and_3(void) {
+    CliDemand d = parse("screen boot 3 50");
+    TEST_ASSERT_EQUAL(CMD_GOTO_SCREEN, d.type);
+    assertStr1(d, "boot");
+    TEST_ASSERT_EQUAL_STRING("3", d.strVal2);
+    TEST_ASSERT_EQUAL_STRING("50", d.strVal3);
+}
+
+void test_screen_boot_index_and_cancel_arrive_lowercase(void) {
+    /* The matched tokens are lowercased, and bootreplay::parse( ) compares against lowercase words. */
+    CliDemand d = parse("SCREEN Boot 3 CANCEL");
+    TEST_ASSERT_EQUAL(CMD_GOTO_SCREEN, d.type);
+    assertStr1(d, "boot");
+    TEST_ASSERT_EQUAL_STRING("3", d.strVal2);
+    TEST_ASSERT_EQUAL_STRING("cancel", d.strVal3);
+}
+
+void test_screen_boot_end_and_clkboot(void) {
+    CliDemand e = parse("screen boot end");
+    TEST_ASSERT_EQUAL(CMD_GOTO_SCREEN, e.type);
+    assertStr1(e, "boot");
+    TEST_ASSERT_EQUAL_STRING("end", e.strVal2);
+    CliDemand c = parse("screen clkboot");
+    TEST_ASSERT_EQUAL(CMD_GOTO_SCREEN, c.type);
+    assertStr1(c, "clkboot");
+}
+
+void test_screen_boot_end_with_a_word_after_it_hands_both_over_and_is_refused_there(void) {
+    /* `screen boot end 3` is not `end`. The parser does not know that: it has to hand over "end" in strVal2 AND "3" in strVal3, because a parser that
+     * dropped the third word for `end` would turn this line into a plain `end` and the handler would give the panel back on a typo. */
+    CliDemand d = parse("screen boot end 3");
+    TEST_ASSERT_EQUAL(CMD_GOTO_SCREEN, d.type);
+    assertStr1(d, "boot");
+    TEST_ASSERT_EQUAL_STRING("end", d.strVal2);
+    TEST_ASSERT_EQUAL_STRING("3", d.strVal3);
+    TEST_ASSERT_EQUAL(bootreplay::V_BAD, bootreplay::parse(d.strVal2, d.strVal3).verb);
+    CliDemand w = parse("screen boot END Cancel");
+    TEST_ASSERT_EQUAL_STRING("end", w.strVal2);
+    TEST_ASSERT_EQUAL_STRING("cancel", w.strVal3);
+    TEST_ASSERT_EQUAL(bootreplay::V_BAD, bootreplay::parse(w.strVal2, w.strVal3).verb);
+}
+
+void test_screen_boot_an_invalid_word_reaches_the_handler_and_is_refused_there(void) {
+    /* The parser does not reject `screen boot x`; the handler's bootreplay::parse( ) does, and it must see "x". */
+    CliDemand d = parse("screen boot x");
+    TEST_ASSERT_EQUAL(CMD_GOTO_SCREEN, d.type);
+    TEST_ASSERT_EQUAL_STRING("x", d.strVal2);
+    TEST_ASSERT_EQUAL(bootreplay::V_BAD, bootreplay::parse(d.strVal2, d.strVal3).verb);
+}
+
+void test_screen_boot_words_mean_what_the_handler_reads_from_them(void) {
+    /* The whole contract between the parser and the handler: the line, then what bootreplay::parse( ) makes of the two fields. */
+    struct Row { const char* line; bootreplay::Verb verb; int idx; int pct; };
+    const Row rows[] = {
+        { "screen boot",           bootreplay::V_LIST,     0,  0 },
+        { "screen boot end",       bootreplay::V_END,      0,  0 },
+        { "screen boot 3",         bootreplay::V_AT,       3,  0 },
+        { "screen boot 3 50",      bootreplay::V_PROGRESS, 3, 50 },
+        { "screen boot 12 100",    bootreplay::V_PROGRESS, 12, 100 },
+        { "screen boot 3 CANCEL",  bootreplay::V_CANCEL,   3,  0 },
+        { "screen boot 3 101",     bootreplay::V_BAD,      0,  0 },
+        { "screen boot cancel",    bootreplay::V_BAD,      0,  0 },
+        { "screen boot end 3",     bootreplay::V_BAD,      0,  0 },   /* `end` takes nothing after it: the word must reach parse( ), which refuses the pair */
+        { "screen boot end cancel", bootreplay::V_BAD,     0,  0 },
+    };
+    for (const Row& r : rows) {
+        CliDemand d = parse(r.line);
+        TEST_ASSERT_EQUAL_MESSAGE(CMD_GOTO_SCREEN, d.type, r.line);
+        const bootreplay::Cmd c = bootreplay::parse(d.strVal2, d.strVal3);
+        TEST_ASSERT_EQUAL_MESSAGE(r.verb, c.verb, r.line);
+        if (r.verb == bootreplay::V_AT || r.verb == bootreplay::V_PROGRESS || r.verb == bootreplay::V_CANCEL)
+            TEST_ASSERT_EQUAL_INT_MESSAGE(r.idx, c.idx, r.line);
+        if (r.verb == bootreplay::V_PROGRESS)
+            TEST_ASSERT_EQUAL_INT_MESSAGE(r.pct, c.pct, r.line);
+    }
+}
+
 int main(int argc, char** argv) {
     UNITY_BEGIN();
     RUN_TEST(test_empty_is_unknown);
@@ -322,5 +433,14 @@ int main(int argc, char** argv) {
     RUN_TEST(test_touch_hold_with_ms);
     RUN_TEST(test_touch_hold_without_ms_marks_intval_invalid);
     RUN_TEST(test_radio_commands_parse);
+    RUN_TEST(test_screen_tag_alone_carries_only_the_tag);
+    RUN_TEST(test_screen_boot_without_argument_lists);
+    RUN_TEST(test_screen_boot_index_arrives_in_strval2);
+    RUN_TEST(test_screen_boot_index_and_percent_arrive_in_strval2_and_3);
+    RUN_TEST(test_screen_boot_index_and_cancel_arrive_lowercase);
+    RUN_TEST(test_screen_boot_end_and_clkboot);
+    RUN_TEST(test_screen_boot_end_with_a_word_after_it_hands_both_over_and_is_refused_there);
+    RUN_TEST(test_screen_boot_an_invalid_word_reaches_the_handler_and_is_refused_there);
+    RUN_TEST(test_screen_boot_words_mean_what_the_handler_reads_from_them);
     return UNITY_END();
 }

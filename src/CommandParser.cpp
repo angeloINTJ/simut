@@ -24,6 +24,7 @@
 #include "SystemDefs_Validate.h"
 #include "SystemDefs_Records.h"
 #include "sensors/SensorChannelTable.h" /* channelByKey — which fields name a quantity */
+#include "display/BootReplay.h"  /* SIMUT_BOOT_TAGS: the words after `screen boot` travel only where the tags exist */
 #include <stdlib.h>
 
 #if SIMUT_CLI_FULL
@@ -179,6 +180,14 @@ CliDemand parseCliCommand(String input) {
 	if (t0 == "screen") {
 		cmd.type = CMD_GOTO_SCREEN;
 		cmd.setStrVal1(t1.c_str( ));
+#if SIMUT_BOOT_TAGS
+		/* `screen boot <i> [<pct>|cancel]` and `screen boot end` (2026-11-06) carry up to two more words, lowercased like every
+		 * matched token. Only where the tags exist: an image with the console and no panel (the Air), or with the HTTPS server
+		 * (pico_w_test_https), compiles the parser without these two lines, which is part of what keeps its firmware.bin the bytes it was. bootreplay::parse( ) says
+		 * what the words mean; this side only hands them over. */
+		cmd.setStrVal2(t2.c_str( ));
+		cmd.setStrVal3(t3.c_str( ));
+#endif
 		return cmd;
 	}
 	if (t0 == "language") {

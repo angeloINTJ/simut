@@ -58,7 +58,7 @@ Ajuste a data e a hora do local e toque em **SALVAR**: o relógio passa a valer 
 
 A pergunta não pede conta nem PIN, e volta a cada boot enquanto o aparelho não tiver rede: o acerto à mão não sobrevive a um reinício. Enquanto o relógio for o provisório, a barra de cima da tela inicial mostra a data e a hora em âmbar, com `?` no lugar do `-`. Tudo isso está no [capítulo 10](#cap-10-painel).
 
-::: {.figura #fig-04-painel-data-hora tipo="tft" arquivo="04-painel-data-hora.png" captura="release recém-gravada, sem rede configurada, logo depois do boot; tela Data e hora com as cinco colunas e as setas, a linha Sem Wi-Fi, os dados levam esta hora. em âmbar e os botões PULAR e SALVAR; sem rede, GET /api/screenshot não alcança o aparelho: use foto da tela, antes dos 30 s sem toque que levam o painel à tela inicial"}
+::: {.figura #fig-04-painel-data-hora tipo="tft" arquivo="04-painel-data-hora.png" captura="imagem pico_w_test; screen clkboot abre a pergunta do fim do boot como o boot a abre: a tela Data e hora com as cinco colunas e as setas, a linha Sem Wi-Fi, os dados levam esta hora. em âmbar e os botões PULAR e SALVAR; GET /api/screenshot 6 s depois da tag, antes dos 30 s sem toque que levam o painel à tela inicial; conferir uma vez contra a foto do boot real de um aparelho sem rede configurada"}
 A pergunta do fim do boot num aparelho sem rede: a data e a hora do relógio provisório, prontas para acertar.
 :::
 

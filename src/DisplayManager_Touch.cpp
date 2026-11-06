@@ -154,6 +154,10 @@ void DisplayManager::handleTouch( ) {
  if (_uiMode != MODE_DASHBOARD && _uiMode != MODE_OTA_UPDATE && !_sharedState.isBooting) {
  if (timeSince(_lastTouchTime, 30000)) forceDashboard( );
  }
+ /* The guard above asks !isBooting, so it stands aside for a boot terminal, and a terminal a `screen boot` tag put up has no boot behind it to take it
+  * down: the same 30 s, counted from the tag (it restarts _lastTouchTime), gives the panel back (2026-11-06). In an image without the tags
+  * bootReplayOn( ) is a constant false and bootReplayEnd( ) an empty inline (DisplayManager.h): nothing is compiled. */
+ if (bootReplayOn( ) && timeSince(_lastTouchTime, 30000)) bootReplayEnd( );
  return;
  }
 
@@ -359,6 +363,11 @@ void DisplayManager::handleTouch( ) {
  mapTouchPoint(p, x, y);
 
  if (_sharedState.isBooting) {
+ /* A terminal a `screen boot` tag put up (2026-11-06): any touch gives the panel back and arms nothing, not even actBootSkip( ). The PULAR it may be
+  * showing belongs to a boot that is not running, and its flag would sit set until the next boot. The rest of THIS press is swallowed by the rule
+  * below that a press belongs to the screen it began on: it began on the terminal, which is no mode, so any mode but the dashboard stands for it,
+  * and the dashboard the panel goes back to does not take a tap that was aimed at a button of the terminal. */
+ if (bootReplayOn( )) { _pressActive = true; _pressMode = MODE_GRAPH_LOADING; bootReplayEnd( ); return; }
  if (_sharedState.showSkipButton && uiBootSkipHit( x, y )) actBootSkip( );
  return;
  }

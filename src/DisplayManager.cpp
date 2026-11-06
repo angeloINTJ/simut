@@ -586,12 +586,27 @@ void DisplayManager::refreshTheme( ) { _themeChanged = true; }
 
 /* History calendar */
 
+#if SIMUT_BOOT_TAGS
+/* Every call the boot makes to the six functions below, until setup( ) ends (2026-11-06, display/BootReplay.h): what `screen boot` plays back so the
+ * boot terminal can be captured with /api/screenshot, which cannot see it while it is on the glass. A static and all zero, so it lives in .bss
+ * (1,846 B in pico_w_test, the one image that has it, 1,840 of records and 6 of counters and flags; the image's RAM grows 1,848 B) and not in .data, which the
+ * flash image would carry. Written on Core 0 alone: the six are called by
+ * the boot, the CLI and the web handlers. Core 1, which draws the terminal, reaches one of them, endBoot( ), only through bootReplayEnd( ) in its
+ * touch pass, and by then the recorder is closed, so note( ) returns on its first line without a write; the list is read by the CLI, on Core 0.
+ * Each of the six notes its call BEFORE it takes _stateMutex, so recording does not lengthen what Core 1 waits on. */
+static bootreplay::Recorder<bootreplay::BOOT_REC_CAP> s_bootRec;
+#define BOOT_NOTE(...) s_bootRec.note(__VA_ARGS__)
+#else
+#define BOOT_NOTE(...) ((void)0)   /* nothing: the six below are what they were, which is what keeps the other images' bytes */
+#endif
+
 /* During web reboot, ensure the loopCore1 dispatcher
  * enters the MODE_DASHBOARD branch (the only branch that calls render(), which
  * detects isBooting=true and draws the boot screen). Without this, if the user
  * is in any settings screen when reboot is triggered,
  * the boot screen is not rendered and elements of the current screen persist. */
 void DisplayManager::setBootStatus(String msg, bool showSkip) {
+	BOOT_NOTE(bootreplay::OP_SET_RAW, (int16_t)TR_KEYS_COUNT, msg.c_str( ), showSkip, 0);
 	mutex_enter_blocking(&_stateMutex);
 	if (msg.length( ) > 0) {
 		for (int i = 0; i < 4; i++) _sharedState.bootLogs[i] = _sharedState.bootLogs[i+1];
@@ -604,6 +619,7 @@ void DisplayManager::setBootStatus(String msg, bool showSkip) {
 }
 
 void DisplayManager::replaceBootStatus(String msg, bool showSkip) {
+	BOOT_NOTE(bootreplay::OP_REPLACE_RAW, (int16_t)TR_KEYS_COUNT, msg.c_str( ), showSkip, 0);
 	mutex_enter_blocking(&_stateMutex);
 	if (msg.length( ) > 0) {
 		_sharedState.bootLogs[4].key = (int16_t)TR_KEYS_COUNT;
@@ -615,6 +631,7 @@ void DisplayManager::replaceBootStatus(String msg, bool showSkip) {
 }
 
 void DisplayManager::setBootStatusKey(LangKey key, const char* suffix, bool showSkip) {
+	BOOT_NOTE(bootreplay::OP_SET_KEY, (int16_t)key, suffix, showSkip, 0);
 	mutex_enter_blocking(&_stateMutex);
 	for (int i = 0; i < 4; i++) _sharedState.bootLogs[i] = _sharedState.bootLogs[i+1];
 	_sharedState.bootLogs[4].key = (int16_t)key;
@@ -629,6 +646,7 @@ void DisplayManager::setBootStatusKey(LangKey key, const char* suffix, bool show
 }
 
 void DisplayManager::replaceBootStatusKey(LangKey key, const char* suffix, bool showSkip) {
+	BOOT_NOTE(bootreplay::OP_REPLACE_KEY, (int16_t)key, suffix, showSkip, 0);
 	mutex_enter_blocking(&_stateMutex);
 	_sharedState.bootLogs[4].key = (int16_t)key;
 	if (suffix && suffix[0]) {
@@ -642,16 +660,77 @@ void DisplayManager::replaceBootStatusKey(LangKey key, const char* suffix, bool 
 }
 
 void DisplayManager::setApProgress(int pct) {
+	BOOT_NOTE(bootreplay::OP_PROGRESS, 0, nullptr, false, pct);
 	mutex_enter_blocking(&_stateMutex);
 	_sharedState.apProgressPct = pct; _sharedState.isBooting = true; _isDirty = true;
 	mutex_exit(&_stateMutex);
 }
 
 void DisplayManager::endBoot( ) {
+	BOOT_NOTE(bootreplay::OP_END, 0, nullptr, false, 0);
 	mutex_enter_blocking(&_stateMutex);
 	_sharedState.isBooting = false; _isDirty = true;
 	mutex_exit(&_stateMutex);
 }
+
+#if SIMUT_BOOT_TAGS
+/* The terminal as it was after record c.idx of the boot, through the same six functions the boot called (2026-11-06; the logic, and what each verb adds,
+ * is display/BootReplay.h, held on the host). The window is emptied the way the constructor leaves it, so what was on the glass before does not leak
+ * into the recomposed one, and the panel is put in the mode that draws it: setApProgress( ) and endBoot( ) do not set the mode, and a replay can end on
+ * either. The sink below is a local class so it can reach the private state the reset and the arming write; the six it calls take _stateMutex
+ * themselves, so neither of its own two steps holds it across a call.
+ *
+ * A touch on the terminal that results does NOT reach the boot's actions: handleTouch( ) asks _bootReplayOn first and gives the panel back
+ * (DisplayManager_Touch.cpp), so the PULAR it may show never sets _skipPressed, which nothing polls after the boot anyway. */
+bool DisplayManager::bootReplay(const bootreplay::Cmd& c) {
+	struct Sink {
+		DisplayManager& d;
+		void reset( ) {
+			mutex_enter_blocking(&d._stateMutex);
+			for (int i = 0; i < 5; i++) { d._sharedState.bootLogs[i].key = (int16_t)TR_KEYS_COUNT; d._sharedState.bootLogs[i].suffix[0] = '\0'; }
+			d._sharedState.showSkipButton = false; d._sharedState.apProgressPct = -1; d._sharedState.isBooting = true; d._isDirty = true;
+			mutex_exit(&d._stateMutex);
+		}
+		void setRaw(const char* s, bool k) { d.setBootStatus(String(s), k); }
+		void replaceRaw(const char* s, bool k) { d.replaceBootStatus(String(s), k); }
+		void setKey(int16_t key, const char* s, bool k) { d.setBootStatusKey((LangKey)key, s, k); }
+		void replaceKey(int16_t key, const char* s, bool k) { d.replaceBootStatusKey((LangKey)key, s, k); }
+		void progress(int pct) { d.setApProgress(pct); }
+		void end( ) { d.endBoot( ); }
+		void arm( ) {
+			mutex_enter_blocking(&d._stateMutex);
+			d._uiMode = MODE_DASHBOARD; d._forceFullRedraw = true; d._isDirty = true;
+			d._skipPressed = false;
+			d._lastTouchTime = millis( );
+			d._bootReplayOn = d._sharedState.isBooting;   /* a replay that ends on endBoot( ) leaves nothing to give back */
+			mutex_exit(&d._stateMutex);
+		}
+	} sink{ *this };
+	return bootreplay::play(s_bootRec, c, (int16_t)TR_BOOT_AP_CANCELLED, sink);
+}
+
+/* The panel back from a terminal a tag put up: the touch, 30 s of none (DisplayManager_Touch.cpp), another `screen` tag, or `screen boot end`
+ * (always). The idle guard of handleTouch( ) and its touch chain both stand aside for isBooting, so with a terminal that has no boot behind it
+ * nothing else would ever take it down. */
+void DisplayManager::bootReplayEnd(bool always) {
+	if (!always && !_bootReplayOn) return;
+	_bootReplayOn = false;
+	_skipPressed = false;   /* the boot's own wait polls this flag; nothing does now, but a true must not outlive the tag */
+	endBoot( );
+	forceDashboard( );
+}
+
+void DisplayManager::bootRecClose( ) { s_bootRec.close( ); }
+int  DisplayManager::bootRecCount( ) const { return s_bootRec.n; }
+int  DisplayManager::bootRecDropped( ) const { return s_bootRec.dropped; }
+
+bool DisplayManager::bootRecLine(int i, char* out, size_t cap) const {
+	if (i < 0 || i >= s_bootRec.n) return false;
+	const bootreplay::Rec& r = s_bootRec.rec[i];
+	bootreplay::format(r, i, bootKeyTextEn(r.key), out, cap);
+	return true;
+}
+#endif /* SIMUT_BOOT_TAGS */
 
 void DisplayManager::forceDashboard( ) {
 	mutex_enter_blocking(&_stateMutex);

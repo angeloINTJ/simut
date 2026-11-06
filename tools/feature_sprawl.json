@@ -26,6 +26,15 @@
   "BluetoothManager.cpp": 2,
   "BluetoothManager.h": 2
  },
+ "SIMUT_BOOT_TAGS": {
+  "AppManager_Boot.cpp": 1,
+  "AppManager_Commands.cpp": 2,
+  "CommandParser.cpp": 1,
+  "DisplayManager.cpp": 2,
+  "DisplayManager.h": 2,
+  "DisplayManager_i18n.cpp": 1,
+  "display/BootReplay.h": 1
+ },
  "SIMUT_BUILD_EPOCH": {
   "SystemDefs_Limits.h": 1
  },
