@@ -2881,15 +2881,30 @@ global.Chart = H5G;
                is cold. Purely cosmetic, and the only place channel identity
                still shows up on this page. */
             let html = '';
+            /* The Max and Min words and the channel's name are the pack's, and
+               they came out wrong on the Portuguese page of the v2.14.0 capture
+               (2026-11-06, Pico 2 W): "Max" was typed into the markup, outside
+               window.t( ), and the name was painted once from t( ), so when
+               /api/lang answered after the history data the badge kept the
+               fallback, key.toUpperCase(): "Max TEMP" on the desktop capture
+               ("Max Temp" on the phone's, with the dictionary first, where
+               only the Max was English). Each word is an element that carries
+               its key and its English, as the link state of the Network page
+               does, so applyLang( ) relabels it when the dictionary arrives late
+               and when the language changes, and t( ) still paints it
+               translated at once when the dictionary came first. The English of
+               a name is its key capitalized (Temp, Hum, Press): the word the
+               packs translate. tools/test_webui_pack_texts.py runs the orders. */
             Object.keys(ex).forEach(key => {
                 const e = ex[key];
                 if (!e || typeof e.max !== 'number') return;
                 const tone = (key === 'temp') ? 'hot' : 'cold';
-                const name = esc(window.t(e.label || ('ch_' + key), key.toUpperCase()));
+                const lk = e.label || ('ch_' + key), en = key.charAt(0).toUpperCase() + key.slice(1);
+                const name = '<span data-i18n="' + esc(lk) + '" data-en="' + esc(en) + '">' + esc(window.t(lk, en)) + '</span>';
                 const unit = esc(e.unit || '');
-                html += '<div class="stat-badge"><span>Max ' + name + ':</span> <div class="' + tone + '">'
+                html += '<div class="stat-badge"><span><span data-i18n="hist_max" data-en="Max">' + esc(window.t('hist_max', 'Max')) + '</span> ' + name + ':</span> <div class="' + tone + '">'
                      +  e.max.toFixed(1) + ' ' + unit + '</div></div>'
-                     +  '<div class="stat-badge"><span>Min ' + name + ':</span> <div class="' + tone + '">'
+                     +  '<div class="stat-badge"><span><span data-i18n="hist_min" data-en="Min">' + esc(window.t('hist_min', 'Min')) + '</span> ' + name + ':</span> <div class="' + tone + '">'
                      +  e.min.toFixed(1) + ' ' + unit + '</div></div>';
             });
             box.innerHTML = html || '<div class="stat-badge"><span>--</span></div>';

@@ -73,6 +73,25 @@ found the places below; each has its check here.
     / "2 seleccionados" / "2 selected" for two, "Nenhum" / "Ninguno" / "None"
     for none.
 
+  * the Max and Min badges above the history chart (renderExtremes( ),
+    HIST_PAGE): the page in Portuguese read "Max TEMP: 27.7 °C" on the desktop
+    capture and "Max Temp: 28.3 °C" on the phone's. "Max " and "Min " were typed
+    into the markup, outside window.t( ), and the channel's name was painted
+    once from t( ) with key.toUpperCase() as its English: when /api/lang
+    answered after the history data the badge kept "TEMP", and nothing relabelled
+    it, since no element there carried data-i18n. renderExtremes( ) runs under
+    node, as written and minified, with lang.js's own t( ), escHtml( ),
+    applyLang( ) and its /api/lang line, against a box that parses the badges'
+    markup into what a reader sees, with the extremes the page measures (three
+    channels, with their labels, and a fourth with none, so the name's key is
+    built from the channel's) and with the minT/maxT form of an older firmware;
+    in the orders the device can answer in, then the language switched to
+    English and back. Before the dictionary and in English a badge reads "Max
+    Temp:", "Max Hum:", "Max Press:" (the key capitalized, the word the packs
+    translate); in the pack's language, the pack's words ("Máx Umid:" in pt-BR,
+    "Máx Pres:" in es-ES). The packs must carry hist_max and hist_min, not the
+    English.
+
 Each check takes the code it judges, so --mutations can put the violations back
 by hand (one mutant per text) and expect each to be found; the clean code must
 give none.
@@ -1151,6 +1170,205 @@ def test_selector_mutants(src, ns, dicts):
           f"selector mutant 'no #sensorMselN in the markup': {got[:2]}")
 
 
+# ── the Max and Min badges of the history chart ────────────────────────────
+
+def badge_code(src):
+    """renderExtremes( ) of the history page, cut out by its name and the line that closes it."""
+    hist = block(src, "HIST_PAGE")
+    a = hist.find("function renderExtremes(json) {")
+    m = re.search(r"function renderExtremes\(json\) \{.*?\n        \}", hist[a:], re.S) if a >= 0 else None
+    return hist[a:a + m.end()] if m else None
+
+
+# What the page hands renderExtremes( ): the extremes it measured over the range
+# ({temp, hum, press}, each with the key of its name, the way the H5G reader
+# builds them), with a fourth channel the page has no label for, so the name's
+# key must be built from the channel's key; and the minT/maxT form an older
+# firmware answered with. The values are what the badge writes after the name.
+BADGE_INPUTS = {
+    "extremes": {"extremes": {"temp": {"min": 27.1, "max": 27.7, "unit": "°C", "label": "ch_temp"},
+                              "hum": {"min": 41.0, "max": 55.5, "unit": "%", "label": "ch_hum"},
+                              "press": {"min": 1009.4, "max": 1013.2, "unit": "hPa", "label": "ch_press"},
+                              "lux": {"min": 3, "max": 640, "unit": "lx"}}},
+    "legacy": {"minT": 27.1, "maxT": 27.7, "minH": 41.0, "maxH": 55.5, "minP": 1009.4, "maxP": 1013.2},
+}
+LEGACY_UNITS = (("temp", "T", "°C"), ("hum", "H", "%"), ("press", "P", "hPa"))
+# The English of a channel's name, the word the pack translates: the key, capitalized.
+BADGE_ENGLISH = {"temp": "Temp", "hum": "Hum", "press": "Press", "lux": "Lux"}
+BADGE_MOMENTS = "painted|before the dictionary|arrived|switched to English|switched back"
+
+
+# The box of the badges: setting its innerHTML parses the markup into what a
+# reader sees. Each .stat-badge keeps its text as parts, plain text or an element
+# that carries data-i18n (applyLang( ) rewrites those, and their text is their
+# innerHTML); an element with no data-i18n is just markup. A badge reads as the
+# browser would lay it out: its parts joined, the spaces collapsed.
+BADGE_HARNESS = r"""
+var __grid = null;
+function __Grid() { this.badges = []; this.items = []; }
+Object.defineProperty(__Grid.prototype, 'innerHTML', { get: function () { return ''; }, set: function (h) {
+    this.badges = []; this.items = [];
+    var cur = null, open = null, re = /<(\/?)([a-z0-9]+)([^>]*)>|([^<]+)/gi, m;
+    while ((m = re.exec(h))) {
+        if (m[4] !== undefined) { if (open) open._h += m[4]; else if (cur) cur.push({ text: m[4] }); continue; }
+        if (m[1]) { open = null; continue; }
+        var attrs = {};
+        for (var a of m[3].matchAll(/\b([a-z][a-z0-9-]*)="([^"]*)"/gi)) attrs[a[1]] = __unesc(a[2]);
+        if (/(^| )stat-badge( |$)/.test(attrs['class'] || '')) { cur = []; this.badges.push(cur); }
+        if (attrs['data-i18n'] !== undefined) { open = new __El(m[2].toUpperCase(), attrs, ''); this.items.push(open); if (cur) cur.push({ el: open }); }
+    }
+} });
+__byId = function (id) { return id === 'statsGrid' ? __grid : null; };
+__i18n = function () { return __grid.items.filter(function (e) { return e.hasAttribute('data-i18n'); }); };
+__CODE__
+var INPUTS = __INPUTS__;
+var __text = function (b) { return b.map(function (p) { return __unesc(p.el ? p.el._h : p.text); }).join('').replace(/\s+/g, ' ').trim(); };
+var __read = function () { return __grid.badges.map(__text); };
+async function __scenario(order, input, pack) {
+    __store = {}; dict.pt = {}; __grid = new __Grid(); __pack = pack;
+    if (order !== 'first-visit') localStorage.setItem('simut_lang', 'pt');
+    __startLang();                                        /* lang.js asks for the dictionary as it loads */
+    var seen = [];
+    var note = function (when) { seen.push([when, __read()]); };
+    var lang = function (l) { localStorage.setItem('simut_lang', l); applyLang(); };
+    if (order === 'dict-first') { __arrive(); await __tick(); renderExtremes(INPUTS[input]); note('painted'); }
+    else { renderExtremes(INPUTS[input]); note('before the dictionary'); __arrive(); await __tick(); note('arrived'); }
+    lang('en'); note('switched to English');
+    lang('pt'); note('switched back');
+    return seen;
+}
+(async function () {
+    var out = {}, packs = __PACKS__;
+    for (var lg of Object.keys(packs))
+        for (var order of ['dict-first', 'late', 'first-visit'])
+            for (var input of Object.keys(INPUTS))
+                out[lg + '|' + order + '|' + input] = await __scenario(order, input, packs[lg]);
+    console.log(JSON.stringify(out));
+})().catch(function (e) { console.log(JSON.stringify({ error: String((e && e.stack) || e) })); });
+"""
+
+
+def badge_expected(input_name, d):
+    """[(kind, channel, Max/Min word, name, value)] the badges must read for this input, in the pack d's words (the English when d is None)."""
+    spec = BADGE_INPUTS[input_name]
+    if "extremes" in spec:
+        channels = [(k, e) for k, e in spec["extremes"].items()]
+    else:
+        channels = [(k, {"min": spec[f"min{c}"], "max": spec[f"max{c}"], "unit": u}) for k, c, u in LEGACY_UNITS]
+    out = []
+    for key, e in channels:
+        name = BADGE_ENGLISH[key] if d is None else d.get(f"ch_{key}", "")
+        for kind, field in (("Max", "max"), ("Min", "min")):
+            word = kind if d is None else d.get(f"hist_{field}", "")
+            out.append((kind, key, word, name, f"{e[field]:.1f} {e['unit']}"))
+    return out
+
+
+def badge_findings(code, parts, ns, dicts):
+    """What is wrong with the Max and Min badges in this renderExtremes( ): [] when nothing."""
+    found, rows = [], {}
+    for lang, d in dicts.items():
+        for key, en in (("hist_max", "Max"), ("hist_min", "Min")):
+            if not d.get(key, "").strip() or d[key] == en:
+                found.append(f"{lang}: @WEBDICT has {key} = {d.get(key)!r}, which is not a translation of {en!r}")
+        for k in BADGE_ENGLISH:
+            if not d.get(f"ch_{k}", "").strip():
+                found.append(f"{lang}: @WEBDICT has no 'ch_{k}' (the badge asks for the name of the channel)")
+    for label, js in (("as written", code), ("minified", ns["_minify_web_block"](code, "js"))):
+        prog = lang_env(parts) + (BADGE_HARNESS.replace("__CODE__", js).replace("__INPUTS__", json.dumps(BADGE_INPUTS))
+                                  .replace("__PACKS__", json.dumps(dicts)))
+        try:
+            res = run_node(prog)
+        except RuntimeError as e:
+            found.append(f"{label}: {e}")
+            continue
+        if "error" in res:
+            found.append(f"{label}: the scenarios threw {res['error'][:300]}")
+            continue
+        for key, seen in sorted(res.items()):
+            lang, order, inp = key.split("|")
+            d = dicts[lang]
+            for when, got in seen:
+                want = badge_expected(inp, None if when in ("before the dictionary", "switched to English") else d)
+                if len(got) != len(want):
+                    rows.setdefault((label, f"{lang}: {len(got)} badges {when}, wanted {len(want)}"), set()).add(ORDERS[order])
+                    continue
+                for (kind, chan, w, n, v), text in zip(want, got):
+                    m = re.fullmatch(r"(\S+) (\S+): (.*)", text)
+                    if not m:
+                        t = f"{lang}: the {kind} badge of {chan} reads {text!r} {when}, which is not '<word> <name>: <value>'"
+                    elif m.group(1) != w:
+                        t = f"{lang}: the {kind} word reads {m.group(1)!r} {when}, wanted {w!r}"
+                    elif m.group(2) != n:
+                        t = f"{lang}: the name of {chan} reads {m.group(2)!r} {when}, wanted {n!r}"
+                    elif m.group(3) != v:
+                        t = f"{lang}: the {kind} value of {chan} reads {m.group(3)!r} {when}, wanted {v!r}"
+                    else:
+                        continue
+                    rows.setdefault((label, t), set()).add(ORDERS[order])
+    return sorted(set(found)) + merged(rows)
+
+
+def test_badges(src, ns, dicts):
+    parts, missing = lang_js_parts(src)
+    code = badge_code(src)
+    if not check(not missing, f"lang.js lacks {missing} as one line each; this test runs lang.js's own"):
+        return
+    if not check(code is not None, "renderExtremes( ) is not in the history page of WebUI.h. "
+                                   "If it moved or was renamed, move this test with it."):
+        return
+    for f in badge_findings(code, parts, ns, dicts):
+        fails.append(f"max/min badges: {f}")
+
+
+def badge_moments(findings):
+    """{moment} the findings are about, for the mutants."""
+    return {m.group(1) for f in findings for m in [re.search(rf" ({BADGE_MOMENTS}), wanted", f)] if m}
+
+
+# Each mutant takes one piece of the fix out. What it must give is the set of
+# moments at which a badge reads wrong, whatever the pack or the input: a word
+# typed into the page misses every moment in the pack's language; badges that
+# carry no key cannot be relabelled, so they miss the dictionary that arrives
+# late and the switch away from the language they were painted in; with no
+# data-en the first applyLang( ) takes the translated text for the English; an
+# English that is the upper-cased key reads 'TEMP' until a dictionary relabels
+# it and again at the switch to English. The last column is how many times the
+# pattern must match (the Max word, the Min word and the channel's name).
+BADGE_MUTANTS = [
+    ("the Max word typed into the page again",
+     r"<span data-i18n=\"hist_max\" data-en=\"Max\">' \+ esc\(window\.t\('hist_max', 'Max'\)\) \+ '</span>", "Max", 1,
+     {"painted", "arrived", "switched back"}),
+    ("the Min word typed into the page again",
+     r"<span data-i18n=\"hist_min\" data-en=\"Min\">' \+ esc\(window\.t\('hist_min', 'Min'\)\) \+ '</span>", "Min", 1,
+     {"painted", "arrived", "switched back"}),
+    ("no data-i18n on the words: applyLang( ) cannot come back to them",
+     r"data-i18n=\"(?:hist_max|hist_min|' \+ esc\(lk\) \+ ')\" ", "", 3,
+     {"arrived", "switched to English", "switched back"}),
+    ("no data-en on the words: the first applyLang( ) takes the translated text for the English",
+     r" data-en=\"(?:Max|Min|' \+ esc\(en\) \+ ')\"", "", 3,
+     {"switched to English"}),
+    ("the English of a channel's name is its upper-cased key, as the fallback was",
+     r"key\.charAt\(0\)\.toUpperCase\(\) \+ key\.slice\(1\)", "key.toUpperCase()", 1,
+     {"before the dictionary", "switched to English"}),
+]
+
+
+def test_badge_mutants(src, ns, dicts):
+    parts, missing = lang_js_parts(src)
+    code = badge_code(src)
+    if missing or code is None:
+        return
+    check(badge_findings(code, parts, ns, dicts) == [], "badge mutants: the code they start from is not clean")
+    for name, pat, rep, times, want in BADGE_MUTANTS:
+        mutated, n = re.subn(pat, lambda m, r=rep: r, code)
+        if not check(n == times, f"badge mutant {name!r}: its pattern matches {n} times in the code, not {times} "
+                                 f"(the mutant no longer describes the code: update it)"):
+            continue
+        got = badge_moments(badge_findings(mutated, parts, ns, dicts))
+        check(got == want, f"badge mutant {name!r}: a badge reads wrong at {sorted(got)}, wanted {sorted(want)}")
+
+
 def main():
     global WEBUI
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
@@ -1166,13 +1384,15 @@ def main():
              ("test_link_state", lambda: test_link_state(src, ns, dicts)),
              ("test_melody_names", lambda: test_melody_names(src, ns, dicts)),
              ("test_probe_scan", lambda: test_probe_scan(src, ns, dicts)),
-             ("test_selector", lambda: test_selector(src, ns, dicts))]
+             ("test_selector", lambda: test_selector(src, ns, dicts)),
+             ("test_badges", lambda: test_badges(src, ns, dicts))]
     if args.mutations:
         tests += [("test_export_mutants", lambda: test_export_mutants(src, ns, dicts)),
                   ("test_link_mutants", lambda: test_link_mutants(src, ns, dicts)),
                   ("test_melody_mutants", lambda: test_melody_mutants(src, ns, dicts)),
                   ("test_scan_mutants", lambda: test_scan_mutants(src, ns, dicts)),
-                  ("test_selector_mutants", lambda: test_selector_mutants(src, ns, dicts))]
+                  ("test_selector_mutants", lambda: test_selector_mutants(src, ns, dicts)),
+                  ("test_badge_mutants", lambda: test_badge_mutants(src, ns, dicts))]
     for name, t in tests:
         before = len(fails)
         try:
