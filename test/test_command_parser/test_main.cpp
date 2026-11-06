@@ -347,6 +347,21 @@ void test_screen_boot_end_and_clkboot(void) {
     assertStr1(c, "clkboot");
 }
 
+void test_screen_boot_end_with_a_word_after_it_hands_both_over_and_is_refused_there(void) {
+    /* `screen boot end 3` is not `end`. The parser does not know that: it has to hand over "end" in strVal2 AND "3" in strVal3, because a parser that
+     * dropped the third word for `end` would turn this line into a plain `end` and the handler would give the panel back on a typo. */
+    CliDemand d = parse("screen boot end 3");
+    TEST_ASSERT_EQUAL(CMD_GOTO_SCREEN, d.type);
+    assertStr1(d, "boot");
+    TEST_ASSERT_EQUAL_STRING("end", d.strVal2);
+    TEST_ASSERT_EQUAL_STRING("3", d.strVal3);
+    TEST_ASSERT_EQUAL(bootreplay::V_BAD, bootreplay::parse(d.strVal2, d.strVal3).verb);
+    CliDemand w = parse("screen boot END Cancel");
+    TEST_ASSERT_EQUAL_STRING("end", w.strVal2);
+    TEST_ASSERT_EQUAL_STRING("cancel", w.strVal3);
+    TEST_ASSERT_EQUAL(bootreplay::V_BAD, bootreplay::parse(w.strVal2, w.strVal3).verb);
+}
+
 void test_screen_boot_an_invalid_word_reaches_the_handler_and_is_refused_there(void) {
     /* The parser does not reject `screen boot x`; the handler's bootreplay::parse( ) does, and it must see "x". */
     CliDemand d = parse("screen boot x");
@@ -367,6 +382,8 @@ void test_screen_boot_words_mean_what_the_handler_reads_from_them(void) {
         { "screen boot 3 CANCEL",  bootreplay::V_CANCEL,   3,  0 },
         { "screen boot 3 101",     bootreplay::V_BAD,      0,  0 },
         { "screen boot cancel",    bootreplay::V_BAD,      0,  0 },
+        { "screen boot end 3",     bootreplay::V_BAD,      0,  0 },   /* `end` takes nothing after it: the word must reach parse( ), which refuses the pair */
+        { "screen boot end cancel", bootreplay::V_BAD,     0,  0 },
     };
     for (const Row& r : rows) {
         CliDemand d = parse(r.line);
@@ -422,6 +439,7 @@ int main(int argc, char** argv) {
     RUN_TEST(test_screen_boot_index_and_percent_arrive_in_strval2_and_3);
     RUN_TEST(test_screen_boot_index_and_cancel_arrive_lowercase);
     RUN_TEST(test_screen_boot_end_and_clkboot);
+    RUN_TEST(test_screen_boot_end_with_a_word_after_it_hands_both_over_and_is_refused_there);
     RUN_TEST(test_screen_boot_an_invalid_word_reaches_the_handler_and_is_refused_there);
     RUN_TEST(test_screen_boot_words_mean_what_the_handler_reads_from_them);
     return UNITY_END();
