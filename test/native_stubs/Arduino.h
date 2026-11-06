@@ -40,6 +40,15 @@ inline size_t strlcpy(char* dst, const char* src, size_t cap) {
     return slen;
 }
 
+/* A number in base 2, 8, 10 or 16 (upper case), as the target's String(n, HEX) and Serial.println(n, HEX) write it. Added with the
+ * unit that compiles BME280SensorDriver.h on the host (test/test_sensors/bmx_scan_twin.cpp), whose log lines print an I2C address. */
+inline std::string simut_native_in_base(unsigned long v, int base) {
+    if (base < 2 || base > 16) base = 10;
+    std::string r;
+    do { r.insert(r.begin(), "0123456789ABCDEF"[v % (unsigned long)base]); v /= (unsigned long)base; } while (v);
+    return r;
+}
+
 class String {
 public:
     String() : data_() {}
@@ -58,6 +67,7 @@ public:
     explicit String(unsigned v) : data_(std::to_string(v)) {}
     explicit String(long v)     : data_(std::to_string(v)) {}
     explicit String(unsigned long v) : data_(std::to_string(v)) {}
+    String(unsigned long v, int base) : data_(simut_native_in_base(v, base)) {}
 
     String& operator+=(char c) { data_ += c; return *this; }
     String& operator+=(const char* s) { if (s) data_ += s; return *this; }
@@ -279,6 +289,8 @@ public:
     }
     void println(const char* s = nullptr) { writes++; keep(s); keep("\r\n"); }
     void print(const char* s = nullptr)   { writes++; keep(s); }
+    void println(int v, int base) { writes++; keep(simut_native_in_base((unsigned long)v, base).c_str( )); keep("\r\n"); }
+    void print(int v, int base)   { writes++; keep(simut_native_in_base((unsigned long)v, base).c_str( )); }
     void flush( ) {}
     void begin(unsigned long) {}
 private:

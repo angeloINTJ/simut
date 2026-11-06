@@ -43,6 +43,12 @@
 void setUp(void) {}
 void tearDown(void) {}
 
+/* bmx_scan_twin.cpp: the real BME280SensorDriver::scanFinalize( ) on the host, against a fake probe */
+void test_bmx_scan_result_carries_the_pair_the_probe_drove(void);
+void test_bmx_scan_names_the_chip_that_answered(void);
+void test_bmx_scan_reports_nothing_when_nothing_answers(void);
+void test_bmx_scan_json_is_what_the_page_reads(void);
+
 /* Every profile ships all three families today, so enabled is true for each
  * driver type; a build compiling one out would flip its row's `enabled`. */
 static void test_type_enabled(void) {
@@ -328,5 +334,9 @@ int main(int /*argc*/, char** /*argv*/) {
     RUN_TEST(test_scan_json_rom_only_for_ds18b20);
     RUN_TEST(test_scan_json_document);
     RUN_TEST(test_scan_json_small_buffer);
+    RUN_TEST(test_bmx_scan_result_carries_the_pair_the_probe_drove);
+    RUN_TEST(test_bmx_scan_names_the_chip_that_answered);
+    RUN_TEST(test_bmx_scan_reports_nothing_when_nothing_answers);
+    RUN_TEST(test_bmx_scan_json_is_what_the_page_reads);
     return UNITY_END();
 }
