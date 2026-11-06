@@ -145,7 +145,7 @@ Os nomes dos eventos vêm do aparelho. Com a página em **EN**, saem em inglês;
 
 Se a leitura falha, a tabela mostra `Error fetching logs`. Isso acontece, por exemplo, quando alguém está usando o painel naquele momento. Espere alguns segundos e toque de novo.
 
-::: {.figura #fig-16-eventos tipo="web" arquivo="16-eventos.png" captura="rota /history; largura 1280; sessão admin; seção Eventos do Sistema carregada; caixas INF, WRN e ERR marcadas; cerca de 15 linhas visíveis, incluindo uma entrada (300), uma mudança de configuração (303) e uma falha de telemetria (31)"}
+::: {.figura #fig-16-eventos tipo="web" arquivo="16-eventos.png" captura="rota /history; largura 1280; sessão admin; seção Eventos do Sistema carregada; caixas INF, WRN e ERR marcadas; as nove linhas que a caixa da tabela mostra sem rolar, incluindo uma entrada (300), uma mudança de configuração (303) e uma falha de telemetria (31)"}
 A seção Eventos do Sistema com os três níveis marcados. O registro mais recente fica no topo.
 :::
 

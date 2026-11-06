@@ -240,10 +240,10 @@ A página mostra as horas no fuso do computador, e o aparelho nomeia os arquivos
 
 ### No celular {#cap-15-celular}
 
-Na largura de um celular, os dois cartões ficam um sobre o outro: primeiro o seletor e o calendário, depois o gráfico. Toque no gráfico para ler um ponto. O toque não impede a rolagem da página.
+Na largura de um celular, os dois cartões ficam um sobre o outro: primeiro o gráfico, depois o seletor e o calendário. Toque no gráfico para ler um ponto. O toque não impede a rolagem da página.
 
-::: {.figura #fig-15-celular tipo="web" arquivo="15-celular.png" captura="rota /history; largura 390; sessão admin; um sensor; período 24h; tooltip aberto por toque"}
-A página no celular, com o gráfico abaixo do calendário e a leitura de um ponto aberta pelo toque.
+::: {.figura #fig-15-celular tipo="web" arquivo="15-celular.png" captura="rota /history; largura 390; sessão admin; um sensor; período 24h; janela começando no título do gráfico; tooltip aberto por toque"}
+A página no celular, com o gráfico acima do seletor e do calendário e a leitura de um ponto aberta pelo toque.
 :::
 
 ## Exportar o histórico em CSV {#cap-15-csv}
