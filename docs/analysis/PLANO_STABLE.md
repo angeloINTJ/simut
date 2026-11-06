@@ -88,7 +88,7 @@ de recebê-la pelo ar: o aparelho a recusa no stage, na validação e no aplicad
 | `pico_w_air` | 1.035.581 | 4.803 |
 | `pico_w_alpha` | 994.717 | 45.667 |
 | `pico2_w_release` | 1.038.929 | 529.839 |
-| `pico_w_test` | 1.037.909 | 2.475 |
+| `pico_w_test` | 1.040.157 | 227 |
 | `pico_w_asserts` | 1.039.389 | 995 |
 | `pico_wire` | 609.481 | 430.903 |
 | `pico_wiretft` | 788.433 | 251.951 |
@@ -113,6 +113,7 @@ de recebê-la pelo ar: o aparelho a recusa no stage, na validação e no aplicad
   101 B acima do teto (`check_flash_budget.py pico_w_test` saía com 1); o #297, que
   serve a página de licença dela pelo LittleFS, tirou-a de lá neste merge (sync 6b,
   2026-10-28), e a linha da tabela é a medida dele.
+- **A `pico_w_test` ficou a 227 B do teto em 2026-11-06.** As tags `screen boot` e `screen clkboot` (o gravador do terminal de boot, `src/display/BootReplay.h`) somaram 2.248 B de `.bin` e levaram a folga de 2.475 B a 227 B (assinado 1.040.157 contra 1.040.384). Elas só existem onde o console completo e o TFT se encontram, a `pico_w_test` e a `pico_w_test_https` (esta, isenta, cresceu os mesmos 2.248 B de `used`); as outras nove imagens têm o mesmo sha256 de antes, compiladas do zero dos dois lados. Uma adição de 228 B ou mais à `pico_w_test` passa do teto e reprova o job dela; quando isso acontecer vale o que a B6 já diz das imagens de bancada: cortar código, mover páginas para o LittleFS ou isentá-la.
 - **A folga da `pico2_w_release` é contra o slot, não contra o teto acima.**
   Desde o passo 4 do [OTA_AB_RP2350.md](OTA_AB_RP2350.md) ela atualiza pelo ar
   no outro slot de uma tabela de partições, e o teto dela é esse slot,
