@@ -51,6 +51,8 @@ PERFIS = 'tools/generated/profiles.ini'
 BME_DRIVER = 'src/sensors/BME280Driver.h'
 BME_SENSOR = 'src/sensors/BME280SensorDriver.h'
 AIR_CONFIG = 'src/air/AirConfig.h'
+RELEASE_MANIFEST = 'tools/release_manifest.py'
+WORKFLOW_OTA = '.github/workflows/release-ota.yml'
 
 
 def confere(cond, msg, ok=None):
@@ -88,6 +90,10 @@ def copiar_fonte(fonte, destino):
         alvo = destino / rel
         alvo.parent.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(fonte.raiz / rel, alvo)
+    for rel, glob in fonte.listados:
+        (destino / rel).mkdir(parents=True, exist_ok=True)
+        for p in (fonte.raiz / rel).glob(glob):
+            shutil.copyfile(p, destino / rel / p.name)
 
 
 def desenhar_de(raiz):
@@ -342,13 +348,19 @@ def main():
                  [(CONFIG, '#define BUZZER_PIN 22', '#define BUZZER_PIN 21', 1), (CONFIG, '#define HD44780_D7 21', '#define HD44780_D7 28', 1)],
                  {'02-pinos-release.svg', '02-pinos-alpha.svg'}),
                 ('the radio\'s fourth GPIO 29 -> 30 in AirConfig.h', [(AIR_CONFIG, 'case 25: case 29: return false;', 'case 25: case 30: return false;', 1)], set(mapas)),
+                ('an image renamed in ENVS of release_manifest.py (releasetwo -> pico2)', [(RELEASE_MANIFEST, '"releasetwo": "pico2_w_release"', '"pico2": "pico2_w_release"', 1)], {'03-arquivos.svg'}),
+                ('a language pack taken out of data/lang', [('data/lang/language_es-ES.lng', None, None, None)], {'03-arquivos.svg'}),
+                ('the checksum file renamed in the Checksums step of the release workflow', [(WORKFLOW_OTA, '> SHA256SUMS', '> SUMS256', 1)], {'03-arquivos.svg'}),
                 ('the BME280 probe pair (4, 5) -> (6, 7)', [(BME_SENSOR, 'probe(4, 5, BME280_ADDR_PRIMARY)', 'probe(6, 7, BME280_ADDR_PRIMARY)', 1)], {'02-bmx280.svg'}),
                 ('the BME280 addresses 0x76/0x77 -> 0x75/0x78 in the driver, code and comments', [(BME_DRIVER, '0x76', '0x75', None), (BME_DRIVER, '0x77', '0x78', None)], {'02-bmx280.svg'}),
             ]
 
         def aplica(raiz, edicoes):
             for rel, antigo, novo, vezes in edicoes:
-                trocar(raiz / rel, antigo, novo, vezes)
+                if antigo is None:
+                    (raiz / rel).unlink()                  # a file taken out of a folder the tool lists
+                else:
+                    trocar(raiz / rel, antigo, novo, vezes)
 
         for k, (descr, edicoes, esperado) in enumerate(casos_da_fonte()):
             if not precisa(*sorted(esperado)):
@@ -411,6 +423,13 @@ def main():
             rc, so, se = em_processo('--check', '--fonte', str(raiz), '--images', str(img), '--capitulos', str(cap))
             confere(rc == 2 and rel in se and padrao in se, f'{rel}, pattern {padrao} mangled: exit {rc}, message {se.strip()[-240:]}', f'{rel}: the pattern {padrao[:60]} mangled: exit 2 naming the file and the pattern')
         confere(len(fonte.padroes) >= len(m.FIGURAS), f'the tool recorded only {len(fonte.padroes)} patterns for {len(m.FIGURAS)} diagrams', f'{len(fonte.padroes)} patterns recorded, each held to the control above')
+        if precisa('03-arquivos.svg'):
+            sem_pacote = tmp / 'fonte_sem_pacote'
+            copiar_fonte(fonte, sem_pacote)
+            for p in (sem_pacote / 'data' / 'lang').glob('*.lng'):
+                p.unlink()
+            rc, so, se = em_processo('--check', '--fonte', str(sem_pacote), '--images', str(img), '--capitulos', str(cap))
+            confere(rc == 2 and 'data/lang' in se, f'no language pack in data/lang: exit {rc}, {se.strip()[-200:]}', 'data/lang with no pack: exit 2 naming the folder')
         sem_arquivo = tmp / 'fonte_sem_arquivo'
         copiar_fonte(fonte, sem_arquivo)
         (sem_arquivo / CONFIG).unlink()

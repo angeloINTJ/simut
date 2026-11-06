@@ -55,6 +55,8 @@ AIR_CONFIG = 'src/air/AirConfig.h'
 BME_SENSOR = 'src/sensors/BME280SensorDriver.h'
 BME_DRIVER = 'src/sensors/BME280Driver.h'
 BOOT = 'src/AppManager_Boot.cpp'
+RELEASE_MANIFEST = 'tools/release_manifest.py'
+WORKFLOW_OTA = '.github/workflows/release-ota.yml'
 
 
 class Falta(Exception):
@@ -95,6 +97,9 @@ FIGURAS = (
     Figura('fig-02-bmx280', '02-bmx280.svg', 'cap02-hardware.md', 'desenho_bmx280',
            'ligação de um módulo BME280 de seis pinos ao Pico W, no par de pinos que a busca de sondas tenta (src/sensors/BME280SensorDriver.h), '
            'com o endereço do driver (src/sensors/BME280Driver.h) e os pinos físicos do datasheet do Pico W'),
+    Figura('fig-03-arquivos', '03-arquivos.svg', 'cap03-instalar.md', 'desenho_arquivos',
+           'os arquivos de uma versão (quatro imagens, em colunas neutras, dois pacotes de idioma, o manifesto e as somas) e o caminho de cada um até o aparelho, com o acento só nos '
+           'caminhos; as imagens vêm de ENVS em tools/release_manifest.py, os pacotes de data/lang e os nomes do manifesto e das somas do passo Checksums de .github/workflows/release-ota.yml'),
 )
 
 
@@ -137,6 +142,7 @@ class Fonte:
         self._texto = {}
         self.lidos = []
         self.padroes = []
+        self.listados = []
 
     def ler(self, rel):
         if rel not in self._texto:
@@ -156,6 +162,19 @@ class Fonte:
         if m is None:
             raise Falta(f'{rel}: the pattern {padrao} was not found; the diagrams read their numbers there, so the code and the diagrams have to be looked at together')
         return m
+
+    def listar(self, rel, glob):
+        """The names of the files of the folder `rel` that match `glob`, sorted; Falta when there is none: the diagrams name what the folder holds. The controls copy those
+        folders (Fonte.listados) into a scratch tree, as they copy the files read (Fonte.lidos)."""
+        if (rel, glob) not in self.listados:
+            self.listados.append((rel, glob))
+        try:
+            nomes = sorted(p.name for p in (self.raiz / rel).glob(glob) if p.is_file())
+        except OSError as e:
+            raise Falta(f'{rel}: cannot be listed ({e}); the diagrams name the files it holds') from None
+        if not nomes:
+            raise Falta(f'{rel}: no file matches {glob}; the diagrams name the files it holds')
+        return nomes
 
     def define(self, rel, nome):
         """The number of `#define NOME n` in the file."""
@@ -295,6 +314,21 @@ class Numeros:
                         f'the figure has to be drawn for what that setting means first')
         self.f.achar(BOOT, r'gpio_pull_down\(AIR_CHARGER_PIN\)')
         self.f.achar(BOOT, r'airSensorPower\(AIR_SENSOR_POWER_PIN, true\)')
+
+
+    def imagens(self):
+        """[(the image's published name, its build environment)] in the order tools/release_manifest.py lists them (ENVS): release, alpha, air and releasetwo."""
+        m = self.f.achar(RELEASE_MANIFEST, r'^ENVS = \{([^}]*)\}')
+        pares = re.findall(r'"(\w+)":\s*"(\w+)"', m.group(1))
+        if len(pares) < 2:
+            raise Falta(f'{RELEASE_MANIFEST}: ENVS names {len(pares)} image(s), and the figure of a version\'s files draws a column for each')
+        return pares
+
+    def publicados(self):
+        """(the names of the language packs a release carries, the manifest's name, the checksum file's): the packs are what data/lang holds, the other two the Checksums
+        step of the release workflow, which sums *.bin, *.uf2, *.lng and the manifest into the checksum file."""
+        m = self.f.achar(WORKFLOW_OTA, r'sha256sum \*\.bin \*\.uf2 \*\.lng (\S+) > (\S+)')
+        return self.f.listar('data/lang', '*.lng'), m.group(1), m.group(2)
 
 
 def pino_de(gpio):
@@ -676,6 +710,68 @@ def desenho_air_energia(num, slug):
     s.texto(396, y17 + 76, 'GND', 'dg-n dg-c2')
     for k, l in enumerate(quebrar('o divisor leva os 5 V a 3,3 V: GP17 alto = carregador ligado', 168, 12)):
         s.texto(192, y17 + 28 + 16 * k, l, 'dg-n dg-c2')
+    return s.render()
+
+
+class Cx(NamedTuple):
+    """A box drawn: its corner and size, and the points on its sides where a wire meets it (the middle of the side, which is on the grid when the width is a multiple of 8 and
+    the height is 16 + 16 lines)."""
+    x: int
+    y: int
+    w: int
+    h: int
+
+    def esq(self, dy=0):
+        return (self.x, self.y + self.h // 2 + dy)
+
+    def dir(self, dy=0):
+        return (self.x + self.w, self.y + self.h // 2 + dy)
+
+    def topo(self, dx=0):
+        return (self.x + self.w // 2 + dx, self.y)
+
+    def base(self, dx=0):
+        return (self.x + self.w // 2 + dx, self.y + self.h)
+
+
+def bloco(s, x, y, w, itens, cls='dg-caixa', raio=6, centro=None):
+    """caixa_de_texto( ) that returns the box as a Cx."""
+    y, h = caixa_de_texto(s, x, y, w, itens, cls, raio, centro)
+    return Cx(x, y, w, h)
+
+
+def desenho_arquivos(num, slug):
+    imagens = [nome for nome, _ in num.imagens()]
+    idiomas, manifesto, soma = num.publicados()
+    s = Svg(slug, 392)
+    ponta = ('dg-fio-acento', 'dg-ponta-acento')
+    # the images: one column for each, a row for the .uf2 and one for the .bin, none of them coloured: the column says which image, the arrow where the file goes
+    largura, passo = 88, 96
+    direita = 16 + passo * (len(imagens) - 1) + largura          # where the files end and the arrows start
+    for i, nome in enumerate(imagens):
+        s.caixa(16 + passo * i, 16, largura, 24, 'dg-caixa-2', 6)
+        s.texto(16 + passo * i + largura // 2, 32, nome, 'dg-t', 'middle')
+    for y, ext, titulo, nota in ((48, '.uf2', 'cabo USB, com o BOOTSEL', 'aparelho novo ou recuperação'),
+                                 (104, '.bin', 'página Arquivos', 'atualização pela rede')):
+        for i in range(len(imagens)):
+            s.caixa(16 + passo * i, y, largura, 48, 'dg-caixa', 6)
+            s.texto(16 + passo * i + largura // 2, y + 28, ext, 'dg-n dg-m', 'middle')
+        d = bloco(s, 464, y, 240, [(titulo, 'dg-t'), (nota, 'dg-n dg-c2')])
+        s.seta([(direita, d.esq()[1]), d.esq()], *ponta)
+    # the packs, the manifest and the checksums: one chip each, ending where the images' files end, each beside its destination
+    for y, nomes, titulo, nota in ((168, idiomas, 'página Arquivos', 'pasta /lang, o pacote de idioma'),
+                                   (232, [manifesto], 'gestor de frota', 'soma SHA-256 de cada imagem'),
+                                   (296, [soma], 'conferência do download', f'sha256sum -c {soma}')):
+        d = bloco(s, 464, y, 240, [(titulo, 'dg-t'), (nota, 'dg-n dg-c2')])
+        chip = min(184, (direita - 16 - 8 * (len(nomes) - 1)) // len(nomes) // 8 * 8)      # 184 wide, or as wide as the images' block allows; a multiple of 8 for the centre
+        for k, nome in enumerate(nomes):
+            if largura_texto(nome, 12, True) > chip - 8:
+                raise ValueError(f'{slug}: {nome} does not fit in its chip of {chip} px')
+            x = direita - chip - (chip + 8) * (len(nomes) - 1 - k)
+            s.caixa(x, d.esq()[1] - 16, chip, 32, 'dg-caixa', 6)
+            s.texto(x + chip // 2, d.esq()[1] + 4, nome, 'dg-n dg-m', 'middle')
+        s.seta([(direita, d.esq()[1]), d.esq()], *ponta)
+    s.texto(16, 376, [('', 'Cada imagem tem o nome '), ('dg-m', 'simut_v<versão>_<imagem>.uf2'), ('', ' e o mesmo com '), ('dg-m', '.bin'), ('', '.')], 'dg-n dg-c2')
     return s.render()
 
 
