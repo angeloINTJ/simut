@@ -74,6 +74,15 @@ class Figura(NamedTuple):
 # One row per diagram this tool draws, in the order of the chapters. The diagrams of the manual that are not here yet keep their .png in the chapter and are left alone by
 # --check; a row is added with its drawing function, its block's arquivo= moved to .svg and its captura= made the text --list prints.
 FIGURAS = (
+    Figura('fig-02-pinos-release', '02-pinos-release.svg', 'cap02-hardware.md', 'desenho_pinos_release',
+           'vista de cima do Pico W com os 40 pinos numerados e os da release (SPI0, TFT, toque e cigarra) lidos de src/simut_config.h e do perfil pico_w_release; '
+           'a pinagem física é a do datasheet do Pico W e os quatro GPIOs do rádio vêm de src/air/AirConfig.h'),
+    Figura('fig-02-pinos-alpha', '02-pinos-alpha.svg', 'cap02-hardware.md', 'desenho_pinos_alpha',
+           'vista de cima do Pico W com os 40 pinos numerados e os da alpha (LCD em paralelo, de GP16 a GP21, e cigarra) lidos de src/simut_config.h e do perfil pico_w_alpha; '
+           'a pinagem física é a do datasheet do Pico W e os quatro GPIOs do rádio vêm de src/air/AirConfig.h'),
+    Figura('fig-02-pinos-air', '02-pinos-air.svg', 'cap02-hardware.md', 'desenho_pinos_air',
+           'vista de cima do Pico W com os 40 pinos numerados e os dois do Air (energia dos sensores e carregador) lidos de src/simut_config.h e do perfil pico_w_air; '
+           'a pinagem física é a do datasheet do Pico W e os quatro GPIOs do rádio vêm de src/air/AirConfig.h'),
     Figura('fig-02-ds18b20', '02-ds18b20.svg', 'cap02-hardware.md', 'desenho_ds18b20',
            'ligação de uma sonda DS18B20 de três fios ao Pico W, com o resistor de 4,7 kΩ entre o dado e o 3V3; os pinos físicos são os do datasheet do Pico W, '
            'o GP2 é um exemplo e vale qualquer pino de slot (o limite vem de src/simut_config.h)'),
@@ -235,6 +244,54 @@ class Numeros:
         if primario != volta or (c.group(1), c.group(2)) != (primario, secundario):
             raise Falta(f'{BME_DRIVER}: the code (0x{primario}, 0x{secundario}, 0x{volta}) and its comment (0x{c.group(1)}, 0x{c.group(2)}) disagree on the BME280 addresses')
         return {'sda': sda, 'scl': scl, 'sdo_gnd': f'0x{primario}', 'sdo_3v3': f'0x{secundario}'}
+
+    def papeis(self, imagem):
+        """{gpio: (label, device)} of the pins beyond the sensor slots that `imagem` uses, as the sources say, in the order of the physical pins. Two functions on one pin,
+        or a function on a pin that is a sensor slot or is not on the edge, is Falta: the map would draw a wiring that cannot be built."""
+        env, slots, p = IMAGEM_DO_PERFIL[imagem], self.slots(imagem), {}
+
+        def poe(gpio, rotulo, dispositivo=''):
+            if gpio not in EXTERNOS:
+                raise Falta(f'{CONFIG}: in the {imagem} image {rotulo} is on GP{gpio}, which is {"a sensor slot pin" if gpio < slots else "not one of GP16 to GP22 and GP26 to GP28"}; '
+                            f'the map of pins draws those as functions')
+            if gpio in p:
+                raise Falta(f'{CONFIG}: in the {imagem} image GP{gpio} has two functions, {p[gpio][0]} and {rotulo}')
+            p[gpio] = (rotulo, dispositivo)
+
+        macro = lambda nome: self.macro(nome, imagem)
+        if imagem == 'release':
+            spi = self.spi0()
+            poe(spi['MISO'], 'MISO', 'TFT e toque')
+            poe(macro('TOUCH_CS'), 'T_CS', 'toque')
+            poe(spi['SCK'], 'SCK', 'TFT e toque')
+            poe(spi['MOSI'], 'MOSI', 'TFT e toque')
+            poe(macro('TOUCH_IRQ'), 'T_IRQ', 'toque')
+            poe(macro('BUZZER_PIN'), 'cigarra')
+            poe(macro('TFT_RST'), 'RST', 'TFT')
+            poe(macro('TFT_DC'), 'DC', 'TFT')
+            poe(macro('TFT_CS'), 'CS', 'TFT')
+        elif imagem == 'alpha':
+            self.f.exigir_flag(env, 'HD44780_MODE_PARALLEL', '1', 'the alpha of chapter 2 drives its LCD in parallel mode on GP16 to GP21 (the I2C backpack would take GP26 and GP27)')
+            for nome, rotulo in (('HD44780_RS', 'RS'), ('HD44780_EN', 'EN'), ('HD44780_D4', 'D4'), ('HD44780_D5', 'D5'), ('HD44780_D6', 'D6'), ('HD44780_D7', 'D7')):
+                poe(macro(nome), rotulo, 'LCD')
+            poe(macro('BUZZER_PIN'), 'cigarra')
+        else:
+            self.f.exigir_flag(env, 'SIMUT_AIR', '1', 'the Air has no display and no buzzer, and only its two pins beyond the slots')
+            self.carregador()
+            poe(macro('AIR_SENSOR_POWER_PIN'), 'energia dos sensores', 'saída e sinal de acordado')
+            poe(macro('AIR_CHARGER_PIN'), 'carregador', 'entrada')
+        return p
+
+
+    def carregador(self):
+        """The premises of the Air's power figure, which draws a divider off 5 V into an input with a pull-down that reads high with the charger on, and the sensors' switch driven
+        high while the device is awake: the polarity setting, and the two lines of AppManager_Boot.cpp that set the pins."""
+        alto = self.f.define(CONFIG, 'AIR_CHARGER_ACTIVE_HIGH')
+        if alto != 1:
+            raise Falta(f'{CONFIG}: AIR_CHARGER_ACTIVE_HIGH is {alto}, and the figure of the Air\'s power draws a divider off 5 V that reads high with the charger on (chapter 2); '
+                        f'the figure has to be drawn for what that setting means first')
+        self.f.achar(BOOT, r'gpio_pull_down\(AIR_CHARGER_PIN\)')
+        self.f.achar(BOOT, r'airSensorPower\(AIR_SENSOR_POWER_PIN, true\)')
 
 
 def pino_de(gpio):
@@ -449,6 +506,107 @@ def desenho_bmx280(num, slug):
     s.texto(528, sdo + 4, f'GND: endereço {bme["sdo_gnd"]}', 'dg-n dg-c2')
     s.texto(24, 344, f'pull-ups de {RESISTOR} em SDA e SCL, se o módulo não tiver', 'dg-n dg-c2')
     return s.render()
+
+
+BX, BY, BW, BH = 176, 36, 160, 428     # the board: its left edge, top edge, width and height
+Y0, PASSO = 52, 20                      # the top of the first pad and the pitch of the rows
+PAD_W, PAD_H = 24, 16
+COL_NOME, COL_PAPEL = BX + BW + 8, BX + BW + 76       # the right side: where a pin's name starts, and what it is for
+
+MAPAS = {
+    'release': {'acento': 'TFT, toque e cigarra', '3v3': 'TFT e sensores', 'vbus': '5 V do USB'},
+    'alpha': {'acento': 'LCD e cigarra', '3v3': 'sensores', 'vbus': '5 V do USB, para o LCD'},
+    'air': {'acento': 'energia dos sensores e carregador', '3v3': 'sensores', 'vbus': '5 V do USB'},
+}
+CLASSES_DO_PINO = {'sensor': ('dg-caixa', ''), 'papel': ('dg-caixa-acento', ' dg-sobre-acento'), 'forte': ('dg-caixa-forte', ' dg-sobre-forte'),
+                   'apagado': ('dg-caixa-apagada', ' dg-c2')}
+
+
+def pad_de(pino):
+    """(x, y) of the top left corner of a pin's pad: the left row runs down from pin 1, the right row up from pin 21, as seen from above."""
+    linha = pino - 1 if pino <= 20 else 40 - pino
+    return (BX + 4 if pino <= 20 else BX + BW - 4 - PAD_W), Y0 + PASSO * linha
+
+
+def papel_do_pino(pino, papeis, slots, texto):
+    """(kind, the role's label as runs or None) of a pin of the board in the image whose roles and slot count these are."""
+    nome = PINAGEM[pino]
+    if nome.startswith('GP'):
+        g = int(nome[2:])
+        if g < slots:
+            return 'sensor', None
+        if g in papeis:
+            rotulo, dispositivo = papeis[g]
+            return 'papel', (rotulo, dispositivo)
+        return 'apagado', ('sem uso', '')
+    if nome in ('GND', 'AGND'):
+        return 'forte', None
+    if nome == '3V3':
+        return 'forte', (texto['3v3'], '')
+    if nome == 'VBUS':
+        return 'forte', (texto['vbus'], '')
+    return 'apagado', None
+
+
+def mapa_de_pinos(num, slug, imagem):
+    papeis, slots, radio, texto = num.papeis(imagem), num.slots(imagem), num.radio(), MAPAS[imagem]
+    s = Svg(slug, 544)
+    s.caixa(BX, BY, BW, BH, 'dg-caixa-2', 12)
+    s.caixa(BX + 56, 24, 48, 20, 'dg-caixa', 6)
+    s.texto(BX + 80, 40, 'USB', 'dg-n dg-m dg-c2', 'middle')
+    s.caixa(BX + 48, 68, 64, 48, 'dg-caixa', 6)
+    s.texto(BX + 80, 96, 'RP2040', 'dg-n dg-m dg-c2', 'middle')
+    s.texto(BX + 80, 216, 'Pico W', 'dg-t dg-b', 'middle')
+    s.texto(BX + 80, 232, 'vista de cima', 'dg-n dg-c2', 'middle')
+    s.caixa(BX + 32, 352, 96, 80, 'dg-caixa-apagada', 6)
+    s.texto(BX + 80, 372, 'rádio', 'dg-n dg-c2', 'middle')
+    for k, g in enumerate(radio):
+        s.caixa(BX + 36 + 48 * (k % 2), 380 + 24 * (k // 2), 40, 16, 'dg-caixa-apagada', 6)
+        s.texto(BX + 56 + 48 * (k % 2), 392 + 24 * (k // 2), f'GP{g}', 'dg-n dg-m dg-c2', 'middle')
+    for pino in range(1, 41):
+        x, y = pad_de(pino)
+        tipo, papel = papel_do_pino(pino, papeis, slots, texto)
+        cls, cor = CLASSES_DO_PINO[tipo]
+        s.caixa(x, y, PAD_W, PAD_H, cls, 6)
+        s.texto(x + 12, y + 12, str(pino), 'dg-n dg-m' + cor, 'middle')
+        nome = PINAGEM[pino]
+        if pino <= 20:
+            s.texto(BX - 8, y + 12, nome, 'dg-t dg-m', 'end')
+            continue
+        s.texto(COL_NOME, y + 12, nome, 'dg-t dg-m' + (' dg-c2' if tipo == 'apagado' and papel is None else ''))
+        if papel:
+            rotulo, dispositivo = papel
+            mono = rotulo.isupper()
+            runs = [('dg-m' if mono else '', rotulo)] + ([('', f' · {dispositivo}')] if dispositivo else [])
+            largo = sum(largura_texto(t, 13, 'dg-m' in c) for c, t in runs)
+            if largo > LARGURA - 8 - COL_PAPEL:
+                s.texto(COL_PAPEL, y + 12, [runs[0]], 'dg-t' + (' dg-c2' if tipo == 'apagado' else ''))
+                s.texto(COL_PAPEL, y + 28, dispositivo, 'dg-t')
+            else:
+                s.texto(COL_PAPEL, y + 12, runs, 'dg-t' + (' dg-c2' if tipo == 'apagado' else ''))
+    # the group of the left row
+    s.linha([(128, 60), (124, 60), (124, 440), (128, 440)], 'dg-fio-fino')
+    s.texto(116, 236, 'sensores', 'dg-t', 'end')
+    s.texto(116, 252, [('dg-m', 'GP0'), ('', ' a '), ('dg-m', f'GP{slots - 1}')], 'dg-t', 'end')
+    s.texto(116, 268, f'{slots} slots', 'dg-n dg-c2', 'end')
+    # the legend
+    for k, (tipo, rot) in enumerate((('sensor', 'sensor'), ('papel', texto['acento']), ('forte', 'alimentação e terra'), ('apagado', 'sem uso, ou interno do Pico W'))):
+        x, y = 16 + 352 * (k % 2), 488 + 24 * (k // 2)
+        s.caixa(x, y, PAD_W, PAD_H, CLASSES_DO_PINO[tipo][0], 6)
+        s.texto(x + 32, y + 12, rot, 'dg-t')
+    return s.render()
+
+
+def desenho_pinos_release(num, slug):
+    return mapa_de_pinos(num, slug, 'release')
+
+
+def desenho_pinos_alpha(num, slug):
+    return mapa_de_pinos(num, slug, 'alpha')
+
+
+def desenho_pinos_air(num, slug):
+    return mapa_de_pinos(num, slug, 'air')
 
 
 # ---- the chapters --------------------------------------------------------------------------------------------------------------------------------------------

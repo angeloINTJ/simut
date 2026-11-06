@@ -46,15 +46,15 @@ Cada imagem usa os pinos de GP16 em diante para a tela, o toque, a cigarra e, no
 
 A numeração física segue a do Pico W: o pino 1 é o GP0, no canto do conector USB, e os pinos seguem em U até o 40, o VBUS, do outro lado do mesmo canto.
 
-::: {.figura #fig-02-pinos-release tipo="diagrama" arquivo="02-pinos-release.png" captura="vista de cima do Pico W com os 40 pinos numerados; GP0–GP15 marcados como SLOT 0–15; GP16 MISO, GP17 T_CS, GP18 SCK, GP19 MOSI, GP20 T_IRQ, GP22 cigarra, GP26 RST, GP27 DC, GP28 CS; 3V3 (36) para TFT e sensores, VBUS (40), GNDs destacados; GP23/24/25/29 em cinza como internos do rádio"}
+::: {.figura #fig-02-pinos-release tipo="diagrama" arquivo="02-pinos-release.svg" captura="desenhado pelo código (tools/manual_diagramas.py): vista de cima do Pico W com os 40 pinos numerados e os da release (SPI0, TFT, toque e cigarra) lidos de src/simut_config.h e do perfil pico_w_release; a pinagem física é a do datasheet do Pico W e os quatro GPIOs do rádio vêm de src/air/AirConfig.h; refazer com python3 tools/manual_diagramas.py --write"}
 O mapa de pinos da release: sensores à esquerda, tela, toque e cigarra à direita.
 :::
 
-::: {.figura #fig-02-pinos-alpha tipo="diagrama" arquivo="02-pinos-alpha.png" captura="vista de cima do Pico W; GP0–GP15 como SLOT 0–15; GP16 RS, GP17 EN, GP18 D4, GP19 D5, GP20 D6, GP21 D7 do LCD; GP22 cigarra; VBUS (40) para o LCD, 3V3 (36) para os sensores; GP26–GP28 sem uso"}
+::: {.figura #fig-02-pinos-alpha tipo="diagrama" arquivo="02-pinos-alpha.svg" captura="desenhado pelo código (tools/manual_diagramas.py): vista de cima do Pico W com os 40 pinos numerados e os da alpha (LCD em paralelo, de GP16 a GP21, e cigarra) lidos de src/simut_config.h e do perfil pico_w_alpha; a pinagem física é a do datasheet do Pico W e os quatro GPIOs do rádio vêm de src/air/AirConfig.h; refazer com python3 tools/manual_diagramas.py --write"}
 O mapa de pinos da alpha: o LCD em GP16 a GP21, a cigarra em GP22.
 :::
 
-::: {.figura #fig-02-pinos-air tipo="diagrama" arquivo="02-pinos-air.png" captura="vista de cima do Pico W; GP0–GP15 como SLOT 0–15; GP16 saída de energia dos sensores e sinal de acordado; GP17 entrada do carregador; demais pinos de GP18 em diante sem uso"}
+::: {.figura #fig-02-pinos-air tipo="diagrama" arquivo="02-pinos-air.svg" captura="desenhado pelo código (tools/manual_diagramas.py): vista de cima do Pico W com os 40 pinos numerados e os dois do Air (energia dos sensores e carregador) lidos de src/simut_config.h e do perfil pico_w_air; a pinagem física é a do datasheet do Pico W e os quatro GPIOs do rádio vêm de src/air/AirConfig.h; refazer com python3 tools/manual_diagramas.py --write"}
 O mapa de pinos do Air: só GP16 e GP17 além dos sensores.
 :::
 
