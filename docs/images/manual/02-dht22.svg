@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 248" role="img" class="dg">
+<rect class="dg-caixa-2" x="24.5" y="16.5" width="191" height="183" rx="12"/>
+<text class="dg-t dg-b" x="40" y="36">Pico W</text>
+<rect class="dg-caixa-2" x="464.5" y="16.5" width="231" height="183" rx="12"/>
+<text class="dg-t dg-b" x="480" y="36">DHT22</text>
+<text class="dg-n dg-c2" x="480" y="52">módulo de três terminais</text>
+<text class="dg-t" x="200" y="76" text-anchor="end"><tspan class="dg-m">3V3</tspan> · pino 36</text>
+<text class="dg-t" x="480" y="76">+</text>
+<text class="dg-n dg-c2" x="528" y="76">alimentação</text>
+<polyline class="dg-fio" points="216,72 464,72"/>
+<circle class="dg-no" cx="216" cy="72" r="4"/>
+<circle class="dg-no" cx="464" cy="72" r="4"/>
+<text class="dg-t" x="200" y="124" text-anchor="end"><tspan class="dg-m">GP3</tspan> · pino 5</text>
+<text class="dg-t" x="480" y="124">dados</text>
+<polyline class="dg-fio" points="216,120 464,120"/>
+<circle class="dg-no" cx="216" cy="120" r="4"/>
+<circle class="dg-no" cx="464" cy="120" r="4"/>
+<text class="dg-t" x="200" y="172" text-anchor="end"><tspan class="dg-m">GND</tspan> · pino 38</text>
+<text class="dg-t" x="480" y="172">−</text>
+<text class="dg-n dg-c2" x="528" y="172">terra</text>
+<polyline class="dg-fio" points="216,168 464,168"/>
+<circle class="dg-no" cx="216" cy="168" r="4"/>
+<circle class="dg-no" cx="464" cy="168" r="4"/>
+<text class="dg-n dg-c2" x="232" y="148">pull-up conforme o módulo</text>
+<text class="dg-n dg-c2" x="24" y="232">O dado liga num GPIO de slot (o GP3 é um exemplo) e o GND, em qualquer pino de terra.</text>
+</svg>

@@ -30,12 +30,19 @@ placeholder with the capture instructions, and the figure goes into Appendix A
 and into docs/images/manual/CAPTURAR.md. Capturing the missing screens is
 therefore: take the shot, save it under that name, run this script again.
 
+An <arquivo> that ends in .svg is not an <img>: the <svg> goes into the page
+itself (inline_svg( )), so that it follows the manual's theme button and its
+tokens, which an image cannot see. The diagrams of tools/manual_diagramas.py are
+those: they name classes (dg-*, styled in CSS below) and never a colour.
+
 USAGE
 -----
     python3 tools/build_manual.py            # writes docs/MANUAL.pt-BR.html
     python3 tools/build_manual.py --check    # fails on a [[VERIFICAR marker, a
-                                             # repeated figure id, a broken internal
-                                             # link or markup that leaked as text
+                                             # repeated figure id, an id of an inline
+                                             # SVG that stands twice in the page, a
+                                             # broken internal link or markup that
+                                             # leaked as text
 
 Requires pandoc (tested with 3.x). Not part of the firmware build or of CI.
 
@@ -139,6 +146,44 @@ def mime_of(name: str) -> str:
             "gif": "image/gif", "svg": "image/svg+xml", "webp": "image/webp"}.get(ext, "application/octet-stream")
 
 
+PROLOGUE_RE = re.compile(r"\A\s*(?:<\?xml[^>]*\?>\s*)?(?:<!DOCTYPE[^>]*>\s*)?")
+
+
+def svg_fragment(raw: str, label: str):
+    """(the SVG text `raw` as the fragment that goes into the page, the ids it holds). The XML prologue and the DOCTYPE, if the text has them, are cut: inside
+    HTML a prologue is a stray processing instruction. `label` (the figure's caption, as plain text) becomes aria-label of the root, which the file leaves to the
+    page because only the page knows the caption; the root already carries role="img". The ids are returned because an id in line is global to the document:
+    svg_id_errors( ) holds them to it."""
+    svg = PROLOGUE_RE.sub("", raw, count=1).rstrip()
+    if not svg.startswith("<svg"):
+        raise SystemExit("build_manual: an SVG figure does not start with <svg")
+    end = svg.index(">")
+    head = re.sub(r'\saria-label="[^"]*"', "", svg[:end])
+    svg = f'{head} aria-label="{html.escape(html.unescape(label), quote=True)}"{svg[end:]}'
+    return svg, re.findall(r'\sid="([^"]+)"', svg)
+
+
+def inline_svg(path: str, label: str):
+    """svg_fragment( ) of the file at `path`."""
+    return svg_fragment(open(path, encoding="utf-8").read(), label)
+
+
+def svg_id_errors(figures: list, page: str) -> list:
+    """One message for each id of an inline SVG that stands more than once in `page`: two figures with the same marker id, or a figure and a heading, would make
+    every url(#id) and every link pick the first one, and nothing would say so. The figures say which ids they hold (render_figures( ) puts them in 'svg_ids')."""
+    count = {}
+    for i in re.findall(r'\sid="([^"]+)"', page):
+        count[i] = count.get(i, 0) + 1
+    errors, seen = [], set()
+    for f in figures:
+        for i in f.get("svg_ids", []):
+            if count.get(i, 0) > 1 and i not in seen:
+                seen.add(i)
+                owners = ", ".join(g["file"] for g in figures if i in g.get("svg_ids", []))
+                errors.append(f"svg id {i!r} stands {count[i]}x in the page (figures: {owners})")
+    return errors
+
+
 FIG_RE = re.compile(r'<div id="(fig-[^"]+)" class="figura"([^>]*)>(.*?)</div>', re.S)
 ATTR_RE = re.compile(r'data-([a-z]+)="([^"]*)"')
 
@@ -154,10 +199,13 @@ def render_figures(frag: str, chapter_label: str, chapter_title: str, figures: l
         have = os.path.exists(path)
         figures.append({"id": fid, "kind": kind, "file": name, "how": how,
                         "caption": re.sub(r"<[^>]+>", "", caption), "chapter": chapter_label,
-                        "chapter_title": chapter_title, "have": have})
+                        "chapter_title": chapter_title, "have": have, "svg_ids": []})
         n = len(figures)
         label = f'<b>Figura {n}.</b> {caption}'
-        if have:
+        if have and name.lower().endswith(".svg"):
+            svg, figures[-1]["svg_ids"] = inline_svg(path, re.sub(r"<[^>]+>", "", caption))
+            inner = f'<div class="moldura moldura-{kind}">{svg}</div>'
+        elif have:
             img = f'<img src="{data_uri(path, mime_of(name))}" alt="{html.escape(re.sub(r"<[^>]+>", "", caption))}" loading="lazy">'
             if kind == "web":
                 inner = f'<div class="moldura-web"><div class="barra"><span></span><span></span><span></span></div>{img}</div>'
@@ -403,6 +451,43 @@ figcaption b{color:var(--tinta);font-weight:600}
    smoothed (the @media rule at the end): a nearest-neighbour shrink to about 340 px drops the 1 px gaps of the grid unevenly (seen in
    headless Chrome at 390 px by the review of 2026-11-04). */
 .moldura-lcd img{width:639px;image-rendering:pixelated}
+/* The diagrams of tools/manual_diagramas.py are SVG in line, so they follow the theme button and the page's fonts; the file names classes and never a colour, and every
+   colour below is a token. The drawing is 720 px wide: the frame shows it whole up to that size, shrinks it with the page down to 560 px and then scrolls sideways,
+   so the 13 px text is never shrunk past reading (checked in headless Chrome at 390 px, 2026-11-06). Lines are 1 px (boxes, kept at 1 px at any scale) or 2 px (wires). */
+.moldura-diagrama{background:var(--superficie);overflow-x:auto}
+.moldura-diagrama svg{display:block;width:720px;max-width:100%;min-width:560px;height:auto}
+svg.dg text{fill:var(--tinta);font-family:var(--font-texto)}
+svg.dg .dg-t{font-size:13px}
+svg.dg .dg-n{font-size:12px}
+svg.dg .dg-m{font-family:var(--font-mono)}
+svg.dg .dg-b{font-weight:600}
+svg.dg .dg-c2{fill:var(--tinta-2)}
+svg.dg .dg-sobre-acento{fill:var(--acento-tinta)}
+svg.dg .dg-sobre-forte{fill:var(--superficie)}
+svg.dg .dg-ok{fill:var(--positivo)}
+svg.dg .dg-aviso{fill:var(--alerta)}
+svg.dg .dg-perigo{fill:var(--perigo)}
+svg.dg .dg-caixa,svg.dg .dg-caixa-2,svg.dg .dg-caixa-acento,svg.dg .dg-caixa-forte,svg.dg .dg-caixa-apagada,svg.dg .dg-caixa-ok,svg.dg .dg-caixa-aviso,svg.dg .dg-caixa-perigo{stroke-width:1;vector-effect:non-scaling-stroke}
+svg.dg .dg-caixa{fill:var(--superficie);stroke:var(--linha-forte)}
+svg.dg .dg-caixa-2{fill:var(--superficie-2);stroke:var(--linha-forte)}
+svg.dg .dg-caixa-acento{fill:var(--acento);stroke:var(--acento-forte)}
+svg.dg .dg-caixa-forte{fill:var(--tinta-2);stroke:var(--tinta-2)}
+svg.dg .dg-caixa-apagada{fill:none;stroke:var(--linha-forte);stroke-dasharray:3 3}
+svg.dg .dg-caixa-ok{fill:var(--positivo-suave);stroke:var(--positivo)}
+svg.dg .dg-caixa-aviso{fill:var(--alerta-suave);stroke:var(--alerta)}
+svg.dg .dg-caixa-perigo{fill:var(--perigo-suave);stroke:var(--perigo)}
+svg.dg .dg-comp,svg.dg .dg-comp-acento{fill:var(--superficie);stroke-width:2}
+svg.dg .dg-comp{stroke:var(--tinta-2)}
+svg.dg .dg-comp-acento{stroke:var(--acento)}
+svg.dg .dg-fio,svg.dg .dg-fio-acento,svg.dg .dg-fio-fino,svg.dg .dg-fio-tracejado{fill:none;stroke-linejoin:round}
+svg.dg .dg-fio{stroke:var(--tinta-2);stroke-width:2}
+svg.dg .dg-fio-acento{stroke:var(--acento);stroke-width:2}
+svg.dg .dg-fio-fino{stroke:var(--linha-forte);stroke-width:1;vector-effect:non-scaling-stroke}
+svg.dg .dg-fio-tracejado{stroke:var(--tinta-2);stroke-width:2;stroke-dasharray:6 4}
+svg.dg .dg-no{fill:var(--tinta-2)}
+svg.dg .dg-no-acento{fill:var(--acento)}
+svg.dg .dg-ponta{fill:var(--tinta-2)}
+svg.dg .dg-ponta-acento{fill:var(--acento)}
 .moldura-web{border:1px solid var(--linha);border-radius:var(--raio-cartao);overflow:hidden;background:var(--superficie)}
 .moldura-web .barra{display:flex;gap:var(--espaco-1);padding:var(--espaco-2) var(--espaco-3);border-bottom:1px solid var(--linha);background:var(--superficie-2)}
 .moldura-web .barra span{width:8px;height:8px;border-radius:50%;background:var(--linha-forte)}
@@ -520,6 +605,8 @@ def main():
 </body>
 </html>
 """
+    # The id of an inline SVG (an arrowhead's marker, say) is global to the page.
+    errors += svg_id_errors(figures, page)
     # Every internal link must land somewhere, and no pandoc markup may leak
     # through as text: both fail silently in a browser, so they fail here.
     ids = set(re.findall(r'\sid="([^"]+)"', page))
