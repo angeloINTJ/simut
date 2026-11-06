@@ -68,6 +68,9 @@ RECORDS = 'src/SystemDefs_Records.h'
 WEB_OTA = 'src/WebManager_Ota.cpp'
 WEB_API = 'src/WebManager_Api.cpp'
 STORAGE_H = 'src/StorageManager.h'
+OTA_LAYOUT = 'src/ota/ota_layout.h'
+LOG_H = 'src/LogManager.h'
+DISPLAY_H = 'src/DisplayManager.h'
 BOOT = 'src/AppManager_Boot.cpp'
 
 
@@ -262,6 +265,12 @@ def main():
         confere(all(f'**{nome}.** {texto[0].upper()}{texto[1:]}' in cap27 for nome, texto in m.ONDAS) and all(palavra in cap27 for palavra in ('versão', 'telemetria', 'linha de alarmes', 'período')),
                 f'chapter 27 does not say the waves of the figure: {m.ONDAS}',
                 'the waves figure\'s three waves are the three paragraphs of chapter 27 (Onda 0, 1 and 2), and the words of the barrier (versão, telemetria, alarmes, período) are in the chapter')
+        # the block diagram's flash numbers, which the figure reads from src/ota/ota_layout.h, against the table of chapter 1 (the program's and the file system's sizes) and its words for the cores
+        cap01 = (m.CAPITULOS / 'cap01-o-simut.md').read_text(encoding='utf-8')
+        camadas = m.Numeros(fonte).flash()
+        confere(f'| Programa | {m.milhar(camadas["programa"])} KiB |' in cap01 and f'| Sistema de arquivos (LittleFS) | {m.milhar(camadas["sistema"])} KiB |' in cap01 and '**o Core 0**' in cap01 and '**o Core 1**' in cap01,
+                f'chapter 1 does not say what ota_layout.h gives: program {camadas["programa"]} KiB, file system {camadas["sistema"]} KiB',
+                'the flash numbers read from ota_layout.h (program and LittleFS) are the ones chapter 1\'s table gives')
 
         # ---- the builder's guards --------------------------------------------------------------------------------------------------------------------------
         s = m.Svg('99-teste', 100)
@@ -388,8 +397,8 @@ def main():
                 ('HD44780_D7 21 -> 28, the alpha\'s last data line', [(CONFIG, '#define HD44780_D7 21', '#define HD44780_D7 28', 1)], {'02-pinos-alpha.svg'}),
                 ('AIR_CHARGER_PIN 17 -> 21', [(CONFIG, '#define AIR_CHARGER_PIN 17', '#define AIR_CHARGER_PIN 21', 1)], {'02-pinos-air.svg', '02-air-energia.svg'}),
                 ('AIR_SENSOR_POWER_PIN 16 -> 21', [(CONFIG, '#define AIR_SENSOR_POWER_PIN 16', '#define AIR_SENSOR_POWER_PIN 21', 1)], {'02-pinos-air.svg', '02-air-energia.svg'}),
-                ('MAX_SENSORS 16 -> 11 (the LAN build\'s slots): the three maps and the two figures whose note names the range, not the BME280\'s',
-                 [(CONFIG, '#define MAX_SENSORS 16 ', '#define MAX_SENSORS 11 ', 1)], set(mapas) | {'02-ds18b20.svg', '02-dht22.svg'}),
+                ('MAX_SENSORS 16 -> 11 (the LAN build\'s slots): the three maps, the two figures whose note names the range and the block diagram\'s GP range, not the BME280\'s',
+                 [(CONFIG, '#define MAX_SENSORS 16 ', '#define MAX_SENSORS 11 ', 1)], set(mapas) | {'02-ds18b20.svg', '02-dht22.svg', '01-arquitetura.svg'}),
                 ('SPI0\'s MISO named GP21 in the TFT section', [(CONFIG, 'MOSI=GP19, MISO=GP16, SCK=GP18', 'MOSI=GP19, MISO=GP21, SCK=GP18', 1)], {'02-pinos-release.svg'}),
                 ('BUZZER_PIN 22 -> 21 with HD44780_D7 21 -> 28 (a buzzer on a pin both images leave free)',
                  [(CONFIG, '#define BUZZER_PIN 22', '#define BUZZER_PIN 21', 1), (CONFIG, '#define HD44780_D7 21', '#define HD44780_D7 28', 1)],
@@ -454,8 +463,15 @@ def main():
                 ('the restore\'s stage operation renamed send, in the code and in the file\'s own header', [(WEB_OTA, 'bool is_stage = (op == "stage");', 'bool is_stage = (op == "send");', 1),
                                                                                                           (WEB_OTA, 'restore (validate/apply/stage)', 'restore (validate/apply/send)', 1)], {'27-ondas.svg'}),
                 ('the commit flag of the stage 1 -> 2', [(WEB_OTA, 'bool commit = (_server->arg("commit") == "1");', 'bool commit = (_server->arg("commit") == "2");', 1)], {'27-ondas.svg'}),
-                ('the folder of the language packs /lang -> /idiomas', [(STORAGE_H, '#define DIR_LANG "/lang"', '#define DIR_LANG "/idiomas"', 1)], {'27-ondas.svg'}),
+                ('the folder of the language packs /lang -> /idiomas', [(STORAGE_H, '#define DIR_LANG "/lang"', '#define DIR_LANG "/idiomas"', 1)], {'27-ondas.svg', '01-arquitetura.svg'}),
                 ('the version\'s key in the status ver -> versao', [(WEB_API, '\\"name\\":\\"%s\\",\\"ver\\":\\"%s\\"', '\\"name\\":\\"%s\\",\\"versao\\":\\"%s\\"', 1)], {'27-ondas.svg'}),
+                ('a new sensor type, SHT31, in the enum', [(RECORDS, ' TYPE_BMP280 = 5            /**< temperature + pressure */', ' TYPE_BMP280 = 5,           /**< temperature + pressure */\n TYPE_SHT31 = 6', 1)], {'01-arquitetura.svg'}),
+                ('the file system 1 MiB -> 512 KiB, in ota_layout.h and in platformio.ini', [(OTA_LAYOUT, '#define OTA_FILESYSTEM_SIZE      (1u * 1024u * 1024u)', '#define OTA_FILESYSTEM_SIZE      (512u * 1024u)', 1),
+                                                                                                    ('platformio.ini', 'board_build.filesystem_size = 1m', 'board_build.filesystem_size = 512k', 1)], {'01-arquitetura.svg'}),
+                ('the config folder /config -> /conf', [(STORAGE_H, '#define DIR_CONFIG "/config"', '#define DIR_CONFIG "/conf"', 1)], {'01-arquitetura.svg'}),
+                ('the event log\'s file /system.blog -> /eventos.blog', [(LOG_H, '#define LOG_FILE_CURRENT "/system.blog"', '#define LOG_FILE_CURRENT "/eventos.blog"', 1)], {'01-arquitetura.svg'}),
+                ('the Air loses the Bluetooth (-DSIMUT_BLUETOOTH=1 out of its profile)', [(PERFIS, '    -DSIMUT_MDNS=0\n    -DSIMUT_BLUETOOTH=1\n    -DPIO_FRAMEWORK_ARDUINO_ENABLE_BLUETOOTH\n    -DSIMUT_AIR=1\n',
+                                                                                              '    -DSIMUT_MDNS=0\n    -DPIO_FRAMEWORK_ARDUINO_ENABLE_BLUETOOTH\n    -DSIMUT_AIR=1\n', 1)], {'01-arquitetura.svg'}),
                 ('the BME280 probe pair (4, 5) -> (6, 7)', [(BME_SENSOR, 'probe(4, 5, BME280_ADDR_PRIMARY)', 'probe(6, 7, BME280_ADDR_PRIMARY)', 1)], {'02-bmx280.svg'}),
                 ('the BME280 addresses 0x76/0x77 -> 0x75/0x78 in the driver, code and comments', [(BME_DRIVER, '0x76', '0x75', None), (BME_DRIVER, '0x77', '0x78', None)], {'02-bmx280.svg'}),
             ]
@@ -529,6 +545,8 @@ def main():
              'cookie', '27-arquitetura.svg'),
             ('an apply of a backup that was not the one just validated is no longer refused', [(WEB_OTA, 'NOT_VALIDATED ? 409', 'NOT_VALIDATED ? 200', 1)], 'validated', '27-ondas.svg'),
             ('the restore has a fourth operation', [(WEB_OTA, 'restore (validate/apply/stage)', 'restore (validate/apply/stage/rollback)', 1)], 'restore', '27-ondas.svg'),
+            ('the Air launches Core 1', [(DISPLAY_H, '#if SIMUT_AIR\n\tstatic constexpr bool kUsesCore1 = false;', '#if SIMUT_AIR\n\tstatic constexpr bool kUsesCore1 = true;', 1)], 'Core 1', '01-arquitetura.svg'),
+            ('the file system in platformio.ini is no longer the one ota_layout.h says', [('platformio.ini', 'board_build.filesystem_size = 1m', 'board_build.filesystem_size = 2m', 1)], 'ota_layout.h', '01-arquitetura.svg'),
             ('the discovery configs are no longer published retained', [(TELEMETRY, 'ok = _mqttClient.publish(topic, payload, true);', 'ok = _mqttClient.publish(topic, payload, false);', 1)],
              'retained', '23-fluxo.svg'),
             ('the online message is no longer published retained', [(TELEMETRY, 'onlinePayload.c_str( ), true);', 'onlinePayload.c_str( ), false);', 1)], 'retained', '23-fluxo.svg'),
@@ -656,7 +674,7 @@ def main():
         confere(r.returncode == 0 and len(linhas) == len(m.FIGURAS) and all(l.count('\t') == 3 for l in linhas) and [l.split('\t')[0] for l in linhas] == nomes,
                 f'--list: exit {r.returncode}, {len(linhas)} rows', f'--list: {len(linhas)} rows of file, chapter, function and captura=')
         r = cli('--check', '--fonte', str(tmp / 'vazia'))
-        confere(r.returncode == 2 and CONFIG in r.stderr, f'an empty source folder: exit {r.returncode}: {r.stderr.strip()[-200:]}', 'command line: exit 2 when the source cannot be read')
+        confere(r.returncode == 2 and 'cannot be read' in r.stderr and 'src/' in r.stderr, f'an empty source folder: exit {r.returncode}: {r.stderr.strip()[-200:]}', 'command line: exit 2 when the source cannot be read')
         alvo = img / nomes[0]
         original = alvo.read_bytes()
         alvo.unlink()

@@ -73,6 +73,9 @@ RECORDS = 'src/SystemDefs_Records.h'
 WEB_OTA = 'src/WebManager_Ota.cpp'
 WEB_API = 'src/WebManager_Api.cpp'
 STORAGE_H = 'src/StorageManager.h'
+OTA_LAYOUT = 'src/ota/ota_layout.h'
+LOG_H = 'src/LogManager.h'
+DISPLAY_H = 'src/DisplayManager.h'
 LOG_MANAGER = 'src/LogManager.cpp'
 NET_LINK = 'src/net/NetLink.h'
 
@@ -94,6 +97,10 @@ class Figura(NamedTuple):
 # One row per diagram this tool draws, in the order of the chapters. The diagrams of the manual that are not here yet keep their .png in the chapter and are left alone by
 # --check; a row is added with its drawing function, its block's arquivo= moved to .svg and its captura= made the text --list prints.
 FIGURAS = (
+    Figura('fig-01-arquitetura', '01-arquitetura.svg', 'cap01-o-simut.md', 'desenho_blocos',
+           'o aparelho em blocos: os sensores nos GPIO de sensor, o RP2040 com o Core 0 e o Core 1, a flash de 2 MB em programa e sistema de arquivos com as pastas e o log de eventos, e as saídas, com o console '
+           'pelo cabo USB e pelo Bluetooth; os tipos de sensor vêm de src/SystemDefs_Records.h, os tamanhos da flash de src/ota/ota_layout.h (conferidos com o platformio.ini), as pastas de src/StorageManager.h, '
+           'o log de src/LogManager.h, o uso do Core 1 de src/DisplayManager.h e dos perfis, as imagens com Bluetooth de SIMUT_BLUETOOTH, e as saídas apoiam-se nas leituras das figuras de cada mecanismo'),
     Figura('fig-02-pinos-release', '02-pinos-release.svg', 'cap02-hardware.md', 'desenho_pinos_release',
            'vista de cima do Pico W com os 40 pinos numerados e os da release (SPI0, TFT, toque e cigarra) lidos de src/simut_config.h e do perfil pico_w_release; '
            'a pinagem física é a do datasheet do Pico W e os quatro GPIOs do rádio vêm de src/air/AirConfig.h'),
@@ -444,13 +451,17 @@ class Numeros:
         return {'ap': ap, 'enable': enable, 'configure': f'{c.group(1)} {c.group(2)}', 'ssid': f'{sistema} {ssid}', 'pass': f'{sistema} {senha}', 'reload': reload}
 
 
+    def pasta(self, nome):
+        """The path of DIR_`nome` in StorageManager.h: one pattern, so the figures that draw a folder read it the same way."""
+        return self.f.achar(STORAGE_H, rf'^#define DIR_{nome} "([^"]+)"').group(1)
+
     def historico(self):
         """The history's numbers: the records a block holds (H5_BLOCK_MAX_RECORDS), the percentage of the file system above which the oldest day is deleted (the cleanup
         in StorageManager.cpp), the folder, the open block's snapshot in it and the extension of a day's file."""
         f = self.f
         return {'registros': int(f.achar('src/HistoryV5.h', r'^#define H5_BLOCK_MAX_RECORDS\s+(\d+)').group(1)),
                 'limite': int(f.achar('src/StorageManager.cpp', r'\(\(info\.usedBytes \* 100\) / info\.totalBytes\) <= (\d+)\) return;').group(1)),
-                'pasta': f.achar('src/StorageManager.h', r'^#define DIR_HISTORY "([^"]+)"').group(1),
+                'pasta': self.pasta('HISTORY'),
                 'wip': f.achar('src/StorageManager.h', r'^#define FILE_H5_WIP DIR_HISTORY "([^"]+)"').group(1),
                 'ext': f.achar('src/HistoryV5.h', r'^#define HISTORY_FILE_EXT\s+"([^"]+)"').group(1)}
 
@@ -656,11 +667,61 @@ class Numeros:
         argumento, valor = f.achar(WEB_OTA, r'bool commit = \(_server->arg\("(\w+)"\) == "(\w+)"\);').groups()
         return {'backup': rota('handleApiBackup'), 'restore': rota('handleApiRestoreFinish'), 'apply': rota('handleApiOtaApply'), 'estado': rota('handleApiStatus'),
                 'stage': stage, 'validate': validate[0], 'apply_op': apply, 'commit': f'{argumento}={valor}', 'versao': f'{chave}.{versao}',
-                'idioma': f.achar(STORAGE_H, r'^#define DIR_LANG "(/\w+)"').group(1)}
+                'idioma': self.pasta('LANG')}
+
+
+    def flash(self):
+        """The Pico W's flash as ota_layout.h lays it out, in KiB: the whole (OTA_FLASH_TOTAL), the area of the program (OTA_APP_MAX_SIZE), the largest image an update may be, the one that does not
+        touch the config snapshot (OTA_APP_SAFE_MAX_SIZE), the file system (OTA_FILESYSTEM_SIZE) and the update's data at the end (OTA_EEPROM_RESERVED). The macros are evaluated from their
+        definitions (a number, a sum, a product, another macro: any other shape is Falta). Premise: platformio.ini's board_build.filesystem_size is the file system ota_layout.h says."""
+        f = self.f
+
+        def avalia(nome, em_curso=()):
+            if nome in em_curso:
+                raise Falta(f'{OTA_LAYOUT}: {nome} is defined by itself')
+            m = f.achar(OTA_LAYOUT, rf'^#define {nome}\s+(.+?)\s*(?:/\*.*)?$')
+            expressao = m.group(1)
+            for outro in sorted(set(re.findall(r'\bOTA_\w+\b', expressao))):
+                expressao = re.sub(rf'\b{outro}\b', str(avalia(outro, em_curso + (nome,))), expressao)
+            expressao = re.sub(r'(\d)u\b', r'\1', expressao)
+            if not re.fullmatch(r'[\d\s*+\-()]+', expressao):
+                raise Falta(f'{OTA_LAYOUT}: {nome} is defined as {m.group(1)!r}, which the figures cannot evaluate (a number, a sum, a product, another macro)')
+            return eval(expressao, {'__builtins__': {}}, {})
+
+        bytes_ = {chave: avalia(nome) for chave, nome in (('total', 'OTA_FLASH_TOTAL'), ('programa', 'OTA_APP_MAX_SIZE'), ('teto', 'OTA_APP_SAFE_MAX_SIZE'),
+                                                          ('sistema', 'OTA_FILESYSTEM_SIZE'), ('dados', 'OTA_EEPROM_RESERVED'))}
+        pio = f.achar('platformio.ini', r'^board_build\.filesystem_size = (\d+)([mk])$')
+        if int(pio.group(1)) * (1024 * 1024 if pio.group(2) == 'm' else 1024) != bytes_['sistema']:
+            raise Falta(f'platformio.ini: board_build.filesystem_size is {pio.group(1)}{pio.group(2)}, and {OTA_LAYOUT} (OTA_FILESYSTEM_SIZE) says {bytes_["sistema"] // 1024} KiB: the figures draw one flash')
+        return {chave: valor // 1024 for chave, valor in bytes_.items()}
+
+    def arquitetura(self):
+        """What the block diagram of the device draws: the sensor types (the enum of SystemDefs_Records.h, without its two stand-ins), the slots (GP0 to GP(MAX_SENSORS - 1) of the release), the folders
+        of the file system and the event log's file (StorageManager.h, LogManager.h), the images that have Bluetooth (SIMUT_BLUETOOTH), and what Core 1 does in each image. Premises, refused when the
+        code drifts: Core 1 is launched in every image but the Air; the release draws its panel on the TFT, the alpha on the LCD and not on the TFT. It also asks for the integration figure's reading, so the
+        outputs it draws stand on the premises of the figures of each mechanism."""
+        f = self.f
+        tipos = [n for n in re.findall(r'TYPE_(\w+) = \d+', f.achar(RECORDS, r'enum SensorType \{([^}]*)\};').group(1)) if n not in ('NONE', 'UNKNOWN_ACTIVITY')]
+        pastas = [self.pasta(nome) for nome in ('CONFIG', 'HISTORY', 'LANG', 'THEMES')]
+        log = f.achar(LOG_H, r'^#define LOG_FILE_CURRENT "(/[\w.]+)"').group(1)
+        f.exigir(DISPLAY_H, r'#if SIMUT_AIR\s+static constexpr bool kUsesCore1 = false;\s+#else\s+static constexpr bool kUsesCore1 = true;',
+                 'Core 1 is launched in every image but the Air, which is what the block diagram says about Core 1')
+        f.exigir_flag('pico_w_air', 'SIMUT_AIR', '1', 'the block diagram gives the Air image no use of Core 1')
+        if self.macro('SIMUT_DISPLAY_TFT', 'release') != 1:
+            raise Falta(f'{CONFIG}: the release does not draw its panel on the TFT (SIMUT_DISPLAY_TFT), and the block diagram gives its Core 1 the TFT panel and the touch')
+        if self.macro('SIMUT_DISPLAY_ALPHA', 'alpha') != 1 or self.macro('SIMUT_DISPLAY_TFT', 'alpha') != 0:
+            raise Falta(f'{PERFIS}: the alpha does not write on the LCD alone (SIMUT_DISPLAY_ALPHA, SIMUT_DISPLAY_TFT), and the block diagram gives its Core 1 the LCD')
+        self.integracao()
+        return {'sensores': tipos, 'slots': self.slots('release'), 'pastas': pastas, 'log': log, 'bluetooth': [i for i in IMAGEM_DO_PERFIL if self.macro('SIMUT_BLUETOOTH', i) == 1]}
 
 
 def pino_de(gpio):
     return PINO_DO_GPIO[gpio]
+
+
+def milhar(n):
+    """A whole number as pt-BR writes it: 1.020, with the dot."""
+    return f'{n:,}'.replace(',', '.')
 
 
 # ---- the SVG builder -----------------------------------------------------------------------------------------------------------------------------------------
@@ -996,9 +1057,10 @@ def desenho_pinos_air(num, slug):
     return mapa_de_pinos(num, slug, 'air')
 
 
-def caixa_de_texto(s, x, y, w, itens, cls='dg-caixa', raio=6, centro=None):
+def caixa_de_texto(s, x, y, w, itens, cls='dg-caixa', raio=6, centro=None, altura=None):
     """A box at x, `w` wide, whose text is broken to fit inside 12 px of margin on each side: `itens` is [(text, class)], each text broken by quebrar( ). The height is the
-    lines' (8 px, 16 px a line, 8 px). `y` is the top, or None with `centro` the height the box is centred on. Returns (y, height)."""
+    lines' (8 px, 16 px a line, 8 px), or `altura` when that is more (two boxes side by side keep one height). `y` is the top, or None with `centro` the height the box is centred
+    on. Returns (y, height)."""
     linhas = []
     for texto, c in itens:
         tam = 12 if 'dg-n' in c.split() else 13
@@ -1008,7 +1070,7 @@ def caixa_de_texto(s, x, y, w, itens, cls='dg-caixa', raio=6, centro=None):
             if sum(largura_texto(tx, tam, 'dg-m' in cr.split() or 'dg-m' in c.split()) for cr, tx in texto) > w - 24:
                 raise ValueError(f'{s.slug}: the line {"".join(tx for _, tx in texto)!r} does not fit in a box of {w} px')
             linhas.append((texto, c))
-    h = 16 + 16 * len(linhas)
+    h = max(16 + 16 * len(linhas), altura or 0)
     if y is None:
         y = centro - h // 2
     s.caixa(x, y, w, h, cls, raio)
@@ -1081,9 +1143,9 @@ class Cx(NamedTuple):
         return (self.x + self.w // 2 + dx, self.y + self.h)
 
 
-def bloco(s, x, y, w, itens, cls='dg-caixa', raio=6, centro=None):
+def bloco(s, x, y, w, itens, cls='dg-caixa', raio=6, centro=None, altura=None):
     """caixa_de_texto( ) that returns the box as a Cx."""
-    y, h = caixa_de_texto(s, x, y, w, itens, cls, raio, centro)
+    y, h = caixa_de_texto(s, x, y, w, itens, cls, raio, centro, altura)
     return Cx(x, y, w, h)
 
 
@@ -1605,6 +1667,61 @@ def desenho_ondas(num, slug):
         s.linha([(x_e + l_e, c.y + c.h // 2), (x_e + l_e + 16, c.y + c.h // 2)], 'dg-fio-fino')
     s.linha([(x_e + l_e + 16, ondas[0].y + ondas[0].h // 2), (x_e + l_e + 16, ondas[-1].y + ondas[-1].h // 2)], 'dg-fio-fino')
     s.seta([(x_e + l_e + 16, meio), (x_p, meio)], 'dg-fio', 'dg-ponta')
+    return s.render()
+
+
+def desenho_blocos(num, slug):
+    a, fl = num.arquitetura(), num.flash()
+    s = Svg(slug)
+    imagens_bt = [{'air': 'Air'}.get(i, i) for i in a['bluetooth']]
+    # the sensors, on the left, on GP0 to GP15: one box each type (the BME280 and the BMP280 are one family, on the same pair of pins)
+    grupos = [[n] for n in a['sensores'] if not n.startswith('BM')] + ([[n for n in a['sensores'] if n.startswith('BM')]] if any(n.startswith('BM') for n in a['sensores']) else [])
+    s.texto(16, 36, 'sensores', 'dg-t dg-b')
+    s.texto(16, 52, f'GP0 a GP{a["slots"] - 1}', 'dg-n dg-m')
+    centros, y = [], 64
+    for grupo in grupos:
+        c = bloco(s, 16, y, 136, [(' / '.join(grupo), 'dg-t')])
+        centros.append(c.y + c.h // 2)
+        y = c.y + c.h + 8
+    # the chip: Core 0 does nearly everything, Core 1 only draws the screen
+    s.caixa(176, 16, 328, 264, 'dg-caixa-2', 12)
+    s.texto(192, 36, 'RP2040', 'dg-t dg-b')
+    s.caixa(192, 48, 296, 120, 'dg-caixa', 6)
+    s.texto(204, 68, 'Core 0', 'dg-t dg-b')
+    for k, nome in enumerate(('sensores', 'alarmes', 'histórico', 'rede', 'web', 'console', 'telemetria')):
+        x, y_chip = 200 + 96 * (k % 3), 76 + 28 * (k // 3)
+        s.caixa(x, y_chip, 88, 24, 'dg-caixa-2', 6)
+        s.texto(x + 44, y_chip + 16, nome, 'dg-n', 'middle')
+    s.caixa(192, 184, 296, 80, 'dg-caixa', 6)
+    s.texto(204, 204, 'Core 1', 'dg-t dg-b')
+    for k, (imagem, papel) in enumerate((('release', 'painel TFT e toque'), ('alpha', 'LCD'), ('Air', 'sem uso'))):
+        s.texto(204, 220 + 16 * k, [('dg-b', imagem), ('', f': {papel}')], 'dg-n')
+    # the sensors' line meets Core 0 at its left edge, across the chip's border
+    y_c0 = 108
+    for c in centros:
+        s.linha([(152, c), (164, c)], 'dg-fio')
+    s.linha([(164, centros[0]), (164, centros[-1])], 'dg-fio')
+    s.linha([(164, y_c0), (192, y_c0)], 'dg-fio')
+    # what comes out of Core 0, on the right: a bus with a branch to each box, the console's included
+    saidas = (('navegador', 'interface web'), ('servidor de telemetria', 'HTTP ou MQTT'), ('linha de alarmes', None), ('Home Assistant', None), ('Prometheus', None), ('syslog', None))
+    y, centros_d = 16, []
+    for nome, nota in saidas:
+        c = bloco(s, 536, y, 168, [(nome, 'dg-t')] + ([(nota, 'dg-n dg-c2')] if nota else []))
+        centros_d.append(c.y + c.h // 2)
+        y = c.y + c.h + 8
+    console = bloco(s, 536, y + 8, 168, [('console', 'dg-t'), ('cabo USB', 'dg-n dg-c2'), (f'Bluetooth: {" e ".join(imagens_bt)}', 'dg-n dg-c2')])
+    centros_d.append(console.y + console.h // 2)
+    s.linha([(488, y_c0), (520, y_c0)], 'dg-fio')
+    s.linha([(520, centros_d[0]), (520, centros_d[-1])], 'dg-fio')
+    for c in centros_d:
+        s.linha([(520, c), (536, c)], 'dg-fio')
+    # the flash, under the chip: the program and the file system, side by side
+    y_f = max(console.y, 296)
+    s.texto(16, y_f + 16, f'flash de {fl["total"] // 1024} MB', 'dg-t dg-b')
+    metade = len(a['pastas']) // 2
+    bloco(s, 16, y_f + 28, 240, [('programa', 'dg-t dg-b'), (f'{milhar(fl["programa"])} KiB', 'dg-n'), ('o firmware, com a interface web inteira embutida', 'dg-n dg-c2')], 'dg-caixa', 6, altura=96)
+    bloco(s, 264, y_f + 28, 240, [('LittleFS', 'dg-t dg-b'), (f'{milhar(fl["sistema"])} KiB', 'dg-n'), (' '.join(a['pastas'][:metade]), 'dg-n dg-m'), (' '.join(a['pastas'][metade:]), 'dg-n dg-m'),
+                                  ([('', 'log de eventos '), ('dg-m', a['log'])], 'dg-n')], 'dg-caixa', 6, altura=96)
     return s.render()
 
 
