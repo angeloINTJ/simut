@@ -1555,6 +1555,11 @@ void AppManager::executeCommand(CliDemand cmd) {
  else if (!strcmp(n, "boot")) {
   const bootreplay::Cmd c = bootreplay::parse(cmd.strVal2, cmd.strVal3);
   if (c.verb == bootreplay::V_LIST) {
+   /* A buffer in the frame of executeCommand( ), which is the one every command of the console runs in, on Core 0's ~4 KB stack (docs/CONCURRENCY.md,
+    * invariant 5: the big working buffers are statics for that reason). It costs the frame nothing: measured 2026-11-06 on pico_w_test and
+    * pico_w_test_https, base 95a1d2ae against the tree with the tags, the prologue is the same in all four ELFs, sub sp #16, push {r4-r7, lr}, sub sp #420
+    * (456 B), the slot being shared with the locals of cases that are never live together. The control: a 1,024-byte buffer here turned the second sub
+    * into 1,260 B, so the reading does see growth. If this frame ever grows, move the listing into a function of its own that the compiler may not inline. */
    char line[128];
    for (int i = 0; _displayMgr->bootRecLine(i, line, sizeof(line)); i++) _cmdMgr->consolePrintln(line);
    _cmdMgr->consolePrintf("%d of %d calls kept, %d dropped\n", _displayMgr->bootRecCount( ), bootreplay::BOOT_REC_CAP, _displayMgr->bootRecDropped( ));
