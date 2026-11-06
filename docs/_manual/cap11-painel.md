@@ -25,7 +25,7 @@ A tela inicial tem quatro faixas, de cima para baixo:
 | Cartão de baixo | 75 px | O sensor selecionado na barra de botões |
 | Barra de botões | 41 px | Um botão por sensor, **CFG** e, se preciso, o botão de página |
 
-::: {.figura #fig-11-principal tipo="tft" arquivo="11-principal.png" captura="screen dash; 3 sensores ativos: DS18B20 no slot 0 (fixado no cartão de cima), DHT22 no slot 1 (selecionado) e BME280 no slot 2; Wi-Fi conectado com sinal forte; 12 registros pendentes; relógio acertado; nenhum alarme"}
+::: {.figura #fig-11-principal tipo="tft" arquivo="11-principal.png" captura="screen dash; 3 sensores ativos: DS18B20 no slot 0 (fixado no cartão de cima), DHT22 no slot 1 (selecionado) e BMP280 no slot 2; Wi-Fi conectado com sinal forte; 12 registros pendentes; relógio acertado; nenhum alarme"}
 A tela inicial: a barra de cima, os dois cartões e a barra de botões com S1, S2 e CFG.
 :::
 
@@ -131,7 +131,7 @@ Um sensor ativo ganha um botão, menos o fixado no cartão de cima. **CFG** vem 
 
 Nos alarmes, o botão do sensor pisca junto com o cartão. Se um sensor em alarme está noutra página, o botão de página pisca em vermelho; durante o silêncio, ele fica parado, com a borda vermelha.
 
-::: {.figura #fig-11-paginas tipo="tft" arquivo="11-paginas.png" captura="screen dash; 7 sensores ativos, nenhum fixado fora da primeira página; barra de botões na primeira página, com S e o botão 1/2"}
+::: {.figura #fig-11-paginas tipo="tft" arquivo="11-paginas.png" captura="screen dash; 7 slots ativos (os 5 sensores da bancada e 2 slots DS18B20 num pino vazio, com o alarme desligado), nenhum fixado fora da primeira página; barra de botões na primeira página, com S e o botão 1/2"}
 A barra de botões com páginas: quatro botões e o botão de página à direita.
 :::
 
@@ -242,15 +242,15 @@ Cada página tem um título com a grandeza e a unidade, como **Temperatura** (°
 
 As páginas são temperatura, umidade (DHT22 e BME280) e pressão (BME280 e BMP280). Pontos no título mostram em qual página você está. Um toque no centro passa para a próxima página; na última, volta ao gráfico. A umidade aparece em inteiros.
 
-::: {.figura #fig-11-detalhe-temp tipo="tft" arquivo="11-detalhe-temp.png" captura="screen gra -> tap(160,120); gráfico de um BME280 aberto antes, em 24H"}
+::: {.figura #fig-11-detalhe-temp tipo="tft" arquivo="11-detalhe-temp.png" captura="screen gra -> tap(160,120); gráfico do BMP280 aberto antes, em 24H"}
 O detalhe numérico, página de temperatura: máximo, mínimo, média e desvio.
 :::
 
-::: {.figura #fig-11-detalhe-umid tipo="tft" arquivo="11-detalhe-umid.png" captura="screen gra -> tap(160,120) -> tap(160,120); mesmo BME280"}
+::: {.figura #fig-11-detalhe-umid tipo="tft" arquivo="11-detalhe-umid.png" captura="screen gra -> tap(160,120) -> tap(160,120); gráfico do DHT22 aberto antes, em 24H; a segunda página do DHT22 é a umidade"}
 A página de umidade do detalhe.
 :::
 
-::: {.figura #fig-11-detalhe-pressao tipo="tft" arquivo="11-detalhe-pressao.png" captura="screen gra -> tap(160,120) -> tap(160,120) -> tap(160,120); mesmo BME280"}
+::: {.figura #fig-11-detalhe-pressao tipo="tft" arquivo="11-detalhe-pressao.png" captura="screen gra -> tap(160,120) -> tap(160,120); gráfico do BMP280 aberto antes, em 24H; a segunda página do BMP280 é a pressão"}
 A página de pressão do detalhe.
 :::
 

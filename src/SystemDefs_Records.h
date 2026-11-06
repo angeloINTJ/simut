@@ -654,11 +654,17 @@ uint32_t crc32_init( );
 uint32_t crc32_update(uint32_t crc, const uint8_t* data, size_t len);
 uint32_t crc32_final(uint32_t crc);
 
-/** Result of a hardware sensor scan on a GPIO pin. */
+/** Result of a hardware sensor scan on a GPIO pin.
+ *  An I2C part has no single GPIO: its result carries pin = PIN_UNUSED and the
+ *  pair the probe drove in sda/scl, which ScanResultJson.h sends and the web
+ *  page prints (it printed "GP255" for a BMx280 until 2026-11-06, when pin was
+ *  all a result had). A 1-Wire or DHT result leaves both at PIN_UNUSED. */
 struct ScanResult {
  uint8_t pin;
  SensorType type;
  uint8_t rom[8];
+ uint8_t sda = PIN_UNUSED;
+ uint8_t scl = PIN_UNUSED;
 };
 
 /** Single sensor reading result (temperature and optional humidity). */

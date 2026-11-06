@@ -73,7 +73,7 @@ Quando nenhum sensor está mais em alarme, a cigarra para, os cartões param de 
 Um alarme de limite no painel: o cartão do sensor pisca em vermelho.
 :::
 
-::: {.figura #fig-07-painel-falha tipo="tft" arquivo="07-painel-falha.png" captura="screen dash; 2 sensores ativos; o DS18B20 do cartão de baixo desligado do pino há mais de 3 leituras; captura na fase âmbar da piscada"}
+::: {.figura #fig-07-painel-falha tipo="tft" arquivo="07-painel-falha.png" captura="screen dash; 2 sensores ativos, os dois DS18B20 (GP0 e GP1); o do GP1, no cartão de baixo, solto da protoboard há mais de 3 leituras; captura na fase âmbar da piscada"}
 Um alarme de falha no painel: o cartão pisca em âmbar e mostra Erro no lugar do valor.
 :::
 
@@ -145,7 +145,7 @@ A página não tem botão próprio de gravar. As mudanças ficam preparadas na a
 - limites e chaves de alarme valem sem reiniciar: **Testar** e **Aplicar agora** funcionam para eles;
 - mudanças de som exigem reinício, e a barra oferece só **Salvar e reiniciar**.
 
-::: {.figura #fig-07-pagina-limites tipo="web" arquivo="07-pagina-limites.png" captura="rota /alarms; largura 1280; sessão admin; 3 sensores ativos (DS18B20, DHT22 e BME280); recorte da seção Limites de Alarme"}
+::: {.figura #fig-07-pagina-limites tipo="web" arquivo="07-pagina-limites.png" captura="rota /alarms; largura 1280; sessão admin; 3 sensores ativos (DS18B20, DHT22 e BMP280); recorte da seção Limites de Alarme"}
 A seção Limites de Alarme: um cartão por sensor ativo, com a chave de alarme e um par de campos por grandeza.
 :::
 
@@ -186,12 +186,12 @@ A seção Configuração de Sons com os valores de fábrica: todos os sons ligad
 
 | Linha | Controles | Fábrica |
 |---|---|---|
-| **Toque** (*Touch*) | Melodia, botão de teste, chave | Ligado, `Click` |
-| **Confirmação** (*Confirm*) | Melodia, botão de teste, chave | Ligado, **Ascendente** |
-| **Erro** (*Error*) | Melodia, botão de teste, chave | Ligado, **Descendente** |
-| **Alarme** (*Alarm*) | Melodia, botão de teste, chave | Ligado, `Dual Beep` |
+| **Toque** (*Touch*) | Melodia, botão de teste, chave | Ligado, **Clique** |
+| **Confirmação** (*Confirm*) | Melodia, botão de teste, chave | Ligado, **Subida** |
+| **Erro** (*Error*) | Melodia, botão de teste, chave | Ligado, **Descida** |
+| **Alarme** (*Alarm*) | Melodia, botão de teste, chave | Ligado, **Bipe duplo** |
 | **Sons Web** (*Web Sounds*) | Chave | Ligado |
-| **Atenção** (*Attention*) | Melodia, botão de teste, chave | Ligado, `Notify` |
+| **Atenção** (*Attention*) | Melodia, botão de teste, chave | Ligado, **Aviso** |
 | **Mudo Global** (*Global Mute*) | Chave | Desligado |
 | **Vol. Sistema** (*System Volume*) | Controle deslizante, de 0 a 100 %, em passos de 5 | 70 % |
 | **Vol. Alarme** (*Alarm Volume*) | Controle deslizante, de 0 a 100 %, em passos de 5 | 70 % |
@@ -314,11 +314,11 @@ O formato do pedido está no [capítulo 26](#cap-26); o uso a partir de um servi
 
 | Som | Quando toca | Melodias |
 |---|---|---|
-| Toque | A cada toque no painel | `Click`, `Bubble`, `Tick`, `Snap`, `Drop`, `Chirp` |
-| Confirmação | Quando uma ação dá certo | **Ascendente**, `Fanfare`, `Chime`, `Triumph`, `Sparkle`, `Resolve` |
-| Erro | Quando uma ação é recusada | **Descendente**, `Buzz`, `Low`, `Harsh`, `Decline`, `Blip` |
-| Alarme | Enquanto um alarme está ativo | `Dual Beep`, **Sirene**, `Rapid`, `Pulse`, `Escalate`, `Staccato` |
-| Atenção | Ao abrir uma tela de confirmação no painel | `Notify`, `Bell`, `Pulse`, `Chime Low`, `Rise`, `Soft Ding` |
+| Toque | A cada toque no painel | **Clique**, **Bolha**, **Tique**, **Estalo**, **Gota**, **Gorjeio** |
+| Confirmação | Quando uma ação dá certo | **Subida**, **Fanfarra**, **Carrilhão**, **Triunfo**, **Brilho**, **Resolução** |
+| Erro | Quando uma ação é recusada | **Descida**, **Zumbido**, **Grave**, **Áspero**, **Queda**, **Bip** |
+| Alarme | Enquanto um alarme está ativo | **Bipe duplo**, **Sirene**, **Rápido**, **Pulso**, **Crescente**, **Staccato** |
+| Atenção | Ao abrir uma tela de confirmação no painel | **Aviso**, **Sino**, **Pulso**, **Carrilhão grave**, **Subida**, **Toque suave** |
 
 Os ajustes gerais:
 

@@ -76,7 +76,7 @@ curl -s -c jar -X POST "$H/api/login" \
 
 Depois disso, `curl -b jar ...` leva o cookie em cada pedido. Mantenha a senha numa variável de ambiente, nunca no script.
 
-::: {.figura #fig-26-entrada tipo="diagrama" arquivo="26-entrada.png" captura="diagrama de sequência entre um cliente e o aparelho: GET /api/login_init devolve nonce; o cliente calcula SHA-256 da senha; POST /api/login com user, pass e nonce; o aparelho confere e devolve Set-Cookie SIMUTSESS e o corpo {ok, redirect}; pedidos seguintes levam o cookie ou Authorization: Bearer; GET /logout encerra"}
+::: {.figura #fig-26-entrada tipo="diagrama" arquivo="26-entrada.svg" captura="desenhado pelo código (tools/manual_diagramas.py): a entrada na API em dois pedidos, numa sequência entre o cliente e o aparelho: o código de uso único que GET /api/login_init devolve (vale 60 s e serve a uma tentativa), o SHA-256 da senha que o cliente calcula, o POST /api/login com user, pass e nonce, a resposta com o Set-Cookie SIMUTSESS e o corpo com ok e redirect, os pedidos seguintes com o cookie ou o Authorization: Bearer e o GET /logout, que encerra só a sessão do token (204 com Bearer, 302 para /login com cookie); as rotas, os campos, as chaves das respostas, o nome do cookie e do esquema, o tempo de vida do código e os códigos do logout vêm de src/WebManager_Core.cpp, src/WebManager_Auth.cpp e src/WebManager.h, e o que o desenho afirma do código gasto por uma tentativa, da senha em SHA-256 calculada pela página e do logout que só encerra a sessão do token são trechos de src/WebManager_Auth.cpp e de WebUI.h que o código tem de manter; o endereço e o começo do código são os exemplos do capítulo; refazer com python3 tools/manual_diagramas.py --write"}
 A entrada em dois pedidos. O código de uso único vale 60 s e serve para uma única tentativa.
 :::
 
@@ -983,9 +983,17 @@ O mapa completo dos slots, com os tipos que a imagem aceita e os papéis de cada
 | `tel_sync` | Dispara um envio de telemetria agora ([capítulo 21](#cap-21-acoes)) | `200` `{"ok":true}` |
 | `tel_reset` | Volta o cursor da telemetria para reenviar até 30 dias ([capítulo 21](#cap-21-acoes)) | `200` `{"ok":true}` |
 | `sensor_scan` | Começa a busca de sondas nos GPIOs ([capítulo 6](#cap-06-procurar)) | `202` `{"started":true}`; `200` `{"busy":true}` se já está buscando |
-| `scan_results` | Resultado da busca | `{"scanning":true}` enquanto busca; depois `{"scanning":false,"found":[{"pin":2,"type":1,"rom":"28FF641E8016034A"}]}` |
+| `scan_results` | Resultado da busca | `{"scanning":true}` enquanto busca; depois `{"scanning":false,"found":[{"pin":2,"type":1,"rom":"28FF641E8016034A","name":"DS18B20"}]}` (os campos de cada item estão abaixo da tabela) |
 | `sensor_wipe` | Com `slot=N`: grava a hora atual como início do histórico do slot, sem apagar o slot nem os arquivos | `200` `{"ok":true}` |
 | `sensor_accept` | Com `slot=N`: adota a sonda DS18B20 encontrada no GPIO de mesmo número | `200` `{"ok":true,"epoch_moved":false}`; `404` `nosensor`; `422` `badrom` |
+
+Cada item de `found` traz `pin` (o GPIO onde a sonda respondeu), `type` (`1` DS18B20, `2` DHT22, `3` BME280, `5` BMP280), `rom` (a ROM de 16 dígitos hexadecimais, só para o DS18B20; vazio nos outros) e `name` (o nome do tipo). Um sensor I²C não tem um GPIO só: o item traz `pin` `255` (sem pino) e mais dois campos, `sda` e `scl`, os pinos que a busca usou. A busca de BME280 e BMP280 olha só o par GP4/GP5 ([capítulo 6](#cap-06-procurar)), e o `type` diz qual dos dois chips respondeu:
+
+```json
+{"scanning":false,"found":[{"pin":2,"type":1,"rom":"28FF641E8016034A","name":"DS18B20"},{"pin":3,"type":2,"rom":"","name":"DHT22"},{"pin":255,"type":5,"rom":"","name":"BMP280","sda":4,"scl":5}]}
+```
+
+Até a v2.14.0 os itens não traziam `name`, `sda` nem `scl`, e um BME280 ou BMP280 vinha como `{"pin":255,"type":3,"rom":""}`, sempre com o tipo `3`: a página mostrava `GP255`. Quem lê só `pin`, `type` e `rom` continua achando os três campos; para um BMP280, o `type` agora é `5`.
 
 Um `op` desconhecido responde `400` `{"error":"op"}`, e um `slot` ausente ou fora de 0 a 15, `400` `{"error":"slot"}`.
 
@@ -1215,7 +1223,7 @@ Um resultado ruim volta com `422`; um erro de gravação, com `500`; um `apply` 
 
 A atualização exige o administrador completo e segue quatro passos. A interface web faz exatamente estes passos ([capítulo 17](#cap-17)).
 
-::: {.figura #fig-26-ota tipo="diagrama" arquivo="26-ota.png" captura="diagrama de sequência entre um cliente e o aparelho: GET /api/backup e conferência do CRC; POST /api/restore?op=stage&commit=1 com o .bin, resposta com v=0 e committed=1; POST /api/ota/apply, resposta 202; o aparelho reinicia; o cliente repete GET /api/login_init até responder; entra e lê a versão em /api/status; confere o .bkp com op=validate e o restaura com op=apply"}
+::: {.figura #fig-26-ota tipo="diagrama" arquivo="26-ota.svg" captura="desenhado pelo código (tools/manual_diagramas.py): a atualização do firmware pela API, numa sequência entre o cliente e o aparelho, nos quatro passos do capítulo: baixar o backup e conferir o CRC, enviar a imagem com op=stage e commit=1 (a resposta com st 5, v 0 e committed 1), aplicar com POST /api/ota/apply (a resposta 202, e o aparelho aplica e reinicia) e confirmar (repetir GET /api/login_init a cada 3 s até responder, entrar de novo e ler a versão em /api/status, que é o único comprovante), com a restauração do backup depois (op=validate e op=apply); as rotas, as operações e a chave da versão vêm de src/WebManager_Core.cpp, src/WebManager_Ota.cpp e src/WebManager_Api.cpp, os valores da resposta de src/ota/firmware_stage.h e src/ota/validation.h, o intervalo de WebUI.h, e que só uma imagem preparada e válida com commit fica pronta para aplicar, que a resposta do apply sai antes de o aparelho reiniciar e que a restauração só aceita o backup validado por último são trechos desses arquivos que o código tem de manter; o endereço é o exemplo do capítulo; refazer com python3 tools/manual_diagramas.py --write"}
 A atualização pela API. O único comprovante de sucesso é a versão nova informada pelo próprio aparelho.
 :::
 

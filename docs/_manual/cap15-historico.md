@@ -54,8 +54,8 @@ O bloco também é selado antes de completar 60 registros quando o dia muda, por
 
 Com o intervalo de fábrica, um bloco cobre 1 h. Com intervalos maiores, cobre mais: 60 registros de 10 min são 10 h. A página do histórico busca o bloco aberto à parte, então o gráfico e o CSV chegam sempre ao registro mais recente ([De onde vêm os dados](#cap-15-dados)).
 
-::: {.figura #fig-15-caminho tipo="diagrama" arquivo="15-caminho.png" captura="fluxo da esquerda para a direita: sensores → 'registro a cada Intervalo Histórico' → caixa 'bloco aberto (RAM), até 60 registros'; seta tracejada 'cópia a cada registro' para '/history/.wip'; seta cheia 'selar (60 registros, virada do dia, correção do NTP)' para '/history/AAAAMMDD.h5', desenhado como uma pilha de blocos, cada um com 'CRC' e 'mín/máx'; ao lado, uma fila de arquivos diários com o mais antigo marcado 'apagado acima de 86 %'"}
-Legenda: o registro nasce na RAM, é copiado para o `.wip` na hora e vai para o arquivo do dia quando o bloco sela.
+::: {.figura #fig-15-caminho tipo="diagrama" arquivo="15-caminho.svg" captura="desenhado pelo código (tools/manual_diagramas.py): o caminho de um registro: o bloco aberto na RAM, a cópia em .wip, a selagem no arquivo do dia e a fila de arquivos diários, com o limite de ocupação que apaga o mais antigo; os registros por bloco vêm de src/HistoryV5.h, o limite de src/StorageManager.cpp e os nomes de src/StorageManager.h e src/HistoryV5.h; refazer com python3 tools/manual_diagramas.py --write"}
+O registro nasce na RAM, é copiado para o `.wip` na hora e vai para o arquivo do dia quando o bloco sela.
 :::
 
 ### Falta de energia e reinício {#cap-15-energia}
@@ -119,7 +119,7 @@ A página tem duas partes:
 **Sem a permissão Leitura, o gráfico só mostra o bloco aberto.** A página não consegue listar os arquivos do dia, e o gráfico e o CSV ficam só com os registros que ainda estão na RAM, no máximo 60. O calendário marca os dias, mas eles aparecem sem dados. Dê à conta **Histórico** e **Leitura** juntas.
 :::
 
-::: {.figura #fig-15-pagina tipo="web" arquivo="15-pagina.png" captura="rota /history; largura 1280; sessão admin; imagem release; 3 sensores ativos (DS18B20, DHT22, BME280); período 24h; um sensor selecionado; histórico com 20 dias; seção de eventos ainda não carregada"}
+::: {.figura #fig-15-pagina tipo="web" arquivo="15-pagina.png" captura="rota /history; largura 1280; sessão admin; imagem release; 3 sensores ativos (DS18B20, DHT22, BMP280); período 24h; um sensor selecionado; 20 dias de histórico sintético (tools/gen_synth_history.py); seção de eventos ainda não carregada"}
 A página Histórico e Logs: à esquerda, o seletor de sensores e o calendário; à direita, os mínimos e máximos, o gráfico e os controles de período; embaixo, os eventos do sistema.
 :::
 
@@ -163,7 +163,7 @@ O **Calendário** (*Monthly Calendar*) mostra um mês. As setas ao lado do nome 
 - Toque num dia destacado para ver aquele dia inteiro, da 0h às 24h, em 24h.
 - Um dia destacado pode ter só parte das horas: o destaque diz que o arquivo existe, não que o dia está completo.
 
-::: {.figura #fig-15-calendario tipo="web" arquivo="15-calendario.png" captura="rota /history; largura 1280; sessão admin; mês de setembro de 2026 com os dias 1 a 23 destacados; dia 22 selecionado; recorte do calendário"}
+::: {.figura #fig-15-calendario tipo="web" arquivo="15-calendario.png" captura="rota /history; largura 1280; sessão admin; histórico sintético (tools/gen_synth_history.py) em pelo menos 20 dias do mês da captura; um dia com dados selecionado; recorte do calendário"}
 O calendário com os dias que têm dados destacados. O dia tocado fica selecionado, e o gráfico mostra as 24 horas dele.
 :::
 
@@ -179,7 +179,7 @@ O calendário com os dias que têm dados destacados. O dia tocado fica seleciona
 
 **Lacunas.** Um trecho sem registros aparece interrompido, e não ligado por uma reta. O gráfico interrompe a linha quando dois registros seguidos estão separados por mais de 3,5 vezes o **Intervalo Histórico**, com o mínimo de 90 s.
 
-**Mínimos e máximos.** Com um só sensor marcado, a faixa acima do gráfico mostra o máximo e o mínimo de cada grandeza na janela, como **Max Temp:** e **Min Temp:**, com uma casa decimal. Eles são calculados sobre todos os registros da janela, e não só sobre os pontos desenhados. Com mais de um sensor marcado, a faixa some.
+**Mínimos e máximos.** Com um só sensor marcado, a faixa acima do gráfico mostra o máximo e o mínimo de cada grandeza na janela, como **Máx Temp:** e **Mín Temp:** (*Max Temp:*, *Min Temp:*), com uma casa decimal. Eles são calculados sobre todos os registros da janela, e não só sobre os pontos desenhados. Com mais de um sensor marcado, a faixa some.
 
 ::: {.figura #fig-15-grafico-dois tipo="web" arquivo="15-grafico-dois.png" captura="rota /history; largura 1280; sessão admin; dois sensores marcados, um DS18B20 e um DHT22; período 24h; legenda visível; tooltip aberto sobre um ponto; eixos °C e %RH"}
 Dois sensores no mesmo gráfico: temperatura no eixo da esquerda, umidade tracejada no da direita, e a legenda no topo.
@@ -194,7 +194,7 @@ O gráfico desenha no máximo um ponto por pixel de largura. Para isso, divide a
 
 Assim, um pico de um minuto num gráfico de um mês continua visível na faixa. O registro mais recente é sempre desenhado com a própria hora.
 
-::: {.figura #fig-15-baldes tipo="web" arquivo="15-baldes.png" captura="rota /history; largura 1280; sessão admin; um sensor DS18B20 de geladeira; período 7d; faixa mínimo-máximo visível em torno da linha média, com os ciclos de degelo; tooltip mostrando o valor e a faixa entre colchetes"}
+::: {.figura #fig-15-baldes tipo="web" arquivo="15-baldes.png" captura="rota /history; largura 1280; sessão admin; um sensor DS18B20 com histórico sintético de geladeira (tools/gen_synth_history.py); período 7d; faixa mínimo-máximo visível em torno da linha média, com os ciclos de degelo; tooltip mostrando o valor e a faixa entre colchetes"}
 Uma semana em baldes: a linha é a média de cada balde, e a faixa sombreada vai do mínimo ao máximo. O pico do degelo aparece mesmo resumido.
 :::
 
@@ -216,7 +216,7 @@ Mensagens no lugar do gráfico:
 | **Erro.** | A página não conseguiu ler o estado do aparelho antes de começar. Recarregue a página |
 | **Conexão perdida.** | A carga falhou no meio. Confira a rede e toque de novo no período |
 
-::: {.figura #fig-15-carregando tipo="web" arquivo="15-carregando.png" captura="rota /history; largura 1280; sessão admin; período MAX com 60 dias no aparelho; carga em andamento na metade, barra mostrando Arquivos: 31/60 e os KB recebidos, botão Cancelar visível"}
+::: {.figura #fig-15-carregando tipo="web" arquivo="15-carregando.png" captura="rota /history; largura 1280; sessão admin; período MAX com 60 dias de histórico sintético no aparelho; carga em andamento na metade, barra mostrando Arquivos: 31/60 e os KB recebidos, botão Cancelar visível"}
 A carga de um período longo: a barra conta os arquivos baixados, e Cancelar deixa na tela a parte mais recente.
 :::
 
@@ -240,10 +240,10 @@ A página mostra as horas no fuso do computador, e o aparelho nomeia os arquivos
 
 ### No celular {#cap-15-celular}
 
-Na largura de um celular, os dois cartões ficam um sobre o outro: primeiro o seletor e o calendário, depois o gráfico. Toque no gráfico para ler um ponto. O toque não impede a rolagem da página.
+Na largura de um celular, os dois cartões ficam um sobre o outro: primeiro o gráfico, depois o seletor e o calendário. Toque no gráfico para ler um ponto. O toque não impede a rolagem da página.
 
-::: {.figura #fig-15-celular tipo="web" arquivo="15-celular.png" captura="rota /history; largura 390; sessão admin; um sensor; período 24h; tooltip aberto por toque"}
-A página no celular, com o gráfico abaixo do calendário e a leitura de um ponto aberta pelo toque.
+::: {.figura #fig-15-celular tipo="web" arquivo="15-celular.png" captura="rota /history; largura 390; sessão admin; um sensor; período 24h; janela começando no título do gráfico; tooltip aberto por toque"}
+A página no celular, com o gráfico acima do seletor e do calendário e a leitura de um ponto aberta pelo toque.
 :::
 
 ## Exportar o histórico em CSV {#cap-15-csv}
@@ -253,14 +253,14 @@ A exportação leva para um arquivo CSV exatamente a janela e os sensores que es
 1. Escolha os sensores em **Origem:**.
 2. Escolha o período, ou toque num dia do calendário, e espere o gráfico carregar.
 3. Toque em **⤓ CSV**, abaixo do gráfico.
-4. Espere a caixa **Exporting...** terminar. Ela mostra a porcentagem, o tempo estimado e quantos dias chegaram (`OK`) ou falharam (`err`). O botão **Cancelar** interrompe a exportação e salva o que já chegou.
+4. Espere a caixa **Exportando...** (*Exporting...*) terminar. Ela mostra a porcentagem, o tempo estimado e quantos dias chegaram (**OK**) ou falharam (**com falha**). O botão **Cancelar** interrompe a exportação e salva o que já chegou.
 5. O navegador salva o arquivo, e um aviso mostra o número de linhas.
 
 Se você tocar em **⤓ CSV** antes de carregar o gráfico, a página avisa **Carregue um intervalo no gráfico**. Se a janela não tem registros, o aviso é **Sem dados neste período**.
 
 Enquanto a exportação roda, os controles do gráfico ficam travados. A exportação aproveita os arquivos que o gráfico já baixou e só vai ao aparelho pelo que falta, pelo arquivo do dia corrente e pelo bloco aberto.
 
-::: {.figura #fig-15-exportando tipo="web" arquivo="15-exportando.png" captura="rota /history; largura 1280; sessão admin; exportação em andamento de um período 1M, caixa Exporting... com 45 %, tempo estimado, contagem OK e err, e o botão Cancelar"}
+::: {.figura #fig-15-exportando tipo="web" arquivo="15-exportando.png" captura="rota /history; largura 1280; sessão admin; exportação em andamento de um período 1M, caixa Exportando... com 45 %, tempo estimado, contagens OK e com falha, e o botão Cancelar"}
 A caixa da exportação em andamento. Cancelar salva o CSV com o que já chegou, com _partial no nome.
 :::
 

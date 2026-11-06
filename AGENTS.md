@@ -18,7 +18,9 @@ deste manual antes do primeiro estilo ou da primeira frase.** Parte das regras
 ## 1. A bancada
 
 Desde 22/10/2026, um Pico 2 W (o **alvo**, que roda o SIMUT, com o painel TFT
-e três sensores: DS18B20 no GP0, DHT22 no GP3 e no GP10) e um Pico comum (a
+e os sensores da protoboard: DS18B20 no GP0 e no GP1, DHT22 no GP3 e no GP10, e
+um BMP280 no I²C, com SDA no GP4 e SCL no GP5; o segundo DS18B20 e o BMP280
+entraram em 05/11/2026, pela palavra do mantenedor) e um Pico comum (a
 **PicoHand**, ou "mão") que aciona as linhas RESET (GP0) e BOOTSEL (GP1) do alvo
 por comando serial, mede a sonda e finge o carregador. De 12/10 a 22/10 a
 bancada foi outra: o alvo era um Pico W (o SIMUT Wire, com a rede no módulo
@@ -682,7 +684,7 @@ sem display, serial e BT são a única interface local.
   intervalo. Só compensa quando o boot foi mesmo um wake (`_airWokeFromSleep`).
 - **Ciclo medido pela sonda, config de 120 s: 120,23 s** (resíduo +0,11 s,
   explicado pelo trabalho entre `millis( )` e o `load`). Wake até DECIDE:
-  **9,31 s** (08/09), dos quais 6,83 s são a conversão do DS18B20.
+  **9,31 s** (08/09), dos quais 6,83 s são o aquecimento do sensor (0,4 s) e a amostragem (a conversão do DS18B20).
 - **CYW43: não chame `cyw43_arch_deinit( )` antes de dormir** — trava no 2º
   ciclo e deixa o chip num estado que só power-cycle recupera. O power-down é
   por hardware (`WiFi.disconnect(true)` + `WiFi.end( )` + GPIO23 LOW) e o boot

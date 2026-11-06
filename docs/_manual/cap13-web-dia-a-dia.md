@@ -287,16 +287,17 @@ O **Painel de Controle** (rota `/`) é a primeira página depois da entrada e ex
 - uma faixa de cartões de estado;
 - uma faixa de cartões de métricas;
 - a tabela de sensores;
-- [release]{.img} o bloco **Tela** (*Display Capture*), com o espelho do painel ([O espelho do painel](#cap-13-espelho)).
+- [release]{.img} o bloco **Tela** (*Display Capture*), com o espelho do painel ([O espelho do painel](#cap-13-espelho));
+- [alpha]{.img} o mesmo bloco **Tela**, com o LCD 16x2 ([O LCD da alpha na página](#cap-13-lcd)).
 
-Em telas com mais de 900 pixels de largura, o bloco **Tela** ocupa uma coluna à direita, de 360 pixels. Em telas mais estreitas, ele desce para baixo da tabela. As imagens alpha e Air não têm painel com toque nem o bloco **Tela**, e a página fica numa coluna só.
+Na release, em telas com mais de 900 pixels de largura, o bloco **Tela** ocupa uma coluna à direita, de 360 pixels. Em telas mais estreitas, ele desce para baixo da tabela. Na alpha, o bloco fica numa linha própria, acima dos cartões de estado, porque o LCD desenhado tem 639 pixels de largura. O Air não tem o bloco, e a página fica numa coluna só.
 
-::: {.figura #fig-13-painel-de-controle tipo="web" arquivo="13-painel-de-controle.png" captura="rota /; largura 1280; sessão admin; imagem release; tema escuro; 2 sensores ativos (um DS18B20 e um BME280); relógio acertado; telemetria ligada com alguns registros pendentes; bloco Tela antes de qualquer captura"}
+::: {.figura #fig-13-painel-de-controle tipo="web" arquivo="13-painel-de-controle.png" captura="rota /; largura 1280; sessão admin; imagem release; tema escuro; 2 sensores ativos (o DS18B20 do GP0 e o BMP280 do GP4/GP5); relógio acertado; telemetria ligada com alguns registros pendentes; bloco Tela antes de qualquer captura"}
 O Painel de Controle na imagem release: cartões de estado, cartões de métricas, tabela de sensores e, à direita, o bloco Tela.
 :::
 
-::: {.figura #fig-13-painel-de-controle-alpha tipo="web" arquivo="13-painel-de-controle-alpha.png" captura="rota /; largura 1280; sessão admin; imagem alpha; 1 sensor DHT22 ativo; telemetria desligada"}
-O Painel de Controle numa imagem sem painel com toque: uma coluna só, sem o bloco Tela.
+::: {.figura #fig-13-painel-de-controle-alpha tipo="web" arquivo="13-painel-de-controle-alpha.png" captura="rota /; largura 1280; sessão admin; imagem alpha, com o TFT fora e o LCD 16x2 nos GP16 a GP21; 1 sensor DHT22 ativo; telemetria desligada; bloco Tela depois de tocar em Capturar"}
+O Painel de Controle na alpha: o bloco Tela, numa linha própria acima dos cartões, mostra o LCD 16x2.
 :::
 
 ### Cartões de estado {#cap-13-cartoes-estado}
@@ -441,6 +442,21 @@ Quem está diante do painel tem prioridade. Mesmo no meio de um quadro, o aparel
 ::: {.figura #fig-13-espelho-ocupado tipo="web" arquivo="13-espelho-ocupado.png" captura="rota /; largura 1280; sessão admin; imagem release; Ao vivo ligado; uma pessoa acabou de tocar no painel com o dedo; recorte do bloco Tela com a mensagem Display em uso na linha de estado"}
 O espelho esperando: alguém usa o painel com o dedo, e a página tenta de novo sozinha.
 :::
+
+## O LCD da alpha na página {#cap-13-lcd}
+
+[alpha]{.img}
+
+Na imagem alpha, o bloco **Tela** do **Painel de Controle** mostra o que o LCD 16x2 do aparelho mostra, ponto por ponto, com os mesmos caracteres. Ele tem dois controles:
+
+- **Capturar** (*Capture screen*): lê o LCD uma vez e o desenha;
+- **Ao vivo** (*Live view*): lê de novo a cada 250 ms, um pedido por vez, até você tocar em **Parar** (*Stop*).
+
+Abaixo do LCD, a página mostra a idade do quadro, em segundos. O bloco não tem lista de temas nem aceita cliques como toques: o LCD não tem tema nem toque.
+
+Os dois controles exigem a permissão **Sistema** [PERM_SYS_CONFIG]{.perm}, a mesma da captura de tela da release, porque a terceira página do ponto de acesso de configuração mostra a chave da rede no LCD ([O ponto de acesso de configuração](#cap-12-ap)). Uma conta sem ela vê o bloco, mas o aparelho recusa a leitura, e o **Ao vivo** para na hora.
+
+Um quadro com mais de 2 s ganha o aviso **Quadro desatualizado** (*Stale frame*). Três leituras seguidas que falham param o **Ao vivo** com **Falha na leitura** (*Read Failed*). Quando o aparelho responde que está ocupado, a página espera e tenta de novo sozinha. Com a aba escondida, ela lê uma vez por segundo em vez de quatro.
 
 ## Tema claro e escuro {#cap-13-tema}
 

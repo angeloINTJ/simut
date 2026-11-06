@@ -3,13 +3,18 @@
 
 Two mechanisms, used where each is appropriate:
 
-  screen <tag>     jumps straight to one of twelve screens. Fast, reliable,
-                   and it resets the touch-idle timer so the 30 s revert to
-                   the dashboard cannot fire mid-capture.
+  screen <tag>     jumps straight to a screen. SCREENS below uses twelve of
+                   the command's tags; the command has 21 (counted in
+                   src/AppManager_Commands.cpp at v2.14.0, 2026-11-05: an
+                   unknown tag only answers "?screen", it lists nothing).
+                   Fast, reliable, and it resets the touch-idle timer so the
+                   30 s revert to the dashboard cannot fire mid-capture.
   touch sim <X> <Y>  injects a tap in screen space. This is the only way to
                    reach the screens that exist as a state *within* another
-                   screen -- alarm edit, graph detail, statistics, calendar,
-                   the auth keypad, the mute confirmation.
+                   screen -- alarm edit, graph detail, calendar, the auth
+                   keypad. The statistics view has no touch path and the mute
+                   confirmation is not driven on purpose: NOT_ATTEMPTED says
+                   why for both.
 
 Both live in the full-CLI profile, so flash `pico_w_test` before running:
 
@@ -22,8 +27,9 @@ SPI -- these are the panel's own pixels, not a rendering of them.
 
 SAFETY: every step here is an explicit coordinate. The tool never explores
 blindly, because the UI it is walking contains factory reset, filesystem
-format and mute-everything confirmations. Steps that open a destructive
-dialog are captured and then explicitly cancelled; see CONFIRM_MUTE.
+format and mute-everything confirmations. No step of SCREENS opens one of
+them: the mute-everything confirmation, the one a capture would want, is in
+NOT_ATTEMPTED instead.
 """
 import argparse
 import glob

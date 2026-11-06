@@ -85,8 +85,8 @@ Tudo o que está fora da tabela vai sempre para a flash, com nível de informaç
 
 O filtro vale só para a flash. O console, com `debug on`, e o syslog recebem todos os eventos, inclusive os que ficaram de fora ([Onde ler o log](#cap-16-onde)).
 
-::: {.figura #fig-16-transicao tipo="diagrama" arquivo="16-transicao.png" captura="linha do tempo de 3 horas da família Telemetria: pontos cinza pequenos a cada envio (console), pontos grandes onde o registro vai para a flash; flash no 1º envio depois do boot, na 1ª falha (coletor cai), nenhuma nas falhas seguintes, na 1ª volta, e um por hora nos trechos estáveis; marcas 'Registros de rotina suprimidos (5), ctx = N' a cada hora"}
-Legenda: o console vê todos os eventos; a flash guarda as transições e um registro por hora de cada família.
+::: {.figura #fig-16-transicao tipo="diagrama" arquivo="16-transicao.svg" captura="desenhado pelo código (tools/manual_diagramas.py): três horas da família Telemetria no log de eventos: o console vê todos os eventos, e a flash só as transições (o primeiro envio depois do boot, a primeira falha, a primeira volta) e um registro por hora, com a contagem dos suprimidos a cada hora; o que a política grava e quando vem de um espelho de src/LogPolicy.cpp, que o teste confere com o código compilado, com a cadência de src/LogPolicy.h e os nomes dos eventos de tools/logcodes.tsv; o cenário (um envio a cada 10 min e o coletor fora do ar entre os minutos 65 e 95) é o exemplo da figura; refazer com python3 tools/manual_diagramas.py --write"}
+O console vê todos os eventos; a flash guarda as transições e um registro por hora de cada família.
 :::
 
 ### No SIMUT Air {#cap-16-air}
@@ -145,7 +145,7 @@ Os nomes dos eventos vêm do aparelho. Com a página em **EN**, saem em inglês;
 
 Se a leitura falha, a tabela mostra `Error fetching logs`. Isso acontece, por exemplo, quando alguém está usando o painel naquele momento. Espere alguns segundos e toque de novo.
 
-::: {.figura #fig-16-eventos tipo="web" arquivo="16-eventos.png" captura="rota /history; largura 1280; sessão admin; seção Eventos do Sistema carregada; caixas INF, WRN e ERR marcadas; cerca de 15 linhas visíveis, incluindo uma entrada (300), uma mudança de configuração (303) e uma falha de telemetria (31)"}
+::: {.figura #fig-16-eventos tipo="web" arquivo="16-eventos.png" captura="rota /history; largura 1280; sessão admin; seção Eventos do Sistema carregada; caixas INF, WRN e ERR marcadas; as nove linhas que a caixa da tabela mostra sem rolar, incluindo uma entrada (300), uma mudança de configuração (303) e uma falha de telemetria (31)"}
 A seção Eventos do Sistema com os três níveis marcados. O registro mais recente fica no topo.
 :::
 

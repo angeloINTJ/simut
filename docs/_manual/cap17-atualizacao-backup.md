@@ -311,8 +311,8 @@ A segunda confirmação, depois de o backup chegar ao computador. Cancelar aqui 
 O envio da imagem. Até a v2.8.x o painel do aparelho ficava parado até o reinício; agora ele mostra a etapa ([capítulo 11](#cap-11-atualizacao)).
 :::
 
-::: {.figura #fig-17-ota-linha-tempo tipo="diagrama" arquivo="17-ota-linha-tempo.png" captura="linha do tempo horizontal de uma atualização: 'backup .bkp baixado' (segundos, verde); 'envio e conferência da imagem, 35 a 36 s' (amarelo, rótulo 'sistema de arquivos já sobrescrito'); 'aplicação, cerca de 25 s' (vermelho, rótulo 'única janela em que um corte de energia exige BOOTSEL'); 'boot da imagem nova' (verde); marca 'interface web de volta, 52 a 56 s depois da aplicação'; embaixo, o que cada corte causa: arquivos perdidos com a configuração preservada, aparelho sem firmware, nada"}
-Legenda: as etapas de uma atualização e o que um corte de energia em cada uma custa.
+::: {.figura #fig-17-ota-linha-tempo tipo="diagrama" arquivo="17-ota-linha-tempo.svg" captura="desenhado pelo código (tools/manual_diagramas.py): as etapas de uma atualização no Pico W, numa linha em escala (o backup, o envio e a conferência da imagem, a aplicação, o boot da imagem nova), e o que um corte de energia custa em cada uma; os tempos do envio e da volta da interface web são os medidos que o capítulo traz (v2.7.0, 22/09/2026), os da aplicação e do boot são as estimativas da janela de confirmação de WebUI.h, e que o envio só escreve na área de preparo e que só a aplicação reescreve o programa são trechos de src/ota/staging.cpp e src/ota/applier.cpp que o código tem de manter; refazer com python3 tools/manual_diagramas.py --write"}
+As etapas de uma atualização e o que um corte de energia em cada uma custa.
 :::
 
 ### Tempos medidos {#cap-17-ota-tempos}
