@@ -6193,9 +6193,19 @@ static const char NET_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                 document.getElementById('lbl_dns').innerText = data.dns;
                 document.getElementById('lbl_mac').innerText = data.mac;
 
+                /* The word is the pack's, and /api/lang is a second request that the
+                   device may answer after this one: t( ) had no dictionary yet and the
+                   card kept the English for good (the Portuguese page of the v2.14.0
+                   capture, 2026-11-06), because applyLang( ) relabels only what carries
+                   data-i18n. So the card carries the key and the English, as the theme
+                   options do, and t( ) still paints it translated when the dictionary
+                   came first. tools/test_webui_pack_texts.py runs the orders. */
                 let s = document.getElementById('lbl_stat');
-                if(data.connected) { s.innerText = window.t('net_conn', 'Connected'); s.style.color = "var(--acento)"; }
-                else { s.innerText = window.t('net_off', 'Disconnected'); s.style.color = "var(--perigo)"; }
+                const up = !!data.connected;
+                s.setAttribute('data-i18n', up ? 'net_conn' : 'net_off');
+                s.setAttribute('data-en', up ? 'Connected' : 'Disconnected');
+                s.innerText = up ? window.t('net_conn', 'Connected') : window.t('net_off', 'Disconnected');
+                s.style.color = up ? 'var(--acento)' : 'var(--perigo)';
 
                 /* U24 Phase C: aplica valores do flash; sobrepõe pendentes. */
                 const p = Pending.getSection('net');

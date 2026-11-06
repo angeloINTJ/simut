@@ -18,6 +18,19 @@ found four such places; each has its check here.
     OK, which is the same in the three languages) is a text typed into the page.
     Then the keys the box asked for are held to both packs.
 
+  * the link state of the network page (loadNet( ), NET_PAGE): the card says
+    Connected or Disconnected, and the page painted it once, from window.t( ),
+    when /api/network answered. The dictionary comes from /api/lang, a second
+    request, and the device answers one request at a time: when /api/network
+    answered first, t( ) had no dictionary yet, the word stayed in English, and
+    applyLang( ) (which relabels only the elements that carry data-i18n) never
+    came back to it (the Portuguese page of the v2.14.0 capture, 2026-11-06).
+    loadNet( ) runs under node, as written and minified, with lang.js's own
+    t( ), escHtml( ), applyLang( ) and the line that fetches the dictionary, in
+    the orders the device can answer in: dictionary first, network first, and a
+    first visit (no language stored yet). The card must read the pack's word at
+    the end of each, and switch with the language.
+
 Each check takes the code it judges, so --mutations can put the violations back
 by hand (one mutant per text) and expect each to be found; the clean code must
 give none.
@@ -222,6 +235,180 @@ def test_export_mutants(src, ns, dicts):
         check(len(got) == want, f"export mutant {name!r}: {len(got)} findings, not {want}: {sorted(got)}")
 
 
+# ── the link state of the network page ─────────────────────────────────────
+
+def block(src, name):
+    """One page or asset of WebUI.h: from its declaration to the end of its raw string."""
+    a = src.find(f"static const char {name}[] PROGMEM")
+    return src[a:src.find(')raw";', a)] if a >= 0 else ""
+
+
+def lang_js_parts(src):
+    """(code, missing): lang.js's own one-line window.t, window.escHtml and
+    window.applyLang, and the line that asks /api/lang for the dictionary."""
+    lang = block(src, "LANG_JS")
+    found, missing = [], []
+    for name, pat in (("window.t", r"window\.t = function.*"), ("window.escHtml", r"window\.escHtml = function.*"),
+                      ("window.applyLang", r"window\.applyLang = function.*"),
+                      ("the /api/lang fetch", r"fetch\('/api/lang'\).*")):
+        m = re.search(rf"^[ \t]*({pat})$", lang, re.M)
+        (found if m else missing).append(m.group(1) if m else name)
+    return found, missing
+
+
+def load_net_code(src):
+    """loadNet( ) of the network page, cut out by its name and the next function's."""
+    net = block(src, "NET_PAGE")
+    a = net.find("async function loadNet() {")
+    b = net.find("function wireNetPendingListeners() {", a) if a >= 0 else -1
+    return net[a:b] if a >= 0 and b > a else None
+
+
+# What node does not have: the page's storage and DOM (the elements loadNet( )
+# and applyLang( ) touch, made on demand by id), the two requests, and the
+# dictionary. fetch( ) is lang.js's own: it answers /api/lang when the scenario
+# says the dictionary has arrived. A scenario is the order the device can answer
+# in; what the card reads is the text of #lbl_stat.
+LINK_HARNESS = r"""
+var __store = {};
+Object.defineProperty(globalThis, 'localStorage', { configurable: true, writable: true, value: {
+    getItem: function (k) { return Object.prototype.hasOwnProperty.call(__store, k) ? __store[k] : null; },
+    setItem: function (k, v) { __store[k] = String(v); } } });
+var __els = {};
+class __El {
+    constructor(id) { this.id = id; this.tagName = 'DIV'; this.style = {}; this.value = ''; this.checked = false; this._a = {}; this._h = ''; }
+    get innerHTML() { return this._h; }  set innerHTML(v) { this._h = String(v); }
+    get innerText() { return this._h; }  set innerText(v) { this._h = String(v); }
+    get textContent() { return this._h; }  set textContent(v) { this._h = String(v); }
+    getAttribute(n) { return Object.prototype.hasOwnProperty.call(this._a, n) ? this._a[n] : null; }
+    setAttribute(n, v) { this._a[n] = String(v); }
+    hasAttribute(n) { return Object.prototype.hasOwnProperty.call(this._a, n); }
+}
+Object.defineProperty(globalThis, 'document', { configurable: true, writable: true, value: {
+    getElementById: function (id) { return __els[id] || (__els[id] = new __El(id)); },
+    querySelectorAll: function (sel) {
+        return sel === '[data-i18n]' ? Object.keys(__els).map(function (k) { return __els[k]; }).filter(function (e) { return e.hasAttribute('data-i18n'); }) : [];
+    },
+    createElement: function () { var s = ''; return {
+        set textContent(v) { s = String(v); },
+        get innerHTML() { return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); } }; } } });
+var window = globalThis;
+var dict = { pt: {} };
+var Pending = { getSection: function () { return {}; } };
+function toggleIpFields() {}
+function toggleDnsFields() {}
+function wireNetPendingListeners() {}
+var __net = null, __pack = null, __arrive = null;
+globalThis.fetchSafe = async function () { return { json: async function () { return __net; } }; };
+globalThis.fetch = function () { return new Promise(function (res) { __arrive = function () { res({ json: function () { return __pack; } }); }; }); };
+__LANG_JS__
+function __startLang() {
+__FETCH_LINE__
+}
+__CODE__
+var __tick = function () { return new Promise(function (r) { setTimeout(r, 0); }); };
+var __status = function () { return __els['lbl_stat'] ? __els['lbl_stat'].innerText : null; };
+async function __scenario(kind, connected, pack) {
+    __store = {}; __els = {}; dict.pt = {};
+    __net = { ip: '192.168.3.33', mask: '255.255.255.0', gw: '192.168.3.1', dns: '192.168.3.1', mac: '88:A2:9E:76:B6:B0',
+              connected: connected, ssid: 'Net', use_dhcp: true, web_port: 8080, ntp_enabled: true };
+    __pack = pack;
+    if (kind !== 'first-visit') localStorage.setItem('simut_lang', 'pt');
+    __startLang();                                        /* lang.js asks for the dictionary as it loads */
+    var obs = {};
+    if (kind === 'dict-first') { __arrive(); await __tick(); await loadNet(); obs.painted = __status(); }
+    else { await loadNet(); obs.painted = __status(); __arrive(); await __tick(); obs.arrived = __status(); }
+    localStorage.setItem('simut_lang', 'en'); applyLang(); obs.en = __status();
+    localStorage.setItem('simut_lang', 'pt'); applyLang(); obs.pt = __status();
+    return obs;
+}
+(async function () {
+    var out = {}, packs = __PACKS__;
+    for (var lang of Object.keys(packs))
+        for (var kind of ['dict-first', 'network-first', 'first-visit'])
+            for (var conn of [true, false])
+                out[lang + '|' + kind + '|' + conn] = await __scenario(kind, conn, packs[lang]);
+    console.log(JSON.stringify(out));
+})().catch(function (e) { console.log(JSON.stringify({ error: String((e && e.stack) || e) })); });
+"""
+
+
+def link_state_findings(code, parts, ns, dicts):
+    """What is wrong with the card's status in this loadNet( ): [] when nothing."""
+    found = []
+    for label, js in (("as written", code), ("minified", ns["_minify_web_block"](code, "js"))):
+        prog = (LINK_HARNESS.replace("__LANG_JS__", "\n".join(parts[:3])).replace("__FETCH_LINE__", parts[3])
+                .replace("__CODE__", js).replace("__PACKS__", json.dumps(dicts)))
+        try:
+            res = run_node(prog)
+        except RuntimeError as e:
+            found.append(f"{label}: {e}")
+            continue
+        if "error" in res:
+            found.append(f"{label}: the scenarios threw {res['error'][:300]}")
+            continue
+        for key, obs in sorted(res.items()):
+            lang, kind, conn = key.split("|")
+            on = conn == "true"
+            tr = dicts[lang].get("net_conn" if on else "net_off", "")
+            en = "Connected" if on else "Disconnected"
+            who = f"{lang}, {'connected' if on else 'disconnected'}, {kind}"
+            if not tr.strip() or tr == en:
+                found.append(f"{label}: {who}: @WEBDICT has {'net_conn' if on else 'net_off'} = {tr!r}, "
+                             f"which is not a translation of {en!r}")
+                continue
+            for when, got, want in ((("painted", obs.get("painted"), tr) if kind == "dict-first" else
+                                      ("arrived", obs.get("arrived"), tr)),
+                                    ("switched to English", obs.get("en"), en),
+                                    ("switched back", obs.get("pt"), tr)):
+                if got != want:
+                    found.append(f"{label}: {who}: the card reads {got!r} {when}, wanted {want!r}")
+    return sorted(set(found))
+
+
+def test_link_state(src, ns, dicts):
+    parts, missing = lang_js_parts(src)
+    code = load_net_code(src)
+    if not check(not missing, f"lang.js lacks {missing} as one line each; this test runs lang.js's own"):
+        return
+    if not check(code is not None, "loadNet( ) is not in the network page of WebUI.h (or wireNetPendingListeners( ) "
+                                   "no longer follows it). If they moved or were renamed, move this test with them."):
+        return
+    for f in link_state_findings(code, parts, ns, dicts):
+        fails.append(f"link state: {f}")
+
+
+# Each mutant takes one piece of the fix out. What it must give is the set of
+# moments at which the card reads wrong, whatever the pack or the state: a card
+# that cannot be relabelled misses `arrived` and both switches; one with no
+# English of its own gives the translated word for the English; one painted from
+# the literal misses only `painted`.
+LINK_MUTANTS = [
+    ("no data-i18n on the card: applyLang( ) cannot come back to it",
+     r"s\.setAttribute\('data-i18n', up \? 'net_conn' : 'net_off'\);\s*", "", {"arrived", "switched to English", "switched back"}),
+    ("no data-en: the first applyLang( ) takes the translated text for the English",
+     r"s\.setAttribute\('data-en', up \? 'Connected' : 'Disconnected'\);\s*", "", {"switched to English"}),
+    ("painted from the English literal, not from t( )",
+     r"up \? window\.t\('net_conn', 'Connected'\) : window\.t\('net_off', 'Disconnected'\)", "(up ? 'Connected' : 'Disconnected')", {"painted"}),
+]
+
+
+def test_link_mutants(src, ns, dicts):
+    parts, missing = lang_js_parts(src)
+    code = load_net_code(src)
+    if missing or code is None:
+        return
+    check(link_state_findings(code, parts, ns, dicts) == [], "link mutants: the code they start from is not clean")
+    for name, pat, rep, want in LINK_MUTANTS:
+        mutated, n = re.subn(pat, lambda m, r=rep: r, code)
+        if not check(n == 1, f"link mutant {name!r}: its pattern matches {n} times in the code, not once "
+                             f"(the mutant no longer describes the code: update it)"):
+            continue
+        got = {m.group(1) for f in link_state_findings(mutated, parts, ns, dicts)
+               for m in [re.search(r"reads '[^']*' (painted|arrived|switched to English|switched back), wanted", f)] if m}
+        check(got == want, f"link mutant {name!r}: the card reads wrong at {sorted(got)}, wanted {sorted(want)}")
+
+
 def main():
     global WEBUI
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
@@ -233,9 +420,11 @@ def main():
     src = WEBUI.read_text(encoding="utf-8")
     ns = generator()
     dicts = {lang: pack_dict(lang) for lang in PACK_FILES}
-    tests = [("test_export_box", lambda: test_export_box(src, ns, dicts))]
+    tests = [("test_export_box", lambda: test_export_box(src, ns, dicts)),
+             ("test_link_state", lambda: test_link_state(src, ns, dicts))]
     if args.mutations:
-        tests.append(("test_export_mutants", lambda: test_export_mutants(src, ns, dicts)))
+        tests += [("test_export_mutants", lambda: test_export_mutants(src, ns, dicts)),
+                  ("test_link_mutants", lambda: test_link_mutants(src, ns, dicts))]
     for name, t in tests:
         before = len(fails)
         try:

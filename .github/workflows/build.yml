@@ -588,13 +588,17 @@ jobs:
         run: python3 tools/test_webui_trial_note.py
 
       # The page writes some texts by itself, and each must come from the
-      # pack: the export box of the history page said "Exporting..." in
-      # English and "Cancelar" in Portuguese on every pack, both typed into
-      # its markup (seen on the manual's figures of the v2.14.0, 2026-11-06).
-      # The box runs under node, as written and minified, against a DOM that
-      # records every text it shows; a letter no window.t( ) wrote is a failure,
-      # and the keys it asks for are held to both packs. --mutations (by hand)
-      # puts each violation back and expects exactly its findings.
+      # pack. The export box of the history page said "Exporting..." in
+      # English and "Cancelar" in Portuguese on every pack, both typed into its
+      # markup; the Network page painted Connected once, from window.t( ), and
+      # kept the English whenever /api/network answered before /api/lang (both
+      # seen on the manual's figures of the v2.14.0, 2026-11-06). Each runs
+      # under node, as written and minified: the box against a DOM that records
+      # every text it shows (a letter no window.t( ) wrote is a failure, and
+      # the keys it asks for are held to both packs); loadNet( ) with lang.js's
+      # own t( ) and applyLang( ) in the orders the device can answer in.
+      # --mutations (by hand) puts each violation back and expects exactly its
+      # findings.
       - name: Web UI pack texts (no text typed into the page)
         run: python3 tools/test_webui_pack_texts.py
 
