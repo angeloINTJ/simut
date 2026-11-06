@@ -250,6 +250,11 @@ def main():
         confere(all(palavra in cap20 for palavra in (m.PAR_GESTAO, m.PAR_PROMETHEUS, m.PAR_REDE_LOCAL, 'Coletor de syslog')) and 'Anúncio local' in cap20,
                 f'chapter 20 does not say the names of the figure\'s peers: {m.PAR_GESTAO}, {m.PAR_PROMETHEUS}, {m.PAR_REDE_LOCAL}',
                 'the integration figure\'s peers (servidor de gestão, Prometheus, rede local) are the words chapter 20 uses')
+        # the fleet figure's words for its peers, against chapter 27
+        cap27 = (m.CAPITULOS / 'cap27-frota.md').read_text(encoding='utf-8')
+        confere(m.PAR_GESTOR in cap27 and 'GitHub' in cap27 and m.PAR_PROMETHEUS in cap27 and 'coletor' in cap27.lower(),
+                f'chapter 27 does not say the names of the fleet figure\'s peers: {m.PAR_GESTOR}, GitHub, {m.PAR_PROMETHEUS}',
+                'the fleet figure\'s peers (gestor de frota, GitHub, Prometheus, coletor) are the words chapter 27 uses')
 
         # ---- the builder's guards --------------------------------------------------------------------------------------------------------------------------
         s = m.Svg('99-teste', 100)
@@ -423,17 +428,21 @@ def main():
                 ('the measured time of a /metrics read with Basic 699 ms -> 1400 ms, in the comment that records it', [(NET_DEFS, 'a /metrics read with Basic 699 ms', 'a /metrics read with Basic 1400 ms', 1)], {'24-coleta.svg'}),
                 ('the lockout\'s ceiling 300 s -> 280 s', [(NET_DEFS, 'AUTH_LOCKOUT_MAX_MS = 300000;', 'AUTH_LOCKOUT_MAX_MS = 280000;', 1)], {'24-coleta.svg'}),
                 ('the lockout\'s first penalty 2 s -> 4 s (the shift starts from 2000 ms), one rung fewer', [(NET_DEFS, 'uint32_t ms = 1000UL << n;', 'uint32_t ms = 2000UL << n;', 1)], {'24-coleta.svg'}),
-                ('the route /metrics -> /metricas', [(WEB_CORE, '_server->on("/metrics", HTTP_GET', '_server->on("/metricas", HTTP_GET', 1)], {'24-coleta.svg', '20-integracao.svg'}),
-                ('the scheme of the credentials Basic -> Token', [(WEB_METRICS, 'if (!h.startsWith("Basic ")) return 0;', 'if (!h.startsWith("Token ")) return 0;', 1)], {'24-coleta.svg'}),
+                ('the route /metrics -> /metricas', [(WEB_CORE, '_server->on("/metrics", HTTP_GET', '_server->on("/metricas", HTTP_GET', 1)], {'24-coleta.svg', '20-integracao.svg', '27-arquitetura.svg'}),
+                ('the scheme of the credentials Basic -> Token', [(WEB_METRICS, 'if (!h.startsWith("Basic ")) return 0;', 'if (!h.startsWith("Token ")) return 0;', 1)], {'24-coleta.svg', '27-arquitetura.svg'}),
                 ('the locked address\'s answer 429 -> 423', [(WEB_METRICS, 'if (respondIfLockedOut(ls, 429)) return -1;', 'if (respondIfLockedOut(ls, 423)) return -1;', 1)], {'24-coleta.svg'}),
                 ('the wrong password\'s answer 401 -> 407', [(WEB_METRICS, '_server->send(401, "text/plain", "unauthorized\\n");', '_server->send(407, "text/plain", "unauthorized\\n");', 1)], {'24-coleta.svg'}),
                 ('the missing permission\'s answer 403 -> 451', [(WEB_METRICS, '_server->send(403, "text/plain", "forbidden\\n");', '_server->send(451, "text/plain", "forbidden\\n");', 1)], {'24-coleta.svg'}),
                 ('the answer with the text 200 -> 203', [(WEB_METRICS, '_server->send(200, "text/plain; version=0.0.4; charset=utf-8", "");', '_server->send(203, "text/plain; version=0.0.4; charset=utf-8", "");', 1)], {'24-coleta.svg'}),
                 ('the syslog ring\'s depth 8 -> 6 (and the lines a pass sends)', [(SYSLOG_H, 'static constexpr int SLOTS = 8;', 'static constexpr int SLOTS = 6;', 1)], {'25-caminho.svg'}),
                 ('the syslog default port 514 -> 5514', [('src/SystemDefs_Records.h', 'constexpr uint16_t SYSLOG_DEFAULT_PORT = 514;', 'constexpr uint16_t SYSLOG_DEFAULT_PORT = 5514;', 1)], {'25-caminho.svg', '20-integracao.svg'}),
-                ('the mDNS service name simut -> casa', [(NETWORK, 'MDNS.addService(nullptr, "simut", "tcp", _advPort)', 'MDNS.addService(nullptr, "casa", "tcp", _advPort)', 1)], {'20-integracao.svg'}),
+                ('the mDNS service name simut -> casa', [(NETWORK, 'MDNS.addService(nullptr, "simut", "tcp", _advPort)', 'MDNS.addService(nullptr, "casa", "tcp", _advPort)', 1)], {'20-integracao.svg', '27-arquitetura.svg'}),
                 ('the alpha image gets the mDNS announcement too (it loses -DSIMUT_MDNS=0)', [(PERFIS, '    -DHD44780_MODE_PARALLEL=1\n    -DSIMUT_CLI_FULL=0\n    -DSIMUT_MDNS=0\n    -DSIMUT_BLUETOOTH=1',
-                                                                                                          '    -DHD44780_MODE_PARALLEL=1\n    -DSIMUT_CLI_FULL=0\n    -DSIMUT_BLUETOOTH=1', 1)], {'20-integracao.svg'}),
+                                                                                                          '    -DHD44780_MODE_PARALLEL=1\n    -DSIMUT_CLI_FULL=0\n    -DSIMUT_BLUETOOTH=1', 1)], {'20-integracao.svg', '27-arquitetura.svg'}),
+                ('the identity header X-SIMUT-Ver renamed X-SIMUT-Versao', [(TELEMETRY, 'http.addHeader("X-SIMUT-Ver", SIMUT_VERSION);', 'http.addHeader("X-SIMUT-Versao", SIMUT_VERSION);', 1)], {'27-arquitetura.svg'}),
+                ('the session\'s Bearer scheme -> Token', [(WEB_AUTH, 'if (a.startsWith("Bearer ")) return "SIMUTSESS=" + a.substring(7);', 'if (a.startsWith("Token ")) return "SIMUTSESS=" + a.substring(7);', 1)], {'27-arquitetura.svg'}),
+                ('the session cookie SIMUTSESS -> SESSAO', [(WEB_AUTH, 'if (a.startsWith("Bearer ")) return "SIMUTSESS=" + a.substring(7);', 'if (a.startsWith("Bearer ")) return "SESSAO=" + a.substring(7);', 1)], {'27-arquitetura.svg'}),
+                ('the manifest renamed in the release workflow', [(WORKFLOW_OTA, '*.lng manifest.json > SHA256SUMS', '*.lng manifesto.json > SHA256SUMS', 1)], {'03-arquivos.svg', '27-arquitetura.svg'}),
                 ('the BME280 probe pair (4, 5) -> (6, 7)', [(BME_SENSOR, 'probe(4, 5, BME280_ADDR_PRIMARY)', 'probe(6, 7, BME280_ADDR_PRIMARY)', 1)], {'02-bmx280.svg'}),
                 ('the BME280 addresses 0x76/0x77 -> 0x75/0x78 in the driver, code and comments', [(BME_DRIVER, '0x76', '0x75', None), (BME_DRIVER, '0x77', '0x78', None)], {'02-bmx280.svg'}),
             ]
@@ -500,6 +509,11 @@ def main():
             ('the link is no longer the station joined to an access point', [('src/net/NetLink.h', 'return WiFi.status( ) == WL_CONNECTED; }', 'return true; }', 1)], 'joined', '25-caminho.svg'),
             ('the telemetry gets a third transport', [(RECORDS, ' TEL_TRANSPORT_MQTT = 1\n', ' TEL_TRANSPORT_MQTT = 1,\n TEL_TRANSPORT_COAP = 2\n', 1)], 'two transports', '20-integracao.svg'),
             ('the syslog forwarder is no longer UDP', [(SYSLOG_H, '@brief RFC 5424 / UDP syslog forwarder', '@brief RFC 5424 / TCP syslog forwarder', 1)], 'UDP', '20-integracao.svg'),
+            ('the alarm line\'s POST no longer carries the identity headers', [(TELEMETRY, '\t\taddTelemetryAuthHeader(http, cfg);\n\t\taddIdentityHeaders(http, _storageRef);', '\t\taddTelemetryAuthHeader(http, cfg);', 1)],
+             'identity headers', '27-arquitetura.svg'),
+            ('the telemetry\'s POST no longer carries the identity headers', [(TELEMETRY, ' addIdentityHeaders(http, _storageRef);\n\n http.setTimeout(NET_SOCKET_TIMEOUT_MS);', ' http.setTimeout(NET_SOCKET_TIMEOUT_MS);', 1)], 'identity headers', '27-arquitetura.svg'),
+            ('the session is read from the Bearer header before the cookie', [(WEB_AUTH, '\tif (_server->hasHeader("Cookie")) return _server->header("Cookie");\n\tif (_server->hasHeader("Authorization")) {', '\tif (_server->hasHeader("Authorization")) {', 1)],
+             'cookie', '27-arquitetura.svg'),
             ('the discovery configs are no longer published retained', [(TELEMETRY, 'ok = _mqttClient.publish(topic, payload, true);', 'ok = _mqttClient.publish(topic, payload, false);', 1)],
              'retained', '23-fluxo.svg'),
             ('the online message is no longer published retained', [(TELEMETRY, 'onlinePayload.c_str( ), true);', 'onlinePayload.c_str( ), false);', 1)], 'retained', '23-fluxo.svg'),

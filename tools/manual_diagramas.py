@@ -147,6 +147,11 @@ FIGURAS = (
            'o que uma passada manda, vem de SLOTS em src/SyslogManager.h e a porta de SYSLOG_DEFAULT_PORT em src/SystemDefs_Records.h, e cada coisa que o desenho afirma da fila, do laço, do boot e do '
            'reinício é um trecho de src/SyslogManager.cpp, src/AppManager_Loop.cpp, src/AppManager_Boot.cpp, src/LogManager.cpp ou src/net/NetLink.h que o código tem de manter; '
            'o endereço do coletor, o nome do nível e os coletores são os exemplos do capítulo'),
+    Figura('fig-27-arquitetura', '27-arquitetura.svg', 'cap27-frota.md', 'desenho_arquitetura',
+           'os caminhos de uma frota: vários aparelhos numa rede local, a telemetria e a linha de alarmes que eles empurram ao coletor com os cabeçalhos de identidade, o que o Prometheus e o gestor de frota '
+           'perguntam a cada um, o anúncio mDNS à rede local e o manifest.json da release no GitHub que o gestor lê; os nomes dos cabeçalhos e a premissa de que os dois POSTs os levam vêm de '
+           'src/TelemetryManager.cpp, o esquema e o nome do cookie da sessão de src/WebManager_Auth.cpp, a rota e o esquema do /metrics de src/WebManager_Core.cpp e src/WebManager_Metrics.cpp, o serviço '
+           'e as imagens do anúncio de src/NetworkManager.cpp e SIMUT_MDNS, o nome do manifesto do passo Checksums de .github/workflows/release-ota.yml'),
 )
 
 
@@ -238,11 +243,12 @@ class Fonte:
         """{name: value} of the -D flags of [env:`env`]; a bare -DNAME is '1'. The profile's flag wins over simut_config.h's default, as the compiler's -D does."""
         return {k: v or '1' for k, v in re.findall(r'^[ \t]+-D(\w+)(?:=(\S+))?[ \t]*$', self.secao(env), FLAGS_PADRAO)}
 
-    def exigir(self, rel, padrao, porque):
-        """Falta unless the file still matches `padrao`: a premise the figure rests on, with `porque` in the message to say which (achar( )'s message names only the pattern)."""
+    def exigir(self, rel, padrao, porque, texto=None):
+        """Falta unless the file (or `texto`, a part of it) still matches `padrao`: a premise the figure rests on, with `porque` in the message to say which (achar( )'s message names only the
+        pattern)."""
         if (rel, padrao) not in self.padroes:
             self.padroes.append((rel, padrao))
-        if re.search(padrao, self.ler(rel), FLAGS_PADRAO) is None:
+        if re.search(padrao, self.ler(rel) if texto is None else texto, FLAGS_PADRAO) is None:
             raise Falta(f'{rel}: no longer matches the pattern {padrao}, and {porque}')
 
     def exigir_flag(self, env, nome, valor, porque):
@@ -281,6 +287,7 @@ IP_COLETOR_EXEMPLO, NIVEL_MINIMO, COLETORES_SYSLOG = '192.0.2.10', 'Nível Míni
 # The names the integration figure gives its peers, chapter 20's own words (the table of what the device offers: the management server and Prometheus; the table of ports: the local announcement; the
 # collector of syslog). tools/test_manual_diagramas.py checks that the chapter still says them.
 PAR_GESTAO, PAR_PROMETHEUS, PAR_REDE_LOCAL = 'servidor de gestão', 'Prometheus', 'rede local'
+PAR_GESTOR = 'gestor de frota'                  # chapter 27's name for the program that asks every device (the 27 figures' peer)
 
 IMAGEM_DO_PERFIL = {'release': 'pico_w_release', 'alpha': 'pico_w_alpha', 'air': 'pico_w_air'}
 
@@ -567,15 +574,52 @@ class Numeros:
         f.exigir(RECORDS, r'enum TelemetryTransport \{\s+TEL_TRANSPORT_HTTP = 0,\s+TEL_TRANSPORT_MQTT = 1\s+\};', 'the telemetry has two transports, HTTP and MQTT, which is what the integration figure draws')
         rfc, protocolo = f.achar(SYSLOG_H, r'@brief (RFC \d+) / (UDP) syslog forwarder').groups()
         porta = int(f.achar(RECORDS, r'constexpr uint16_t SYSLOG_DEFAULT_PORT = (\d+);').group(1))
-        servico = f.achar(NETWORK, r'MDNS\.addService\(nullptr, "(\w+)", "(\w+)", _advPort\)')
-        com_mdns = [imagem for imagem in IMAGEM_DO_PERFIL if self.macro('SIMUT_MDNS', imagem) == 1]
-        if not com_mdns:
-            raise Falta(f'{CONFIG}: no image has SIMUT_MDNS on, and the integration figure draws the announcement of the service as one the device makes')
+        anuncio = self.mdns()
         self.alarmes()
         self.homeassistant()
         metricas = self.prometheus()
-        return {'rfc': rfc, 'protocolo': protocolo, 'porta_syslog': porta, 'mdns': f'_{servico.group(1)}._{servico.group(2)}', 'imagens_mdns': com_mdns,
-                'metodo': metricas['metodo'], 'rota': metricas['rota']}
+        return {'rfc': rfc, 'protocolo': protocolo, 'porta_syslog': porta, 'mdns': anuncio['servico'], 'imagens_mdns': anuncio['imagens'], 'metodo': metricas['metodo'], 'rota': metricas['rota']}
+
+
+    def corpo(self, rel, definicao):
+        """The text of the function whose definition line matches `definicao` (a pattern that starts at column 0), up to the next line that starts at column 0 with a word: here a function
+        body is everything between two definitions."""
+        t = self.f.ler(rel)
+        m = self.f.achar(rel, definicao)
+        fim = re.search(r'^\w', t[m.end():], FLAGS_PADRAO)
+        return t[m.start():m.end() + fim.start()] if fim else t[m.start():]
+
+    def mdns(self):
+        """The announcement of the service the device makes on the local network: its name as `_simut._tcp`, as MDNS.addService( ) is called in NetworkManager.cpp, and the images that
+        have it (SIMUT_MDNS on: simut_config.h's default, a profile's -D wins), named as the manual names them."""
+        servico = self.f.achar(NETWORK, r'MDNS\.addService\(nullptr, "(\w+)", "(\w+)", _advPort\)')
+        imagens = [imagem for imagem in IMAGEM_DO_PERFIL if self.macro('SIMUT_MDNS', imagem) == 1]
+        if not imagens:
+            raise Falta(f'{CONFIG}: no image has SIMUT_MDNS on, and the figures draw the announcement of the service as one a device makes')
+        return {'servico': f'_{servico.group(1)}._{servico.group(2)}', 'imagens': imagens}
+
+    def frota(self):
+        """What the fleet figure draws: the four identity headers every POST of the telemetry and of the alarm line carries (the names, from addIdentityHeaders( ) in TelemetryManager.cpp; premises,
+        that both POSTs call it), the scheme the session can travel in besides the cookie and the cookie's name (sessionTokenHeader( ) in WebManager_Auth.cpp; premise, that the cookie is
+        read first), the metrics' route and scheme, the mDNS announcement and the name of the release's manifest."""
+        f = self.f
+        cabecalhos = self.corpo(TELEMETRIA, r'^static void addIdentityHeaders\(HTTPClient& http, StorageManager\* storage\) \{')
+        f.achar(TELEMETRIA, r'http\.addHeader\("(X-SIMUT-\w+)", ', texto=cabecalhos)
+        nomes = re.findall(r'http\.addHeader\("(X-SIMUT-\w+)", ', cabecalhos)
+        for definicao, o_que in ((r'^bool TelemetryManager::attemptHttpUpload\([^)]*\) \{', 'the telemetry\'s POST'), (r'^bool TelemetryManager::attemptAlarmHttpUpload\([^)]*\) \{', 'the alarm line\'s POST')):
+            f.exigir(TELEMETRIA, r'addIdentityHeaders\(http, _storageRef\);', f'{o_que} no longer carries the identity headers, which the figure of the fleet draws on both', self.corpo(TELEMETRIA, definicao))
+        f.exigir(WEB_AUTH, r'String WebManager::sessionTokenHeader\( \) \{\s+if \(_server->hasHeader\("Cookie"\)\) return _server->header\("Cookie"\);',
+                 'the session is read from the cookie first, and from the Bearer header only when there is no cookie, which the figure of the fleet draws')
+        esquema, cookie = f.achar(WEB_AUTH, r'if \(a\.startsWith\("(\w+) "\)\) return "(\w+)=" \+ a\.substring\(7\);').groups()
+        comum = nomes[0]
+        for n in nomes[1:]:
+            while not n.startswith(comum):
+                comum = comum[:-1]
+        rotulo_cabecalhos = comum + '/'.join(n[len(comum):] for n in nomes) if comum.endswith('-') else ', '.join(nomes)
+        metricas = self.prometheus()
+        anuncio = self.mdns()
+        return {'cabecalhos': rotulo_cabecalhos, 'sessao': esquema, 'cookie': cookie, 'esquema_metricas': metricas['esquema'], 'metodo': metricas['metodo'], 'rota': metricas['rota'],
+                'mdns': anuncio['servico'], 'imagens_mdns': anuncio['imagens'], 'manifesto': self.publicados()[1]}
 
 
 def pino_de(gpio):
@@ -1436,6 +1480,43 @@ def desenho_integracao(num, slug):
     grupo(352, 'anúncio local, sem conexão')
     linha_de(392, [('dg-b', 'Anúncio mDNS '), ('dg-m', ig['mdns'])], PAR_REDE_LOCAL, 1, ('dg-fio-tracejado', 'dg-ponta'))
     rotulo(s, x_t, 408, [f'multicast, {so_nas}'], x_r - 4, 'dg-n dg-c2')
+    return s.render()
+
+
+def desenho_arquitetura(num, slug):
+    fr = num.frota()
+    s = Svg(slug)
+    cheia, tracejada = ('dg-fio', 'dg-ponta'), ('dg-fio-tracejado', 'dg-ponta')
+    x_p, l_p = 504, 200                                  # the peers' column
+    imagens = [{'air': 'Air'}.get(i, i) for i in fr['imagens_mdns']]
+    so_nas = f'só na imagem {imagens[0]}' if len(imagens) == 1 else f'só nas imagens {", ".join(imagens[:-1])} e {imagens[-1]}'
+    # the local network, and the devices in it as a pile: the front box is the one the arrows meet, the two behind it say there are many
+    s.caixa(16, 16, 272, 344, 'dg-caixa-2', 12)
+    s.texto(32, 40, PAR_REDE_LOCAL, 'dg-t dg-b')
+    for x, y in ((48, 80), (60, 92)):
+        s.caixa(x, y, 160, 176, 'dg-caixa', 6)
+    s.caixa(72, 104, 160, 176, 'dg-caixa', 6)
+    s.texto(84, 124, 'SIMUT', 'dg-t dg-b')
+    s.texto(84, 140, 'vários aparelhos,', 'dg-n dg-c2')
+    s.texto(84, 156, 'cada um com o seu uid', 'dg-n dg-c2')
+    # what each peer does: the collector is pushed to, Prometheus and the manager ask
+    y_c, y_p, y_g = 136, 200, 264
+    def seta_de(y, sentido, linhas):
+        rotulo(s, 300, y - 12 - 16 * (len(linhas) - 1), linhas, x_p - 8)
+        s.seta([(232, y), (x_p, y)] if sentido == 1 else [(x_p, y), (232, y)], *cheia)
+    seta_de(y_c, 1, ['telemetria e linha de alarmes', mono(fr['cabecalhos'])])
+    seta_de(y_p, -1, [mono(f'{fr["metodo"]} {fr["rota"]}'), f'HTTP {fr["esquema_metricas"]}'])
+    seta_de(y_g, -1, ['API REST', [('', 'cookie '), ('dg-m', fr['cookie']), ('', f' ou {fr["sessao"]}')]])
+    bloco(s, x_p, y_c - 16, l_p, [('coletor', 'dg-t')])
+    bloco(s, x_p, y_p - 16, l_p, [(PAR_PROMETHEUS, 'dg-t')])
+    s.caixa(x_p, y_g - 16, l_p, 32, 'dg-comp-acento', 6, 2)
+    s.texto(x_p + 12, y_g + 4, PAR_GESTOR, 'dg-t')
+    # the manager reads the release's manifest at GitHub; the devices announce themselves to the local network
+    s.seta([(x_p + 40, y_g + 16), (x_p + 40, y_g + 48)], *cheia)
+    rotulo(s, x_p + 52, y_g + 36, [[('', 'lê o '), ('dg-m', fr['manifesto'])]], 716)
+    bloco(s, x_p, y_g + 48, l_p, [('GitHub', 'dg-t'), ('ativos da release', 'dg-n dg-c2')])
+    s.seta([(120, 280), (120, 360)], *tracejada)
+    rotulo(s, 132, 304, ['anúncio mDNS', mono(fr['mdns'])] + quebrar(so_nas, 284 - 132, 12), 284)
     return s.render()
 
 
