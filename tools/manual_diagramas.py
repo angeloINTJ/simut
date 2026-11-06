@@ -65,6 +65,11 @@ WEB_CORE = 'src/WebManager_Core.cpp'
 WEB_METRICS = 'src/WebManager_Metrics.cpp'
 WEB_AUTH = 'src/WebManager_Auth.cpp'
 NET_DEFS = 'src/SystemDefs_Network.h'
+SYSLOG_H = 'src/SyslogManager.h'
+SYSLOG_CPP = 'src/SyslogManager.cpp'
+LOOP = 'src/AppManager_Loop.cpp'
+LOG_MANAGER = 'src/LogManager.cpp'
+NET_LINK = 'src/net/NetLink.h'
 
 
 class Falta(Exception):
@@ -130,6 +135,11 @@ FIGURAS = (
            'as quatro respostas e a escada do bloqueio que uma senha errada sobe; a rota, o esquema da credencial, os códigos e a ordem das perguntas vêm de src/WebManager_Core.cpp e '
            'src/WebManager_Metrics.cpp, as rodadas da senha, o tempo medido de uma leitura (registrado no comentário de PASSWORD_HMAC_ROUNDS) e a escada de src/SystemDefs_Network.h; '
            'o endereço, a conta e o intervalo de 60 s são os exemplos do capítulo'),
+    Figura('fig-25-caminho', '25-caminho.svg', 'cap25-syslog.md', 'desenho_syslog',
+           'o caminho de uma linha de syslog, do evento ao coletor, e os pontos onde ela se perde, com o log de eventos na flash como o outro caminho do mesmo evento; a profundidade da fila, que é também '
+           'o que uma passada manda, vem de SLOTS em src/SyslogManager.h e a porta de SYSLOG_DEFAULT_PORT em src/SystemDefs_Records.h, e cada coisa que o desenho afirma da fila, do laço, do boot e do '
+           'reinício é um trecho de src/SyslogManager.cpp, src/AppManager_Loop.cpp, src/AppManager_Boot.cpp, src/LogManager.cpp ou src/net/NetLink.h que o código tem de manter; '
+           'o endereço do coletor, o nome do nível e os coletores são os exemplos do capítulo'),
 )
 
 
@@ -258,6 +268,9 @@ NO_EXEMPLO, BROKER_EXEMPLO, PORTA_EXEMPLO, HWID_EXEMPLO = 'simut_0a1b2c', 'broke
 # advice and in the configuration's example, the permission's name where the chapter pairs it with PERM_DASHBOARD). The firmware knows none of them; tools/test_manual_diagramas.py
 # checks that the chapter still says them.
 IP_EXEMPLO, CONTA_EXEMPLO, INTERVALO_PROMETHEUS, PERMISSAO_PAINEL = '192.0.2.10', 'metricas', 60, 'Painel'
+# The examples of the syslog figure, those chapter 25 writes (cap25-syslog.md: the collector's address in the configuration's example, the name of the level's field, the two collectors it
+# sets up). tools/test_manual_diagramas.py checks that the chapter still says them.
+IP_COLETOR_EXEMPLO, NIVEL_MINIMO, COLETORES_SYSLOG = '192.0.2.10', 'Nível Mínimo', ('rsyslog', 'syslog-ng')
 
 IMAGEM_DO_PERFIL = {'release': 'pico_w_release', 'alpha': 'pico_w_alpha', 'air': 'pico_w_air'}
 
@@ -507,6 +520,32 @@ class Numeros:
                 break
         return {'metodo': rota.group(2), 'rota': rota.group(1), 'cabecalho': cabecalho.group(1), 'esquema': cabecalho.group(2), 'bloqueado': bloqueado, 'negado': r.group(1), 'proibido': r.group(3),
                 'ok': ok, 'rodadas': f'{rodadas:,}'.replace(',', '.'), 'tempo': f'{medido_ms / 1000:.1f}'.replace('.', ','), 'escada': escada}
+
+
+    def syslog(self):
+        """The syslog figure's numbers: the ring's depth, which is also the lines a pass sends (SLOTS in SyslogManager.h) and the port a new configuration has (SYSLOG_DEFAULT_PORT). The rest
+        of what the figure draws is premises, each a pattern the code has to keep, refused with its reason when it does not: the gate is the minimum level; a full ring drops its oldest line; a pass
+        is run out of the setup access point, with the link up, takes up to the ring's depth, and drops a line whose send fails; the ring is an array in the RAM; a requested reboot flushes it
+        first; the sink is installed after the network and the telemetry are up; the flash log keeps only the code and the context, past the routine filter, while the syslog copy is made for every
+        event; the link, on the Wi-Fi image, is the station joined to an access point."""
+        f = self.f
+        for rel, padrao, porque in (
+                (SYSLOG_CPP, r'if \(!_enabled \|\| ev\.level < _minLevel\) return;', 'the first question of the path is whether the event reaches the minimum level'),
+                (SYSLOG_CPP, r'if \(_count == SLOTS\) \{[^}]*?_head = \(_head \+ 1\) % SLOTS;\s+_count--;', 'a full ring drops its oldest line'),
+                (SYSLOG_CPP, r'void SyslogManager::pump\( \) \{\s+if \(!_enabled\) return;\s+if \(!net::linkUp\( \)\) return;', 'a pass sends only with the link up'),
+                (SYSLOG_CPP, r'for \(int i = 0; i < SLOTS; i\+\+\) \{\s+if \(!popLine\(line\)\) break;\s+if \(!sendLine\(line, strlen\(line\)\)\) \{[^}]*?break;',
+                 'a pass takes up to the ring\'s depth in lines, and a line whose send fails is dropped, not sent again'),
+                (SYSLOG_H, r'char _ring\[SLOTS\]\[LINE_MAX\];', 'the queue is an array in the RAM'),
+                (LOOP, r'if \(!_isApMode\) \{[^}]*?_syslogMgr->pump\( \);', 'a pass is run out of the setup access point only'),
+                (BOOT, r'setPreRebootHook\(\[\]\( \) \{[^}]*?app\._syslogMgr->flushBlocking\( \);', 'a requested reboot flushes the ring first'),
+                (BOOT, r'_telemetryMgr->begin\([^;]*\);[\s\S]*?_syslogMgr->configure\(\*_storageMgr\);\s+LogManager::instance\( \)\.setSyslogSink\(',
+                 'the sink is installed after the telemetry is up, which starts after the network'),
+                (LOG_MANAGER, r'_policy\.shouldPersist\([^{}]*\{\s+CompactLogRecord rec;[^}]*?rec\.code = \(uint16_t\)code;\s+rec\.context = [^}]*?writeCompactToFlash\(rec\);\s+\}[^{}]*?if \(_syslogSink\) \{',
+                 'the flash log keeps only the code and the context, past the routine filter, and the syslog copy is made for every event, outside the routine filter'),
+                (NET_LINK, r'bool linkUp\( \) \{ return WiFi\.status\( \) == WL_CONNECTED; \}', 'on the Wi-Fi image the link is the station joined to an access point')):
+            f.exigir(rel, padrao, f'the figure of the syslog path draws that {porque}')
+        return {'fila': int(f.achar(SYSLOG_H, r'static constexpr int SLOTS = (\d+);').group(1)),
+                'porta': int(f.achar('src/SystemDefs_Records.h', r'constexpr uint16_t SYSLOG_DEFAULT_PORT = (\d+);').group(1))}
 
 
 def pino_de(gpio):
@@ -1166,15 +1205,15 @@ def mono(*partes):
     return [('dg-m', ''.join(partes))]
 
 
-def rotulo(s, x, y, itens, limite):
-    """The lines of a label, 16 px apart from the baseline y, in 12 px: each is a string or a list of (class, text) runs. A line that would reach `limite` (the next line of the drawing:
-    a lifeline, a box) is an error, as the builder's own guard is for a text that overlaps another."""
+def rotulo(s, x, y, itens, limite, cls='dg-n'):
+    """The lines of a label, 16 px apart from the baseline y, in 12 px (`cls`, dg-n and a colour class if it has one): each is a string or a list of (class, text) runs. A line that would
+    reach `limite` (the next line of the drawing: a lifeline, a box) is an error, as the builder's own guard is for a text that overlaps another."""
     for k, item in enumerate(itens):
         runs = [('', item)] if isinstance(item, str) else item
         w = sum(largura_texto(t, 12, c == 'dg-m') for c, t in runs)
         if x + w > limite:
             raise ValueError(f'{s.slug}: the line {"".join(t for _, t in runs)!r} is about {w} px wide from x={x}, past {limite}')
-        s.texto(x, y + 16 * k, runs, 'dg-n')
+        s.texto(x, y + 16 * k, runs, cls)
 
 
 def desenho_home_assistant(num, slug):
@@ -1281,6 +1320,48 @@ def desenho_coleta(num, slug):
         s.texto(x + (passo - 8) // 2, y_base + 16, f'{k + 1}º', 'dg-n dg-c2', 'middle')
     s.texto(16 + passo * (len(escada) - 1) + (passo - 8) // 2, y_base + 32, 'em diante', 'dg-n dg-c2', 'middle')
     rotulo(s, 16 + passo * len(escada) + 16, y_titulo + 48, ['Mesmo bloqueio da página de entrada.', 'Cada senha errada sobe um degrau:', f'a espera dobra, até {escada[-1]}\u00a0s.'], 716)
+    return s.render()
+
+
+def desenho_syslog(num, slug):
+    sl = num.syslog()
+    s = Svg(slug)
+    ponta = ('dg-fio-acento', 'dg-ponta-acento')
+    x_c, l_c = 160, 256                               # the chain of boxes: the bypass and its label are left of it, the losses right of it
+    x_m, x_d = x_c + l_c // 2, x_c + l_c
+    # the path of a line, from the event to the collector, one box each; the flash log is the other way the same event goes
+    evento = bloco(s, x_c, 16, l_c, [('evento', 'dg-t'), ('em qualquer núcleo', 'dg-n dg-c2')])
+    flash = bloco(s, x_d + 16, 16, 704 - x_d - 16, [('log de eventos na flash', 'dg-t'), ('filtro de rotina, só código e contexto', 'dg-n dg-c2')])
+    s.seta([evento.dir(), (flash.x, evento.dir()[1])], 'dg-fio', 'dg-ponta')
+    passos = ([(f'nível ≥ {NIVEL_MINIMO}?', 'dg-t')],
+              [(f'fila de {sl["fila"]} linhas na RAM', 'dg-t'), ('a mais antiga sai quando enche', 'dg-n dg-c2')],
+              [('laço principal, núcleo 0', 'dg-t'), (f'até {sl["fila"]} linhas por passada, só com Wi-Fi conectado e fora do AP', 'dg-n dg-c2')],
+              [([('', 'UDP para '), ('dg-m', f'{IP_COLETOR_EXEMPLO}:{sl["porta"]}')], 'dg-t')],
+              [('coletor', 'dg-t'), (', '.join(COLETORES_SYSLOG), 'dg-n dg-c2')])
+    caixas = [evento]
+    for itens in passos:
+        anterior = caixas[-1]
+        c = bloco(s, x_c, anterior.y + anterior.h + 24, l_c, itens)
+        s.seta([anterior.base(), c.topo()], *ponta)
+        caixas.append(c)
+    _, nivel, fila, laco, udp, coletor = caixas
+
+    def perda(y, linhas, de_x=None):
+        """A red way out of the path at height y: a line from the path to a cross, and what is lost beside it."""
+        s.linha([(de_x or x_d, y), (x_d + 20, y)], 'dg-fio-perigo')
+        s.linha([(x_d + 16, y - 4), (x_d + 24, y + 4)], 'dg-fio-perigo')
+        s.linha([(x_d + 24, y - 4), (x_d + 16, y + 4)], 'dg-fio-perigo')
+        rotulo(s, x_d + 36, y + 4 - 8 * (len(linhas) - 1), linhas, 716, 'dg-n dg-perigo')
+
+    perda(nivel.y + nivel.h // 2, ['antes do encaminhamento subir, no boot'])
+    perda(fila.y + 16, ['fila cheia'])
+    perda(fila.y + 40, ['travamento ou falta de energia'])
+    perda(laco.y + laco.h // 2, ['envio falhou'])
+    perda(udp.y + udp.h + 12, ['datagrama perdido na rede'], x_m)
+    # a requested reboot empties the queue first: the lines skip the loop and go straight out
+    y_fila, y_udp, x_b = fila.y + fila.h // 2, udp.y + udp.h // 2, x_c - 16
+    s.seta([(x_c, y_fila), (x_b, y_fila), (x_b, y_udp), (x_c, y_udp)], 'dg-fio-tracejado', 'dg-ponta')
+    rotulo(s, 16, (y_fila + y_udp) // 8 * 4 - 12, ['reinício pedido', '(quase todos):', 'esvazia a fila', 'antes de reiniciar'], x_b - 8)
     return s.render()
 
 

@@ -60,6 +60,10 @@ WEB_CORE = 'src/WebManager_Core.cpp'
 WEB_METRICS = 'src/WebManager_Metrics.cpp'
 WEB_AUTH = 'src/WebManager_Auth.cpp'
 NET_DEFS = 'src/SystemDefs_Network.h'
+SYSLOG_H = 'src/SyslogManager.h'
+SYSLOG_CPP = 'src/SyslogManager.cpp'
+LOOP = 'src/AppManager_Loop.cpp'
+BOOT = 'src/AppManager_Boot.cpp'
 
 
 def confere(cond, msg, ok=None):
@@ -234,6 +238,11 @@ def main():
                 and f'**{m.PERMISSAO_PAINEL}** [PERM_DASHBOARD]' in cap24 and f'Use `scrape_interval` de {m.INTERVALO_PROMETHEUS} s' in cap24,
                 f'chapter 24 does not say the examples of the figure: {m.IP_EXEMPLO}, {m.CONTA_EXEMPLO}, {m.INTERVALO_PROMETHEUS} s, {m.PERMISSAO_PAINEL} for PERM_DASHBOARD',
                 'the Prometheus figure\'s examples (address, account, scrape interval, the permission Painel for PERM_DASHBOARD) are the ones chapter 24 writes')
+        # the syslog figure's examples (the collector's address, the level's name, the two collectors' names), against chapter 25
+        cap25 = (m.CAPITULOS / 'cap25-syslog.md').read_text(encoding='utf-8')
+        confere(f'"slog_srv":"{m.IP_COLETOR_EXEMPLO}"' in cap25 and f'**{m.NIVEL_MINIMO}**' in cap25 and all(f'{nome}' in cap25 for nome in m.COLETORES_SYSLOG),
+                f'chapter 25 does not say the examples of the figure: {m.IP_COLETOR_EXEMPLO}, {m.NIVEL_MINIMO}, {m.COLETORES_SYSLOG}',
+                'the syslog figure\'s examples (collector address, the level\'s name Nível Mínimo, rsyslog and syslog-ng) are the ones chapter 25 writes')
 
         # ---- the builder's guards --------------------------------------------------------------------------------------------------------------------------
         s = m.Svg('99-teste', 100)
@@ -413,6 +422,8 @@ def main():
                 ('the wrong password\'s answer 401 -> 407', [(WEB_METRICS, '_server->send(401, "text/plain", "unauthorized\\n");', '_server->send(407, "text/plain", "unauthorized\\n");', 1)], {'24-coleta.svg'}),
                 ('the missing permission\'s answer 403 -> 451', [(WEB_METRICS, '_server->send(403, "text/plain", "forbidden\\n");', '_server->send(451, "text/plain", "forbidden\\n");', 1)], {'24-coleta.svg'}),
                 ('the answer with the text 200 -> 203', [(WEB_METRICS, '_server->send(200, "text/plain; version=0.0.4; charset=utf-8", "");', '_server->send(203, "text/plain; version=0.0.4; charset=utf-8", "");', 1)], {'24-coleta.svg'}),
+                ('the syslog ring\'s depth 8 -> 6 (and the lines a pass sends)', [(SYSLOG_H, 'static constexpr int SLOTS = 8;', 'static constexpr int SLOTS = 6;', 1)], {'25-caminho.svg'}),
+                ('the syslog default port 514 -> 5514', [('src/SystemDefs_Records.h', 'constexpr uint16_t SYSLOG_DEFAULT_PORT = 514;', 'constexpr uint16_t SYSLOG_DEFAULT_PORT = 5514;', 1)], {'25-caminho.svg'}),
                 ('the BME280 probe pair (4, 5) -> (6, 7)', [(BME_SENSOR, 'probe(4, 5, BME280_ADDR_PRIMARY)', 'probe(6, 7, BME280_ADDR_PRIMARY)', 1)], {'02-bmx280.svg'}),
                 ('the BME280 addresses 0x76/0x77 -> 0x75/0x78 in the driver, code and comments', [(BME_DRIVER, '0x76', '0x75', None), (BME_DRIVER, '0x77', '0x78', None)], {'02-bmx280.svg'}),
             ]
@@ -469,6 +480,14 @@ def main():
             ('/metrics asks for another permission than PERM_DASHBOARD', [(WEB_METRICS, 'if (!((uint16_t)auth & PERM_DASHBOARD)) {', 'if (!((uint16_t)auth & PERM_CONFIG)) {', 1)], 'PERM_DASHBOARD', '24-coleta.svg'),
             ('the lockout is no longer a shift capped at the ceiling', [(NET_DEFS, 'return (ms > AUTH_LOCKOUT_MAX_MS) ? AUTH_LOCKOUT_MAX_MS : ms;', 'return ms;', 1)], 'AUTH_LOCKOUT_MAX_MS', '24-coleta.svg'),
             ('an image builds without the /metrics route', [(PERFIS, '    -DSIMUT_AIR=1\n', '    -DSIMUT_AIR=1\n    -DSIMUT_WEB_METRICS=0\n', 1)], 'SIMUT_WEB_METRICS', '24-coleta.svg'),
+            ('the syslog gate is no longer the minimum level', [(SYSLOG_CPP, 'if (!_enabled || ev.level < _minLevel) return;', 'if (!_enabled) return;', 1)], 'minimum level', '25-caminho.svg'),
+            ('the syslog ring no longer drops its oldest line when full', [(SYSLOG_CPP, 'if (_count == SLOTS) {', 'if (_count == SLOTS + 1) {', 1)], 'oldest', '25-caminho.svg'),
+            ('the syslog pass is run in the setup access point too', [(LOOP, ' if (!_isApMode) {\n /* Syslog drain:', ' if (true) {\n /* Syslog drain:', 1)], 'access point', '25-caminho.svg'),
+            ('a requested reboot no longer flushes the syslog ring', [(BOOT, 'app._syslogMgr->flushBlocking( );', 'app._syslogMgr->flushBlockingNot( );', 1)], 'flushes', '25-caminho.svg'),
+            ('the syslog sink is installed before the telemetry is up', [(BOOT, ' _syslogMgr->configure(*_storageMgr);\n LogManager::instance( ).setSyslogSink(', ' LogManager::instance( ).setSyslogSink(', 1)], 'after the telemetry', '25-caminho.svg'),
+            ('the syslog copy goes through the routine filter', [('src/LogManager.cpp', ' writeCompactToFlash(rec);\n }\n\n /* Syslog forwarding.', ' writeCompactToFlash(rec);\n\n /* Syslog forwarding.', 1)], 'routine filter', '25-caminho.svg'),
+            ('the syslog queue is no longer in the RAM', [(SYSLOG_H, 'char _ring[SLOTS][LINE_MAX];', 'static char* _ring;', 1)], 'RAM', '25-caminho.svg'),
+            ('the link is no longer the station joined to an access point', [('src/net/NetLink.h', 'return WiFi.status( ) == WL_CONNECTED; }', 'return true; }', 1)], 'joined', '25-caminho.svg'),
             ('the discovery configs are no longer published retained', [(TELEMETRY, 'ok = _mqttClient.publish(topic, payload, true);', 'ok = _mqttClient.publish(topic, payload, false);', 1)],
              'retained', '23-fluxo.svg'),
             ('the online message is no longer published retained', [(TELEMETRY, 'onlinePayload.c_str( ), true);', 'onlinePayload.c_str( ), false);', 1)], 'retained', '23-fluxo.svg'),
