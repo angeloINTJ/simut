@@ -56,6 +56,10 @@ RELEASE_MANIFEST = 'tools/release_manifest.py'
 WORKFLOW_OTA = '.github/workflows/release-ota.yml'
 TELEMETRY = 'src/TelemetryManager.cpp'
 HA_DISCOVERY = 'src/HaDiscovery.h'
+WEB_CORE = 'src/WebManager_Core.cpp'
+WEB_METRICS = 'src/WebManager_Metrics.cpp'
+WEB_AUTH = 'src/WebManager_Auth.cpp'
+NET_DEFS = 'src/SystemDefs_Network.h'
 
 
 def confere(cond, msg, ok=None):
@@ -224,6 +228,12 @@ def main():
         confere(f'`{m.NO_EXEMPLO}`' in cap23 and f'IP Servidor {m.BROKER_EXEMPLO}; Porta {m.PORTA_EXEMPLO};' in cap23 and f'`t{m.HWID_EXEMPLO}`' in cap23,
                 f'chapter 23 does not say the examples of the figure: node {m.NO_EXEMPLO}, broker {m.BROKER_EXEMPLO}:{m.PORTA_EXEMPLO}, key t{m.HWID_EXEMPLO}',
                 'the Home Assistant figure\'s examples (node, broker and port, sensor id) are the ones chapter 23 writes')
+        # the Prometheus figure's examples (the address, the account, the scrape interval, the permission's name), constants of the tool, against what chapter 24 says
+        cap24 = (m.CAPITULOS / 'cap24-prometheus.md').read_text(encoding='utf-8')
+        confere(f'`http://{m.IP_EXEMPLO}/metrics`' in cap24 and f'conta `{m.CONTA_EXEMPLO}`' in cap24 and f'scrape_interval: {m.INTERVALO_PROMETHEUS}s' in cap24
+                and f'**{m.PERMISSAO_PAINEL}** [PERM_DASHBOARD]' in cap24 and f'Use `scrape_interval` de {m.INTERVALO_PROMETHEUS} s' in cap24,
+                f'chapter 24 does not say the examples of the figure: {m.IP_EXEMPLO}, {m.CONTA_EXEMPLO}, {m.INTERVALO_PROMETHEUS} s, {m.PERMISSAO_PAINEL} for PERM_DASHBOARD',
+                'the Prometheus figure\'s examples (address, account, scrape interval, the permission Painel for PERM_DASHBOARD) are the ones chapter 24 writes')
 
         # ---- the builder's guards --------------------------------------------------------------------------------------------------------------------------
         s = m.Svg('99-teste', 100)
@@ -393,6 +403,16 @@ def main():
                   (HA_DISCOVERY, '{{ value_json.status }}', '{{ value_json.estado }}', 1)], {'23-fluxo.svg'}),
                 ('the telemetry record\'s timestamp key ts -> t0', [(TELEMETRY, '"{\\"ts\\":%lu", (unsigned long)rec.epoch', '"{\\"t0\\":%lu", (unsigned long)rec.epoch', 1)], {'23-fluxo.svg'}),
                 ('the temperature key\'s prefix t -> T', [(TELEMETRY, 'snprintf(tKey, sizeof(tKey), "t%s", hwid);', 'snprintf(tKey, sizeof(tKey), "T%s", hwid);', 1)], {'23-fluxo.svg'}),
+                ('the rounds of the password hash 5000 -> 10000', [(NET_DEFS, 'constexpr uint16_t PASSWORD_HMAC_ROUNDS = 5000;', 'constexpr uint16_t PASSWORD_HMAC_ROUNDS = 10000;', 1)], {'24-coleta.svg'}),
+                ('the measured time of a /metrics read with Basic 699 ms -> 1400 ms, in the comment that records it', [(NET_DEFS, 'a /metrics read with Basic 699 ms', 'a /metrics read with Basic 1400 ms', 1)], {'24-coleta.svg'}),
+                ('the lockout\'s ceiling 300 s -> 280 s', [(NET_DEFS, 'AUTH_LOCKOUT_MAX_MS = 300000;', 'AUTH_LOCKOUT_MAX_MS = 280000;', 1)], {'24-coleta.svg'}),
+                ('the lockout\'s first penalty 2 s -> 4 s (the shift starts from 2000 ms), one rung fewer', [(NET_DEFS, 'uint32_t ms = 1000UL << n;', 'uint32_t ms = 2000UL << n;', 1)], {'24-coleta.svg'}),
+                ('the route /metrics -> /metricas', [(WEB_CORE, '_server->on("/metrics", HTTP_GET', '_server->on("/metricas", HTTP_GET', 1)], {'24-coleta.svg'}),
+                ('the scheme of the credentials Basic -> Token', [(WEB_METRICS, 'if (!h.startsWith("Basic ")) return 0;', 'if (!h.startsWith("Token ")) return 0;', 1)], {'24-coleta.svg'}),
+                ('the locked address\'s answer 429 -> 423', [(WEB_METRICS, 'if (respondIfLockedOut(ls, 429)) return -1;', 'if (respondIfLockedOut(ls, 423)) return -1;', 1)], {'24-coleta.svg'}),
+                ('the wrong password\'s answer 401 -> 407', [(WEB_METRICS, '_server->send(401, "text/plain", "unauthorized\\n");', '_server->send(407, "text/plain", "unauthorized\\n");', 1)], {'24-coleta.svg'}),
+                ('the missing permission\'s answer 403 -> 451', [(WEB_METRICS, '_server->send(403, "text/plain", "forbidden\\n");', '_server->send(451, "text/plain", "forbidden\\n");', 1)], {'24-coleta.svg'}),
+                ('the answer with the text 200 -> 203', [(WEB_METRICS, '_server->send(200, "text/plain; version=0.0.4; charset=utf-8", "");', '_server->send(203, "text/plain; version=0.0.4; charset=utf-8", "");', 1)], {'24-coleta.svg'}),
                 ('the BME280 probe pair (4, 5) -> (6, 7)', [(BME_SENSOR, 'probe(4, 5, BME280_ADDR_PRIMARY)', 'probe(6, 7, BME280_ADDR_PRIMARY)', 1)], {'02-bmx280.svg'}),
                 ('the BME280 addresses 0x76/0x77 -> 0x75/0x78 in the driver, code and comments', [(BME_DRIVER, '0x76', '0x75', None), (BME_DRIVER, '0x77', '0x78', None)], {'02-bmx280.svg'}),
             ]
@@ -441,7 +461,14 @@ def main():
             ('AIR_CHARGER_ACTIVE_HIGH 1 -> 0 (the figure draws a divider off 5 V)', [(CONFIG, '#define AIR_CHARGER_ACTIVE_HIGH 1', '#define AIR_CHARGER_ACTIVE_HIGH 0', 1)], 'AIR_CHARGER_ACTIVE_HIGH', '02-air-energia.svg'),
             ('the Air no longer builds with -DSIMUT_AIR=1', [(PERFIS, '    -DSIMUT_AIR=1\n', '', 1)], 'SIMUT_AIR', '02-pinos-air.svg'),
             ('the discovery topic\'s component sensor -> binary_sensor: the topic no longer fits between the device\'s line and the broker\'s',
-             [(HA_DISCOVERY, '"%s/sensor/%s/%s/config"', '"%s/binary_sensor/%s/%s/config"', 1)], 'past the lifeline', '23-fluxo.svg'),
+             [(HA_DISCOVERY, '"%s/sensor/%s/%s/config"', '"%s/binary_sensor/%s/%s/config"', 1)], 'px wide from x=88', '23-fluxo.svg'),
+            ('the route no longer checks the lock before the password', [(WEB_METRICS, 'if (respondIfLockedOut(ls, 429)) return -1;', 'if (false) return -1;', 1)], 'respondIfLockedOut', '24-coleta.svg'),
+            ('a wrong password on /metrics no longer feeds the lockout', [(WEB_METRICS, 'if (ls >= 0) applyExponentialPenalty(ls);', 'if (ls >= 0) (void)ls;', 1)], 'same penalty', '24-coleta.svg'),
+            ('a wrong password on the login page no longer raises the penalty', [(WEB_AUTH, '\t\t\tuint32_t penaltyMs = applyExponentialPenalty(ls);\n\t\t\tLOG_CODE(LOG_WARN, "SEC", SEC_LOGIN_FAIL, 0, String(TRL("Login Failed: ")) + u);',
+                                                                                          '\t\t\tuint32_t penaltyMs = 0;\n\t\t\tLOG_CODE(LOG_WARN, "SEC", SEC_LOGIN_FAIL, 0, String(TRL("Login Failed: ")) + u);', 1)], 'same penalty', '24-coleta.svg'),
+            ('/metrics asks for another permission than PERM_DASHBOARD', [(WEB_METRICS, 'if (!((uint16_t)auth & PERM_DASHBOARD)) {', 'if (!((uint16_t)auth & PERM_CONFIG)) {', 1)], 'PERM_DASHBOARD', '24-coleta.svg'),
+            ('the lockout is no longer a shift capped at the ceiling', [(NET_DEFS, 'return (ms > AUTH_LOCKOUT_MAX_MS) ? AUTH_LOCKOUT_MAX_MS : ms;', 'return ms;', 1)], 'AUTH_LOCKOUT_MAX_MS', '24-coleta.svg'),
+            ('an image builds without the /metrics route', [(PERFIS, '    -DSIMUT_AIR=1\n', '    -DSIMUT_AIR=1\n    -DSIMUT_WEB_METRICS=0\n', 1)], 'SIMUT_WEB_METRICS', '24-coleta.svg'),
             ('the discovery configs are no longer published retained', [(TELEMETRY, 'ok = _mqttClient.publish(topic, payload, true);', 'ok = _mqttClient.publish(topic, payload, false);', 1)],
              'retained', '23-fluxo.svg'),
             ('the online message is no longer published retained', [(TELEMETRY, 'onlinePayload.c_str( ), true);', 'onlinePayload.c_str( ), false);', 1)], 'retained', '23-fluxo.svg'),

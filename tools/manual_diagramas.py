@@ -61,6 +61,10 @@ MENU = 'src/display/SettingsMenu.h'
 WORKFLOW_OTA = '.github/workflows/release-ota.yml'
 TELEMETRIA = 'src/TelemetryManager.cpp'
 HA_DISCOVERY = 'src/HaDiscovery.h'
+WEB_CORE = 'src/WebManager_Core.cpp'
+WEB_METRICS = 'src/WebManager_Metrics.cpp'
+WEB_AUTH = 'src/WebManager_Auth.cpp'
+NET_DEFS = 'src/SystemDefs_Network.h'
 
 
 class Falta(Exception):
@@ -121,6 +125,11 @@ FIGURAS = (
            'o caminho das mensagens entre o aparelho, o broker e o Home Assistant: a descoberta e o estado retidos, os valores a cada envio, a última vontade que o broker publica se o aparelho some '
            'e o que o Home Assistant lê de cada uma; o prefixo e a forma do tópico de descoberta vêm de src/HaDiscovery.h, o tópico de dados de src/StorageManager.cpp, o de estado, a última vontade '
            'e as chaves do registro de src/TelemetryManager.cpp; o nó, o broker e o identificador do sensor são os exemplos do capítulo'),
+    Figura('fig-24-coleta', '24-coleta.svg', 'cap24-prometheus.md', 'desenho_coleta',
+           'uma leitura do /metrics pelo Prometheus: o pedido com a conta, as três perguntas do aparelho na ordem em que o código as faz (o endereço está bloqueado, a senha confere, a conta tem Painel), '
+           'as quatro respostas e a escada do bloqueio que uma senha errada sobe; a rota, o esquema da credencial, os códigos e a ordem das perguntas vêm de src/WebManager_Core.cpp e '
+           'src/WebManager_Metrics.cpp, as rodadas da senha, o tempo medido de uma leitura (registrado no comentário de PASSWORD_HMAC_ROUNDS) e a escada de src/SystemDefs_Network.h; '
+           'o endereço, a conta e o intervalo de 60 s são os exemplos do capítulo'),
 )
 
 
@@ -245,6 +254,10 @@ EXEMPLO_DS18B20, EXEMPLO_DHT22 = 2, 3   # the example GPIOs of the wiring figure
 # Telemetria page, the sensor's id in the table of the entities): the node is the Client ID of a device with the MAC's last six digits 0a1b2c. The firmware knows none of them;
 # tools/test_manual_diagramas.py checks that the chapter still says them.
 NO_EXEMPLO, BROKER_EXEMPLO, PORTA_EXEMPLO, HWID_EXEMPLO = 'simut_0a1b2c', 'broker.exemplo.com.br', 1883, 'STM0001'
+# The examples of the Prometheus figure, those chapter 24 writes (cap24-prometheus.md: the address in the table of addresses, the account in the steps that create it, the interval in the
+# advice and in the configuration's example, the permission's name where the chapter pairs it with PERM_DASHBOARD). The firmware knows none of them; tools/test_manual_diagramas.py
+# checks that the chapter still says them.
+IP_EXEMPLO, CONTA_EXEMPLO, INTERVALO_PROMETHEUS, PERMISSAO_PAINEL = '192.0.2.10', 'metricas', 60, 'Painel'
 
 IMAGEM_DO_PERFIL = {'release': 'pico_w_release', 'alpha': 'pico_w_alpha', 'air': 'pico_w_air'}
 
@@ -454,6 +467,46 @@ class Numeros:
         ts = f.achar(TELEMETRIA, r'snprintf\(dest, maxLen, "\{\\"(\w+)\\":%lu", \(unsigned long\)rec\.epoch\);').group(1)
         t = f.achar(TELEMETRIA, r'if \(hwid\[0\]\) snprintf\(tKey, sizeof\(tKey\), "(\w)%s", hwid\);').group(1)
         return {'prefixo': prefixo, 'componente': c.group(1), 'fim': c.group(2), 'dados': dados, 'estado': estado, 'chave': chave, 'online': ha_on, 'offline': ha_off, 'ts': ts, 't': t}
+
+
+    def prometheus(self):
+        """The Prometheus figure's words and numbers, as the code has them: the route and the credential scheme the scraper sends (WebManager_Core.cpp, WebManager_Metrics.cpp); the four
+        answers, in the order the route decides them (the lock first, then the password, then the permission, then the text); the rounds of the password check and the time one read costs,
+        which the comment of PASSWORD_HMAC_ROUNDS records with the rig and the date it was measured on; and the lockout ladder, as authLockoutMs( ) computes it (a base shifted by the failure
+        count, capped at the ceiling, the count itself capped). Premises, refused when the code drifts: every image has the route, it asks for PERM_DASHBOARD, and a wrong password on the
+        route and on the login page raises the same penalty."""
+        f = self.f
+        for imagem in IMAGEM_DO_PERFIL:
+            if self.macro('SIMUT_WEB_METRICS', imagem) != 1:
+                raise Falta(f'{CONFIG}: SIMUT_WEB_METRICS is not 1 in the {imagem} image, and the figure of the collection draws the route every image answers (chapter 24)')
+        rota = f.achar(WEB_CORE, r'_server->on\("(/\w+)", HTTP_(\w+), std::bind\(&WebManager::handleMetrics, this\)\);')
+        cabecalho = f.achar(WEB_METRICS, r'String h = _server->header\("(\w+)"\);\s+if \(!h\.startsWith\("(\w+) "\)\) return 0;')
+        bloqueado = f.achar(WEB_METRICS, r'if \(respondIfLockedOut\(ls, (\d+)\)\) return -1;[\s\S]*?int foundId = verifyPasswordFor\(').group(1)
+        r = f.achar(WEB_METRICS, r'if \(auth == 0\) \{\s+_server->sendHeader\("WWW-Authenticate", "(?:[^"\\]|\\.)*"\);\s+_server->send\((\d+), "text/plain", "unauthorized\\n"\);\s+return;\s+\}\s+'
+                                  r'if \(!\(\(uint16_t\)auth & (PERM_\w+)\)\) \{\s+_server->send\((\d+), "text/plain", "forbidden\\n"\);')
+        if r.group(2) != 'PERM_DASHBOARD':
+            raise Falta(f'{WEB_METRICS}: the route asks for {r.group(2)}, and the figure draws the answer for an account without PERM_DASHBOARD, the {PERMISSAO_PAINEL} of chapter 24')
+        ok = f.achar(WEB_METRICS, r'_server->send\((\d+), "text/plain; version=0\.0\.4; charset=utf-8", ""\);').group(1)
+        for codigo, classe, cor in ((bloqueado, 4, 'red'), (r.group(1), 4, 'red'), (r.group(3), 4, 'red'), (ok, 2, 'green')):
+            if int(codigo) // 100 != classe:
+                raise Falta(f'{WEB_METRICS}: an answer of the route is now {codigo}, and the figure of the collection draws it in {cor}, the colour of a {classe}xx')
+        mesmo_bloqueio = 'the figure of the collection draws a wrong password raising the same penalty on the route and on the login page (chapter 24)'
+        f.exigir(WEB_METRICS, r'if \(foundId < 0\) \{\s+if \(ls < 0\) ls = ensureLoginStateSlot\(clientIP\);\s+if \(ls >= 0\) applyExponentialPenalty\(ls\);', mesmo_bloqueio + ': the route does not')
+        f.exigir(WEB_AUTH, r'int foundId = verifyPasswordFor\(u, p\);\s+if \(foundId < 0\) \{\s+if \(ls >= 0\) \{\s+uint32_t penaltyMs = applyExponentialPenalty\(ls\);', mesmo_bloqueio + ': the login page does not')
+        rodadas = int(f.achar(NET_DEFS, r'constexpr uint16_t PASSWORD_HMAC_ROUNDS = (\d+);').group(1))
+        medido_ms = int(f.achar(NET_DEFS, r'a /metrics read with Basic (\d+) ms').group(1))
+        base = int(f.achar(NET_DEFS, r'uint32_t ms = (\d+)UL << n;').group(1))
+        teto = int(f.achar(NET_DEFS, r'constexpr uint32_t AUTH_LOCKOUT_MAX_MS = (\d+);').group(1))
+        limite = int(f.achar(NET_DEFS, r'constexpr uint8_t AUTH_FAIL_CAP = (\d+);').group(1))
+        f.exigir(NET_DEFS, r'return \(ms > AUTH_LOCKOUT_MAX_MS\) \? AUTH_LOCKOUT_MAX_MS : ms;', 'the figure draws the lockout as a base shifted by the failure count and capped at AUTH_LOCKOUT_MAX_MS')
+        escada = []
+        for falha in range(1, limite + 1):
+            ms = min(base << min(falha, limite), teto)
+            escada.append(ms // 1000)
+            if ms == teto:
+                break
+        return {'metodo': rota.group(2), 'rota': rota.group(1), 'cabecalho': cabecalho.group(1), 'esquema': cabecalho.group(2), 'bloqueado': bloqueado, 'negado': r.group(1), 'proibido': r.group(3),
+                'ok': ok, 'rodadas': f'{rodadas:,}'.replace(',', '.'), 'tempo': f'{medido_ms / 1000:.1f}'.replace('.', ','), 'escada': escada}
 
 
 def pino_de(gpio):
@@ -1108,12 +1161,27 @@ def desenho_linha_alarmes(num, slug):
     return s.render()
 
 
+def mono(*partes):
+    """The runs of a line that is all code: a topic, a header, a payload."""
+    return [('dg-m', ''.join(partes))]
+
+
+def rotulo(s, x, y, itens, limite):
+    """The lines of a label, 16 px apart from the baseline y, in 12 px: each is a string or a list of (class, text) runs. A line that would reach `limite` (the next line of the drawing:
+    a lifeline, a box) is an error, as the builder's own guard is for a text that overlaps another."""
+    for k, item in enumerate(itens):
+        runs = [('', item)] if isinstance(item, str) else item
+        w = sum(largura_texto(t, 12, c == 'dg-m') for c, t in runs)
+        if x + w > limite:
+            raise ValueError(f'{s.slug}: the line {"".join(t for _, t in runs)!r} is about {w} px wide from x={x}, past {limite}')
+        s.texto(x, y + 16 * k, runs, 'dg-n')
+
+
 def desenho_home_assistant(num, slug):
     ha = num.homeassistant()
     s = Svg(slug)
     ponta = ('dg-fio-acento', 'dg-ponta-acento')
     x_s, x_b, x_h = 76, 460, 644          # the three lifelines, each under the middle of its header; the first gap is wide enough for the discovery topic, in 12 px mono
-    topico = lambda *partes: [('dg-m', ''.join(partes))]
     configuracao = f'{ha["prefixo"]}/{ha["componente"]}/{NO_EXEMPLO}/<objeto>/{ha["fim"]}'
     registro = f'{ha["dados"]} {{{ha["ts"]}, {ha["t"]}{HWID_EXEMPLO}, ...}}'
     disponibilidade = lambda palavra: f'{ha["estado"]} {{{ha["chave"]}: {palavra}}}'
@@ -1127,12 +1195,12 @@ def desenho_home_assistant(num, slug):
                 raise ValueError(f'{slug}: {sub} does not fit in a header of {w} px')
             s.texto(x + 12, 36, titulo, 'dg-t dg-b')
             s.texto(x + 12, 52, sub, 'dg-n dg-m')
-    filas = ((1, ['ao conectar (retida, uma por medição):', topico(configuracao)],
+    filas = ((1, ['ao conectar (retida, uma por medição):', mono(configuracao)],
               [[('', 'assina '), ('dg-m', f'{ha["prefixo"]}/#')], 'e cria dispositivo', 'e entidades']),
              (2, [[('dg-m', disponibilidade(ha['online'])), ('', ' (retida)')]],
-              ['lê a disponibilidade em', topico(ha['estado'])]),
+              ['lê a disponibilidade em', mono(ha['estado'])]),
              (3, [[('dg-m', registro), ('', ' a cada envio')]],
-              ['lê os valores em', topico(ha['dados'])]))
+              ['lê os valores em', mono(ha['dados'])]))
     # the rows, from the top: the labels above an arrow, the arrow 8 px below the last line, 16 px to the next row; then the row of the device that vanishes
     y_setas, y = [], 80
     for _, esquerda, direita in filas:
@@ -1143,19 +1211,10 @@ def desenho_home_assistant(num, slug):
     for x in (x_b, x_h):
         s.linha([(x, 64), (x, y_some + 48)], 'dg-fio-fino')
 
-    def linhas(x, y, itens, limite):
-        """The lines of a label, 16 px apart from the baseline y, in 12 px: a line that would cross the next lifeline (`limite`) is an error."""
-        for k, item in enumerate(itens):
-            runs = [('', item)] if isinstance(item, str) else item
-            w = sum(largura_texto(t, 12, c == 'dg-m') for c, t in runs)
-            if x + w > limite:
-                raise ValueError(f'{slug}: the line {"".join(t for _, t in runs)!r} is about {w} px wide from x={x}, past the lifeline at {limite}')
-            s.texto(x, y + 16 * k, runs, 'dg-n')
-
     # the device publishes, and Home Assistant reads what the broker holds: the two arrows of a row are at the same height, the message passing through the broker
     for (numero, esquerda, direita), y_seta in zip(filas, y_setas):
-        linhas(x_s + 12, y_seta - 12 - 16 * (len(esquerda) - 1), esquerda, x_b - 4)
-        linhas(x_b + 12, y_seta - 12 - 16 * (len(direita) - 1), direita, x_h - 4)
+        rotulo(s, x_s + 12, y_seta - 12 - 16 * (len(esquerda) - 1), esquerda, x_b - 4)
+        rotulo(s, x_b + 12, y_seta - 12 - 16 * (len(direita) - 1), direita, x_h - 4)
         s.seta([(x_s + 8, y_seta), (x_b, y_seta)], *ponta)
         s.caixa(x_s - 8, y_seta - 8, 16, 16, 'dg-caixa-acento', 6)
         s.texto(x_s, y_seta + 4, str(numero), 'dg-n dg-b dg-sobre-acento', 'middle')
@@ -1165,8 +1224,63 @@ def desenho_home_assistant(num, slug):
     s.linha([(x_s + 4, y_some + 8), (x_s - 4, y_some + 16)], 'dg-fio')
     s.no(x_b, y_some + 8)
     s.seta([(x_b, y_some + 8), (x_b - 32, y_some + 8), (x_b - 32, y_some + 32), (x_b, y_some + 32)], 'dg-fio-tracejado', 'dg-ponta')
-    linhas(x_s + 12, y_some + 12, ['se o aparelho some (última vontade, retida):', topico(disponibilidade(ha['offline']))], x_b - 36)
+    rotulo(s, x_s + 12, y_some + 12, ['se o aparelho some (última vontade, retida):', mono(disponibilidade(ha['offline']))], x_b - 36)
     s.texto(16, y_some + 72, 'O Home Assistant não manda nada ao aparelho.', 'dg-n dg-c2')
+    return s.render()
+
+
+def desenho_coleta(num, slug):
+    p = num.prometheus()
+    s = Svg(slug)
+    ponta = ('dg-fio-acento', 'dg-ponta-acento')
+    ok, perigo = ('dg-fio-ok', 'dg-ponta-ok'), ('dg-fio-perigo', 'dg-ponta-perigo')
+    x_c, x_e, l_e = 424, 440, 248                     # the device's container starts at x_c; the steps inside it start at x_e, l_e wide
+    x_m = x_e + l_e // 2                              # the line the steps hang on
+    x_p = 92                                          # Prometheus' line, under the middle of its header
+    prometheus = bloco(s, 16, 32, 152, [('Prometheus', 'dg-t dg-b'), (f'a cada {INTERVALO_PROMETHEUS}\u00a0s', 'dg-n dg-c2')])
+    passos = ((p['bloqueado'], 'endereço bloqueado?', None, 'endereço bloqueado', False),
+              (p['negado'], 'confere a senha', f'{p["rodadas"]} rodadas, cerca de {p["tempo"]}\u00a0s', 'senha errada', False),
+              (p['proibido'], f'a conta tem {PERMISSAO_PAINEL}?', None, f'conta sem {PERMISSAO_PAINEL}', False),
+              (p['ok'], 'monta o texto das métricas', None, 'texto do Prometheus', True))
+    # the container is drawn before the steps it holds: its height is the steps' (four boxes, 24 px between them, 16 px of margin), worked out here
+    alturas = [32 + (16 if nota else 0) for _, _, nota, _, _ in passos]
+    y_primeiro = 96
+    fim = y_primeiro + sum(alturas) + 24 * (len(passos) - 1) + 16
+    s.linha([(x_p, prometheus.y + prometheus.h), (x_p, fim)], 'dg-fio-fino')
+    s.caixa(x_c, 16, 704 - x_c, fim - 16, 'dg-caixa-2', 12)
+    s.texto(x_e, 36, [('dg-b', 'SIMUT'), ('', ' '), ('dg-m', IP_EXEMPLO)], 'dg-t')
+    # the request goes in at the first question, and the device asks in the order the route does: the lock first (the password is not even checked), then the password, the permission, the text
+    s.seta([(prometheus.x + prometheus.w, 56), (x_m, 56), (x_m, y_primeiro)], *ponta)
+    rotulo(s, prometheus.x + prometheus.w + 16, 28, [mono(f'{p["metodo"]} {p["rota"]}'), mono(f'{p["cabecalho"]}: {p["esquema"]} {CONTA_EXEMPLO}:…')], x_c - 4)
+    y, caixas = y_primeiro, []
+    for _, titulo, nota, _, _ in passos:
+        c = bloco(s, x_e, y, l_e, [(titulo, 'dg-t')] + ([(nota, 'dg-n dg-c2')] if nota else []))
+        caixas.append(c)
+        y = c.y + c.h + 24
+    for k, passagem in enumerate(('não', 'senha certa', 'sim')):
+        de, para = caixas[k], caixas[k + 1]
+        s.seta([de.base(), para.topo()], *ponta)
+        s.texto(x_m + 12, de.y + de.h + 16, passagem, 'dg-n dg-c2')
+    # the four answers, back to Prometheus: each leaves the step that gives it, at the step's height
+    for c, (codigo, _, _, significado, final) in zip(caixas, passos):
+        y_resposta = c.y + c.h // 2
+        s.seta([(x_e, y_resposta), (x_p, y_resposta)], *(ok if final else perigo))
+        s.texto(x_p + 16, y_resposta - 8, [('dg-b', codigo), ('', ' ' + significado)], 'dg-t dg-ok' if final else 'dg-t dg-perigo')
+    # the lockout a wrong password raises: one rung for each, the heights on a log scale (each rung doubles the wait), the last one the ceiling
+    escada = p['escada']
+    passo = min(48, 448 // len(escada) // GRADE * GRADE)
+    alturas_barras = [max(GRADE, math.ceil(math.log2(max(seg, 2)) * 8 / GRADE) * GRADE) for seg in escada]
+    y_titulo = fim + 36
+    y_base = y_titulo + 32 + max(alturas_barras)
+    s.texto(16, y_titulo, 'Bloqueio do endereço, a cada senha errada', 'dg-t dg-b')
+    s.linha([(16, y_base), (16 + passo * len(escada) - 8, y_base)], 'dg-fio-fino')
+    for k, (segundos, altura) in enumerate(zip(escada, alturas_barras)):
+        x = 16 + passo * k
+        s.caixa(x, y_base - altura, passo - 8, altura, 'dg-caixa-2', 0)
+        s.texto(x + (passo - 8) // 2, y_base - altura - 8, f'{segundos}\u00a0s', 'dg-n', 'middle')
+        s.texto(x + (passo - 8) // 2, y_base + 16, f'{k + 1}º', 'dg-n dg-c2', 'middle')
+    s.texto(16 + passo * (len(escada) - 1) + (passo - 8) // 2, y_base + 32, 'em diante', 'dg-n dg-c2', 'middle')
+    rotulo(s, 16 + passo * len(escada) + 16, y_titulo + 48, ['Mesmo bloqueio da página de entrada.', 'Cada senha errada sobe um degrau:', f'a espera dobra, até {escada[-1]}\u00a0s.'], 716)
     return s.render()
 
 
