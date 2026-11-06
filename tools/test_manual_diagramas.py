@@ -382,10 +382,10 @@ def main():
         confere(f'| Despertar de leitura, do boot até a decisão | {vir(m.AIR_ATE_DECIDIR_S)} s, dos quais ' in cap19 and f'| Despertar de telemetria | cerca de {vir(m.AIR_DESPERTAR_TELEMETRIA_S)} s |' in cap19
                 and f'com o **Intervalo Histórico** de {m.AIR_INTERVALO_S // 60} min' in cap19
                 and f'| `setup( )` até a primeira fase | 10,73 s | **{vir(m.AIR_SETUP_S)} s** |' in plano and f'| wake até o DECIDE | 25,55 s | **{vir(m.AIR_ATE_DECIDIR_S)} s** |' in plano
-                and '`[AIR] phase=WARMUP @10733` | fim do `setup( )`' in plano,
-                f'chapter 19 or the energy analysis does not say the wake times of the figure: setup {m.AIR_SETUP_S} s (where setup( ) ends and the WARMUP phase begins), to the decision {m.AIR_ATE_DECIDIR_S} s, telemetry {m.AIR_DESPERTAR_TELEMETRIA_S} s, '
+                and '`[AIR] phase=WARMUP @10733` | fim do `setup( )`' in plano and '(o de 12,8 s é o wake de telemetria)' in plano,
+                f'chapter 19 or the energy analysis does not say the wake times of the figure: setup {m.AIR_SETUP_S} s (where setup( ) ends and the WARMUP phase begins), to the decision {m.AIR_ATE_DECIDIR_S} s, telemetry {m.AIR_DESPERTAR_TELEMETRIA_S} s (chapter 19; the analysis read 12,8 s), '
                 f'interval {m.AIR_INTERVALO_S} s',
-                'the Air wake figure\'s measured times (the setup until the first phase, the wake until the decision, the telemetry wake and the interval they were measured with) are the ones chapter 19\'s table and the energy analysis (08/09/2026) give')
+                'the Air wake figure\'s measured times are the ones chapter 19\'s table and the energy analysis (08/09/2026) give: the setup (2,47 s) from the analysis, the decision (9,31 s) from both, the telemetry wake (12,7 s) and the interval from the chapter, the analysis\' probe having read 12,8 s')
 
         # the entry figure's examples (constants of the tool) against chapter 26, which gives them
         cap26 = (m.CAPITULOS / 'cap26-api-rest.md').read_text(encoding='utf-8')

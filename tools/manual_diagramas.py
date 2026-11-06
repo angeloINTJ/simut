@@ -175,8 +175,8 @@ FIGURAS = (
            'dois despertares do Air, cada um em escala, num intervalo de 60 s: o de leitura (boot, aquecimento de 0,4 s, amostragem e a decisão que grava o histórico, a 9,31 s do boot) e o de telemetria, que '
            'repete as larguras até a decisão e acrescenta a conexão e o envio, até cerca de 12,7 s; GP16 alto durante todo o despertar, a faixa do rádio ligado só no de telemetria e o sono entre eles fora de '
            'escala; o aquecimento vem de src/AppManager_Air.cpp; a ordem das fases, o rádio que a leitura nunca liga, o Wi-Fi em paralelo na amostragem, a decisão que grava o histórico antes de escolher e o fim do '
-           'GP16 e do rádio no sono são trechos de src/AppManager.h, src/AppManager_Boot.cpp e src/AppManager_Air.cpp que o código tem de manter; o boot de 2,47 s e os totais de 9,31 s e 12,7 s são os medidos '
-           'na bancada em 08/09/2026, conferidos com o capítulo 19 e com a análise de energia'),
+           'GP16 e do rádio no sono são trechos de src/AppManager.h, src/AppManager_Boot.cpp e src/AppManager_Air.cpp que o código tem de manter; o boot de 2,47 s e os 9,31 s até a decisão são os medidos '
+           'na bancada em 08/09/2026, que a análise de energia e o capítulo 19 trazem, e os cerca de 12,7 s do despertar de telemetria são os do capítulo 19: a análise de energia leu 12,8 s'),
     Figura('fig-15-caminho', '15-caminho.svg', 'cap15-historico.md', 'desenho_caminho_historico',
            'o caminho de um registro: o bloco aberto na RAM, a cópia em .wip, a selagem no arquivo do dia e a fila de arquivos diários, com o limite de ocupação que apaga o mais antigo; '
            'os registros por bloco vêm de src/HistoryV5.h, o limite de src/StorageManager.cpp e os nomes de src/StorageManager.h e src/HistoryV5.h'),
@@ -384,8 +384,9 @@ DURACAO_H, ENVIOS_CADA_MIN, FORA_DO_AR_MIN = 3, 10, (65, 95)
 # web interface after the apply, 52 to 56 s, both on the bench with v2.7.0 on 2026-09-22 (six updates). Measurements, not code: the test checks that the chapter still says them.
 ENVIO_MEDIDO_S, VOLTA_MEDIDA_S, MEDIDO_EM = (34.9, 35.9), (52, 56), 'v2.7.0, 22/09/2026'
 # The Air's wake, measured on the bench on 2026-09-08 (docs/analysis/SIMUT_AIR_PLANO_ENERGIA.md section 10.1; chapter 19's table "Tempos medidos" gives the second and the third): the setup until the
-# first phase, 2,47 s (the end of setup( ), where the WARMUP phase begins: section 9.1 of the same analysis, `phase=WARMUP`); the wake until the decision, 9,31 s; and a wake with telemetry, about
-# 12,7 s. The figure's interval of 60 s is the one the chapter measured with (1 min). Measurements, not code: the test checks that the chapter and the analysis still say them.
+# first phase, 2,47 s (the end of setup( ), where the WARMUP phase begins: section 9.1 of the same analysis, `phase=WARMUP`); the wake until the decision, 9,31 s (both in the analysis, lines 481 and
+# 483, and the second in the chapter); and a wake with telemetry, about 12,7 s, which is chapter 19's and not the analysis': its passive probe read 12,8 s (line 486). The figure's interval of 60 s is
+# the one the chapter measured with (1 min). Measurements, not code: the test checks that the chapter and the analysis still say them, each its own.
 AIR_SETUP_S, AIR_ATE_DECIDIR_S, AIR_DESPERTAR_TELEMETRIA_S, AIR_INTERVALO_S = 2.47, 9.31, 12.7, 60
 ESCALA_DESPERTAR = 24      # px a second in the wake figure: a sixth of a second a grid step
 NONCE_EXEMPLO = '9f2c…'    # the start of chapter 26's example code (32 hexadecimal digits): the figure of the entry shows it cut
