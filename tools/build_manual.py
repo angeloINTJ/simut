@@ -491,6 +491,8 @@ svg.dg .dg-ponta-ok{fill:var(--positivo)}
 svg.dg .dg-ponta-perigo{fill:var(--perigo)}
 svg.dg .dg-no{fill:var(--tinta-2)}
 svg.dg .dg-no-acento{fill:var(--acento)}
+svg.dg .dg-no-ok{fill:var(--positivo)}
+svg.dg .dg-no-perigo{fill:var(--perigo)}
 svg.dg .dg-ponta{fill:var(--tinta-2)}
 svg.dg .dg-ponta-acento{fill:var(--acento)}
 .moldura-web{border:1px solid var(--linha);border-radius:var(--raio-cartao);overflow:hidden;background:var(--superficie)}

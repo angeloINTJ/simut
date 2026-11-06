@@ -76,6 +76,8 @@ NET_MGR_H = 'src/NetworkManager.h'
 NET_MGR = 'src/NetworkManager.cpp'
 APP_CORE = 'src/AppManager_Core.cpp'
 LOGCODES = 'tools/logcodes.tsv'
+LOGPOLICY_H = 'src/LogPolicy.h'
+LOGPOLICY_CPP = 'src/LogPolicy.cpp'
 BOOT = 'src/AppManager_Boot.cpp'
 
 
@@ -156,6 +158,49 @@ def tabela_do_capitulo(capitulo):
             pinos.update({f'GP{i}': p for i, p in enumerate(ordem)})
     gnd = re.search(r'\| GND \| ([0-9, ]+) \|', texto)
     return pinos, [int(x) for x in gnd.group(1).split(',')] if gnd else []
+
+
+# What the log policy's mirror (tools/manual_diagramas.py, EspelhoLogPolicy) is held to: the real LogPolicy.cpp, compiled on the host the way `pio test -e native_logpolicy` compiles it, run on the same
+# events. The harness reads "E <ms> <0|1>" (a telemetry event, 1 for a failure) and "R <ms>" (the hourly accounting) and writes what the policy answers, one line each.
+HARNES_POLITICA = """#include "LogPolicy.h"
+#include "SystemDefs_Logging.h"
+#include <stdio.h>
+int main() {
+    LogPolicy p;
+    char k; unsigned long t; int falha;
+    while (scanf(" %c %lu", &k, &t) == 2) {
+        if (k == 'E') {
+            if (scanf("%d", &falha) != 1) return 1;
+            printf("%d\\n", (int)p.shouldPersist(falha ? SYS_TEL_FAIL : SYS_TEL_SENT, falha ? 3 : 1, (uint32_t)t));
+        } else {
+            printf("%u\\n", (unsigned)p.takeSuppressedReport((uint32_t)t));
+        }
+    }
+    return 0;
+}
+"""
+
+
+def compilar_politica(politica_cpp, destino):
+    """The harness built with `politica_cpp` (a LogPolicy.cpp) and the repository's headers and host stubs, or the compiler's complaint."""
+    gxx = shutil.which('g++')
+    if gxx is None:
+        return None, 'no g++'
+    (destino / 'h.cpp').write_text(HARNES_POLITICA, encoding='utf-8')
+    r = subprocess.run([gxx, '-std=gnu++17', '-I', str(ROOT / 'src'), '-I', str(ROOT / 'test' / 'native_stubs'), '-DMAX_SENSORS=16', str(destino / 'h.cpp'), str(politica_cpp), '-o', str(destino / 'h')],
+                       capture_output=True, text=True)
+    return (destino / 'h', None) if r.returncode == 0 else (None, r.stderr.strip()[-300:])
+
+
+def rodar_politica(binario, eventos):
+    """[(kind, ms, failure)] through the compiled policy: the list of its answers, as ints."""
+    entrada = ''.join(f'E {ms} {int(falha)}\n' if k == 'E' else f'R {ms}\n' for k, ms, falha in eventos)
+    r = subprocess.run([str(binario)], input=entrada, capture_output=True, text=True)
+    return [int(x) for x in r.stdout.split()]
+
+
+def rodar_espelho(espelho, eventos):
+    return [int(espelho.persiste(falha, ms)) if k == 'E' else espelho.relata(ms) for k, ms, falha in eventos]
 
 
 def main():
@@ -500,6 +545,9 @@ def main():
                 ('the correction\'s threshold 5 s -> 9 s', [(NET_MGR, 'if (_timeSyncCb && abs(delta) > 5) {', 'if (_timeSyncCb && abs(delta) > 9) {', 1)], {'10-correcao.svg'}),
                 ('the name of event 408 in the log code table', [(LOGCODES, 'NTP correcting timestamps\tNTP corrigindo timestamps\t', 'NTP correcting timestamps\tNTP corrigindo marcas\t', 1)], {'10-correcao.svg'}),
                 ('the code of the provisional time 524 -> 525 in the log code table', [(LOGCODES, '524\tNET_PROVISIONAL_TIME\t', '525\tNET_PROVISIONAL_TIME\t', 1)], {'10-correcao.svg'}),
+                ('the heartbeat of the log policy 1 h -> 2 h', [(LOGPOLICY_H, '#define LOGPOL_HEARTBEAT_MS 3600000UL', '#define LOGPOL_HEARTBEAT_MS 7200000UL', 1)], {'16-transicao.svg'}),
+                ('the cadence of the suppressed accounting 1 h -> 2 h', [(LOGPOLICY_H, '#define LOGPOL_REPORT_MS 3600000UL', '#define LOGPOL_REPORT_MS 7200000UL', 1)], {'16-transicao.svg'}),
+                ('the name of the accounting event 5 in the log code table', [(LOGCODES, 'Routine log records suppressed\tRegistros de rotina suprimidos\t', 'Routine log records suppressed\tRegistros suprimidos\t', 1)], {'16-transicao.svg'}),
                 ('the BME280 probe pair (4, 5) -> (6, 7)', [(BME_SENSOR, 'probe(4, 5, BME280_ADDR_PRIMARY)', 'probe(6, 7, BME280_ADDR_PRIMARY)', 1)], {'02-bmx280.svg'}),
                 ('the BME280 addresses 0x76/0x77 -> 0x75/0x78 in the driver, code and comments', [(BME_DRIVER, '0x76', '0x75', None), (BME_DRIVER, '0x77', '0x78', None)], {'02-bmx280.svg'}),
             ]
@@ -584,6 +632,9 @@ def main():
             ('the correction no longer shifts the history', [(APP_CORE, 'blocks = _storageMgr->shiftHistoryTimeV5(delta, "", bootTs);', 'blocks = 0;', 1)], 'shifts', '10-correcao.svg'),
             ('the correction no longer limits itself to what this boot wrote', [(NET_MGR, '_timeSyncCb(_provisionalBase, delta);', '_timeSyncCb(0, delta);', 1)], 'this boot', '10-correcao.svg'),
             ('an event of the correction leaves the log code table', [(LOGCODES, 'APP_CACHE_INVALIDATED', 'APP_CACHE_DROPPED', 1)], 'APP_CACHE_INVALIDATED', '10-correcao.svg'),
+            ('the first failure of a family is no longer written', [(LOGPOLICY_CPP, ' gf.faulty = true;\n gf.lastPersistMs = nowMs;\n return true;', ' gf.faulty = true;\n gf.lastPersistMs = nowMs;\n return false;', 1)], 'first failure', '16-transicao.svg'),
+            ('a family that keeps failing is no longer held to one record an hour', [(LOGPOLICY_CPP, 'if (elapsed(nowMs, gf.lastPersistMs, LOGPOL_HEARTBEAT_MS)) {', 'if (true) {', 1)], 'an hour', '16-transicao.svg'),
+            ('the telemetry failure is no longer a fault of its family', [(LOGPOLICY_CPP, 'LOGPOL_RULE(SYS_TEL_FAIL,             LOGGRP_TEL,  1),', 'LOGPOL_RULE(SYS_TEL_FAIL,             LOGGRP_TEL,  0),', 1)], 'one family', '16-transicao.svg'),
             ('the discovery configs are no longer published retained', [(TELEMETRY, 'ok = _mqttClient.publish(topic, payload, true);', 'ok = _mqttClient.publish(topic, payload, false);', 1)],
              'retained', '23-fluxo.svg'),
             ('the online message is no longer published retained', [(TELEMETRY, 'onlinePayload.c_str( ), true);', 'onlinePayload.c_str( ), false);', 1)], 'retained', '23-fluxo.svg'),
@@ -634,6 +685,52 @@ def main():
         (sem_arquivo / CONFIG).unlink()
         rc, so, se = em_processo('--check', '--fonte', str(sem_arquivo), '--images', str(img), '--capitulos', str(cap))
         confere(rc == 2 and CONFIG in se, f'{CONFIG} missing: exit {rc}, {se.strip()[-200:]}', f'{CONFIG} deleted: exit 2 naming it')
+
+        # ---- the log policy's mirror, against the real policy compiled on the host ---------------------------------------------------------------------------
+        if precisa('16-transicao.svg'):
+            import random
+            transicao = m.Numeros(fonte).transicao()
+            cenario = []
+            for ev in m.simular_transicao(m.EspelhoLogPolicy(transicao['batimento_ms'], transicao['relatorio_ms']), transicao)['entrada']:
+                cenario.append(ev)
+            aleatorio = random.Random(20261106)
+            sequencias = [cenario]
+            for _ in range(300):
+                agora, evs = 0, []
+                for _ in range(60):
+                    agora += aleatorio.choice((0, 1000, 60_000, 600_000, 3_000_000, 3_600_000, 4_000_000)) + aleatorio.randrange(0, 5000)
+                    evs.append(('E', agora, aleatorio.random() < 0.35))
+                    if aleatorio.random() < 0.6:
+                        evs.append(('R', agora + aleatorio.randrange(0, 3_700_000), False))
+                sequencias.append(evs)
+            oficina = tmp / 'politica'
+            oficina.mkdir()
+            binario, motivo = compilar_politica(m.ROOT / LOGPOLICY_CPP, oficina)
+            if binario is None and motivo == 'no g++':
+                PULADOS.append('the log policy\'s mirror against the compiled policy: no g++')
+            else:
+                confere(binario is not None, f'LogPolicy.cpp does not build on the host: {motivo}')
+                if binario is not None:
+                    todos = []
+                    for evs in sequencias:
+                        # the report may be asked at a time before the last event's: the times only have to rise in each kind, as millis( ) does, so sort
+                        evs = sorted(evs, key=lambda e: e[1])
+                        real, espelho = rodar_politica(binario, evs), rodar_espelho(m.EspelhoLogPolicy(transicao['batimento_ms'], transicao['relatorio_ms']), evs)
+                        todos.append(real == espelho)
+                    confere(all(todos), f'the mirror and the compiled policy disagree on {todos.count(False)} of {len(todos)} runs (the figure\'s scenario is the first)',
+                            f'the log policy\'s mirror answers like the real LogPolicy.cpp compiled on the host: the figure\'s scenario and {len(todos) - 1} random runs, {sum(len(e) for e in sequencias)} events')
+                    # a control that bites: a change in the policy's logic, in a scratch copy, and the compiled policy no longer answers like the mirror
+                    for descr, antigo, novo in (('every failure is persisted', 'if (!gf.faulty) {', 'if (true) {'),
+                                                ('a success after a failure is no longer a transition', 'if (!g.seen || g.faulty) {', 'if (!g.seen) {'),
+                                                ('the heartbeat of a healthy family is gone', 'if (elapsed(nowMs, g.lastPersistMs, LOGPOL_HEARTBEAT_MS)) {', 'if (false) {')):
+                        copia = tmp / f'politica_{abs(hash(descr))}'
+                        copia.mkdir()
+                        texto = (m.ROOT / LOGPOLICY_CPP).read_text(encoding='utf-8')
+                        assert texto.count(antigo) == 1, antigo
+                        (copia / 'LogPolicy.cpp').write_text(texto.replace(antigo, novo), encoding='utf-8')
+                        mutado, motivo = compilar_politica(copia / 'LogPolicy.cpp', copia)
+                        diferem = mutado is not None and any(rodar_politica(mutado, sorted(evs, key=lambda e: e[1])) != rodar_espelho(m.EspelhoLogPolicy(transicao['batimento_ms'], transicao['relatorio_ms']), sorted(evs, key=lambda e: e[1])) for evs in sequencias)
+                        confere(diferem, f'{descr}: the mutated policy still answers like the mirror ({motivo})', f'{descr}, in a scratch copy of LogPolicy.cpp: the compiled policy no longer answers like the mirror')
 
         # ---- build_manual.py: the SVG in the page -----------------------------------------------------------------------------------------------------------
         figs = tmp / 'figs'

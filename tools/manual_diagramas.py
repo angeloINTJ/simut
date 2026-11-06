@@ -81,6 +81,8 @@ NET_MGR = 'src/NetworkManager.cpp'
 NET_MGR_H = 'src/NetworkManager.h'
 APP_CORE = 'src/AppManager_Core.cpp'
 LOGCODES = 'tools/logcodes.tsv'
+LOGPOLICY_H = 'src/LogPolicy.h'
+LOGPOLICY_CPP = 'src/LogPolicy.cpp'
 LOG_MANAGER = 'src/LogManager.cpp'
 NET_LINK = 'src/net/NetLink.h'
 
@@ -143,6 +145,10 @@ FIGURAS = (
            'o que o primeiro acerto do relógio faz com as medições gravadas sob o relógio provisório: o aparelho desligado por 2 h, o boot com o relógio provisório, os blocos carimbados 2 h atrasados, o acerto '
            'e o deslocamento de +7200 s, com os cinco eventos marcados na linha; o número e o nome de cada evento vêm de tools/logcodes.tsv, a diferença mínima para corrigir de src/NetworkManager.cpp, e o que o '
            'desenho afirma da correção é um trecho desse arquivo e de src/AppManager_Core.cpp que o código tem de manter; as 2 h e os 3 blocos são o exemplo da figura'),
+    Figura('fig-16-transicao', '16-transicao.svg', 'cap16-log-eventos.md', 'desenho_transicao',
+           'três horas da família Telemetria no log de eventos: o console vê todos os eventos, e a flash só as transições (o primeiro envio depois do boot, a primeira falha, a primeira volta) e um registro por hora, '
+           'com a contagem dos suprimidos a cada hora; o que a política grava e quando vem de um espelho de src/LogPolicy.cpp, que o teste confere com o código compilado, com a cadência de src/LogPolicy.h e '
+           'os nomes dos eventos de tools/logcodes.tsv; o cenário (um envio a cada 10 min e o coletor fora do ar entre os minutos 65 e 95) é o exemplo da figura'),
     Figura('fig-15-caminho', '15-caminho.svg', 'cap15-historico.md', 'desenho_caminho_historico',
            'o caminho de um registro: o bloco aberto na RAM, a cópia em .wip, a selagem no arquivo do dia e a fila de arquivos diários, com o limite de ocupação que apaga o mais antigo; '
            'os registros por bloco vêm de src/HistoryV5.h, o limite de src/StorageManager.cpp e os nomes de src/StorageManager.h e src/HistoryV5.h'),
@@ -325,6 +331,9 @@ BARREIRA_ONDAS = 'conferir versão, telemetria e alarmes por um período'
 # The example of the time-correction figure: the device off for 2 h (so the provisional clock, which starts at the last record, is 2 h behind: the correction is +7200 s) and the three
 # blocks it wrote before the first set of the clock. The firmware knows neither; the diagram says it is an example.
 HORAS_DESLIGADO, BLOCOS_EXEMPLO = 2, 3
+# The scenario of the log-policy figure: three hours of a device that sends telemetry every 10 minutes, the collector down between minutes 65 and 95. The firmware knows none of it; the figure
+# says it is an example. What the policy does with it is the code's (the mirror below, held to the code by the test).
+DURACAO_H, ENVIOS_CADA_MIN, FORA_DO_AR_MIN = 3, 10, (65, 95)
 
 IMAGEM_DO_PERFIL = {'release': 'pico_w_release', 'alpha': 'pico_w_alpha', 'air': 'pico_w_air'}
 
@@ -789,6 +798,28 @@ class Numeros:
         return {'limiar': limiar, 'eventos': eventos}
 
 
+    def transicao(self):
+        """What the log-policy figure draws that the code says: the two cadences of LogPolicy (the heartbeat and the accounting, LOGPOL_HEARTBEAT_MS and LOGPOL_REPORT_MS, in ms) and the three events by their
+        code and Portuguese name (the telemetry sent, the telemetry failed, the suppressed records). Premises, one pattern each and none on the text of another, refused when the code drifts: the telemetry's
+        success and failure are the routed codes of one family; the first failure of a healthy family is written; a family that keeps failing is held to one record an hour; the first success after the boot
+        or after a failure is written; a healthy family is held to one record an hour; the accounting window starts at the first suppressed record and is reported once an hour. The mirror
+        (EspelhoLogPolicy) is held to the code by the test."""
+        f = self.f
+        batimento = int(f.achar(LOGPOLICY_H, r'^#define LOGPOL_HEARTBEAT_MS (\d+)UL').group(1))
+        relatorio = int(f.achar(LOGPOLICY_H, r'^#define LOGPOL_REPORT_MS (\d+)UL').group(1))
+        f.exigir(LOGPOLICY_CPP, r'LOGPOL_RULE\(SYS_TEL_SENT,\s+LOGGRP_TEL,\s+0\)', 'the telemetry\'s success is a routed code of one family, which is what the figure of the filter draws')
+        f.exigir(LOGPOLICY_CPP, r'LOGPOL_RULE\(SYS_TEL_FAIL,\s+LOGGRP_TEL,\s+1\)', 'the telemetry\'s failure is a fault of the same one family, which is what the figure of the filter draws')
+        for padrao, porque in ((r'if \(!gf\.faulty\) \{\s+gf\.faulty = true;\s+gf\.lastPersistMs = nowMs;\s+return true;', 'the first failure of a healthy family is written'),
+                               (r'if \(elapsed\(nowMs, gf\.lastPersistMs, LOGPOL_HEARTBEAT_MS\)\) \{\s+gf\.lastPersistMs = nowMs;\s+return true;', 'a family that keeps failing is held to one record an hour'),
+                               (r'if \(!g\.seen \|\| g\.faulty\) \{\s+g\.seen = true;\s+g\.faulty = false;\s+g\.lastPersistMs = nowMs;\s+return true;',
+                                'the first success after the boot, or after a failure, is written'),
+                               (r'if \(elapsed\(nowMs, g\.lastPersistMs, LOGPOL_HEARTBEAT_MS\)\) \{\s+g\.lastPersistMs = nowMs;\s+return true;', 'a healthy family is held to one record an hour'),
+                               (r'void LogPolicy::countSuppressed\(uint32_t nowMs\) \{\s+if \(_suppressed == 0\) \{[^}]*?_lastReportMs = nowMs;', 'the accounting window starts at the first suppressed record'),
+                               (r'if \(!elapsed\(nowMs, _lastReportMs, LOGPOL_REPORT_MS\)\) return 0;', 'the accounting is reported once an hour')):
+            f.exigir(LOGPOLICY_CPP, padrao, f'the figure of the filter draws that {porque}')
+        return {'batimento_ms': batimento, 'relatorio_ms': relatorio, 'envio': self.codigo('SYS_TEL_SENT'), 'falha': self.codigo('SYS_TEL_FAIL'), 'resumo': self.codigo('SYS_LOG_SUPPRESSED')}
+
+
 def pino_de(gpio):
     return PINO_DO_GPIO[gpio]
 
@@ -796,6 +827,70 @@ def pino_de(gpio):
 def milhar(n):
     """A whole number as pt-BR writes it: 1.020, with the dot."""
     return f'{n:,}'.replace(',', '.')
+
+
+class EspelhoLogPolicy:
+    """LogPolicy::shouldPersist( ) and takeSuppressedReport( ) for one routed family (the log-policy figure draws the telemetry's), written as the code writes them. The two numbers it takes are the
+    code's (LOGPOL_HEARTBEAT_MS, LOGPOL_REPORT_MS); the rules are the code's, which Numeros.transicao( ) holds the file to, one pattern each, and tools/test_manual_diagramas.py holds this mirror to
+    the code itself: LogPolicy.cpp compiled on the host answers like it, on the figure's events and on random ones."""
+
+    def __init__(self, batimento_ms, relatorio_ms):
+        self.batimento, self.relatorio = batimento_ms, relatorio_ms
+        self.visto = self.falhando = self.armado = False
+        self.ultimo = self.suprimidos = self.ultimo_relatorio = 0
+
+    @staticmethod
+    def passou(agora, desde, intervalo):
+        """elapsed( ) of LogPolicy.cpp: the signed difference of two 32-bit times, which is how millis( ) is compared."""
+        d = (agora - desde) & 0xFFFFFFFF
+        return (d - 0x100000000 if d >= 0x80000000 else d) >= intervalo
+
+    def _conta(self, agora):
+        if self.suprimidos == 0:
+            self.ultimo_relatorio, self.armado = agora, True
+        self.suprimidos += 1
+
+    def persiste(self, falha, agora):
+        """True when the record goes to the flash: the first failure of a healthy family; the first success since the boot or after a failure; and one record an hour of either kind."""
+        if falha:
+            if not self.falhando:
+                self.falhando, self.ultimo = True, agora
+                return True
+            if self.passou(agora, self.ultimo, self.batimento):
+                self.ultimo = agora
+                return True
+            self._conta(agora)
+            return False
+        if not self.visto or self.falhando:
+            self.visto, self.falhando, self.ultimo = True, False, agora
+            return True
+        if self.passou(agora, self.ultimo, self.batimento):
+            self.ultimo = agora
+            return True
+        self._conta(agora)
+        return False
+
+    def relata(self, agora):
+        """The number of records suppressed since the last report, once an hour after the first of them, or 0."""
+        if not self.armado or self.suprimidos == 0 or not self.passou(agora, self.ultimo_relatorio, self.relatorio):
+            return 0
+        n, self.suprimidos, self.armado = self.suprimidos, 0, False
+        return min(n, 32767)
+
+
+def simular_transicao(espelho, transicao):
+    """The figure's scenario through the mirror: an event every ENVIOS_CADA_MIN minutes for DURACAO_H hours, a failure while the collector is down, and the accounting asked for after each one.
+    Returns what the compiled policy is fed ('entrada'), and what the figure draws: each event with its minute, whether it failed and whether it reached the flash, and the accounting records."""
+    entrada, eventos, relatorios = [], [], []
+    for minuto in range(0, DURACAO_H * 60, ENVIOS_CADA_MIN):
+        falha, ms = FORA_DO_AR_MIN[0] < minuto < FORA_DO_AR_MIN[1], minuto * 60_000
+        eventos.append({'minuto': minuto, 'falha': falha, 'flash': espelho.persiste(falha, ms)})
+        entrada.append(('E', ms, falha))
+        n = espelho.relata(ms)
+        entrada.append(('R', ms, False))
+        if n:
+            relatorios.append({'minuto': minuto, 'n': n})
+    return {'entrada': entrada, 'eventos': eventos, 'relatorios': relatorios}
 
 
 # ---- the SVG builder -----------------------------------------------------------------------------------------------------------------------------------------
@@ -918,11 +1013,13 @@ class Svg:
         self.pontas.add(ponta)
         self.corpo.append(f'<polyline class="{cls}" points="{" ".join(f"{x},{y}" for x, y in pontos)}" marker-end="url(#{self.slug}-{ponta[3:]})"/>')
 
-    def no(self, x, y, cls='dg-no'):
-        """A junction or a terminal: a dot of 8 px."""
+    def no(self, x, y, cls='dg-no', raio=4):
+        """A junction or a terminal: a dot of 8 px, or of 16 (a marked event)."""
         self._grade(x, y)
-        self._abaixo(y + 4)
-        self.corpo.append(f'<circle class="{cls}" cx="{x}" cy="{y}" r="4"/>')
+        if raio not in (4, 8):
+            raise ValueError(f'{self.slug}: a dot of radius {raio}: the figures have 4 and 8')
+        self._abaixo(y + raio)
+        self.corpo.append(f'<circle class="{cls}" cx="{x}" cy="{y}" r="{raio}"/>')
 
     def render(self):
         partes = [f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {LARGURA} {self.altura}" role="img" class="dg">']
@@ -1885,6 +1982,53 @@ def desenho_correcao(num, slug):
     s.seta([(centro, 240), (centro, 264), (centro + desloc, 264), (centro + desloc, 288)], *acento)
     s.texto(centro + desloc // 2, 260, f'+{HORAS_DESLIGADO * 3600}\u00a0s ({HORAS_DESLIGADO}\u00a0h)', 'dg-n', 'middle')
     s.texto(64 + desloc, 340, 'depois do acerto, na hora em que aconteceram', 'dg-n')
+    return s.render()
+
+
+def desenho_transicao(num, slug):
+    tr = num.transicao()
+    sim = simular_transicao(EspelhoLogPolicy(tr['batimento_ms'], tr['relatorio_ms']), tr)
+    s = Svg(slug)
+    x_de = lambda minuto: (200 + 28 * minuto // ENVIOS_CADA_MIN) // GRADE * GRADE            # 28 px for each send, on the grid
+    y_c, y_f, y_r, y_eixo = 80, 144, 216, 288
+    # the collector's outage, behind the rows
+    x1, x2 = x_de(FORA_DO_AR_MIN[0]), x_de(FORA_DO_AR_MIN[1])
+    s.caixa(x1, 56, x2 - x1, 128, 'dg-caixa-perigo', 0)
+    s.texto((x1 + x2) // 8 * 4, 48, 'coletor fora do ar', 'dg-n', 'middle')
+    # the three rows, named at the left
+    for y, titulo, notas in ((y_c, 'console', ['todos os eventos,', f'um a cada {ENVIOS_CADA_MIN}\u00a0min']), (y_f, 'flash', ['as transições e', 'um por hora']), (y_r, 'contagem', ['uma vez por hora'])):
+        s.texto(16, y - 4, titulo, 'dg-t dg-b')
+        for k, nota in enumerate(notas):
+            s.texto(16, y + 12 + 16 * k, nota, 'dg-n dg-c2')
+    # the events: a small dot on the console for each, a large one on the flash where the policy writes it
+    anterior = None                                      # the event before: None at the boot, then whether it failed
+    for e in sim['eventos']:
+        x = x_de(e['minuto'])
+        s.no(x, y_c, 'dg-no-perigo' if e['falha'] else 'dg-no')
+        if e['flash']:
+            s.linha([(x, y_c + 8), (x, y_f - 12)], 'dg-fio-fino')
+            s.no(x, y_f, 'dg-no-perigo' if e['falha'] else 'dg-no-ok', 8)
+            if e['falha']:
+                tipo = 'uma por hora' if anterior else '1ª falha'
+            else:
+                tipo = 'boot: 1º envio' if anterior is None else ('1ª volta' if anterior else 'uma por hora')
+            if tipo in ('boot: 1º envio', 'uma por hora'):
+                s.texto(x - 8, y_f - 20, tipo, 'dg-n', 'end')          # above, beside the line that comes down to the dot
+            else:
+                s.texto(x, y_f + 28, tipo, 'dg-n', 'middle')
+        anterior = e['falha']
+    # the accounting records, one an hour after the first suppressed one, with what they count
+    codigo_resumo, nome_resumo = tr['resumo']
+    for r in sim['relatorios']:
+        x = x_de(r['minuto'])
+        s.no(x, y_r)
+        for k, linha in enumerate(quebrar(f'{nome_resumo} ({codigo_resumo}), ctx\u00a0=\u00a0{r["n"]}', 132, 12)):
+            s.texto(x, y_r + 28 + 16 * k, linha, 'dg-n', 'middle')
+    # the time, under them
+    s.linha([(x_de(0), y_eixo), (x_de(DURACAO_H * 60), y_eixo)], 'dg-fio')
+    for h in range(DURACAO_H + 1):
+        s.linha([(x_de(h * 60), y_eixo), (x_de(h * 60), y_eixo + 8)], 'dg-fio')
+        s.texto(x_de(h * 60), y_eixo + 28, 'boot' if h == 0 else f'{h}\u00a0h', 'dg-n', 'middle')
     return s.render()
 
 
