@@ -54,6 +54,28 @@ void test_alpha_glass_json_cap_of_length_plus_one_fits_and_length_does_not(void)
 void test_alpha_glass_json_null_buffer_and_zero_cap_write_nothing(void);
 void test_alpha_glass_json_age_is_unsigned_across_the_wrap(void);
 void test_alpha_glass_json_equals_a_reference_at_every_digit_count_and_on_random_glasses(void);
+/* boot_replay.cpp: the boot terminal's calls, recorded and played back (display/BootReplay.h), the base of the `screen boot` test tags */
+void test_bootrec_replay_at_waiting_router_gives_the_five_lines_and_the_skip_button(void);
+void test_bootrec_replay_at_every_index_is_the_terminal_the_live_panel_had(void);
+void test_bootrec_replay_does_not_depend_on_what_the_panel_showed_before(void);
+void test_bootrec_replay_at_the_end_record_leaves_the_boot_ended(void);
+void test_bootrec_cancel_adds_exactly_the_two_calls_the_boot_makes(void);
+void test_bootrec_a_percent_adds_the_bar_after_the_replay(void);
+void test_bootrec_an_index_outside_the_list_is_refused_and_touches_nothing(void);
+void test_bootrec_play_refuses_a_percent_outside_zero_to_one_hundred_and_the_verbs_that_are_not_replays(void);
+void test_bootrec_a_replay_does_not_record_itself(void);
+void test_bootrec_the_dots_of_one_key_collapse_into_the_last_and_the_set_stays_its_own_record(void);
+void test_bootrec_only_a_replace_of_the_same_key_folds(void);
+void test_bootrec_a_run_of_progress_calls_is_one_record_with_the_last_value(void);
+void test_bootrec_past_the_capacity_the_calls_are_ignored_and_counted(void);
+void test_bootrec_an_overflowed_list_still_replays_what_it_kept(void);
+void test_bootrec_nothing_is_recorded_after_the_boot_is_over(void);
+void test_bootrec_the_longest_straight_boot_fits_with_room_to_spare(void);
+void test_bootrec_a_suffix_longer_than_the_line_is_cut_where_the_line_cuts_it(void);
+void test_bootrec_parse_reads_list_end_index_percent_and_cancel(void);
+void test_bootrec_parse_refuses_what_is_not_an_index_a_percent_or_cancel(void);
+void test_bootrec_list_lines_are_exact(void);
+void test_bootrec_list_line_never_writes_past_its_buffer(void);
 #include "TelemetryCursor.h"  /* what the telemetry cursor may advance to */
 #include "TelemetryPosition.h" /* the cursor as a write position (A-04) */
 #include <algorithm>
@@ -6634,6 +6656,28 @@ int main(int /*argc*/, char** /*argv*/) {
     RUN_TEST(test_theme_row_no_id_code_or_name_length_truncates_the_row);
     RUN_TEST(test_theme_row_an_empty_missing_or_all_stripped_name_becomes_theme_n);
     RUN_TEST(test_theme_row_a_missing_code_is_an_empty_code);
+
+    RUN_TEST(test_bootrec_replay_at_waiting_router_gives_the_five_lines_and_the_skip_button);
+    RUN_TEST(test_bootrec_replay_at_every_index_is_the_terminal_the_live_panel_had);
+    RUN_TEST(test_bootrec_replay_does_not_depend_on_what_the_panel_showed_before);
+    RUN_TEST(test_bootrec_replay_at_the_end_record_leaves_the_boot_ended);
+    RUN_TEST(test_bootrec_cancel_adds_exactly_the_two_calls_the_boot_makes);
+    RUN_TEST(test_bootrec_a_percent_adds_the_bar_after_the_replay);
+    RUN_TEST(test_bootrec_an_index_outside_the_list_is_refused_and_touches_nothing);
+    RUN_TEST(test_bootrec_play_refuses_a_percent_outside_zero_to_one_hundred_and_the_verbs_that_are_not_replays);
+    RUN_TEST(test_bootrec_a_replay_does_not_record_itself);
+    RUN_TEST(test_bootrec_the_dots_of_one_key_collapse_into_the_last_and_the_set_stays_its_own_record);
+    RUN_TEST(test_bootrec_only_a_replace_of_the_same_key_folds);
+    RUN_TEST(test_bootrec_a_run_of_progress_calls_is_one_record_with_the_last_value);
+    RUN_TEST(test_bootrec_past_the_capacity_the_calls_are_ignored_and_counted);
+    RUN_TEST(test_bootrec_an_overflowed_list_still_replays_what_it_kept);
+    RUN_TEST(test_bootrec_nothing_is_recorded_after_the_boot_is_over);
+    RUN_TEST(test_bootrec_the_longest_straight_boot_fits_with_room_to_spare);
+    RUN_TEST(test_bootrec_a_suffix_longer_than_the_line_is_cut_where_the_line_cuts_it);
+    RUN_TEST(test_bootrec_parse_reads_list_end_index_percent_and_cancel);
+    RUN_TEST(test_bootrec_parse_refuses_what_is_not_an_index_a_percent_or_cancel);
+    RUN_TEST(test_bootrec_list_lines_are_exact);
+    RUN_TEST(test_bootrec_list_line_never_writes_past_its_buffer);
 
     return UNITY_END();
 }
