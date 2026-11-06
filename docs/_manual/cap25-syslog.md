@@ -12,7 +12,7 @@ O aparelho manda uma cópia de cada evento do log de eventos ([capítulo 16](#ca
 - **Existe em todas as imagens.** No Air, só com o aparelho acordado ([No SIMUT Air](#cap-25-air)).
 
 ::: {.figura #fig-25-caminho tipo="diagrama" arquivo="25-caminho.svg" captura="desenhado pelo código (tools/manual_diagramas.py): o caminho de uma linha de syslog, do evento ao coletor, e os pontos onde ela se perde, com o log de eventos na flash como o outro caminho do mesmo evento; a profundidade da fila, que é também o que uma passada manda, vem de SLOTS em src/SyslogManager.h e a porta de SYSLOG_DEFAULT_PORT em src/SystemDefs_Records.h, e cada coisa que o desenho afirma da fila, do laço, do boot e do reinício é um trecho de src/SyslogManager.cpp, src/AppManager_Loop.cpp, src/AppManager_Boot.cpp, src/LogManager.cpp ou src/net/NetLink.h que o código tem de manter; o endereço do coletor, o nome do nível e os coletores são os exemplos do capítulo; refazer com python3 tools/manual_diagramas.py --write"}
-Legenda: o caminho de uma linha de syslog e os pontos onde ela pode se perder. O log de eventos local segue por outro caminho e não depende do syslog.
+O caminho de uma linha de syslog e os pontos onde ela pode se perder. O log de eventos local segue por outro caminho e não depende do syslog.
 :::
 
 ## O formato da linha {#cap-25-formato}

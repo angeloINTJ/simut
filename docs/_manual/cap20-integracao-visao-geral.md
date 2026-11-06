@@ -12,7 +12,7 @@ O aparelho conversa com servidores de dois jeitos, e eles não dependem um do ou
 Um receptor de telemetria, portanto, não comanda nada, e quem comanda não precisa receber telemetria. São dois componentes do seu lado.
 
 ::: {.figura #fig-20-integracao tipo="diagrama" arquivo="20-integracao.svg" captura="desenhado pelo código (tools/manual_diagramas.py): o aparelho e o que ele troca com os outros sistemas, nos dois sentidos: o que ele abre (telemetria, linha de alarmes, descoberta do Home Assistant, syslog), o que o servidor abre na porta da interface web (a API REST, o /metrics) e o anúncio mDNS, que não abre conexão; o protocolo e a porta do syslog vêm de src/SyslogManager.h e src/SystemDefs_Records.h, o nome do serviço de src/NetworkManager.cpp, as imagens com o anúncio de SIMUT_MDNS em src/simut_config.h e nos perfis, a rota do /metrics de src/WebManager_Core.cpp, e as afirmações repetidas das figuras de cada mecanismo (alarmes, Home Assistant, Prometheus) apoiam-se nas mesmas leituras e premissas delas; refazer com python3 tools/manual_diagramas.py --write"}
-Legenda: os dois sentidos do tráfego. As setas que saem do aparelho são conexões que ele mesmo abre; as que chegam usam a porta da interface web.
+Os dois sentidos do tráfego. As setas que saem do aparelho são conexões que ele mesmo abre; as que chegam usam a porta da interface web.
 :::
 
 ## O que o aparelho envia {#cap-20-envia}

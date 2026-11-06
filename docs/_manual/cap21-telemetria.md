@@ -15,7 +15,7 @@ Três ideias explicam todo o comportamento:
 A telemetria vem desligada de fábrica.
 
 ::: {.figura #fig-21-cursor tipo="diagrama" arquivo="21-cursor.svg" captura="desenhado pelo código (tools/manual_diagramas.py): a fila de registros do histórico com o cursor entre os confirmados e os pendentes, o lote, o coletor, a confirmação 2xx que move o cursor e a falha que o deixa parado; a faixa de códigos que confirma vem de src/TelemetryManager.cpp e a espera depois de uma falha de BACKOFF_MIN_MS e BACKOFF_MAX_MS em src/TelemetryManager.h; refazer com python3 tools/manual_diagramas.py --write"}
-Legenda: o cursor separa o que o coletor já confirmou do que ainda falta. Só uma confirmação o move.
+O cursor separa o que o coletor já confirmou do que ainda falta. Só uma confirmação o move.
 :::
 
 ## A página Telemetria {#cap-21-pagina}
@@ -33,7 +33,7 @@ As edições ficam pendentes até você usar um dos botões de gravação: **Tes
 Os botões **Enviar agora** e **Resetar cursor de envio** são diferentes: eles agem na hora, sobre o aparelho em funcionamento, e não passam pelos botões de gravação.
 
 ::: {.figura #fig-21-pagina-http tipo="web" arquivo="21-pagina-http.png" captura="rota /telemetry; largura 1280; sessão admin; imagem release; Transporte HTTP(S); IP Servidor coletor.exemplo.com.br; Porta 8080; TLS desligado; Endpoint /api/telemetria; API Key preenchida (mostrada mascarada); Lote mínimo 1; Lote máximo 250; Formato JSON"}
-Legenda: a página **Telemetria** com o transporte HTTP. Note a chave mascarada no campo **API Key** e os botões **Enviar agora** e **Resetar cursor de envio** logo abaixo dos lotes.
+A página **Telemetria** com o transporte HTTP. Note a chave mascarada no campo **API Key** e os botões **Enviar agora** e **Resetar cursor de envio** logo abaixo dos lotes.
 :::
 
 ### Transporte e servidor {#cap-21-transporte}
@@ -106,7 +106,7 @@ Aparecem com **Transporte** em **MQTT(S)**.
 - **Home Assistant Discovery.** Exige o formato JSON. Está no [capítulo 23](#cap-23).
 
 ::: {.figura #fig-21-pagina-mqtt tipo="web" arquivo="21-pagina-mqtt.png" captura="rota /telemetry; largura 1280; sessão admin; Transporte MQTT(S); IP Servidor coletor.exemplo.com.br; Porta 1883; TLS desligado (rótulo Usar MQTTS (TLS)); Tópico fabrica/camara1/data; Client ID vazio; Usuário simut; Senha vazia; QoS 0; Keep-Alive 60; Reter desligado"}
-Legenda: com o transporte MQTT, os campos **Endpoint** e **API Key** saem e entram os do broker. Note que a **Porta** não muda sozinha.
+Com o transporte MQTT, os campos **Endpoint** e **API Key** saem e entram os do broker. Note que a **Porta** não muda sozinha.
 :::
 
 ### Lote mínimo e lote máximo {#cap-21-lotes}
@@ -173,7 +173,7 @@ A prévia abre em **Organizado** (*Organized*), o mesmo visor da página Arquivo
 Quando o corpo parece JSON mas não é válido, a prévia o organiza pela posição das chaves e dos colchetes e avisa **JSON incompleto ou inválido**.
 
 ::: {.figura #fig-21-construtor tipo="web" arquivo="21-construtor.png" captura="rota /telemetry; largura 1280; sessão admin; bloco Construtor com Formato Dinâmico; quadro de tags visível; 1. Global com o modelo de fábrica; 2. Linha com o modelo de dois sensores da seção Exemplos deste capítulo (t0_ID, t1_ID, u1_ID e p1_ID); 3. Separador vírgula; Cabeçalho Content-Type vazio; Prévia ao Vivo preenchida"}
-Legenda: o construtor no formato **Dinâmico**, com o quadro de tags e a prévia, montada com os dados do aparelho.
+O construtor no formato **Dinâmico**, com o quadro de tags e a prévia, montada com os dados do aparelho.
 :::
 
 ## Quando o aparelho envia {#cap-21-quando}

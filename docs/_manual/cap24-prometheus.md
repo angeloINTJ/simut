@@ -13,7 +13,7 @@ O aparelho oferece a rota `GET /metrics`, na porta da interface web, no formato 
 Para guardar as medições com a hora exata de cada registro, sem buracos, use a telemetria ([capítulo 21](#cap-21)). O Prometheus serve para painéis, tendências e alertas.
 
 ::: {.figura #fig-24-coleta tipo="diagrama" arquivo="24-coleta.svg" captura="desenhado pelo código (tools/manual_diagramas.py): uma leitura do /metrics pelo Prometheus: o pedido com a conta, as três perguntas do aparelho na ordem em que o código as faz (o endereço está bloqueado, a senha confere, a conta tem Painel), as quatro respostas e a escada do bloqueio que uma senha errada sobe; a rota, o esquema da credencial, os códigos e a ordem das perguntas vêm de src/WebManager_Core.cpp e src/WebManager_Metrics.cpp, as rodadas da senha, o tempo medido de uma leitura (registrado no comentário de PASSWORD_HMAC_ROUNDS) e a escada de src/SystemDefs_Network.h; o endereço, a conta e o intervalo de 60 s são os exemplos do capítulo; refazer com python3 tools/manual_diagramas.py --write"}
-Legenda: uma leitura do Prometheus. O aparelho confere a senha a cada pedido, e as senhas erradas alimentam o mesmo bloqueio da página de entrada.
+Uma leitura do Prometheus. O aparelho confere a senha a cada pedido, e as senhas erradas alimentam o mesmo bloqueio da página de entrada.
 :::
 
 ## Endereço e autenticação {#cap-24-autenticacao}
@@ -57,7 +57,7 @@ Crie uma conta só para o Prometheus, com a permissão **Painel** e nenhuma outr
 5. Grave a senha num arquivo legível só pelo Prometheus, por exemplo `/etc/prometheus/simut_senha`.
 
 ::: {.figura #fig-24-conta-metricas tipo="web" arquivo="24-conta-metricas.png" captura="rota /users; largura 1280; sessão admin; formulário Adicionar com Nome metricas, só a caixa Painel marcada, PIN vazio; a conta aparece na tabela com Pendente: Novo, ainda não gravada"}
-Legenda: a conta do Prometheus, com a permissão Painel e nenhuma outra.
+A conta do Prometheus, com a permissão Painel e nenhuma outra.
 :::
 
 A senha temporária já funciona no HTTP Basic, sem a troca. Troque-a mesmo assim: ela tem só 8 caracteres e apareceu numa janela da interface web.
