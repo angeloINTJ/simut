@@ -1284,9 +1284,14 @@ def step_cleanup(rig, col, results, state):
                  f"alarm set {'on' if b.get('a_en') else 'off'}"]
         if b.get('a_path'):
             cmds.append(f"alarm set path {b['a_path']}")
+    # smap is deleted BEFORE write memory. A CLI edit lives in RAM until something writes the
+    # configuration, so deleting it after the write left a full-admin account with a password
+    # nobody kept in the flash, back at every boot: found on the rig on 2026-09-24, and this
+    # order stayed until 2026-11-05 (the manual's image review). Its web session is not used
+    # past this point: goto( ) is the CLI.
     rig.cfg(*cmds)
-    rig.cmd('write memory')
     rig.cfg('user del smap')
+    rig.cmd('write memory')
     rig.goto('dash')
 
 
