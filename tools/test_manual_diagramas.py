@@ -357,6 +357,9 @@ def main():
                 ('the setup AP moved to the 9th place of the panel\'s menu', [(MENU, 'MENU_PIN_POLICY, MENU_SETUP_AP,\n\tMENU_LANG,', 'MENU_PIN_POLICY, MENU_LANG,\n\tMENU_SETUP_AP,', 1)], {'04-fluxo.svg'}),
                 ('the console\'s enable renamed in the parser', [('src/CommandParser.cpp', 'if (t0 == "enable")', 'if (t0 == "habilitar")', 1)], {'04-fluxo.svg'}),
                 ('the reload\'s own message names another command', [('src/AppManager_Commands.cpp', "Use 'reload confirm' para prosseguir", "Use 'reboot confirm' para prosseguir", 1)], {'04-fluxo.svg'}),
+                ('the records a block holds 60 -> 120 in HistoryV5.h', [('src/HistoryV5.h', '#define H5_BLOCK_MAX_RECORDS    60 ', '#define H5_BLOCK_MAX_RECORDS    120', 1)], {'15-caminho.svg'}),
+                ('the cleanup\'s limit 86 -> 90 percent in StorageManager.cpp', [('src/StorageManager.cpp', '/ info.totalBytes) <= 86) return;', '/ info.totalBytes) <= 90) return;', 1)], {'15-caminho.svg'}),
+                ('the history\'s extension .h5 -> .h6', [('src/HistoryV5.h', '#define HISTORY_FILE_EXT        ".h5"', '#define HISTORY_FILE_EXT        ".h6"', 1)], {'15-caminho.svg'}),
                 ('the BME280 probe pair (4, 5) -> (6, 7)', [(BME_SENSOR, 'probe(4, 5, BME280_ADDR_PRIMARY)', 'probe(6, 7, BME280_ADDR_PRIMARY)', 1)], {'02-bmx280.svg'}),
                 ('the BME280 addresses 0x76/0x77 -> 0x75/0x78 in the driver, code and comments', [(BME_DRIVER, '0x76', '0x75', None), (BME_DRIVER, '0x77', '0x78', None)], {'02-bmx280.svg'}),
             ]

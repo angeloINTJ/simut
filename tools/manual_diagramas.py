@@ -106,6 +106,9 @@ FIGURAS = (
            'fluxograma do primeiro boot, da senha do admin ao aparelho pronto, com os dois caminhos para pôr o aparelho na rede; o nome e o endereço do ponto de acesso, o número do '
            'item do menu (a posição de MENU_SETUP_AP em MENU_ORDER) e as palavras dos comandos vêm de src/StorageManager.cpp, src/net/NetworkManager_Cyw43.cpp, src/WebAddress.h, '
            'src/display/SettingsMenu.h, src/CommandParser.cpp e src/AppManager_Commands.cpp'),
+    Figura('fig-15-caminho', '15-caminho.svg', 'cap15-historico.md', 'desenho_caminho_historico',
+           'o caminho de um registro: o bloco aberto na RAM, a cópia em .wip, a selagem no arquivo do dia e a fila de arquivos diários, com o limite de ocupação que apaga o mais antigo; '
+           'os registros por bloco vêm de src/HistoryV5.h, o limite de src/StorageManager.cpp e os nomes de src/StorageManager.h e src/HistoryV5.h'),
 )
 
 
@@ -360,6 +363,17 @@ class Numeros:
         senha = f.achar(COMANDOS, r'if \(t1 == "(\w+)"\)\s+\{ cmd\.type = CMD_SET_WIFI_PASS').group(1)
         reload = f.achar('src/AppManager_Commands.cpp', r"case CMD_RELOAD:\s+if \(!cmd\.confirmed\) \{[^}]*?Use '([^']+)' para prosseguir").group(1)
         return {'ap': ap, 'enable': enable, 'configure': f'{c.group(1)} {c.group(2)}', 'ssid': f'{sistema} {ssid}', 'pass': f'{sistema} {senha}', 'reload': reload}
+
+
+    def historico(self):
+        """The history's numbers: the records a block holds (H5_BLOCK_MAX_RECORDS), the percentage of the file system above which the oldest day is deleted (the cleanup
+        in StorageManager.cpp), the folder, the open block's snapshot in it and the extension of a day's file."""
+        f = self.f
+        return {'registros': int(f.achar('src/HistoryV5.h', r'^#define H5_BLOCK_MAX_RECORDS\s+(\d+)').group(1)),
+                'limite': int(f.achar('src/StorageManager.cpp', r'\(\(info\.usedBytes \* 100\) / info\.totalBytes\) <= (\d+)\) return;').group(1)),
+                'pasta': f.achar('src/StorageManager.h', r'^#define DIR_HISTORY "([^"]+)"').group(1),
+                'wip': f.achar('src/StorageManager.h', r'^#define FILE_H5_WIP DIR_HISTORY "([^"]+)"').group(1),
+                'ext': f.achar('src/HistoryV5.h', r'^#define HISTORY_FILE_EXT\s+"([^"]+)"').group(1)}
 
 
 def pino_de(gpio):
@@ -888,6 +902,46 @@ def desenho_primeiro_boot(num, slug):
         ultima = b
     s.linha([rede.base(), (360, rede.y + rede.h + 16), (primeira.topo()[0], rede.y + rede.h + 16)])
     s.seta([(primeira.topo()[0], rede.y + rede.h + 16), primeira.topo()], *ponta)
+    return s.render()
+
+
+def desenho_caminho_historico(num, slug):
+    h = num.historico()
+    s = Svg(slug)
+    ponta = ('dg-fio-acento', 'dg-ponta-acento')
+    c = 80                                  # the height of the record's way in; the rest is placed from it
+    # the record's way in: the sensors, the record at each Intervalo Histórico, the open block in the RAM
+    sensores = bloco(s, 16, None, 96, [('Sensores', 'dg-t')], 'dg-caixa', 6, c)
+    registro = bloco(s, 136, None, 144, [('registro a cada Intervalo Histórico', 'dg-t')], 'dg-caixa', 6, c)
+    aberto = bloco(s, 296, None, 144, [('bloco aberto', 'dg-t dg-b'), (f'na RAM, até {h["registros"]} registros', 'dg-n dg-c2')], 'dg-caixa', 6, c)
+    s.seta([sensores.dir(), registro.esq()], *ponta)
+    s.seta([registro.dir(), aberto.esq()], *ponta)
+    # the copy at each record, dashed: the snapshot that a power cut leaves
+    wip = bloco(s, 296, c + 88, 144, [(f'{h["pasta"]}{h["wip"]}', 'dg-t dg-m')])
+    s.seta([aberto.base(), wip.topo()], 'dg-fio-tracejado', 'dg-ponta')
+    s.texto(aberto.base()[0] - 8, c + 68, 'cópia a cada registro', 'dg-n dg-c2', 'end')
+    # the seal: the block goes to the day's file, a stack of blocks that each carry a CRC and the minimum and maximum of every channel
+    s.texto(704, c - 56, f'{h["pasta"]}/AAAAMMDD{h["ext"]}', 'dg-n dg-m', 'end')
+    s.caixa(568, c - 48, 136, 152, 'dg-caixa-2', 12)
+    for k in range(3):
+        y = c - 40 + 48 * k
+        s.caixa(576, y, 120, 40, 'dg-caixa', 6)
+        s.texto(588, y + 24, 'CRC', 'dg-n dg-m')
+        s.texto(684, y + 24, 'mín/máx', 'dg-n dg-m', 'end')
+    s.seta([aberto.dir(), (568, c)], *ponta)
+    for k, linha in enumerate(('selar:', f'{h["registros"]} registros,', 'virada do dia,', 'correção do NTP')):
+        s.texto(456, c + 24 + 16 * k, linha, 'dg-n dg-c2')
+    # the day files, oldest to today: the oldest goes when the file system passes the limit, today's never does
+    fila = c + 184
+    s.texto(64, fila - 16, 'arquivos diários, do mais antigo ao de hoje', 'dg-n dg-c2')
+    for k in range(5):
+        x = 64 + 128 * k
+        s.caixa(x, fila, 120, 32, 'dg-caixa-apagada' if k == 0 else 'dg-caixa', 6)
+        s.texto(x + 60, fila + 20, f'AAAAMMDD{h["ext"]}', 'dg-n dg-m' + (' dg-c2' if k == 0 else ''), 'middle')
+    s.texto(64, fila + 52, f'o mais antigo: apagado acima de {h["limite"]}\u00a0%', 'dg-n dg-c2')
+    s.texto(696, fila + 52, 'hoje: nunca é apagado', 'dg-n dg-c2', 'end')
+    s.linha([(636, c + 104), (636, fila)])
+    s.texto(628, c + 152, 'o arquivo de hoje', 'dg-n dg-c2', 'end')
     return s.render()
 
 

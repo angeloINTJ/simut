@@ -1,0 +1,53 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 336" role="img" class="dg">
+<defs>
+<marker id="15-caminho-ponta" viewBox="0 0 8 8" refX="8" refY="4" markerWidth="8" markerHeight="8" markerUnits="userSpaceOnUse" orient="auto"><path class="dg-ponta" d="M0 0L8 4L0 8z"/></marker>
+<marker id="15-caminho-ponta-acento" viewBox="0 0 8 8" refX="8" refY="4" markerWidth="8" markerHeight="8" markerUnits="userSpaceOnUse" orient="auto"><path class="dg-ponta-acento" d="M0 0L8 4L0 8z"/></marker>
+</defs>
+<rect class="dg-caixa" x="16.5" y="64.5" width="95" height="31" rx="6"/>
+<text class="dg-t" x="28" y="84">Sensores</text>
+<rect class="dg-caixa" x="136.5" y="48.5" width="143" height="63" rx="6"/>
+<text class="dg-t" x="148" y="68">registro a cada</text>
+<text class="dg-t" x="148" y="84">Intervalo</text>
+<text class="dg-t" x="148" y="100">Histórico</text>
+<rect class="dg-caixa" x="296.5" y="48.5" width="143" height="63" rx="6"/>
+<text class="dg-t dg-b" x="308" y="68">bloco aberto</text>
+<text class="dg-n dg-c2" x="308" y="84">na RAM, até 60</text>
+<text class="dg-n dg-c2" x="308" y="100">registros</text>
+<polyline class="dg-fio-acento" points="112,80 136,80" marker-end="url(#15-caminho-ponta-acento)"/>
+<polyline class="dg-fio-acento" points="280,80 296,80" marker-end="url(#15-caminho-ponta-acento)"/>
+<rect class="dg-caixa" x="296.5" y="168.5" width="143" height="31" rx="6"/>
+<text class="dg-t dg-m" x="308" y="188">/history/.wip</text>
+<polyline class="dg-fio-tracejado" points="368,112 368,168" marker-end="url(#15-caminho-ponta)"/>
+<text class="dg-n dg-c2" x="360" y="148" text-anchor="end">cópia a cada registro</text>
+<text class="dg-n dg-m" x="704" y="24" text-anchor="end">/history/AAAAMMDD.h5</text>
+<rect class="dg-caixa-2" x="568.5" y="32.5" width="135" height="151" rx="12"/>
+<rect class="dg-caixa" x="576.5" y="40.5" width="119" height="39" rx="6"/>
+<text class="dg-n dg-m" x="588" y="64">CRC</text>
+<text class="dg-n dg-m" x="684" y="64" text-anchor="end">mín/máx</text>
+<rect class="dg-caixa" x="576.5" y="88.5" width="119" height="39" rx="6"/>
+<text class="dg-n dg-m" x="588" y="112">CRC</text>
+<text class="dg-n dg-m" x="684" y="112" text-anchor="end">mín/máx</text>
+<rect class="dg-caixa" x="576.5" y="136.5" width="119" height="39" rx="6"/>
+<text class="dg-n dg-m" x="588" y="160">CRC</text>
+<text class="dg-n dg-m" x="684" y="160" text-anchor="end">mín/máx</text>
+<polyline class="dg-fio-acento" points="440,80 568,80" marker-end="url(#15-caminho-ponta-acento)"/>
+<text class="dg-n dg-c2" x="456" y="104">selar:</text>
+<text class="dg-n dg-c2" x="456" y="120">60 registros,</text>
+<text class="dg-n dg-c2" x="456" y="136">virada do dia,</text>
+<text class="dg-n dg-c2" x="456" y="152">correção do NTP</text>
+<text class="dg-n dg-c2" x="64" y="248">arquivos diários, do mais antigo ao de hoje</text>
+<rect class="dg-caixa-apagada" x="64.5" y="264.5" width="119" height="31" rx="6"/>
+<text class="dg-n dg-m dg-c2" x="124" y="284" text-anchor="middle">AAAAMMDD.h5</text>
+<rect class="dg-caixa" x="192.5" y="264.5" width="119" height="31" rx="6"/>
+<text class="dg-n dg-m" x="252" y="284" text-anchor="middle">AAAAMMDD.h5</text>
+<rect class="dg-caixa" x="320.5" y="264.5" width="119" height="31" rx="6"/>
+<text class="dg-n dg-m" x="380" y="284" text-anchor="middle">AAAAMMDD.h5</text>
+<rect class="dg-caixa" x="448.5" y="264.5" width="119" height="31" rx="6"/>
+<text class="dg-n dg-m" x="508" y="284" text-anchor="middle">AAAAMMDD.h5</text>
+<rect class="dg-caixa" x="576.5" y="264.5" width="119" height="31" rx="6"/>
+<text class="dg-n dg-m" x="636" y="284" text-anchor="middle">AAAAMMDD.h5</text>
+<text class="dg-n dg-c2" x="64" y="316">o mais antigo: apagado acima de 86 %</text>
+<text class="dg-n dg-c2" x="696" y="316" text-anchor="end">hoje: nunca é apagado</text>
+<polyline class="dg-fio" points="636,184 636,264"/>
+<text class="dg-n dg-c2" x="628" y="232" text-anchor="end">o arquivo de hoje</text>
+</svg>
