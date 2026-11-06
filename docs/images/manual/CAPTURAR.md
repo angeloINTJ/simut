@@ -63,17 +63,17 @@ nesta pasta com o nome indicado e rode o script de novo.
 
 ## Capítulo 6 — Sensores e calibração
 
-- [ ] `06-editor-ds18b20.png` (Página web) — rota /config; largura 1280; sessão admin com a permissão Calibração; imagem release; editor do slot 2 aberto, DS18B20 ativo em GP2, relógio sincronizado por NTP, sem correção
+- [ ] `06-editor-ds18b20.png` (Página web) — rota /config; largura 1280; sessão admin com a permissão Calibração; imagem release; editor do slot 0 aberto, DS18B20 ativo em GP0, relógio sincronizado por NTP, sem correção
       O editor de um slot DS18B20: tipo, nome, ID de hardware, estado, o pino 1-Wire, o bloco de calibração e as operações de hardware.
 - [ ] `06-editor-bme280.png` (Página web) — rota /config; largura 390; sessão admin; imagem release; editor de um slot novo com o tipo BME280 escolhido, Pino 0 — SDA em GP4, Pino 1 — SCL em GP5, ID de hardware e nome preenchidos, Ativo ligado, ainda não gravado
       Um slot novo de BME280 no celular: dois seletores de pino, SDA e SCL.
-- [ ] `06-editor-aviso.png` (Página web) — rota /config; largura 1280; sessão admin; editor de um slot DHT22 ativo com o pino Data em GP4, que já pertence ao slot 2; a linha vermelha mostra GP4 já está em uso pelo slot 2.
+- [ ] `06-editor-aviso.png` (Página web) — rota /config; largura 1280; sessão admin; editor do slot 1, DHT22 ativo, com o pino Data trocado para GP4, que já pertence ao slot 2 (o BMP280); a linha vermelha mostra GP4 já está em uso pelo slot 2.
       O editor avisando um conflito de GPIO antes da gravação.
-- [ ] `06-procurar.png` (Página web) — rota /config; largura 1280; sessão admin; imagem release; um DS18B20 em GP2 e um DHT22 em GP3 ligados; logo depois de tocar em Procurar sondas e a busca terminar; recorte dos botões e da linha de resultado
-      O resultado da busca: a ROM identifica o DS18B20; o DHT22 aparece só com o pino.
-- [ ] `06-painel-sensor.png` (Tela do painel) — screen dash; 2 sensores ativos (um DS18B20 e um BME280), ambos lendo, nenhum em alarme
+- [ ] `06-procurar.png` (Página web) — rota /config; largura 1280; sessão admin; imagem release; os sensores da bancada ligados (DS18B20 no GP0 e no GP1, DHT22 no GP3 e no GP10, BMP280 no GP4/GP5); logo depois de tocar em Procurar sondas e a busca terminar; recorte dos botões e da linha de resultado
+      O resultado da busca: a ROM identifica cada DS18B20; o DHT22 aparece só com o pino.
+- [ ] `06-painel-sensor.png` (Tela do painel) — screen dash; 2 sensores ativos (o DS18B20 do GP0 e o BMP280 do GP4/GP5), ambos lendo, nenhum em alarme
       A tela inicial do painel com dois sensores lendo normalmente.
-- [ ] `06-painel-erro.png` (Tela do painel) — screen dash; 2 sensores ativos; a sonda DS18B20 desligada do pino há mais de 3 leituras, alarmes do slot ligados
+- [ ] `06-painel-erro.png` (Tela do painel) — screen dash; 2 sensores ativos, os dois DS18B20 (GP0 e GP1); o do GP1 solto da protoboard há mais de 3 leituras, alarmes do slot ligados
       Um sensor em erro no painel: o cartão mostra Erro no lugar da temperatura e fica âmbar pelo alarme de falha.
 - [ ] `06-calibracao.png` (Página web) — rota /config; largura 1280; sessão admin com a permissão Calibração; editor de um slot DHT22 ativo; relógio sincronizado por NTP; Temp com 2 pontos preenchidos e Reta escolhida; Umid sem correção; recorte do bloco Calibração
       O bloco Calibração de um DHT22. Cada grandeza tem sua linha de leitura, o mini gráfico da correção e seus pontos.
@@ -84,7 +84,7 @@ nesta pasta com o nome indicado e rode o script de novo.
 
 ## Capítulo 7 — Alarmes, sons e janelas de manutenção
 
-- [ ] `07-painel-falha.png` (Tela do painel) — screen dash; 2 sensores ativos; o DS18B20 do cartão de baixo desligado do pino há mais de 3 leituras; captura na fase âmbar da piscada
+- [ ] `07-painel-falha.png` (Tela do painel) — screen dash; 2 sensores ativos, os dois DS18B20 (GP0 e GP1); o do GP1, no cartão de baixo, solto da protoboard há mais de 3 leituras; captura na fase âmbar da piscada
       Um alarme de falha no painel: o cartão pisca em âmbar e mostra Erro no lugar do valor.
 - [ ] `07-menu-sensor-manut.png` (Tela do painel) — menu do sensor aberto por uma conta que tem só a permissão Manut. (painel); caminho: tela inicial, botão de configurações, conta, PIN, Limites de Alarme, sensor
       O mesmo menu para uma conta só com Manut. (painel): as duas primeiras linhas apagadas, com cadeado, e a seleção em Manutenção.
@@ -105,7 +105,7 @@ nesta pasta com o nome indicado e rode o script de novo.
       No celular, o selo de permissões aberto mostra os nomes de cada permissão da conta.
 - [ ] `08-usuarios-nova.png` (Página web) — rota /users; largura 1280; sessão admin; uma conta nova preparada com as permissões Painel e Histórico, ainda não gravada; linha com Pendente: Novo e o botão desfazer
       Uma conta preparada e ainda não gravada.
-- [ ] `08-senha-temporaria.png` (Página web) — rota /users; largura 1280; sessão admin; logo depois de Salvar e reiniciar com uma conta nova chamada operador1; janela Senha temporária aberta; senha fictícia
+- [ ] `08-senha-temporaria.png` (Página web) — rota /users; largura 1280; sessão admin; logo depois de Aplicar agora com uma conta nova chamada operador1; janela Senha temporária aberta; a senha trocada na página por uma fictícia no mesmo formato
       A janela Senha temporária, com a senha de uso único da conta criada.
 - [ ] `08-quem.png` (Tela do painel) — screen pin; contas admin, operador1 e manutencao com PIN; nenhuma bloqueada
       A tela Quem está usando o painel?, com as contas que têm PIN.
@@ -164,7 +164,7 @@ nesta pasta com o nome indicado e rode o script de novo.
 
 ## Capítulo 11 — O painel original (Pico W)
 
-- [ ] `11-principal.png` (Tela do painel) — screen dash; 3 sensores ativos: DS18B20 no slot 0 (fixado no cartão de cima), DHT22 no slot 1 (selecionado) e BME280 no slot 2; Wi-Fi conectado com sinal forte; 12 registros pendentes; relógio acertado; nenhum alarme
+- [ ] `11-principal.png` (Tela do painel) — screen dash; 3 sensores ativos: DS18B20 no slot 0 (fixado no cartão de cima), DHT22 no slot 1 (selecionado) e BMP280 no slot 2; Wi-Fi conectado com sinal forte; 12 registros pendentes; relógio acertado; nenhum alarme
       A tela inicial: a barra de cima, os dois cartões e a barra de botões com S1, S2 e CFG.
 - [ ] `11-pendentes-falha.png` (Tela do painel) — screen dash; telemetria ligada com o coletor fora do ar há alguns minutos; recorte da barra de cima com a contagem de pendentes em vermelho
       A contagem de pendentes em vermelho: o último envio falhou.
@@ -172,17 +172,17 @@ nesta pasta com o nome indicado e rode o script de novo.
       O aviso de entrada pela web, no lugar da data e da hora.
 - [ ] `11-selecao.png` (Tela do painel) — screen dash; 3 sensores ativos; segure o dedo no cartão de cima por 3 s e solte; a ferramenta de mapa de telas não faz o gesto de segurar
       O cartão de cima em seleção: cinza, espelhando o sensor do cartão de baixo.
-- [ ] `11-paginas.png` (Tela do painel) — screen dash; 7 sensores ativos, nenhum fixado fora da primeira página; barra de botões na primeira página, com S e o botão 1/2
+- [ ] `11-paginas.png` (Tela do painel) — screen dash; 7 slots ativos (os 5 sensores da bancada e 2 slots DS18B20 num pino vazio, com o alarme desligado), nenhum fixado fora da primeira página; barra de botões na primeira página, com S e o botão 1/2
       A barra de botões com páginas: quatro botões e o botão de página à direita.
 - [ ] `11-web-ocupado.png` (Tela do painel) — screen dash; durante a exportação em CSV de um dia de histórico pela conta admin, na página Histórico e Logs
       O aviso de web ocupada: WEB ‘admin’ - toque bloqueado.
 - [ ] `11-carregando.png` (Tela do painel) — tela MODE_GRAPH_LOADING; aparece por instantes ao abrir um gráfico a partir da tela inicial; transitória, pode exigir várias tentativas de captura
       A tela Carregando…, ao abrir um gráfico.
-- [ ] `11-detalhe-temp.png` (Tela do painel) — screen gra -> tap(160,120); gráfico de um BME280 aberto antes, em 24H
+- [ ] `11-detalhe-temp.png` (Tela do painel) — screen gra -> tap(160,120); gráfico do BMP280 aberto antes, em 24H
       O detalhe numérico, página de temperatura: máximo, mínimo, média e desvio.
-- [ ] `11-detalhe-umid.png` (Tela do painel) — screen gra -> tap(160,120) -> tap(160,120); mesmo BME280
+- [ ] `11-detalhe-umid.png` (Tela do painel) — screen gra -> tap(160,120) -> tap(160,120); gráfico do DHT22 aberto antes, em 24H; a segunda página do DHT22 é a umidade
       A página de umidade do detalhe.
-- [ ] `11-detalhe-pressao.png` (Tela do painel) — screen gra -> tap(160,120) -> tap(160,120) -> tap(160,120); mesmo BME280
+- [ ] `11-detalhe-pressao.png` (Tela do painel) — screen gra -> tap(160,120) -> tap(160,120); gráfico do BMP280 aberto antes, em 24H; a segunda página do BMP280 é a pressão
       A página de pressão do detalhe.
 - [ ] `11-mira.png` (Tela do painel) — screen touchcal e complete a etapa de sensibilidade com o dedo; capture a primeira mira, no canto de cima à esquerda; o toque simulado não completa a sensibilidade, porque não tem pressão
       A etapa de posição: a primeira mira, Toque na mira (1/4) e a volta [ 1 / 2 ].
@@ -221,8 +221,8 @@ nesta pasta com o nome indicado e rode o script de novo.
       A gaveta de uma conta com Painel e Histórico: só Painel de Controle, Histórico e Logs e Licença aparecem.
 - [ ] `13-acesso-negado.png` (Página web) — rota /; largura 1280; sessão de um operador sem a permissão Painel, logo depois de entrar
       A resposta Access Denied, que uma conta sem a permissão Painel recebe ao entrar.
-- [ ] `13-painel-de-controle-alpha.png` (Página web) — rota /; largura 1280; sessão admin; imagem alpha; 1 sensor DHT22 ativo; telemetria desligada
-      O Painel de Controle numa imagem sem painel com toque: uma coluna só, sem o bloco Tela.
+- [ ] `13-painel-de-controle-alpha.png` (Página web) — rota /; largura 1280; sessão admin; imagem alpha, com o TFT fora e o LCD 16x2 nos GP16 a GP21; 1 sensor DHT22 ativo; telemetria desligada; bloco Tela depois de tocar em Capturar
+      O Painel de Controle na alpha: o bloco Tela, numa linha própria acima dos cartões, mostra o LCD 16x2.
 - [ ] `13-painel-de-controle-celular.png` (Página web) — rota /; largura 390; sessão admin; imagem release; 2 sensores ativos; página rolada até a tabela de sensores
       O Painel de Controle no celular: os cartões em duas colunas e a tabela de sensores, que rola para o lado.
 - [ ] `13-espelho-ao-vivo.png` (Página web) — rota /; largura 1280; sessão admin; imagem release; Ao vivo ligado; o painel está na tela inicial com 2 sensores; recorte do bloco Tela com a linha de estado mostrando fps, kB e s
@@ -242,13 +242,13 @@ nesta pasta com o nome indicado e rode o script de novo.
       Legenda: o registro nasce na RAM, é copiado para o .wip na hora e vai para o arquivo do dia quando o bloco sela.
 - [ ] `15-sensores.png` (Página web) — rota /history; largura 1280; sessão admin; lista Origem aberta com 3 sensores, dois marcados; recorte do cartão da esquerda
       A lista de sensores aberta. O ponto colorido é a cor da série no gráfico.
-- [ ] `15-calendario.png` (Página web) — rota /history; largura 1280; sessão admin; mês de setembro de 2026 com os dias 1 a 23 destacados; dia 22 selecionado; recorte do calendário
+- [ ] `15-calendario.png` (Página web) — rota /history; largura 1280; sessão admin; histórico sintético (tools/gen_synth_history.py) em pelo menos 20 dias do mês da captura; um dia com dados selecionado; recorte do calendário
       O calendário com os dias que têm dados destacados. O dia tocado fica selecionado, e o gráfico mostra as 24 horas dele.
 - [ ] `15-grafico-dois.png` (Página web) — rota /history; largura 1280; sessão admin; dois sensores marcados, um DS18B20 e um DHT22; período 24h; legenda visível; tooltip aberto sobre um ponto; eixos °C e %RH
       Dois sensores no mesmo gráfico: temperatura no eixo da esquerda, umidade tracejada no da direita, e a legenda no topo.
-- [ ] `15-baldes.png` (Página web) — rota /history; largura 1280; sessão admin; um sensor DS18B20 de geladeira; período 7d; faixa mínimo-máximo visível em torno da linha média, com os ciclos de degelo; tooltip mostrando o valor e a faixa entre colchetes
+- [ ] `15-baldes.png` (Página web) — rota /history; largura 1280; sessão admin; um sensor DS18B20 com histórico sintético de geladeira (tools/gen_synth_history.py); período 7d; faixa mínimo-máximo visível em torno da linha média, com os ciclos de degelo; tooltip mostrando o valor e a faixa entre colchetes
       Uma semana em baldes: a linha é a média de cada balde, e a faixa sombreada vai do mínimo ao máximo. O pico do degelo aparece mesmo resumido.
-- [ ] `15-carregando.png` (Página web) — rota /history; largura 1280; sessão admin; período MAX com 60 dias no aparelho; carga em andamento na metade, barra mostrando Arquivos: 31/60 e os KB recebidos, botão Cancelar visível
+- [ ] `15-carregando.png` (Página web) — rota /history; largura 1280; sessão admin; período MAX com 60 dias de histórico sintético no aparelho; carga em andamento na metade, barra mostrando Arquivos: 31/60 e os KB recebidos, botão Cancelar visível
       A carga de um período longo: a barra conta os arquivos baixados, e Cancelar deixa na tela a parte mais recente.
 - [ ] `15-celular.png` (Página web) — rota /history; largura 390; sessão admin; um sensor; período 24h; tooltip aberto por toque
       A página no celular, com o gráfico abaixo do calendário e a leitura de um ponto aberta pelo toque.
