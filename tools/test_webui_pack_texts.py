@@ -133,6 +133,7 @@ const MARK = new Proxy({}, { get: (_, k) => '[' + String(k) + ']' });
 const STATES = [
     { pct: 0,   ok: 0, fail: 0, chunkSecs: 86400, etaMs: -1 },
     { pct: 40,  ok: 3, fail: 2, chunkSecs: 86400, etaMs: 45000 },
+    { pct: 50,  ok: 3, fail: 1, chunkSecs: 86400, etaMs: 60000 },
     { pct: 55,  ok: 4, fail: 0, chunkSecs: 43200, etaMs: 125000 },
     { pct: 70,  ok: 5, fail: 0, chunkSecs: 86400, etaMs: 1500000 },
     { pct: 100, ok: 7, fail: 0, chunkSecs: 86400, etaMs: 0 },
@@ -166,16 +167,33 @@ function run(dict) {
     const escHtml = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
     let _expAbort = null, _expCancelled = false;
     __CODE__
-    for (const st of STATES) _showExpProgress(st);
+    const counters = [];   /* what the failure counter says after each state, with the number of failures that state holds */
+    for (const st of STATES) { _showExpProgress(st); counters.push([st.fail, document.getElementById('expN').textContent]); }
     const x = document.getElementById('expX');
     if (x && x.onclick) x.onclick();
     _hideExpProgress();
-    return { texts, asked, gone: !document.getElementById('expOv') };
+    return { texts, asked, counters, gone: !document.getElementById('expOv') };
 }
-const out = { marker: run(MARK), dicts: {} };
+const out = { marker: run(MARK), english: run(null), dicts: {} };
 for (const [lang, d] of Object.entries(__DICTS__)) out.dicts[lang] = run(d);
 console.log(JSON.stringify(out));
 """
+
+
+# The failure counter says "<n> <word>": a word that is the same for 1 and for many, in each language. The dashboard's
+# dash_metr_err ("err", "erro", "error") was reused here and wrote "2 erro" and "2 error".
+COUNTER_WORDS = {"English": "failed", "pt-BR": "com falha", "es-ES": "con fallo"}
+
+
+def export_class(finding):
+    """The kind of finding, for the mutants: what a violation must show up as."""
+    f = re.sub(r"^(as written|minified): ", "", finding)
+    for tag, pat in (("typed", "typed into the page"), ("counter", "failure counter reads"), ("key", "does not ask for exp_failed"),
+                     ("packkey", "@WEBDICT has no"), ("copy", "is the English"), ("leak", "still shows the English"),
+                     ("left", "leaves the box")):
+        if pat in f:
+            return tag
+    return "other"
 
 
 def export_box_code(src):
@@ -207,6 +225,16 @@ def export_box_findings(code, ns, dicts):
         for words, shown in sorted(typed.items()):
             found.append(f"{label}: the box shows {words!r}, typed into the page and not asked of window.t( ) "
                          f"(in {', '.join(repr(t) for t in sorted(shown)[:3])})")
+        asked = marker["asked"]
+        if "exp_failed" not in asked or "dash_metr_err" in asked:
+            found.append(f"{label}: the failure counter does not ask for exp_failed, or still asks for the dashboard's dash_metr_err "
+                         f"(the box asks for {sorted(asked)}): that word is a noun that is wrong for a count ('2 erro')")
+        for who, run_ in [("English", res["english"])] + [(lang, res["dicts"][lang]) for lang in dicts]:
+            word = COUNTER_WORDS[who]
+            want = [[n, f"{n} {word}"] for n, _ in run_["counters"]]
+            if run_["counters"] != want:
+                found.append(f"{label}: {who}: the failure counter reads {[t for _, t in run_['counters']]} for "
+                             f"{[n for n, _ in run_['counters']]} failures, wanted {[t for _, t in want]}: one word that reads right for 1 and for many")
         for lang, d in dicts.items():
             for k, en in res["dicts"][lang]["asked"].items():
                 tr = d.get(k, "")
@@ -231,17 +259,20 @@ def test_export_box(src, ns, dicts):
         fails.append(f"export box: {f}")
 
 
-# Each mutant puts one violation back into the fixed code and must give exactly
-# the findings listed (the as-written and minified runs of one violation count
-# as one): a typed text is one finding; a key no pack has is one per pack.
+# Each mutant puts one violation back into the fixed code and must show up as
+# exactly the classes of finding listed (the as-written and minified runs, and the
+# packs, of one violation count as one class).
 EXPORT_MUTANTS = [
     ("the title typed in English",
-     r"escHtml\(window\.t\('exp_title', 'Exporting\.\.\.'\)\)", "'Exporting...'", 1),
+     r"escHtml\(window\.t\('exp_title', 'Exporting\.\.\.'\)\)", "'Exporting...'", {"typed"}),
     ("the Cancel button typed in Portuguese",
-     r"escHtml\(window\.t\('hist_cancel', 'Cancel'\)\)", "'Cancelar'", 1),
+     r"escHtml\(window\.t\('hist_cancel', 'Cancel'\)\)", "'Cancelar'", {"typed"}),
     ("the error counter typed as 'err'",
-     r"' ' \+ window\.t\('dash_metr_err', 'err'\)", "' err'", 1),
-    ("a key that no pack has", r"'exp_title'", "'exp_titulo_que_nao_existe'", 2),
+     r"' ' \+ window\.t\('exp_failed', 'failed'\)", "' err'", {"typed", "counter", "key"}),
+    ("the error counter back on the dashboard's noun (the review's finding: '2 erro')",
+     r"window\.t\('exp_failed', 'failed'\)", "window.t('dash_metr_err', 'err')", {"counter", "key"}),
+    ("a key that no pack has", r"'exp_title'", "'exp_titulo_que_nao_existe'", {"packkey"}),
+    ("a counter key that no pack has", r"'exp_failed'", "'exp_falhou_que_nao_existe'", {"packkey", "counter", "key"}),
 ]
 
 
@@ -255,8 +286,8 @@ def test_export_mutants(src, ns, dicts):
         if not check(n == 1, f"export mutant {name!r}: its pattern matches {n} times in the code, not once "
                              f"(the mutant no longer describes the code: update it)"):
             continue
-        got = {re.sub(r"^(as written|minified): ", "", f) for f in export_box_findings(mutated, ns, dicts)}
-        check(len(got) == want, f"export mutant {name!r}: {len(got)} findings, not {want}: {sorted(got)}")
+        got = {export_class(f) for f in export_box_findings(mutated, ns, dicts)}
+        check(got == want, f"export mutant {name!r}: found as {sorted(got)}, wanted {sorted(want)}")
 
 
 # ── the link state of the network page ─────────────────────────────────────

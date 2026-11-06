@@ -3450,7 +3450,7 @@ global.Chart = H5G;
             document.getElementById('expF').style.width = state.pct + '%';
             document.getElementById('expP').textContent = state.pct + '%';
             document.getElementById('expK').textContent = state.ok + ' OK';
-            document.getElementById('expN').textContent = state.fail + ' ' + window.t('dash_metr_err', 'err');
+            document.getElementById('expN').textContent = state.fail + ' ' + window.t('exp_failed', 'failed');
             document.getElementById('expC').textContent = (state.chunkSecs/3600) + 'h';
             const e = document.getElementById('expE');
             if (state.pct >= 100) e.textContent = 'OK';
