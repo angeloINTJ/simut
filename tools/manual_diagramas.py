@@ -86,6 +86,8 @@ LOGPOLICY_CPP = 'src/LogPolicy.cpp'
 WEBUI = 'WebUI.h'
 OTA_STAGING = 'src/ota/staging.cpp'
 OTA_APPLIER = 'src/ota/applier.cpp'
+AIR_CPP = 'src/AppManager_Air.cpp'
+APP_H = 'src/AppManager.h'
 LOG_MANAGER = 'src/LogManager.cpp'
 NET_LINK = 'src/net/NetLink.h'
 
@@ -156,6 +158,12 @@ FIGURAS = (
            'as etapas de uma atualização no Pico W, numa linha em escala (o backup, o envio e a conferência da imagem, a aplicação, o boot da imagem nova), e o que um corte de energia custa em cada uma; '
            'os tempos do envio e da volta da interface web são os medidos que o capítulo traz (v2.7.0, 22/09/2026), os da aplicação e do boot são as estimativas da janela de confirmação de WebUI.h, e que o envio '
            'só escreve na área de preparo e que só a aplicação reescreve o programa são trechos de src/ota/staging.cpp e src/ota/applier.cpp que o código tem de manter'),
+    Figura('fig-19-despertar', '19-despertar.svg', 'cap19-air.md', 'desenho_despertar',
+           'dois despertares do Air, cada um em escala, num intervalo de 60 s: o de leitura (boot, aquecimento de 0,4 s, amostragem e a decisão que grava o histórico, a 9,31 s do boot) e o de telemetria, que '
+           'repete as larguras até a decisão e acrescenta a conexão e o envio, até cerca de 12,7 s; GP16 alto durante todo o despertar, a faixa do rádio ligado só no de telemetria e o sono entre eles fora de '
+           'escala; o aquecimento vem de src/AppManager_Air.cpp; a ordem das fases, o rádio que a leitura nunca liga, o Wi-Fi em paralelo na amostragem, a decisão que grava o histórico antes de escolher e o fim do '
+           'GP16 e do rádio no sono são trechos de src/AppManager.h, src/AppManager_Boot.cpp e src/AppManager_Air.cpp que o código tem de manter; o boot de 2,47 s e os totais de 9,31 s e 12,7 s são os medidos '
+           'na bancada em 08/09/2026, conferidos com o capítulo 19 e com a análise de energia'),
     Figura('fig-15-caminho', '15-caminho.svg', 'cap15-historico.md', 'desenho_caminho_historico',
            'o caminho de um registro: o bloco aberto na RAM, a cópia em .wip, a selagem no arquivo do dia e a fila de arquivos diários, com o limite de ocupação que apaga o mais antigo; '
            'os registros por bloco vêm de src/HistoryV5.h, o limite de src/StorageManager.cpp e os nomes de src/StorageManager.h e src/HistoryV5.h'),
@@ -344,6 +352,11 @@ DURACAO_H, ENVIOS_CADA_MIN, FORA_DO_AR_MIN = 3, 10, (65, 95)
 # The measured times of an update, chapter 17's table of "Tempos medidos" (cap17-atualizacao-backup.md, the first two rows): the send and the check of the image, 34,9 to 35,9 s, and the return of the
 # web interface after the apply, 52 to 56 s, both on the bench with v2.7.0 on 2026-09-22 (six updates). Measurements, not code: the test checks that the chapter still says them.
 ENVIO_MEDIDO_S, VOLTA_MEDIDA_S, MEDIDO_EM = (34.9, 35.9), (52, 56), 'v2.7.0, 22/09/2026'
+# The Air's wake, measured on the bench on 2026-09-08 (docs/analysis/SIMUT_AIR_PLANO_ENERGIA.md section 10.1; chapter 19's table "Tempos medidos" gives the second and the third): the setup until the
+# first phase, 2,47 s (the end of setup( ), where the WARMUP phase begins: section 9.1 of the same analysis, `phase=WARMUP`); the wake until the decision, 9,31 s; and a wake with telemetry, about
+# 12,7 s. The figure's interval of 60 s is the one the chapter measured with (1 min). Measurements, not code: the test checks that the chapter and the analysis still say them.
+AIR_SETUP_S, AIR_ATE_DECIDIR_S, AIR_DESPERTAR_TELEMETRIA_S, AIR_INTERVALO_S = 2.47, 9.31, 12.7, 60
+ESCALA_DESPERTAR = 24      # px a second in the wake figure: a sixth of a second a grid step
 
 IMAGEM_DO_PERFIL = {'release': 'pico_w_release', 'alpha': 'pico_w_alpha', 'air': 'pico_w_air'}
 
@@ -841,6 +854,26 @@ class Numeros:
         f.exigir(OTA_APPLIER, r'flash_range_program\(i \* OTA_FLASH_SECTOR_SIZE,\s+s_applier_buf, OTA_FLASH_SECTOR_SIZE\);',
                  'the applier rewrites the program from the start of the flash, the one window in which a cut leaves the device without firmware, which is what the figure of the update draws')
         return {'aplicacao': aplicacao, 'boot': boot}
+
+
+    def despertar(self):
+        """What the Air wake figure draws that the code says: the warm-up, in seconds (the literal of the WARMUP phase). Premises, refused when the code drifts: the phases come in the order
+        warm-up, sampling, decision, connection, send, sleep; a reading-only wake never starts the network; the sampling connects the Wi-Fi in parallel on a telemetry wake; the decision always writes
+        the history and only then chooses the radio (when there is a link) or the sleep; GP16, which powers the sensors, rises at the start of the boot and falls when the wake goes to sleep, which is
+        also where the radio is powered down. The measured times are constants of the tool."""
+        f = self.f
+        aquecimento = int(f.achar(AIR_CPP, r'case AIR_PHASE_WARMUP: \{[\s\S]*?if \(timeSince\(_airPhaseTimer, (\d+)\)\) \{\s+_airPhase = AIR_PHASE_SAMPLE;').group(1))
+        f.exigir(APP_H, r'AIR_PHASE_OFF = 0,[^\n]*\n\s+AIR_PHASE_WARMUP,[^\n]*\n\s+AIR_PHASE_SAMPLE,[^\n]*\n\s+AIR_PHASE_DECIDE,[^\n]*\n\s+AIR_PHASE_PERSIST,[^\n]*\n\s+AIR_PHASE_CONNECT,[^\n]*\n\s+AIR_PHASE_FLUSH,[^\n]*\n\s+AIR_PHASE_SLEEP',
+                 'the phases of a wake come in this order (warm-up, sampling, decision, connection, send, sleep), which is the order of the figure of the wake')
+        f.exigir(BOOT, r'else if \(!_airRadioWake\) \{\s+/\* Reading-only wake: the network is not started at all\.',
+                 'a reading-only wake never starts the network, which is what the figure of the wake draws: the radio band only in the telemetry wake')
+        f.exigir(AIR_CPP, r'if \(_airRadioWake && !_airNetGaveUp\) \{\s+_netMgr->update\( \);', 'the sampling connects the Wi-Fi in parallel on a telemetry wake, which is what the figure of the wake draws')
+        f.exigir(AIR_CPP, r'processHistoryLogging\( \);[\s\S]*?_airPhase = online \? AIR_PHASE_CONNECT : AIR_PHASE_SLEEP;',
+                 'the decision always writes the history, and only then chooses the radio (when it has a link) or the sleep, which is what the figure of the wake draws')
+        f.achar(BOOT, r'airSensorPower\(AIR_SENSOR_POWER_PIN, true\)')
+        f.exigir(AIR_CPP, r'airSensorPower\(_airCfg\.sensorPowerPin, false\);[\s\S]*?net::powerDownForSleep\( \);',
+                 'the wake going to sleep is where GP16 falls and the radio is powered down, which is where the bands of the figure of the wake end')
+        return {'aquecimento_s': aquecimento / 1000}
 
 
 def pino_de(gpio):
@@ -2095,6 +2128,76 @@ def desenho_ota_linha_tempo(num, slug):
         rotulo(s, 44, y + 28, detalhes, 716)
         y += 16 + 16 * len(detalhes) + 16
     s.texto(16, y + 4, 'A figura é do Pico W. No Pico 2 W a imagem vai para o outro slot e o sistema de arquivos não é tocado.', 'dg-n dg-c2')
+    return s.render()
+
+
+def desenho_despertar(num, slug):
+    d = num.despertar()
+    gp = num.macro('AIR_SENSOR_POWER_PIN', 'air')
+    s = Svg(slug)
+    virgula = lambda x, casas: f'{x:.{casas}f}'.replace('.', ',')
+    q = lambda segundos: round(segundos * ESCALA_DESPERTAR / GRADE)            # seconds to grid steps (a step is 4 px)
+    aquecimento = d['aquecimento_s']
+    passos_boot, passos_aq, ate_decidir, total = q(AIR_SETUP_S), max(1, q(aquecimento)), q(AIR_ATE_DECIDIR_S), q(AIR_DESPERTAR_TELEMETRIA_S)
+    passos_am = ate_decidir - passos_boot - passos_aq                          # the sampling is what is left of the 9,31 s once the boot and the warm-up are taken out
+    if passos_am < 4:
+        raise Falta(f'{AIR_CPP}: the warm-up is {aquecimento} s, and with the boot of {AIR_SETUP_S} s it leaves no room for the sampling in the {AIR_ATE_DECIDIR_S} s the wake takes to decide')
+    w_boot, w_aq, w_am, w_env = passos_boot * GRADE, passos_aq * GRADE, passos_am * GRADE, (total - ate_decidir) * GRADE
+    x0, w_sono = 16, 160
+    y_titulo, y_valor, y_marca, y_gp, y_radio, y_fase = 28, 44, 52, 64, 84, 132
+    y_seta = y_fase + 20
+
+    def um(x, titulo, telemetria):
+        """One wake from x: the title, the mark that measures it, GP16's band, the radio's slot and the phases, to scale. The decision is a point (nobody measured how long it takes), where the
+        mark of the reading wake ends and the connection and the send begin."""
+        xa, xs = x + w_boot, x + w_boot + w_aq
+        xd = xs + w_am
+        fim = xd + (w_env if telemetria else 0)
+        s.texto(x, y_titulo, titulo, 'dg-t dg-b')
+        s.linha([(x, y_marca + 8), (x, y_marca), (fim if telemetria else xd, y_marca), (fim if telemetria else xd, y_marca + 8)], 'dg-fio-fino')
+        s.texto((x + (fim if telemetria else xd)) // 8 * 4, y_valor, f'cerca de {virgula(AIR_DESPERTAR_TELEMETRIA_S, 1)}\u00a0s' if telemetria else f'do boot até a decisão: {virgula(AIR_ATE_DECIDIR_S, 2)}\u00a0s', 'dg-n', 'middle')
+        s.caixa(x, y_gp, fim - x, 16, 'dg-caixa-2', 0)
+        s.texto(x + 8, y_gp + 12, [('dg-m', f'GP{gp}'), ('', ' alto')], 'dg-n')
+        if telemetria:
+            s.caixa(xa, y_radio, fim - xa, 40, 'dg-caixa-acento', 0)
+            s.texto(xa + 8, y_radio + 16, 'rádio ligado', 'dg-n dg-b dg-sobre-acento')
+            s.texto(xa + 8, y_radio + 32, 'Wi-Fi conecta na amostragem', 'dg-n dg-sobre-acento')
+        else:
+            s.texto(x + 8, y_radio + 24, 'rádio desligado', 'dg-n dg-c2')
+        s.caixa(x, y_fase, w_boot, 40, 'dg-caixa', 0)
+        s.caixa(xa, y_fase, w_aq, 40, 'dg-caixa', 0)
+        s.caixa(xs, y_fase, w_am, 40, 'dg-caixa', 0)
+        s.texto(x + w_boot // 2 // GRADE * GRADE, y_fase + 24, 'boot', 'dg-n', 'middle')
+        centro = xs + w_am // 2 // GRADE * GRADE
+        if telemetria:
+            s.texto(centro, y_fase + 24, 'amostragem', 'dg-n', 'middle')
+            s.caixa(xd, y_fase, w_env, 40, 'dg-caixa', 0)
+            s.texto(xd + w_env // 2 // GRADE * GRADE, y_fase + 16, 'conexão', 'dg-n', 'middle')
+            s.texto(xd + w_env // 2 // GRADE * GRADE, y_fase + 32, 'e envio', 'dg-n', 'middle')
+        else:
+            s.texto(centro, y_fase + 16, 'amostragem', 'dg-n', 'middle')
+            s.texto(centro, y_fase + 32, 'conversão do sensor', 'dg-n dg-c2', 'middle')
+        # the decision, a point on the line; the warm-up is too narrow for its own label, so it has a flag
+        s.no(xd, y_seta, 'dg-no', 8)
+        xf = xa + w_aq // 2 // GRADE * GRADE
+        s.linha([(xf, y_fase + 40), (xf, y_fase + 52)], 'dg-fio-fino')
+        s.texto(xf, y_fase + 64, f'aquecimento {virgula(aquecimento, 1)}\u00a0s', 'dg-n')
+        s.linha([(xd, y_seta + 8), (xd, y_fase + 72)], 'dg-fio-fino')
+        s.texto(xd, y_fase + 84, 'decisão: grava o histórico', 'dg-n', 'end')
+        return fim
+
+    fim1 = um(x0, 'despertar de leitura', False)
+    x1 = fim1 + w_sono
+    s.caixa(fim1 + 8, y_fase, w_sono - 8, 40, 'dg-caixa-apagada', 0)
+    meio = fim1 + 8 + (w_sono - 8) // 2 // GRADE * GRADE
+    s.texto(meio, y_fase + 16, 'sono, até completar', 'dg-n', 'middle')
+    s.texto(meio, y_fase + 32, f'o intervalo de {AIR_INTERVALO_S}\u00a0s', 'dg-n', 'middle')
+    s.texto(meio, y_fase + 64, 'fora de escala', 'dg-n dg-c2', 'middle')
+    um(x1, 'despertar de telemetria', True)
+    y_nota = y_fase + 112
+    s.texto(x0, y_nota, 'Em escala. Têm tempo conhecido: os totais, o aquecimento e o boot; a amostragem e o envio são o que falta.', 'dg-n dg-c2')
+    s.texto(x0, y_nota + 16, 'O despertar de telemetria repete as larguras do de leitura até a decisão.', 'dg-n dg-c2')
+    s.texto(x0, y_nota + 32, 'O rádio liga no boot, só no despertar de telemetria; onde a faixa começa não foi medido.', 'dg-n dg-c2')
     return s.render()
 
 

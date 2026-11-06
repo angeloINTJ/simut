@@ -81,6 +81,8 @@ LOGPOLICY_CPP = 'src/LogPolicy.cpp'
 WEBUI = 'WebUI.h'
 OTA_STAGING = 'src/ota/staging.cpp'
 OTA_APPLIER = 'src/ota/applier.cpp'
+AIR_CPP = 'src/AppManager_Air.cpp'
+APP_H = 'src/AppManager.h'
 BOOT = 'src/AppManager_Boot.cpp'
 
 
@@ -347,6 +349,17 @@ def main():
                 and f'Aplicação, os cerca de {ota["aplicacao"]} s em que a imagem é copiada' in cap17,
                 f'chapter 17 does not say the times of the figure: send {m.ENVIO_MEDIDO_S}, back {m.VOLTA_MEDIDA_S}, apply {ota["aplicacao"]} s',
                 'the update timeline\'s times (the measured send and the measured return, with their version and date, and the apply\'s "cerca de 25 s" read from the web page) are the ones chapter 17 gives')
+        # the Air wake's measured times (constants of the tool), against chapter 19's table and the energy analysis, which measured them
+        cap19 = (m.CAPITULOS / 'cap19-air.md').read_text(encoding='utf-8')
+        plano = (m.ROOT / 'docs' / 'analysis' / 'SIMUT_AIR_PLANO_ENERGIA.md').read_text(encoding='utf-8')
+        vir = lambda x: str(x).replace('.', ',')
+        confere(f'| Despertar de leitura, do boot até a decisão | {vir(m.AIR_ATE_DECIDIR_S)} s, dos quais ' in cap19 and f'| Despertar de telemetria | cerca de {vir(m.AIR_DESPERTAR_TELEMETRIA_S)} s |' in cap19
+                and f'com o **Intervalo Histórico** de {m.AIR_INTERVALO_S // 60} min' in cap19
+                and f'| `setup( )` até a primeira fase | 10,73 s | **{vir(m.AIR_SETUP_S)} s** |' in plano and f'| wake até o DECIDE | 25,55 s | **{vir(m.AIR_ATE_DECIDIR_S)} s** |' in plano
+                and '`[AIR] phase=WARMUP @10733` | fim do `setup( )`' in plano,
+                f'chapter 19 or the energy analysis does not say the wake times of the figure: setup {m.AIR_SETUP_S} s (where setup( ) ends and the WARMUP phase begins), to the decision {m.AIR_ATE_DECIDIR_S} s, telemetry {m.AIR_DESPERTAR_TELEMETRIA_S} s, '
+                f'interval {m.AIR_INTERVALO_S} s',
+                'the Air wake figure\'s measured times (the setup until the first phase, the wake until the decision, the telemetry wake and the interval they were measured with) are the ones chapter 19\'s table and the energy analysis (08/09/2026) give')
 
         # ---- the builder's guards --------------------------------------------------------------------------------------------------------------------------
         s = m.Svg('99-teste', 100)
@@ -472,7 +485,7 @@ def main():
                 ('TFT_CS 28 -> 21, the release\'s chip select', [(CONFIG, '#define TFT_CS 28', '#define TFT_CS 21', 1)], {'02-pinos-release.svg'}),
                 ('HD44780_D7 21 -> 28, the alpha\'s last data line', [(CONFIG, '#define HD44780_D7 21', '#define HD44780_D7 28', 1)], {'02-pinos-alpha.svg'}),
                 ('AIR_CHARGER_PIN 17 -> 21', [(CONFIG, '#define AIR_CHARGER_PIN 17', '#define AIR_CHARGER_PIN 21', 1)], {'02-pinos-air.svg', '02-air-energia.svg'}),
-                ('AIR_SENSOR_POWER_PIN 16 -> 21', [(CONFIG, '#define AIR_SENSOR_POWER_PIN 16', '#define AIR_SENSOR_POWER_PIN 21', 1)], {'02-pinos-air.svg', '02-air-energia.svg'}),
+                ('AIR_SENSOR_POWER_PIN 16 -> 21', [(CONFIG, '#define AIR_SENSOR_POWER_PIN 16', '#define AIR_SENSOR_POWER_PIN 21', 1)], {'02-pinos-air.svg', '02-air-energia.svg', '19-despertar.svg'}),
                 ('MAX_SENSORS 16 -> 11 (the LAN build\'s slots): the three maps, the two figures whose note names the range and the block diagram\'s GP range, not the BME280\'s',
                  [(CONFIG, '#define MAX_SENSORS 16 ', '#define MAX_SENSORS 11 ', 1)], set(mapas) | {'02-ds18b20.svg', '02-dht22.svg', '01-arquitetura.svg'}),
                 ('SPI0\'s MISO named GP21 in the TFT section', [(CONFIG, 'MOSI=GP19, MISO=GP16, SCK=GP18', 'MOSI=GP19, MISO=GP21, SCK=GP18', 1)], {'02-pinos-release.svg'}),
@@ -562,6 +575,7 @@ def main():
                 ('the name of the accounting event 5 in the log code table', [(LOGCODES, 'Routine log records suppressed\tRegistros de rotina suprimidos\t', 'Routine log records suppressed\tRegistros suprimidos\t', 1)], {'16-transicao.svg'}),
                 ('the web page\'s estimate of the apply 25 s -> 30 s', [(WEBUI, 'Apply + reboot: ~25 s', 'Apply + reboot: ~30 s', 1)], {'17-ota-linha-tempo.svg'}),
                 ('the web page\'s estimate of the boot 25 s -> 30 s', [(WEBUI, 'Full boot: ~25 s', 'Full boot: ~30 s', 1)], {'17-ota-linha-tempo.svg'}),
+                ('the Air\'s warm-up 400 ms -> 800 ms', [(AIR_CPP, 'if (timeSince(_airPhaseTimer, 400)) {', 'if (timeSince(_airPhaseTimer, 800)) {', 1)], {'19-despertar.svg'}),
                 ('the BME280 probe pair (4, 5) -> (6, 7)', [(BME_SENSOR, 'probe(4, 5, BME280_ADDR_PRIMARY)', 'probe(6, 7, BME280_ADDR_PRIMARY)', 1)], {'02-bmx280.svg'}),
                 ('the BME280 addresses 0x76/0x77 -> 0x75/0x78 in the driver, code and comments', [(BME_DRIVER, '0x76', '0x75', None), (BME_DRIVER, '0x77', '0x78', None)], {'02-bmx280.svg'}),
             ]
@@ -651,6 +665,12 @@ def main():
             ('the telemetry failure is no longer a fault of its family', [(LOGPOLICY_CPP, 'LOGPOL_RULE(SYS_TEL_FAIL,             LOGGRP_TEL,  1),', 'LOGPOL_RULE(SYS_TEL_FAIL,             LOGGRP_TEL,  0),', 1)], 'one family', '16-transicao.svg'),
             ('the stage no longer writes the staging area', [(OTA_STAGING, 'uint32_t flash_offs = OTA_STAGING_OFFSET + offset_in_staging;', 'uint32_t flash_offs = OTA_APP_OFFSET + offset_in_staging;', None)], 'staging area', '17-ota-linha-tempo.svg'),
             ('the applier no longer rewrites the program from the start of the flash', [(OTA_APPLIER, 'flash_range_program(i * OTA_FLASH_SECTOR_SIZE,', 'flash_range_program(OTA_STAGING_OFFSET + i * OTA_FLASH_SECTOR_SIZE,', 1)], 'program', '17-ota-linha-tempo.svg'),
+            ('the wake no longer writes the history before it chooses between the radio and the sleep', [(AIR_CPP, '  processHistoryLogging( );\n  _storageMgr->flushWipV5( );', '  _storageMgr->flushWipV5( );', 1)], 'history', '19-despertar.svg'),
+            ('the wake goes to the radio whether it has a link or not', [(AIR_CPP, '_airPhase = online ? AIR_PHASE_CONNECT : AIR_PHASE_SLEEP;', '_airPhase = AIR_PHASE_CONNECT;', 1)], 'radio', '19-despertar.svg'),
+            ('the sampling no longer connects the Wi-Fi in parallel', [(AIR_CPP, 'if (_airRadioWake && !_airNetGaveUp) {', 'if (false) {', 1)], 'parallel', '19-despertar.svg'),
+            ('the phases are no longer in the order the figure draws', [(APP_H, '  AIR_PHASE_WARMUP,    /* M1: power sensors, settle */\n  AIR_PHASE_SAMPLE,', '  AIR_PHASE_SAMPLE,\n  AIR_PHASE_WARMUP,    /* M1: power sensors, settle */', 1)], 'order', '19-despertar.svg'),
+            ('a reading-only wake starts the network', [(BOOT, 'else if (!_airRadioWake) {', 'else if (false) {', 1)], 'never starts', '19-despertar.svg'),
+            ('the wake no longer cuts the sensors\' power when it goes to sleep', [(AIR_CPP, 'airSensorPower(_airCfg.sensorPowerPin, false);', 'airSensorPower(_airCfg.sensorPowerPin, true);', 1)], 'falls', '19-despertar.svg'),
             ('the discovery configs are no longer published retained', [(TELEMETRY, 'ok = _mqttClient.publish(topic, payload, true);', 'ok = _mqttClient.publish(topic, payload, false);', 1)],
              'retained', '23-fluxo.svg'),
             ('the online message is no longer published retained', [(TELEMETRY, 'onlinePayload.c_str( ), true);', 'onlinePayload.c_str( ), false);', 1)], 'retained', '23-fluxo.svg'),
