@@ -612,7 +612,12 @@ jobs:
       # The Max and Min badges above the chart typed "Max " and "Min " into the
       # markup and kept key.toUpperCase() ("TEMP") for a channel's name when
       # /api/lang answered late: renderExtremes( ) runs the same way, and the
-      # packs must carry hist_max and hist_min.
+      # packs must carry hist_max and hist_min. The overlay over the chart and
+      # the two progress lines kept the markup's data-i18n="hist_loading" while
+      # they showed "No data for this period", "Error", "Complete": the page's
+      # own chart load and log load run under node with lang.js's own
+      # applyLang( ), in the orders the device can answer in (the dictionary
+      # arriving while a load is on included) and on a second load.
       # --mutations (by hand) puts each violation back and expects exactly its
       # findings.
       - name: Web UI pack texts (no text typed into the page)

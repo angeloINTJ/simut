@@ -2359,10 +2359,30 @@ global.Chart = H5G;
             if (anchorEnd > nowEpoch) anchorEnd = nowEpoch;
             await fetchAndDraw(`range=${_currentRangeIdx}&end=${anchorEnd}`);
         }
-        function showOverlay(msg) { const ov = document.getElementById('chartOverlay'); const om = document.getElementById('overlayMsg'); ov.classList.remove('hidden'); om.innerText = msg || ''; }
+        /* The overlay over the chart and the progress lines carry data-i18n,
+         * and applyLang( ) rewrites every element that does with the pack's
+         * word for its key, or with the data-en it recorded. Each one kept the
+         * markup's hist_loading whatever it showed, so /api/lang answering after
+         * the page had drawn them put "Carregando..." over "No data for this
+         * period" (an empty range: the overlay sits over the chart at full
+         * opacity and says loading about something that will not load), over
+         * "Error", "Connection lost." and "Complete", and a language switch did
+         * it again in any language, English included (found by the review of
+         * 2026-11-06 in Chrome, on this branch's page; the same class as the
+         * Origem selector's label). So whoever writes one of them says what it
+         * shows now: a word of the pack with its key and its English, or, for a
+         * text that is not a pack word (a progress line with its count, the
+         * browser's own error), neither. tools/test_webui_pack_texts.py runs
+         * the orders. */
+        function _setText(el, text, key, en) {
+            if (key) { el.setAttribute('data-i18n', key); el.setAttribute('data-en', en); }
+            else { el.removeAttribute('data-i18n'); el.removeAttribute('data-en'); }
+            el.innerText = text;
+        }
+        function showOverlay(msg, key, en) { const ov = document.getElementById('chartOverlay'); ov.classList.remove('hidden'); _setText(document.getElementById('overlayMsg'), msg || '', key, en); }
         function hideOverlay() { document.getElementById('chartOverlay').classList.add('hidden'); }
         function showProgress(show) { const w = document.getElementById('progressWrap'); const f = document.getElementById('progFill'); if (show) { w.style.display='block'; f.style.width='0%'; f.classList.add('pulse'); } else { f.classList.remove('pulse'); setTimeout(()=>{ w.style.display='none'; }, 400); } }
-        function finishProgress() { const f = document.getElementById('progFill'); f.classList.remove('pulse'); f.style.width = '100%'; document.getElementById('progStatus').innerText = window.t('hist_done', 'Complete'); }
+        function finishProgress() { const f = document.getElementById('progFill'); f.classList.remove('pulse'); f.style.width = '100%'; _setText(document.getElementById('progStatus'), window.t('hist_done', 'Complete'), 'hist_done', 'Complete'); }
         /* ── Grafico direto dos arquivos .h5 ────────────────────────────────
          *
          * O caminho antigo pedia ao aparelho um JSON ja reamostrado pelo
@@ -2440,7 +2460,7 @@ global.Chart = H5G;
             const det = document.getElementById('progDetail');
             const sta = document.getElementById('progStatus');
             if (det) det.innerText = kb.toFixed(1) + ' KB';
-            if (sta) sta.innerText = window.t('hist_files', 'Files') + ': ' + done + '/' + total;
+            if (sta) _setText(sta, window.t('hist_files', 'Files') + ': ' + done + '/' + total);
         }
 
         async function _h5GetMeta(force) {
@@ -2750,9 +2770,9 @@ global.Chart = H5G;
             const em = queryParam.match(/end=(\d+)/);
             try {
                 gridBox.style.opacity = '0.3';
-                showOverlay(window.t('hist_down_msg', 'Downloading...'));
+                showOverlay(window.t('hist_down_msg', 'Downloading...'), 'hist_down_msg', 'Downloading...');
                 showProgress(true);
-                document.getElementById('progStatus').innerText = window.t('hist_loading', 'Loading...');
+                _setText(document.getElementById('progStatus'), window.t('hist_loading', 'Loading...'), 'hist_loading', 'Loading...');
                 _gchCancelUi(true);
                 let res;
                 try {
@@ -2764,7 +2784,7 @@ global.Chart = H5G;
                 } catch (e) {
                     if (_gchGen === myGen) {
                         _gchCancelUi(false); showProgress(false);
-                        showOverlay(window.t('hist_err_json', 'Error'));
+                        showOverlay(window.t('hist_err_json', 'Error'), 'hist_err_json', 'Error');
                     }
                     return;
                 }
@@ -2782,7 +2802,7 @@ global.Chart = H5G;
                 if (totalPts === 0) {
                     if (myChart) { myChart.destroy(); myChart = null; }
                     showProgress(false);
-                    showOverlay(window.t('hist_no_data', 'No data for this period'));
+                    showOverlay(window.t('hist_no_data', 'No data for this period'), 'hist_no_data', 'No data for this period');
                     return;
                 }
                 setTimeout(() => showProgress(false), 400);
@@ -2850,7 +2870,7 @@ global.Chart = H5G;
             } catch (e) {
                 if (_gchGen !== myGen) return;
                 showProgress(false);
-                showOverlay(window.t('hist_conn_lost', 'Connection lost.'));
+                showOverlay(window.t('hist_conn_lost', 'Connection lost.'), 'hist_conn_lost', 'Connection lost.');
             }
         }
 
@@ -3101,7 +3121,7 @@ global.Chart = H5G;
             pWrap.style.display = 'block';
             pFill.style.width = '0%';
             pFill.classList.add('pulse');
-            document.getElementById('logProgStatus').innerText = window.t('hist_loading', 'Loading...');
+            _setText(document.getElementById('logProgStatus'), window.t('hist_loading', 'Loading...'), 'hist_loading', 'Loading...');
 
             try {
                 await loadEvtNames();
@@ -3131,7 +3151,7 @@ global.Chart = H5G;
 
                 pFill.classList.remove('pulse');
                 pFill.style.width = '100%';
-                document.getElementById('logProgStatus').innerText = window.t('hist_done', 'Complete');
+                _setText(document.getElementById('logProgStatus'), window.t('hist_done', 'Complete'), 'hist_done', 'Complete');
                 setTimeout(() => pWrap.style.display = 'none', 600);
 
                 /* Parseia registros binários de 12 bytes — little-endian (ARM Cortex-M0+).

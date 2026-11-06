@@ -92,6 +92,32 @@ found the places below; each has its check here.
     "Máx Pres:" in es-ES). The packs must carry hist_max and hist_min, not the
     English.
 
+  * the overlay and the progress lines of the history page (showOverlay( ),
+    finishProgress( ), _h5ShowProg( ), _doFetchAndDraw( ), loadLogs( ) and the
+    helper _setText( )): #overlayMsg, #progStatus and #logProgStatus carry the
+    markup's data-i18n="hist_loading", and every writer put another text into
+    them without touching it, so applyLang( ), which rewrites every element that
+    carries data-i18n, turned "No data for this period", "Error", "Connection
+    lost." and "Complete" into "Carregando..." when /api/lang answered after the
+    page had drawn them, and into the English it had recorded ("Loading...") at a
+    language switch (the review of 2026-11-06, in Chrome, with an empty history:
+    the overlay sits over the chart at full opacity and says loading about
+    something that will not load). The page's own chart load and log load run
+    under node, as written and minified, with lang.js's own t( ), escHtml( ),
+    applyLang( ) and its /api/lang line, against elements that keep their
+    attributes and their text; what they call and the test does not run is a
+    stand-in (the files' reader, which ticks the real progress writer and then
+    gives an empty range, fails, or gives an answer the page cannot read; the
+    metadata; the log reader). The orders are the dictionary first, late, a first
+    visit, and arriving while a load is on, in its metadata and in its files;
+    then the language is switched to English and back; then the user loads again
+    (a range change, the Refresh button) with the load held where the page says
+    it is loading, and the language is switched there too. Each element must read
+    the pack's word for the state it is in (Downloading, No data, Error,
+    Connection lost, Complete, Loading) and the English of that state in
+    English; the files line ("Files: 1/3"), a word and a count, must stay as it
+    was written.
+
 Each check takes the code it judges, so --mutations can put the violations back
 by hand (one mutant per text) and expect each to be found; the clean code must
 give none.
@@ -960,10 +986,13 @@ var __tick = function () { return new Promise(function (r) { setTimeout(r, 0); }
 var __unesc = function (s) { return s.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&amp;/g, '&'); };
 """
 
-# The three orders the device can answer in, for every check that runs LANG_ENV:
-# the dictionary before the page's own request, after it, and a first visit (no
-# language stored yet, so the dictionary's arrival stores the pack's).
-ORDERS = {"dict-first": "dictionary first", "late": "dictionary late", "first-visit": "first visit"}
+# The orders the device can answer in, for every check that runs LANG_ENV: the
+# dictionary before the page's own request, after it, and a first visit (no
+# language stored yet, so the dictionary's arrival stores the pack's); the
+# loading texts add two more, the dictionary arriving while a load is on, in its
+# metadata and in its files.
+ORDERS = {"dict-first": "dictionary first", "late": "dictionary late", "first-visit": "first visit",
+          "mid-meta": "dictionary during the metadata", "mid-load": "dictionary during the load"}
 
 
 def lang_env(parts):
@@ -1370,6 +1399,307 @@ def test_badge_mutants(src, ns, dicts):
         check(got == want, f"badge mutant {name!r}: a badge reads wrong at {sorted(got)}, wanted {sorted(want)}")
 
 
+# ── the overlay and progress texts of the history page ─────────────────────
+
+LOAD_FUNCTIONS = ("_setText", "showOverlay", "showProgress", "finishProgress", "_h5ShowProg", "_doFetchAndDraw", "loadLogs")
+LOAD_REQUIRED = LOAD_FUNCTIONS[1:]          # _setText is the fix's own helper: the code before it has none
+LOAD_IDS = ("overlayMsg", "progStatus", "progDetail", "logProgStatus", "logProgDetail")
+
+
+def history_fn(src, name):
+    """One function of the history page's script, cut out by its name: a one-line function whole, or a longer one from its first
+    line to the line that closes it at the script's indent. None when it is not there."""
+    hist = block(src, "HIST_PAGE")
+    m = re.search(rf"^        (?:async )?function {re.escape(name)}\(", hist, re.M)
+    if not m:
+        return None
+    eol = hist.find("\n", m.start())
+    if not hist[m.start():eol].rstrip().endswith("{"):
+        return hist[m.start():eol]
+    end = hist.find("\n        }\n", eol)
+    return hist[m.start():end + len("\n        }")] if end >= 0 else None
+
+
+def history_elements(src, ids):
+    """{id: {attrs, text}} of the elements of the history page's markup, as the page ships them."""
+    hist = block(src, "HIST_PAGE")
+    out = {}
+    for i in ids:
+        m = re.search(rf'<(\w+)\b([^>]*\bid="{i}"[^>]*)>([^<]*)', hist)
+        if m:
+            attrs = dict(re.findall(r'\b([a-z][a-z0-9-]*)="([^"]*)"', m.group(2)))
+            attrs.pop("id", None)
+            out[i] = {"attrs": attrs, "text": m.group(3)}
+    return out
+
+
+# The page's own chart load (_doFetchAndDraw), its progress writer, its overlay
+# and its log load (loadLogs), run with lang.js's own code against elements
+# that keep their attributes and their text. What the load calls and the test
+# does not run is a stand-in: the metadata and the files' reader (_h5Load: one
+# tick of the real progress writer, then an empty range, a failed read, or an
+# answer the page cannot read), the cancel button, and the log reader (no
+# records). A scenario is an outcome and an order the dictionary can arrive in,
+# including while the load is on, in its metadata and in its files; then the
+# language switched to English and back, and the user loading again (a range
+# change, the Refresh button) with the load held in its metadata, the language
+# switched there too. What is read is the text of the overlay and of the
+# progress lines, with the state each should be in.
+LOAD_HARNESS = r"""
+var __spec = __SPEC__;
+class __Node extends __El {
+    constructor(attrs, text) { super('SPAN', attrs, text); this.style = {}; this.disabled = false;
+        this.classList = { add: function () {}, remove: function () {}, contains: function () { return false; } }; }
+    get innerText() { return this._h; }  set innerText(v) { this._h = String(v); }
+    appendChild() {}  remove() {}
+}
+var __els = {};
+__byId = function (id) { return __els[id] || (__els[id] = new __Node({}, '')); };
+__i18n = function () { return Object.keys(__els).map(function (k) { return __els[k]; }).filter(function (e) { return e.hasAttribute('data-i18n'); }); };
+var _gchGen = 1, _selectedSensors = [10], myChart = null, logsLoadedOnce = false, parsedLogRows = [];
+var rangeDurations = [3600, 21600, 86400, 604800, 2592000, 31536000, 0];
+var __metaPause = null, __pause = null, __logPause = null, __outcome = 'empty', __tickText = '';
+function _h5Now() { return 1700000000; }
+async function _h5GetMeta() { if (__metaPause) await __metaPause.promise; }
+function _gchCancelUi() {}
+function hideOverlay() {}
+function showToast() {}
+async function _h5Load() {
+    _h5ShowProg(1, 3, 12.5);                                 /* one tick of the page's own progress writer */
+    __tickText = __els['progStatus'].innerHTML;
+    if (__pause) await __pause.promise;                      /* the scenario may let the dictionary arrive here */
+    if (__outcome === 'error') throw new Error('stand-in');
+    if (__outcome === 'lost') return {};                     /* an answer the page cannot read: the outer catch says the connection is lost */
+    return { series: [], holes: [], cancelled: false };
+}
+async function loadEvtNames() {}
+function renderLogTable() {}
+function evtName() { return ''; }
+function fmt(v) { return v < 10 ? '0' + v : v; }
+function fmtUptime() { return ''; }
+var LVL_LABELS = [], LVL_CLASS = [], TAG_NAMES = [];
+globalThis.fetchSafe = async function () {
+    return { ok: true, body: { getReader: function () {
+        var n = 0;
+        return { read: async function () { if (__logPause) await __logPause.promise; return n++ ? { done: true } : { done: false, value: new Uint8Array(0) }; } };
+    } } };
+};
+__CODE__
+function __page() {
+    __store = {}; dict.pt = {}; __els = {}; __tickText = ''; logsLoadedOnce = false; __metaPause = __pause = __logPause = null;
+    Object.keys(__spec).forEach(function (id) { __els[id] = new __Node(JSON.parse(JSON.stringify(__spec[id].attrs)), __spec[id].text); });
+}
+function __deferred() { var d = {}; d.promise = new Promise(function (r) { d.release = r; }); return d; }
+/* kind: 'chart' or 'logs'; st = the states the elements should be in: meta (the load is on, before its first tick), mid (after it) and end */
+async function __scenario(order, pack, kind, st) {
+    __page(); __pack = pack;
+    if (order !== 'first-visit') localStorage.setItem('simut_lang', 'pt');
+    __startLang();                                           /* lang.js asks for the dictionary as it loads */
+    var seen = [];
+    var note = function (when, states) {
+        var o = { when: when, tick: __tickText, shown: {} };
+        Object.keys(states).forEach(function (id) { o.shown[id] = [states[id], __els[id].innerHTML]; });
+        seen.push(o);
+    };
+    var lang = function (l) { localStorage.setItem('simut_lang', l); applyLang(); };
+    var load = function () { return kind === 'chart' ? _doFetchAndDraw('range=2', 1) : loadLogs(); };
+    var hold = function (where) { var d = __deferred(); if (where === 'meta') __metaPause = d; else __pause = __logPause = d; return d; };
+    var free = function () { __metaPause = __pause = __logPause = null; };
+    if (order === 'dict-first') { __arrive(); await __tick(); await load(); note('painted', st.end); }
+    else if (order === 'mid-meta' || order === 'mid-load') {
+        var d = hold(order === 'mid-meta' ? 'meta' : 'load'), p = load(), hs = order === 'mid-meta' ? st.meta : st.mid;
+        await __tick();
+        note('before the dictionary', hs);
+        __arrive(); await __tick();
+        note('arrived', hs);
+        d.release(); await p; free();
+        note('painted', st.end);
+    } else {
+        await load();
+        note('before the dictionary', st.end);
+        __arrive(); await __tick();
+        note('arrived', st.end);
+    }
+    lang('en'); note('switched to English', st.end);
+    lang('pt'); note('switched back', st.end);
+    /* the user loads again, with the load held where the page says it is loading */
+    var d2 = hold(kind === 'chart' ? 'meta' : 'load'), p2 = load();
+    await __tick();
+    note('reloading', st.meta);
+    lang('en'); note('reloading, switched to English', st.meta);
+    lang('pt'); note('reloading, switched back', st.meta);
+    d2.release(); await p2; free();
+    return seen;
+}
+(async function () {
+    var out = {}, packs = __PACKS__;
+    for (var lg of Object.keys(packs)) {
+        for (var order of ['dict-first', 'late', 'first-visit', 'mid-meta', 'mid-load']) {
+            for (var outcome of ['empty', 'error', 'lost']) {
+                __outcome = outcome;
+                out[lg + '|' + order + '|' + outcome] = await __scenario(order, packs[lg], 'chart',
+                    { meta: { overlayMsg: 'downloading', progStatus: 'loading' }, mid: { overlayMsg: 'downloading', progStatus: 'files' },
+                      end: { overlayMsg: outcome, progStatus: outcome === 'error' ? 'files' : 'done' } });
+            }
+            if (order !== 'mid-meta')                        /* the log load has one place to hold: its read */
+                out[lg + '|' + order + '|logs'] = await __scenario(order, packs[lg], 'logs',
+                    { meta: { logProgStatus: 'loading' }, mid: { logProgStatus: 'loading' }, end: { logProgStatus: 'done' } });
+        }
+    }
+    console.log(JSON.stringify(out));
+})().catch(function (e) { console.log(JSON.stringify({ error: String((e && e.stack) || e) })); });
+"""
+
+# What each state of an element is: its key and its English. 'files' is not a pack
+# word (a word and a count, written by the progress writer at every tick), so it
+# has neither, and must stay as it was written.
+LOAD_STATES = {"downloading": ("hist_down_msg", "Downloading..."), "empty": ("hist_no_data", "No data for this period"),
+               "error": ("hist_err_json", "Error"), "lost": ("hist_conn_lost", "Connection lost."),
+               "done": ("hist_done", "Complete"), "loading": ("hist_loading", "Loading...")}
+LOAD_ELEMENTS = {"overlayMsg": "overlay", "progStatus": "progress status", "logProgStatus": "log progress status"}
+LOAD_WHAT = {"empty": "an empty chart load", "error": "a failed chart load", "lost": "a chart load with an unreadable answer", "logs": "the log load"}
+LOAD_MOMENTS = ("reloading, switched to English|reloading, switched back|reloading|painted|before the dictionary|arrived|"
+                "switched to English|switched back")
+ENGLISH_MOMENTS = ("before the dictionary", "switched to English", "reloading, switched to English")
+
+
+def load_code(src):
+    """The functions above, cut out of the page by name and joined: (code, missing names)."""
+    got = {n: history_fn(src, n) for n in LOAD_FUNCTIONS}
+    missing = [n for n in LOAD_REQUIRED if got[n] is None]
+    return "\n".join(c for c in got.values() if c), missing
+
+
+def load_findings(code, elements, parts, ns, dicts):
+    """What is wrong with the overlay and the progress lines in these functions and this markup: [] when nothing."""
+    found, rows = [], {}
+    for lang, d in dicts.items():
+        for key, en in sorted(set(LOAD_STATES.values()) | {("hist_files", "Files")}):
+            if not d.get(key, "").strip() or d[key] == en:
+                found.append(f"{lang}: @WEBDICT has {key} = {d.get(key)!r}, which is not a translation of {en!r}")
+    for label, js in (("as written", code), ("minified", ns["_minify_web_block"](code, "js"))):
+        prog = lang_env(parts) + (LOAD_HARNESS.replace("__CODE__", js).replace("__SPEC__", json.dumps(elements))
+                                  .replace("__PACKS__", json.dumps(dicts)))
+        try:
+            res = run_node(prog)
+        except RuntimeError as e:
+            found.append(f"{label}: {e}")
+            continue
+        if "error" in res:
+            found.append(f"{label}: the scenarios threw {res['error'][:300]}")
+            continue
+        for key, seen in sorted(res.items()):
+            lang, order, outcome = key.split("|")
+            d = dicts[lang]
+            for o in seen:
+                for eid, (state, got) in o["shown"].items():
+                    if state == "files":
+                        want = o["tick"]
+                    else:
+                        k, en = LOAD_STATES[state]
+                        want = en if o["when"] in ENGLISH_MOMENTS else d.get(k, "")
+                    if got != want:
+                        rows.setdefault((label, f"{lang}, {LOAD_WHAT[outcome]}: the {LOAD_ELEMENTS[eid]} reads {got!r} {o['when']}, wanted {want!r}"),
+                                        set()).add(ORDERS[order])
+    return sorted(set(found)) + merged(rows)
+
+
+def test_loading_texts(src, ns, dicts):
+    parts, missing = lang_js_parts(src)
+    code, absent = load_code(src)
+    if not check(not missing, f"lang.js lacks {missing} as one line each; this test runs lang.js's own"):
+        return
+    if not check(not absent, f"{absent} are not in the history page of WebUI.h. If they moved or were renamed, move this test with them."):
+        return
+    elements = history_elements(src, LOAD_IDS)
+    if not check(all(i in elements for i in LOAD_IDS), f"the history page's markup lacks one of {LOAD_IDS}. If it moved, move this test with it."):
+        return
+    for f in load_findings(code, elements, parts, ns, dicts):
+        fails.append(f"loading texts: {f}")
+
+
+WHAT_OF = {v: k for k, v in LOAD_WHAT.items()}
+LOAD_CELL = re.compile(rf", ({'|'.join(LOAD_WHAT.values())}): the ({'|'.join(LOAD_ELEMENTS.values())}) reads .+? ({LOAD_MOMENTS}), wanted")
+
+
+def load_cells(findings):
+    """{(load, element, moment)} the findings are about, for the mutants."""
+    return {(WHAT_OF[m.group(1)], m.group(2), m.group(3)) for f in findings for m in [LOAD_CELL.search(f)] if m}
+
+
+def cells(loads, element, moments):
+    return {(w, element, m) for w in loads.split() for m in moments}
+
+
+CHART = "empty error lost"
+ENGLISH = ("switched to English", "reloading, switched to English")
+# Each mutant takes one piece of the fix out, in the page itself (the pattern is
+# matched in WebUI.h, the number of times in the last-but-one column). What it
+# must give is the set of (load, element, moment) at which an element reads wrong:
+# a write that leaves the key of the state before it is relabelled to that state
+# at the next applyLang( ), and a state with no English of its own shows the
+# wrong English; the markup's own key is right for "Loading..." and wrong for
+# anything else, so a direct write of "Loading..." shows only on a second load,
+# after a state with another key.
+LOAD_MUTANTS = [
+    ("the overlay written with no key (the defect as shipped)",
+     r"_setText\(document\.getElementById\('overlayMsg'\), msg \|\| '', key, en\)", "document.getElementById('overlayMsg').innerText = msg || ''", 1,
+     cells(CHART, "overlay", ("arrived", "switched to English", "switched back", "reloading, switched to English"))),
+    ("'Complete' of the chart's progress line written with no key",
+     r"_setText\(document\.getElementById\('progStatus'\), window\.t\('hist_done', 'Complete'\), 'hist_done', 'Complete'\)",
+     "document.getElementById('progStatus').innerText = window.t('hist_done', 'Complete')", 1,
+     cells("empty lost", "progress status", ("arrived", "switched to English", "switched back"))),
+    ("the files line (a word and a count) keeps the key of the state before it",
+     r"_setText\(sta, window\.t\('hist_files', 'Files'\) \+ ': ' \+ done \+ '/' \+ total\)",
+     "sta.innerText = window.t('hist_files', 'Files') + ': ' + done + '/' + total", 1,
+     cells(CHART, "progress status", ("arrived",)) | cells("error", "progress status", ("painted", "switched to English", "switched back"))),
+    ("the chart's 'Loading...' written with no key: right on a first load, wrong after another state",
+     r"_setText\(document\.getElementById\('progStatus'\), window\.t\('hist_loading', 'Loading\.\.\.'\), 'hist_loading', 'Loading\.\.\.'\)",
+     "document.getElementById('progStatus').innerText = window.t('hist_loading', 'Loading...')", 1,
+     cells("empty lost", "progress status", ("reloading, switched to English", "reloading, switched back")) |
+     cells("error", "progress status", ("reloading, switched to English",))),
+    ("the log's 'Loading...' written with no key",
+     r"_setText\(document\.getElementById\('logProgStatus'\), window\.t\('hist_loading', 'Loading\.\.\.'\), 'hist_loading', 'Loading\.\.\.'\)",
+     "document.getElementById('logProgStatus').innerText = window.t('hist_loading', 'Loading...')", 1,
+     cells("logs", "log progress status", ("reloading, switched to English", "reloading, switched back"))),
+    ("'Complete' of the log's progress line written with no key",
+     r"_setText\(document\.getElementById\('logProgStatus'\), window\.t\('hist_done', 'Complete'\), 'hist_done', 'Complete'\)",
+     "document.getElementById('logProgStatus').innerText = window.t('hist_done', 'Complete')", 1,
+     cells("logs", "log progress status", ("arrived", "switched to English", "switched back"))),
+    ("the empty range's overlay carries the loading key",
+     r"showOverlay\(window\.t\('hist_no_data', 'No data for this period'\), 'hist_no_data', 'No data for this period'\)",
+     "showOverlay(window.t('hist_no_data', 'No data for this period'), 'hist_loading', 'Loading...')", 1,
+     cells("empty", "overlay", ("arrived", "switched to English", "switched back"))),
+    ("_setText without the English: the first applyLang( ) takes the text it finds for it, which may be the pack's",
+     r" el\.setAttribute\('data-en', en\);", "", 1,
+     cells(CHART, "overlay", ENGLISH) | cells("empty lost", "progress status", ENGLISH) |
+     cells("error", "progress status", ("reloading, switched to English",)) | cells("logs", "log progress status", ENGLISH)),
+    ("_setText keeps the key for a text that is not a pack word (the files line, as above)",
+     r"else \{ el\.removeAttribute\('data-i18n'\); el\.removeAttribute\('data-en'\); \}", "", 1,
+     cells(CHART, "progress status", ("arrived",)) | cells("error", "progress status", ("painted", "switched to English", "switched back"))),
+]
+
+
+def test_loading_mutants(src, ns, dicts):
+    parts, missing = lang_js_parts(src)
+    code, absent = load_code(src)
+    elements = history_elements(src, LOAD_IDS)
+    if missing or absent or not all(i in elements for i in LOAD_IDS):
+        return
+    check(load_findings(code, elements, parts, ns, dicts) == [], "loading mutants: the code they start from is not clean")
+    for name, pat, rep, times, want in LOAD_MUTANTS:
+        mutated, n = re.subn(pat, lambda m, r=rep: r, src)
+        if not check(n == times, f"loading mutant {name!r}: its pattern matches {n} times in the page, not {times} "
+                                 f"(the mutant no longer describes the code: update it)"):
+            continue
+        mcode, mabsent = load_code(mutated)
+        if mabsent:
+            fails.append(f"loading mutant {name!r}: the mutated page lacks {mabsent}")
+            continue
+        got = load_cells(load_findings(mcode, elements, parts, ns, dicts))
+        check(got == want, f"loading mutant {name!r}: found at {sorted(got)}, wanted {sorted(want)}")
+
+
 def main():
     global WEBUI
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
@@ -1386,14 +1716,16 @@ def main():
              ("test_melody_names", lambda: test_melody_names(src, ns, dicts)),
              ("test_probe_scan", lambda: test_probe_scan(src, ns, dicts)),
              ("test_selector", lambda: test_selector(src, ns, dicts)),
-             ("test_badges", lambda: test_badges(src, ns, dicts))]
+             ("test_badges", lambda: test_badges(src, ns, dicts)),
+             ("test_loading_texts", lambda: test_loading_texts(src, ns, dicts))]
     if args.mutations:
         tests += [("test_export_mutants", lambda: test_export_mutants(src, ns, dicts)),
                   ("test_link_mutants", lambda: test_link_mutants(src, ns, dicts)),
                   ("test_melody_mutants", lambda: test_melody_mutants(src, ns, dicts)),
                   ("test_scan_mutants", lambda: test_scan_mutants(src, ns, dicts)),
                   ("test_selector_mutants", lambda: test_selector_mutants(src, ns, dicts)),
-                  ("test_badge_mutants", lambda: test_badge_mutants(src, ns, dicts))]
+                  ("test_badge_mutants", lambda: test_badge_mutants(src, ns, dicts)),
+                  ("test_loading_mutants", lambda: test_loading_mutants(src, ns, dicts))]
     for name, t in tests:
         before = len(fails)
         try:
