@@ -11,7 +11,7 @@ Numa frota, o tráfego corre nos dois sentidos ([capítulo 20](#cap-20-sentidos)
 
 O gestor de frota é o programa que faz o segundo sentido para todos os aparelhos. Ele pode ser um serviço no servidor, um script agendado ou uma página no navegador.
 
-::: {.figura #fig-27-arquitetura tipo="diagrama" arquivo="27-arquitetura.png" captura="diagrama: vários aparelhos SIMUT numa rede local; setas saindo deles para o coletor (telemetria e linha de alarmes, com X-SIMUT-Uid/Ver/Env/Cfg); setas do Prometheus para cada aparelho (GET /metrics, HTTP Basic); setas do gestor de frota para cada aparelho (API REST com cookie ou Bearer); um anúncio mDNS _simut._tcp saindo dos aparelhos release para a rede local; o gestor lendo o manifest.json da release no GitHub"}
+::: {.figura #fig-27-arquitetura tipo="diagrama" arquivo="27-arquitetura.svg" captura="desenhado pelo código (tools/manual_diagramas.py): os caminhos de uma frota: vários aparelhos numa rede local, a telemetria e a linha de alarmes que eles empurram ao coletor com os cabeçalhos de identidade, o que o Prometheus e o gestor de frota perguntam a cada um, o anúncio mDNS à rede local e o manifest.json da release no GitHub que o gestor lê; os nomes dos cabeçalhos e a premissa de que os dois POSTs os levam vêm de src/TelemetryManager.cpp, o esquema e o nome do cookie da sessão de src/WebManager_Auth.cpp, a rota e o esquema do /metrics de src/WebManager_Core.cpp e src/WebManager_Metrics.cpp, o serviço e as imagens do anúncio de src/NetworkManager.cpp e SIMUT_MDNS, o nome do manifesto do passo Checksums de .github/workflows/release-ota.yml; refazer com python3 tools/manual_diagramas.py --write"}
 Os caminhos de uma frota. Os aparelhos empurram medições e alarmes; o gestor e o Prometheus perguntam.
 :::
 
@@ -469,7 +469,7 @@ Uma imagem de 1 MB leva cerca de 30 s para chegar. Não desligue nem reinicie o 
 
 Nunca atualize a frota inteira de uma vez.
 
-::: {.figura #fig-27-ondas tipo="diagrama" arquivo="27-ondas.png" captura="diagrama: a frota dividida em três ondas; onda 0 com um aparelho de bancada, onda 1 com poucos aparelhos de cada imagem, onda 2 com o resto; entre as ondas, uma barreira 'conferir versão, telemetria e alarmes por um período'; dentro de cada aparelho, a sequência backup, envio, aplicação, confirmação, restauração, idioma"}
+::: {.figura #fig-27-ondas tipo="diagrama" arquivo="27-ondas.svg" captura="desenhado pelo código (tools/manual_diagramas.py): a atualização da frota em três ondas, com a barreira de conferência entre uma onda e a seguinte, e a sequência que cada aparelho percorre em cada onda (backup, envio, aplicação, confirmação, restauração, idioma) com a rota de cada passo; as rotas, o método de cada uma, as operações do restore, o sinal de confirmar o envio, a chave da versão e a pasta dos idiomas vêm de src/WebManager_Core.cpp, src/WebManager_Ota.cpp, src/WebManager_Api.cpp e src/StorageManager.h, e as ondas e o que cada uma leva são as frases do capítulo; refazer com python3 tools/manual_diagramas.py --write"}
 A atualização em ondas. Cada onda só começa depois de a anterior se provar estável.
 :::
 

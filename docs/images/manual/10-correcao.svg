@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 360" role="img" class="dg">
+<defs>
+<marker id="10-correcao-ponta-acento" viewBox="0 0 8 8" refX="8" refY="4" markerWidth="8" markerHeight="8" markerUnits="userSpaceOnUse" orient="auto"><path class="dg-ponta-acento" d="M0 0L8 4L0 8z"/></marker>
+</defs>
+<rect class="dg-caixa-apagada" x="16.5" y="100.5" width="159" height="31" rx="0"/>
+<text class="dg-n" x="96" y="120" text-anchor="middle">desligado por 2 h</text>
+<rect class="dg-caixa-aviso" x="176.5" y="100.5" width="247" height="31" rx="0"/>
+<text class="dg-n" x="300" y="120" text-anchor="middle">relógio provisório</text>
+<rect class="dg-caixa-ok" x="424.5" y="100.5" width="279" height="31" rx="0"/>
+<text class="dg-n" x="564" y="120" text-anchor="middle">relógio acertado</text>
+<polyline class="dg-fio" points="176,92 176,140"/>
+<polyline class="dg-fio" points="424,92 424,140"/>
+<polyline class="dg-fio-fino" points="176,92 176,80"/>
+<text class="dg-n" x="184" y="84"><tspan class="dg-b">524</tspan> Hora provisória do flash</text>
+<polyline class="dg-fio-fino" points="424,92 424,28"/>
+<text class="dg-n" x="432" y="32"><tspan class="dg-b">13</tspan> NTP sincronizado</text>
+<text class="dg-n" x="432" y="48"><tspan class="dg-b">408</tspan> NTP corrigindo timestamps, +7200 s</text>
+<text class="dg-n" x="432" y="64"><tspan class="dg-b">409</tspan> Timestamps corrigidos, 3 blocos</text>
+<text class="dg-n" x="432" y="80"><tspan class="dg-b">410</tspan> Caches de gráfico invalidados</text>
+<text class="dg-n" x="176" y="156" text-anchor="middle">boot</text>
+<text class="dg-n" x="424" y="156" text-anchor="middle">primeiro acerto</text>
+<text class="dg-n dg-c2" x="424" y="172" text-anchor="middle">corrige se a diferença passa de 5 s</text>
+<text class="dg-n" x="64" y="200">gravados com a hora provisória, 2 h atrás</text>
+<rect class="dg-caixa-aviso" x="64.5" y="208.5" width="39" height="31" rx="0"/>
+<rect class="dg-caixa-ok" x="224.5" y="288.5" width="39" height="31" rx="0"/>
+<rect class="dg-caixa-aviso" x="128.5" y="208.5" width="39" height="31" rx="0"/>
+<rect class="dg-caixa-ok" x="288.5" y="288.5" width="39" height="31" rx="0"/>
+<rect class="dg-caixa-aviso" x="192.5" y="208.5" width="39" height="31" rx="0"/>
+<rect class="dg-caixa-ok" x="352.5" y="288.5" width="39" height="31" rx="0"/>
+<polyline class="dg-fio-acento" points="148,240 148,264 308,264 308,288" marker-end="url(#10-correcao-ponta-acento)"/>
+<text class="dg-n" x="228" y="260" text-anchor="middle">+7200 s (2 h)</text>
+<text class="dg-n" x="224" y="340">depois do acerto, na hora em que aconteceram</text>
+</svg>

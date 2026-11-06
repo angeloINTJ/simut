@@ -4,6 +4,27 @@
 
 Todas as mudanças notáveis do firmware SIMUT.
 
+## Não lançado
+
+**Os diagramas do manual são desenhados por código. Os 28, do capítulo 1 ao capítulo 28 (os mapas de pinos das três imagens e a ligação e a alimentação do Air, a arquitetura, os arquivos, os fluxos do histórico, do relógio e da atualização, a política do log de eventos em três horas, os modos e os despertares do Air, as integrações, a frota, as duas sequências da API e a flash), são `docs/images/manual/*.svg` escritos por `tools/manual_diagramas.py` a partir das fontes que descrevem, e o CI os desenha de novo a cada pull request. Nenhuma mudança no firmware: `git diff v2.14.0 HEAD -- src platformio.ini keys WebUI.h data` está vazio (06/11/2026), então nenhuma imagem muda e nenhum orçamento muda.**
+
+### O que um diagrama lê do código
+
+- **Números e nomes são lidos, não digitados.** Os pinos (`simut_config.h` e os perfis do `platformio.ini`), os tamanhos da flash (`src/ota/ota_layout.h`), as rotas, os campos e o tempo de vida do código de entrada (`WebManager_Core.cpp`, `WebManager_Auth.cpp`, `WebManager.h`), os códigos dos eventos e os nomes deles (`tools/logcodes.tsv`), as cadências da política do log, os comandos do Air, o tempo de ociosidade dele e a carência de um ciclo interrompido são lidos na hora, do arquivo que é dono de cada um. Um número que muda no código muda exatamente os diagramas que o desenham.
+- **O que o desenho afirma é premissa.** O que um diagrama diz do código (a etapa só escreve na área de preparo, um despertar só de leitura nunca liga a rede, uma senha errada sobe a mesma penalidade na página de entrada e no `/metrics`, os dados da atualização terminam a flash, e assim por diante) é um trecho que o código tem de manter. Quando ele some, a ferramenta sai com código 2, diz o arquivo e o trecho e não desenha nada, em vez de desenhar uma figura que já não confere.
+- **O que foi medido leva o nome da fonte.** Os tempos de bancada (o envio e a volta da atualização, o despertar do Air de 9,31 s) e os exemplos (um endereço, um código) são constantes da ferramenta, cada uma com o capítulo ou a análise de onde veio (os 12,7 s do despertar de telemetria do Air são os do capítulo 19; a análise de energia leu 12,8 s), e o teste confere que o capítulo e a análise ainda dizem o mesmo.
+- **A política do log é executada.** A figura do log de eventos em três horas é desenhada a partir de um espelho em Python do `LogPolicy.cpp`, e o teste compara o espelho com o arquivo de verdade compilado com g++ no hospedeiro: o cenário da figura e 300 execuções aleatórias, 28.863 eventos, nenhuma divergência; três mutações da política fazem a comparação falhar.
+
+### O portão
+
+- `tools/manual_diagramas.py --check` desenha os 28 de novo e compara o texto com os arquivos gravados e com os blocos de figura dos capítulos. `tools/test_manual_diagramas.py` o prende à palavra dele com 862 controles, 0 falhas em 06/11/2026 (Python 3.14.4 e 3.11.11 em modo isolado, 28 e 31 s): 96 mudanças de um número ou de um nome numa cópia das fontes, e cada uma tem de mudar exatamente os diagramas que o desenham; 77 premissas quebradas, e cada uma tem de fazer a ferramenta se recusar a desenhar e dizer qual; e cada um dos 232 trechos que a ferramenta lê, estragado, tem de sair com código 2 dizendo o arquivo e o trecho. Os dois rodam no job `gates`, depois das figuras do LCD do alpha; ainda não rodaram no GitHub, o que acontece no pull request.
+- Os diagramas entram na página em linha, como `<svg>` estilizado pelas classes `dg-*` do `tools/build_manual.py`, numa grade de 4 px e sem nenhuma cor literal; a montagem recusa dois SVG com o mesmo id.
+
+### As legendas
+
+- As 19 legendas que começavam com "Legenda: " (capítulos 15 a 28: 12 em blocos de diagrama, 7 em blocos de tela da web) agora começam pela frase, com inicial maiúscula: a página já escreve "Figura N." antes de cada uma.
+- O `docs/MANUAL.pt-BR.html` não é gerado de novo nesta mudança; a próxima montagem põe os diagramas na página.
+
 ## v2.14.0 (2026-11-05)
 
 **O painel do alpha e do SIMUT Wire com um LCD 16x2 pode mostrar o LCD: uma caixa, *Tela* (*Display Capture* em inglês), desenha o vidro ponto a ponto, uma vez no Capturar e até quatro vezes por segundo no Ao vivo, a partir do `GET /api/lcd` (#320). Por trás dela está o print virtual (#319), o LCD do alpha desenhado no computador a partir do código do próprio firmware, que faz as 17 figuras de LCD do manual e que a página repete pixel a pixel. Os caracteres são da Hitachi (Tabela 4 do datasheet do HD44780U): o `pico_w_alpha` publicado passa a trazer a ROM A00, reproduzida sem a aprovação escrita que a Advertência 6 pede, por decisão do mantenedor de 04/11/2026. A versão traz ainda treze correções pequenas, achadas lendo o código e pelas notas da bancada (#318), e três mudanças que fecham itens da lista *Conhecido* da v2.13.0: o Salvar dos limites de alarme do painel (F3, #307), a prévia do alinhamento da tela que sobrevivia à saída da tela (#308) e o `GET /api/keypad` no Ângulo (F4, #311). O resto é uma mudança de lugar de nomes entre dois cabeçalhos, que não muda nenhuma imagem (#312), testes, ferramentas, a ação de atestado e documentos.**

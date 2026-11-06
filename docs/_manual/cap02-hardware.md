@@ -46,15 +46,15 @@ Cada imagem usa os pinos de GP16 em diante para a tela, o toque, a cigarra e, no
 
 A numeração física segue a do Pico W: o pino 1 é o GP0, no canto do conector USB, e os pinos seguem em U até o 40, o VBUS, do outro lado do mesmo canto.
 
-::: {.figura #fig-02-pinos-release tipo="diagrama" arquivo="02-pinos-release.png" captura="vista de cima do Pico W com os 40 pinos numerados; GP0–GP15 marcados como SLOT 0–15; GP16 MISO, GP17 T_CS, GP18 SCK, GP19 MOSI, GP20 T_IRQ, GP22 cigarra, GP26 RST, GP27 DC, GP28 CS; 3V3 (36) para TFT e sensores, VBUS (40), GNDs destacados; GP23/24/25/29 em cinza como internos do rádio"}
+::: {.figura #fig-02-pinos-release tipo="diagrama" arquivo="02-pinos-release.svg" captura="desenhado pelo código (tools/manual_diagramas.py): vista de cima do Pico W com os 40 pinos numerados e os da release (SPI0, TFT, toque e cigarra) lidos de src/simut_config.h e do perfil pico_w_release; a pinagem física é a do datasheet do Pico W e os quatro GPIOs do rádio vêm de src/air/AirConfig.h; refazer com python3 tools/manual_diagramas.py --write"}
 O mapa de pinos da release: sensores à esquerda, tela, toque e cigarra à direita.
 :::
 
-::: {.figura #fig-02-pinos-alpha tipo="diagrama" arquivo="02-pinos-alpha.png" captura="vista de cima do Pico W; GP0–GP15 como SLOT 0–15; GP16 RS, GP17 EN, GP18 D4, GP19 D5, GP20 D6, GP21 D7 do LCD; GP22 cigarra; VBUS (40) para o LCD, 3V3 (36) para os sensores; GP26–GP28 sem uso"}
+::: {.figura #fig-02-pinos-alpha tipo="diagrama" arquivo="02-pinos-alpha.svg" captura="desenhado pelo código (tools/manual_diagramas.py): vista de cima do Pico W com os 40 pinos numerados e os da alpha (LCD em paralelo, de GP16 a GP21, e cigarra) lidos de src/simut_config.h e do perfil pico_w_alpha; a pinagem física é a do datasheet do Pico W e os quatro GPIOs do rádio vêm de src/air/AirConfig.h; refazer com python3 tools/manual_diagramas.py --write"}
 O mapa de pinos da alpha: o LCD em GP16 a GP21, a cigarra em GP22.
 :::
 
-::: {.figura #fig-02-pinos-air tipo="diagrama" arquivo="02-pinos-air.png" captura="vista de cima do Pico W; GP0–GP15 como SLOT 0–15; GP16 saída de energia dos sensores e sinal de acordado; GP17 entrada do carregador; demais pinos de GP18 em diante sem uso"}
+::: {.figura #fig-02-pinos-air tipo="diagrama" arquivo="02-pinos-air.svg" captura="desenhado pelo código (tools/manual_diagramas.py): vista de cima do Pico W com os 40 pinos numerados e os dois do Air (energia dos sensores e carregador) lidos de src/simut_config.h e do perfil pico_w_air; a pinagem física é a do datasheet do Pico W e os quatro GPIOs do rádio vêm de src/air/AirConfig.h; refazer com python3 tools/manual_diagramas.py --write"}
 O mapa de pinos do Air: só GP16 e GP17 além dos sensores.
 :::
 
@@ -135,7 +135,7 @@ O GP17 espera um divisor resistivo a partir dos 5 V do carregador, que o leve a 
 **Sensores com energia cortada.** O DHT22 precisa de pelo menos 1 s depois de receber energia antes da primeira leitura; o DS18B20 e o BME280 ficam prontos em poucos milissegundos. O aparelho liga o GP16 logo no início do boot, antes de iniciar os sensores. A chave que você usar não deve atrasar a energia além disso.
 :::
 
-::: {.figura #fig-02-air-energia tipo="diagrama" arquivo="02-air-energia.png" captura="GP16 acionando uma chave do lado positivo (MOSFET canal P com acionamento, ou pino EN de um regulador 3,3 V) que alimenta o barramento de 3,3 V dos sensores; à parte, o carregador de 5 V com um divisor resistivo levando ao GP17; legenda 'GP16 alto = acordado'"}
+::: {.figura #fig-02-air-energia tipo="diagrama" arquivo="02-air-energia.svg" captura="desenhado pelo código (tools/manual_diagramas.py): esquema do GP16 acionando a chave do lado positivo que alimenta os sensores e do divisor que leva os 5 V do carregador ao GP17; os pinos e a polaridade vêm de src/simut_config.h, o pull-down e o GP16 alto no boot de src/AppManager_Boot.cpp, e o resto é o texto do capítulo; refazer com python3 tools/manual_diagramas.py --write"}
 O Air: o GP16 corta a energia dos sensores durante o sono, e o GP17 percebe o carregador.
 :::
 
@@ -182,7 +182,7 @@ Ponha um resistor de 4,7 kΩ entre o DQ e o 3V3.
 
 Ligue **uma sonda por GPIO**. O aparelho identifica a sonda pelo número de série gravado nela (a ROM) e lê esse número com um comando que só funciona com uma sonda no fio. Com a ROM gravada no slot, o aparelho percebe a troca de sonda ([capítulo 6](#cap-06-adotar)).
 
-::: {.figura #fig-02-ds18b20 tipo="diagrama" arquivo="02-ds18b20.png" captura="sonda DS18B20 de três fios ligada ao Pico W: VDD no 3V3 (pino 36), GND no GND, DQ num GPIO de slot (exemplo GP2, pino 4); resistor de 4,7 kΩ entre DQ e 3V3"}
+::: {.figura #fig-02-ds18b20 tipo="diagrama" arquivo="02-ds18b20.svg" captura="desenhado pelo código (tools/manual_diagramas.py): ligação de uma sonda DS18B20 de três fios ao Pico W, com o resistor de 4,7 kΩ entre o dado e o 3V3; os pinos físicos são os do datasheet do Pico W, o GP2 é um exemplo e vale qualquer GPIO de sensor (os limites vêm de MAX_SENSORS, em src/simut_config.h); refazer com python3 tools/manual_diagramas.py --write"}
 Um DS18B20: três fios e um resistor de 4,7 kΩ entre o dado e o 3V3.
 :::
 
@@ -198,7 +198,7 @@ O DHT22 mede temperatura e umidade por um único fio de dados.
 
 Ligue **um DHT22 por GPIO**. O aparelho lê cada DHT22 a cada 2 s, o intervalo mínimo do sensor.
 
-::: {.figura #fig-02-dht22 tipo="diagrama" arquivo="02-dht22.png" captura="módulo DHT22 de três terminais ligado ao Pico W: + no 3V3 (pino 36), dados num GPIO de slot (exemplo GP3, pino 5), − no GND; nota 'pull-up conforme o módulo'"}
+::: {.figura #fig-02-dht22 tipo="diagrama" arquivo="02-dht22.svg" captura="desenhado pelo código (tools/manual_diagramas.py): ligação de um módulo DHT22 de três terminais ao Pico W, com a nota do pull-up; os pinos físicos são os do datasheet do Pico W, o GP3 é um exemplo e vale qualquer GPIO de sensor (os limites vêm de MAX_SENSORS, em src/simut_config.h); refazer com python3 tools/manual_diagramas.py --write"}
 Um DHT22: alimentação, dados e terra.
 :::
 
@@ -219,7 +219,7 @@ O BME280 e o BMP280 são sensores I²C: usam dois GPIOs, SDA e SCL. Por fora os 
 - **O tipo.** Se você escolheu BME280 e o chip é um BMP280, ou o contrário, o aparelho corrige o tipo pelo identificador do chip e grava a correção ([capítulo 6](#cap-06-tipos)).
 - **A busca de sondas** só encontra um BME280 ou BMP280 em GP4 (SDA) e GP5 (SCL). Em outros pinos, configure o slot à mão.
 
-::: {.figura #fig-02-bmx280 tipo="diagrama" arquivo="02-bmx280.png" captura="módulo BME280 de seis pinos ligado ao Pico W: VCC no 3V3 (pino 36), GND, SDA no GP4 (pino 6), SCL no GP5 (pino 7), CSB no 3V3, SDO no GND (endereço 0x76); nota 'pull-ups de 4,7 kΩ em SDA e SCL se o módulo não tiver'"}
+::: {.figura #fig-02-bmx280 tipo="diagrama" arquivo="02-bmx280.svg" captura="desenhado pelo código (tools/manual_diagramas.py): ligação de um módulo BME280 de seis pinos ao Pico W, no par de pinos que a busca de sondas tenta (src/sensors/BME280SensorDriver.h), com o endereço do driver (src/sensors/BME280Driver.h) e os pinos físicos do datasheet do Pico W; refazer com python3 tools/manual_diagramas.py --write"}
 Um BME280 no par GP4/GP5, o par que a busca de sondas encontra.
 :::
 

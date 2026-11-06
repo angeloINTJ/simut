@@ -1,0 +1,42 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 360" role="img" class="dg">
+<rect class="dg-caixa-2" x="24.5" y="16.5" width="191" height="295" rx="12"/>
+<text class="dg-t dg-b" x="40" y="36">Pico W</text>
+<rect class="dg-caixa-2" x="464.5" y="16.5" width="231" height="295" rx="12"/>
+<text class="dg-t dg-b" x="480" y="36">BME280</text>
+<text class="dg-n dg-c2" x="480" y="52">módulo de seis pinos</text>
+<text class="dg-t" x="200" y="76" text-anchor="end"><tspan class="dg-m">3V3</tspan> · pino 36</text>
+<text class="dg-t dg-m" x="480" y="76">VCC</text>
+<text class="dg-n dg-c2" x="528" y="76">alimentação</text>
+<polyline class="dg-fio" points="216,72 464,72"/>
+<circle class="dg-no" cx="216" cy="72" r="4"/>
+<circle class="dg-no" cx="464" cy="72" r="4"/>
+<text class="dg-t" x="200" y="156" text-anchor="end"><tspan class="dg-m">GP4</tspan> · pino 6</text>
+<text class="dg-t dg-m" x="480" y="156">SDA</text>
+<text class="dg-n dg-c2" x="528" y="156">dados</text>
+<polyline class="dg-fio-acento" points="216,152 464,152"/>
+<circle class="dg-no-acento" cx="216" cy="152" r="4"/>
+<circle class="dg-no-acento" cx="464" cy="152" r="4"/>
+<text class="dg-t" x="200" y="204" text-anchor="end"><tspan class="dg-m">GP5</tspan> · pino 7</text>
+<text class="dg-t dg-m" x="480" y="204">SCL</text>
+<text class="dg-n dg-c2" x="528" y="204">relógio</text>
+<polyline class="dg-fio-acento" points="216,200 464,200"/>
+<circle class="dg-no-acento" cx="216" cy="200" r="4"/>
+<circle class="dg-no-acento" cx="464" cy="200" r="4"/>
+<text class="dg-t" x="200" y="284" text-anchor="end"><tspan class="dg-m">GND</tspan> · pino 38</text>
+<text class="dg-t dg-m" x="480" y="284">GND</text>
+<text class="dg-n dg-c2" x="528" y="284">terra</text>
+<polyline class="dg-fio" points="216,280 464,280"/>
+<circle class="dg-no" cx="216" cy="280" r="4"/>
+<circle class="dg-no" cx="464" cy="280" r="4"/>
+<polyline class="dg-fio" points="424,72 424,104 464,104"/>
+<circle class="dg-no" cx="424" cy="72" r="4"/>
+<circle class="dg-no" cx="464" cy="104" r="4"/>
+<text class="dg-t dg-m" x="480" y="108">CSB</text>
+<text class="dg-n dg-c2" x="528" y="108">3V3: modo I²C</text>
+<polyline class="dg-fio" points="424,280 424,248 464,248"/>
+<circle class="dg-no" cx="424" cy="280" r="4"/>
+<circle class="dg-no" cx="464" cy="248" r="4"/>
+<text class="dg-t dg-m" x="480" y="252">SDO</text>
+<text class="dg-n dg-c2" x="528" y="252">GND: endereço 0x76</text>
+<text class="dg-n dg-c2" x="24" y="344">pull-ups de 4,7 kΩ em SDA e SCL, se o módulo não tiver</text>
+</svg>

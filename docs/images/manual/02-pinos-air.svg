@@ -1,0 +1,164 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 568" role="img" class="dg">
+<rect class="dg-caixa-2" x="176.5" y="36.5" width="159" height="427" rx="12"/>
+<rect class="dg-caixa" x="232.5" y="24.5" width="47" height="19" rx="6"/>
+<text class="dg-n dg-m dg-c2" x="256" y="40" text-anchor="middle">USB</text>
+<rect class="dg-caixa" x="224.5" y="68.5" width="63" height="47" rx="6"/>
+<text class="dg-n dg-m dg-c2" x="256" y="96" text-anchor="middle">RP2040</text>
+<text class="dg-t dg-b" x="256" y="216" text-anchor="middle">Pico W</text>
+<text class="dg-n dg-c2" x="256" y="232" text-anchor="middle">vista de cima</text>
+<rect class="dg-caixa-apagada" x="208.5" y="352.5" width="95" height="79" rx="6"/>
+<text class="dg-n dg-c2" x="256" y="372" text-anchor="middle">rádio</text>
+<rect class="dg-caixa-apagada" x="212.5" y="380.5" width="39" height="15" rx="6"/>
+<text class="dg-n dg-m dg-c2" x="232" y="392" text-anchor="middle">GP23</text>
+<rect class="dg-caixa-apagada" x="260.5" y="380.5" width="39" height="15" rx="6"/>
+<text class="dg-n dg-m dg-c2" x="280" y="392" text-anchor="middle">GP24</text>
+<rect class="dg-caixa-apagada" x="212.5" y="404.5" width="39" height="15" rx="6"/>
+<text class="dg-n dg-m dg-c2" x="232" y="416" text-anchor="middle">GP25</text>
+<rect class="dg-caixa-apagada" x="260.5" y="404.5" width="39" height="15" rx="6"/>
+<text class="dg-n dg-m dg-c2" x="280" y="416" text-anchor="middle">GP29</text>
+<rect class="dg-caixa" x="180.5" y="52.5" width="23" height="15" rx="6"/>
+<text class="dg-n dg-m" x="192" y="64" text-anchor="middle">1</text>
+<text class="dg-t dg-m" x="168" y="64" text-anchor="end">GP0</text>
+<rect class="dg-caixa" x="180.5" y="72.5" width="23" height="15" rx="6"/>
+<text class="dg-n dg-m" x="192" y="84" text-anchor="middle">2</text>
+<text class="dg-t dg-m" x="168" y="84" text-anchor="end">GP1</text>
+<rect class="dg-caixa-forte" x="180.5" y="92.5" width="23" height="15" rx="6"/>
+<text class="dg-n dg-m dg-sobre-forte" x="192" y="104" text-anchor="middle">3</text>
+<text class="dg-t dg-m" x="168" y="104" text-anchor="end">GND</text>
+<rect class="dg-caixa" x="180.5" y="112.5" width="23" height="15" rx="6"/>
+<text class="dg-n dg-m" x="192" y="124" text-anchor="middle">4</text>
+<text class="dg-t dg-m" x="168" y="124" text-anchor="end">GP2</text>
+<rect class="dg-caixa" x="180.5" y="132.5" width="23" height="15" rx="6"/>
+<text class="dg-n dg-m" x="192" y="144" text-anchor="middle">5</text>
+<text class="dg-t dg-m" x="168" y="144" text-anchor="end">GP3</text>
+<rect class="dg-caixa" x="180.5" y="152.5" width="23" height="15" rx="6"/>
+<text class="dg-n dg-m" x="192" y="164" text-anchor="middle">6</text>
+<text class="dg-t dg-m" x="168" y="164" text-anchor="end">GP4</text>
+<rect class="dg-caixa" x="180.5" y="172.5" width="23" height="15" rx="6"/>
+<text class="dg-n dg-m" x="192" y="184" text-anchor="middle">7</text>
+<text class="dg-t dg-m" x="168" y="184" text-anchor="end">GP5</text>
+<rect class="dg-caixa-forte" x="180.5" y="192.5" width="23" height="15" rx="6"/>
+<text class="dg-n dg-m dg-sobre-forte" x="192" y="204" text-anchor="middle">8</text>
+<text class="dg-t dg-m" x="168" y="204" text-anchor="end">GND</text>
+<rect class="dg-caixa" x="180.5" y="212.5" width="23" height="15" rx="6"/>
+<text class="dg-n dg-m" x="192" y="224" text-anchor="middle">9</text>
+<text class="dg-t dg-m" x="168" y="224" text-anchor="end">GP6</text>
+<rect class="dg-caixa" x="180.5" y="232.5" width="23" height="15" rx="6"/>
+<text class="dg-n dg-m" x="192" y="244" text-anchor="middle">10</text>
+<text class="dg-t dg-m" x="168" y="244" text-anchor="end">GP7</text>
+<rect class="dg-caixa" x="180.5" y="252.5" width="23" height="15" rx="6"/>
+<text class="dg-n dg-m" x="192" y="264" text-anchor="middle">11</text>
+<text class="dg-t dg-m" x="168" y="264" text-anchor="end">GP8</text>
+<rect class="dg-caixa" x="180.5" y="272.5" width="23" height="15" rx="6"/>
+<text class="dg-n dg-m" x="192" y="284" text-anchor="middle">12</text>
+<text class="dg-t dg-m" x="168" y="284" text-anchor="end">GP9</text>
+<rect class="dg-caixa-forte" x="180.5" y="292.5" width="23" height="15" rx="6"/>
+<text class="dg-n dg-m dg-sobre-forte" x="192" y="304" text-anchor="middle">13</text>
+<text class="dg-t dg-m" x="168" y="304" text-anchor="end">GND</text>
+<rect class="dg-caixa" x="180.5" y="312.5" width="23" height="15" rx="6"/>
+<text class="dg-n dg-m" x="192" y="324" text-anchor="middle">14</text>
+<text class="dg-t dg-m" x="168" y="324" text-anchor="end">GP10</text>
+<rect class="dg-caixa" x="180.5" y="332.5" width="23" height="15" rx="6"/>
+<text class="dg-n dg-m" x="192" y="344" text-anchor="middle">15</text>
+<text class="dg-t dg-m" x="168" y="344" text-anchor="end">GP11</text>
+<rect class="dg-caixa" x="180.5" y="352.5" width="23" height="15" rx="6"/>
+<text class="dg-n dg-m" x="192" y="364" text-anchor="middle">16</text>
+<text class="dg-t dg-m" x="168" y="364" text-anchor="end">GP12</text>
+<rect class="dg-caixa" x="180.5" y="372.5" width="23" height="15" rx="6"/>
+<text class="dg-n dg-m" x="192" y="384" text-anchor="middle">17</text>
+<text class="dg-t dg-m" x="168" y="384" text-anchor="end">GP13</text>
+<rect class="dg-caixa-forte" x="180.5" y="392.5" width="23" height="15" rx="6"/>
+<text class="dg-n dg-m dg-sobre-forte" x="192" y="404" text-anchor="middle">18</text>
+<text class="dg-t dg-m" x="168" y="404" text-anchor="end">GND</text>
+<rect class="dg-caixa" x="180.5" y="412.5" width="23" height="15" rx="6"/>
+<text class="dg-n dg-m" x="192" y="424" text-anchor="middle">19</text>
+<text class="dg-t dg-m" x="168" y="424" text-anchor="end">GP14</text>
+<rect class="dg-caixa" x="180.5" y="432.5" width="23" height="15" rx="6"/>
+<text class="dg-n dg-m" x="192" y="444" text-anchor="middle">20</text>
+<text class="dg-t dg-m" x="168" y="444" text-anchor="end">GP15</text>
+<rect class="dg-caixa-acento" x="308.5" y="432.5" width="23" height="15" rx="6"/>
+<text class="dg-n dg-m dg-sobre-acento" x="320" y="444" text-anchor="middle">21</text>
+<text class="dg-t dg-m" x="344" y="444">GP16</text>
+<text class="dg-t" x="412" y="444">energia dos sensores · saída</text>
+<rect class="dg-caixa-acento" x="308.5" y="412.5" width="23" height="15" rx="6"/>
+<text class="dg-n dg-m dg-sobre-acento" x="320" y="424" text-anchor="middle">22</text>
+<text class="dg-t dg-m" x="344" y="424">GP17</text>
+<text class="dg-t" x="412" y="424">carregador · entrada</text>
+<rect class="dg-caixa-forte" x="308.5" y="392.5" width="23" height="15" rx="6"/>
+<text class="dg-n dg-m dg-sobre-forte" x="320" y="404" text-anchor="middle">23</text>
+<text class="dg-t dg-m" x="344" y="404">GND</text>
+<rect class="dg-caixa-apagada" x="308.5" y="372.5" width="23" height="15" rx="6"/>
+<text class="dg-n dg-m dg-c2" x="320" y="384" text-anchor="middle">24</text>
+<text class="dg-t dg-m" x="344" y="384">GP18</text>
+<text class="dg-t dg-c2" x="412" y="384">sem uso</text>
+<rect class="dg-caixa-apagada" x="308.5" y="352.5" width="23" height="15" rx="6"/>
+<text class="dg-n dg-m dg-c2" x="320" y="364" text-anchor="middle">25</text>
+<text class="dg-t dg-m" x="344" y="364">GP19</text>
+<text class="dg-t dg-c2" x="412" y="364">sem uso</text>
+<rect class="dg-caixa-apagada" x="308.5" y="332.5" width="23" height="15" rx="6"/>
+<text class="dg-n dg-m dg-c2" x="320" y="344" text-anchor="middle">26</text>
+<text class="dg-t dg-m" x="344" y="344">GP20</text>
+<text class="dg-t dg-c2" x="412" y="344">sem uso</text>
+<rect class="dg-caixa-apagada" x="308.5" y="312.5" width="23" height="15" rx="6"/>
+<text class="dg-n dg-m dg-c2" x="320" y="324" text-anchor="middle">27</text>
+<text class="dg-t dg-m" x="344" y="324">GP21</text>
+<text class="dg-t dg-c2" x="412" y="324">sem uso</text>
+<rect class="dg-caixa-forte" x="308.5" y="292.5" width="23" height="15" rx="6"/>
+<text class="dg-n dg-m dg-sobre-forte" x="320" y="304" text-anchor="middle">28</text>
+<text class="dg-t dg-m" x="344" y="304">GND</text>
+<rect class="dg-caixa-apagada" x="308.5" y="272.5" width="23" height="15" rx="6"/>
+<text class="dg-n dg-m dg-c2" x="320" y="284" text-anchor="middle">29</text>
+<text class="dg-t dg-m" x="344" y="284">GP22</text>
+<text class="dg-t dg-c2" x="412" y="284">sem uso</text>
+<rect class="dg-caixa-apagada" x="308.5" y="252.5" width="23" height="15" rx="6"/>
+<text class="dg-n dg-m dg-c2" x="320" y="264" text-anchor="middle">30</text>
+<text class="dg-t dg-m dg-c2" x="344" y="264">RUN</text>
+<rect class="dg-caixa-apagada" x="308.5" y="232.5" width="23" height="15" rx="6"/>
+<text class="dg-n dg-m dg-c2" x="320" y="244" text-anchor="middle">31</text>
+<text class="dg-t dg-m" x="344" y="244">GP26</text>
+<text class="dg-t dg-c2" x="412" y="244">sem uso</text>
+<rect class="dg-caixa-apagada" x="308.5" y="212.5" width="23" height="15" rx="6"/>
+<text class="dg-n dg-m dg-c2" x="320" y="224" text-anchor="middle">32</text>
+<text class="dg-t dg-m" x="344" y="224">GP27</text>
+<text class="dg-t dg-c2" x="412" y="224">sem uso</text>
+<rect class="dg-caixa-forte" x="308.5" y="192.5" width="23" height="15" rx="6"/>
+<text class="dg-n dg-m dg-sobre-forte" x="320" y="204" text-anchor="middle">33</text>
+<text class="dg-t dg-m" x="344" y="204">AGND</text>
+<rect class="dg-caixa-apagada" x="308.5" y="172.5" width="23" height="15" rx="6"/>
+<text class="dg-n dg-m dg-c2" x="320" y="184" text-anchor="middle">34</text>
+<text class="dg-t dg-m" x="344" y="184">GP28</text>
+<text class="dg-t dg-c2" x="412" y="184">sem uso</text>
+<rect class="dg-caixa-apagada" x="308.5" y="152.5" width="23" height="15" rx="6"/>
+<text class="dg-n dg-m dg-c2" x="320" y="164" text-anchor="middle">35</text>
+<text class="dg-t dg-m dg-c2" x="344" y="164">ADC_VREF</text>
+<rect class="dg-caixa-forte" x="308.5" y="132.5" width="23" height="15" rx="6"/>
+<text class="dg-n dg-m dg-sobre-forte" x="320" y="144" text-anchor="middle">36</text>
+<text class="dg-t dg-m" x="344" y="144">3V3</text>
+<text class="dg-t" x="412" y="144">sensores</text>
+<rect class="dg-caixa-apagada" x="308.5" y="112.5" width="23" height="15" rx="6"/>
+<text class="dg-n dg-m dg-c2" x="320" y="124" text-anchor="middle">37</text>
+<text class="dg-t dg-m dg-c2" x="344" y="124">3V3_EN</text>
+<rect class="dg-caixa-forte" x="308.5" y="92.5" width="23" height="15" rx="6"/>
+<text class="dg-n dg-m dg-sobre-forte" x="320" y="104" text-anchor="middle">38</text>
+<text class="dg-t dg-m" x="344" y="104">GND</text>
+<rect class="dg-caixa-apagada" x="308.5" y="72.5" width="23" height="15" rx="6"/>
+<text class="dg-n dg-m dg-c2" x="320" y="84" text-anchor="middle">39</text>
+<text class="dg-t dg-m dg-c2" x="344" y="84">VSYS</text>
+<rect class="dg-caixa-forte" x="308.5" y="52.5" width="23" height="15" rx="6"/>
+<text class="dg-n dg-m dg-sobre-forte" x="320" y="64" text-anchor="middle">40</text>
+<text class="dg-t dg-m" x="344" y="64">VBUS</text>
+<text class="dg-t" x="412" y="64">5 V do USB</text>
+<polyline class="dg-fio-fino" points="128,60 124,60 124,440 128,440"/>
+<text class="dg-t" x="116" y="236" text-anchor="end">sensores</text>
+<text class="dg-t" x="116" y="252" text-anchor="end"><tspan class="dg-m">GP0</tspan> a <tspan class="dg-m">GP15</tspan></text>
+<text class="dg-n dg-c2" x="116" y="268" text-anchor="end">16 slots</text>
+<rect class="dg-caixa" x="16.5" y="488.5" width="23" height="15" rx="6"/>
+<text class="dg-t" x="48" y="500">sensor</text>
+<rect class="dg-caixa-acento" x="368.5" y="488.5" width="23" height="15" rx="6"/>
+<text class="dg-t" x="400" y="500">energia dos sensores e carregador</text>
+<rect class="dg-caixa-forte" x="16.5" y="512.5" width="23" height="15" rx="6"/>
+<text class="dg-t" x="48" y="524">alimentação e terra</text>
+<rect class="dg-caixa-apagada" x="368.5" y="512.5" width="23" height="15" rx="6"/>
+<text class="dg-t" x="400" y="524">sem uso, ou interno do Pico W</text>
+<text class="dg-n dg-c2" x="16" y="548"><tspan class="dg-m">GP16</tspan> também é o sinal de acordado: fica em nível alto enquanto o aparelho está acordado.</text>
+</svg>
