@@ -59,6 +59,8 @@ RELEASE_MANIFEST = 'tools/release_manifest.py'
 COMANDOS = 'src/CommandParser.cpp'
 MENU = 'src/display/SettingsMenu.h'
 WORKFLOW_OTA = '.github/workflows/release-ota.yml'
+TELEMETRIA = 'src/TelemetryManager.cpp'
+HA_DISCOVERY = 'src/HaDiscovery.h'
 
 
 class Falta(Exception):
@@ -115,6 +117,10 @@ FIGURAS = (
     Figura('fig-22-fluxo', '22-fluxo.svg', 'cap22-linha-alarmes.md', 'desenho_linha_alarmes',
            'a fila de alarmes na RAM e as duas raias, HTTP e MQTT, com a confirmação que tira os registros da fila; o reenvio, a espera da resposta e as pontas dos dois tópicos vêm de '
            'src/TelemetryManager.h, src/SystemDefs_Network.h e src/TelemetryManager.cpp'),
+    Figura('fig-23-fluxo', '23-fluxo.svg', 'cap23-home-assistant.md', 'desenho_home_assistant',
+           'o caminho das mensagens entre o aparelho, o broker e o Home Assistant: a descoberta e o estado retidos, os valores a cada envio, a última vontade que o broker publica se o aparelho some '
+           'e o que o Home Assistant lê de cada uma; o prefixo e a forma do tópico de descoberta vêm de src/HaDiscovery.h, o tópico de dados de src/StorageManager.cpp, o de estado, a última vontade '
+           'e as chaves do registro de src/TelemetryManager.cpp; o nó, o broker e o identificador do sensor são os exemplos do capítulo'),
 )
 
 
@@ -206,6 +212,13 @@ class Fonte:
         """{name: value} of the -D flags of [env:`env`]; a bare -DNAME is '1'. The profile's flag wins over simut_config.h's default, as the compiler's -D does."""
         return {k: v or '1' for k, v in re.findall(r'^[ \t]+-D(\w+)(?:=(\S+))?[ \t]*$', self.secao(env), FLAGS_PADRAO)}
 
+    def exigir(self, rel, padrao, porque):
+        """Falta unless the file still matches `padrao`: a premise the figure rests on, with `porque` in the message to say which (achar( )'s message names only the pattern)."""
+        if (rel, padrao) not in self.padroes:
+            self.padroes.append((rel, padrao))
+        if re.search(padrao, self.ler(rel), FLAGS_PADRAO) is None:
+            raise Falta(f'{rel}: no longer matches the pattern {padrao}, and {porque}')
+
     def exigir_flag(self, env, nome, valor, porque):
         """Falta unless [env:`env`] builds with -D`nome`=`valor`: a premise the figure rests on."""
         padrao = rf'^[ \t]+-D{nome}={valor}[ \t]*$'
@@ -228,6 +241,10 @@ EXTERNOS = tuple(sorted(g for g in PINO_DO_GPIO if g >= 16))     # the GPIOs bey
 PINO_3V3, PINO_GND = 36, 38          # the pins the wiring figures name: 3V3 (OUT), and one of the seven GND pins, on the same row of the board
 RESISTOR = '4,7 kΩ'                  # chapter 2 (lines 164, 166, 181 and 267) gives it for the DS18B20's data line and the I2C's two; the firmware does not know the resistor
 EXEMPLO_DS18B20, EXEMPLO_DHT22 = 2, 3   # the example GPIOs of the wiring figures, those chapter 6 shows (cap06-sensores.md:59, a DS18B20 on GP2 and a DHT22 on GP3): any sensor GPIO would do
+# The examples of the Home Assistant figure, those chapter 23 writes (cap23-home-assistant.md: the node in the table of the device's data, the broker and its port in the capture of the
+# Telemetria page, the sensor's id in the table of the entities): the node is the Client ID of a device with the MAC's last six digits 0a1b2c. The firmware knows none of them;
+# tools/test_manual_diagramas.py checks that the chapter still says them.
+NO_EXEMPLO, BROKER_EXEMPLO, PORTA_EXEMPLO, HWID_EXEMPLO = 'simut_0a1b2c', 'broker.exemplo.com.br', 1883, 'STM0001'
 
 IMAGEM_DO_PERFIL = {'release': 'pico_w_release', 'alpha': 'pico_w_alpha', 'air': 'pico_w_air'}
 
@@ -402,6 +419,41 @@ class Numeros:
                 'espera': int(f.achar('src/SystemDefs_Network.h', r'NET_SOCKET_TIMEOUT_MS = (\d+);').group(1)) // 1000,
                 'topico': f.achar('src/TelemetryManager.cpp', r'mqttAlarmTopic\( \) \{\s+return mqttDataTopic\( \) \+ "([^"]+)";').group(1),
                 'ack': f.achar('src/TelemetryManager.cpp', r'mqttAlarmAckTopic\( \) \{\s+return mqttDataTopic\( \) \+ "([^"]+)";').group(1)}
+
+
+    def homeassistant(self):
+        """The Home Assistant figure's words, as the code spells them: the discovery topic's prefix, component and end (HaDiscovery.h); the data topic a new configuration starts with
+        (StorageManager.cpp, which the blank field's fallback in TelemetryManager.cpp has to agree with) and the status topic the resolver makes from it, by the rule of
+        mqttStatusTopic( ); the availability message's key and its two words, which the device's own messages and what Home Assistant is told to read have to agree on; and the
+        telemetry record's first key and the prefix of a temperature's. Premises, not numbers: the discovery configs, the online message and the last will are published retained."""
+        f = self.f
+        prefixo = f.achar(HA_DISCOVERY, r'^constexpr const char\* PREFIX = "([^"]+)";').group(1)
+        c = f.achar(HA_DISCOVERY, r'snprintf\(out, cap, "%s/(\w+)/%s/%s/(\w+)", PREFIX, nodeId, objectId\)')
+        dados = f.achar('src/StorageManager.cpp', r'safeCopy\(_currentConfig\.mqttTopic, "([^"]+)", sizeof').group(1)
+        vazio = f.achar(TELEMETRIA, r'if \(t\.length\( \) == 0\) t = "([^"]+)";').group(1)
+        if vazio != dados:
+            raise Falta(f'{TELEMETRIA}: a blank topic falls back to {vazio!r} while a new configuration starts with {dados!r} (src/StorageManager.cpp); the figure names one topic for the data')
+        com_pasta = f.achar(TELEMETRIA, r'if \(lastSlash > 0\) return base\.substring\(0, lastSlash\) \+ "(/\w+)";').group(1)
+        sem_pasta = f.achar(TELEMETRIA, r'return base \+ "(/\w+)";').group(1)
+        if com_pasta != sem_pasta:
+            raise Falta(f'{TELEMETRIA}: the status topic ends in {com_pasta} when the data topic has a folder and in {sem_pasta} when it has none; the figure names one')
+        barra = dados.rfind('/')
+        estado = (dados[:barra] if barra > 0 else dados) + com_pasta
+        on = f.achar(TELEMETRIA, r'onlinePayload = "\{\\"device\\":\\"" \+ devName \+ "\\",\\"(\w+)\\":\\"(\w+)\\"')
+        off = f.achar(TELEMETRIA, r'willPayload = "\{\\"device\\":\\"" \+ devName \+ "\\",\\"(\w+)\\":\\"(\w+)\\"')
+        chave = f.achar(HA_DISCOVERY, r'\\"avty_tpl\\":\\"\{\{ value_json\.(\w+) \}\}\\"').group(1)
+        ha_on = f.achar(HA_DISCOVERY, r'\\"pl_avail\\":\\"(\w+)\\"').group(1)
+        ha_off = f.achar(HA_DISCOVERY, r'\\"pl_not_avail\\":\\"(\w+)\\"').group(1)
+        if (on.group(1), off.group(1), on.group(2), off.group(2)) != (chave, chave, ha_on, ha_off):
+            raise Falta(f'{TELEMETRIA} and {HA_DISCOVERY} disagree on the availability message: the device publishes {on.group(1)!r}: {on.group(2)!r} and, as its last will, '
+                        f'{off.group(1)!r}: {off.group(2)!r}; Home Assistant is told to read {chave!r} and to wait for {ha_on!r} and {ha_off!r}')
+        for padrao, o_que in ((r'ok = _mqttClient\.publish\(topic, payload, true\);', 'the discovery configs'),
+                              (r'_mqttClient\.publish\(willTopicFull\.c_str\( \), onlinePayload\.c_str\( \), true\);', 'the online message'),
+                              (r'willTopicFull\.c_str\( \),\s+0,\s+true,\s+willPayload\.c_str\( \)', 'the last will')):
+            f.exigir(TELEMETRIA, padrao, f'the figure of Home Assistant draws {o_que} as published retained')
+        ts = f.achar(TELEMETRIA, r'snprintf\(dest, maxLen, "\{\\"(\w+)\\":%lu", \(unsigned long\)rec\.epoch\);').group(1)
+        t = f.achar(TELEMETRIA, r'if \(hwid\[0\]\) snprintf\(tKey, sizeof\(tKey\), "(\w)%s", hwid\);').group(1)
+        return {'prefixo': prefixo, 'componente': c.group(1), 'fim': c.group(2), 'dados': dados, 'estado': estado, 'chave': chave, 'online': ha_on, 'offline': ha_off, 'ts': ts, 't': t}
 
 
 def pino_de(gpio):
@@ -1053,6 +1105,68 @@ def desenho_linha_alarmes(num, slug):
     s.texto(184, 332, [('', 'seq 1, 2 e 3 em '), ('dg-m', f'<tópico>{a["ack"]}')], 'dg-n')
     s.texto(184, 348, 'o aparelho tira os três da fila', 'dg-n dg-c2')
     s.texto(184, 384, f'Sem a confirmação, a fila inteira é publicada de novo a cada {segundos(a["reenvio"])}.', 'dg-t')
+    return s.render()
+
+
+def desenho_home_assistant(num, slug):
+    ha = num.homeassistant()
+    s = Svg(slug)
+    ponta = ('dg-fio-acento', 'dg-ponta-acento')
+    x_s, x_b, x_h = 76, 460, 644          # the three lifelines, each under the middle of its header; the first gap is wide enough for the discovery topic, in 12 px mono
+    topico = lambda *partes: [('dg-m', ''.join(partes))]
+    configuracao = f'{ha["prefixo"]}/{ha["componente"]}/{NO_EXEMPLO}/<objeto>/{ha["fim"]}'
+    registro = f'{ha["dados"]} {{{ha["ts"]}, {ha["t"]}{HWID_EXEMPLO}, ...}}'
+    disponibilidade = lambda palavra: f'{ha["estado"]} {{{ha["chave"]}: {palavra}}}'
+    # the three actors: a header each, 48 px, and a thin line down from it
+    for x, w, titulo, sub in ((x_s - 60, 120, 'SIMUT', NO_EXEMPLO), (x_b - 112, 224, 'Broker MQTT', f'{BROKER_EXEMPLO}:{PORTA_EXEMPLO}'), (x_h - 60, 120, 'Home Assistant', None)):
+        s.caixa(x, 16, w, 48, 'dg-caixa', 6)
+        if sub is None:
+            s.texto(x + 12, 44, titulo, 'dg-t dg-b')
+        else:
+            if largura_texto(sub, 12, True) > w - 24:
+                raise ValueError(f'{slug}: {sub} does not fit in a header of {w} px')
+            s.texto(x + 12, 36, titulo, 'dg-t dg-b')
+            s.texto(x + 12, 52, sub, 'dg-n dg-m')
+    filas = ((1, ['ao conectar (retida, uma por medição):', topico(configuracao)],
+              [[('', 'assina '), ('dg-m', f'{ha["prefixo"]}/#')], 'e cria dispositivo', 'e entidades']),
+             (2, [[('dg-m', disponibilidade(ha['online'])), ('', ' (retida)')]],
+              ['lê a disponibilidade em', topico(ha['estado'])]),
+             (3, [[('dg-m', registro), ('', ' a cada envio')]],
+              ['lê os valores em', topico(ha['dados'])]))
+    # the rows, from the top: the labels above an arrow, the arrow 8 px below the last line, 16 px to the next row; then the row of the device that vanishes
+    y_setas, y = [], 80
+    for _, esquerda, direita in filas:
+        y_setas.append(y + 16 * max(len(esquerda), len(direita)) + 8)
+        y = y_setas[-1] + 16
+    y_some = y + 8
+    s.linha([(x_s, 64), (x_s, y_some + 12)], 'dg-fio-fino')                 # the device's line ends where it vanishes
+    for x in (x_b, x_h):
+        s.linha([(x, 64), (x, y_some + 48)], 'dg-fio-fino')
+
+    def linhas(x, y, itens, limite):
+        """The lines of a label, 16 px apart from the baseline y, in 12 px: a line that would cross the next lifeline (`limite`) is an error."""
+        for k, item in enumerate(itens):
+            runs = [('', item)] if isinstance(item, str) else item
+            w = sum(largura_texto(t, 12, c == 'dg-m') for c, t in runs)
+            if x + w > limite:
+                raise ValueError(f'{slug}: the line {"".join(t for _, t in runs)!r} is about {w} px wide from x={x}, past the lifeline at {limite}')
+            s.texto(x, y + 16 * k, runs, 'dg-n')
+
+    # the device publishes, and Home Assistant reads what the broker holds: the two arrows of a row are at the same height, the message passing through the broker
+    for (numero, esquerda, direita), y_seta in zip(filas, y_setas):
+        linhas(x_s + 12, y_seta - 12 - 16 * (len(esquerda) - 1), esquerda, x_b - 4)
+        linhas(x_b + 12, y_seta - 12 - 16 * (len(direita) - 1), direita, x_h - 4)
+        s.seta([(x_s + 8, y_seta), (x_b, y_seta)], *ponta)
+        s.caixa(x_s - 8, y_seta - 8, 16, 16, 'dg-caixa-acento', 6)
+        s.texto(x_s, y_seta + 4, str(numero), 'dg-n dg-b dg-sobre-acento', 'middle')
+        s.seta([(x_b, y_seta), (x_h, y_seta)], *ponta)
+    # the device vanishes: its line ends in a cross, and the broker publishes the will it was left with
+    s.linha([(x_s - 4, y_some + 8), (x_s + 4, y_some + 16)], 'dg-fio')
+    s.linha([(x_s + 4, y_some + 8), (x_s - 4, y_some + 16)], 'dg-fio')
+    s.no(x_b, y_some + 8)
+    s.seta([(x_b, y_some + 8), (x_b - 32, y_some + 8), (x_b - 32, y_some + 32), (x_b, y_some + 32)], 'dg-fio-tracejado', 'dg-ponta')
+    linhas(x_s + 12, y_some + 12, ['se o aparelho some (última vontade, retida):', topico(disponibilidade(ha['offline']))], x_b - 36)
+    s.texto(16, y_some + 72, 'O Home Assistant não manda nada ao aparelho.', 'dg-n dg-c2')
     return s.render()
 
 

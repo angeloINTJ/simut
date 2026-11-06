@@ -54,6 +54,8 @@ AIR_CONFIG = 'src/air/AirConfig.h'
 MENU = 'src/display/SettingsMenu.h'
 RELEASE_MANIFEST = 'tools/release_manifest.py'
 WORKFLOW_OTA = '.github/workflows/release-ota.yml'
+TELEMETRY = 'src/TelemetryManager.cpp'
+HA_DISCOVERY = 'src/HaDiscovery.h'
 
 
 def confere(cond, msg, ok=None):
@@ -217,6 +219,12 @@ def main():
                 f'PINAGEM ground pins {sorted(p for p, nome in m.PINAGEM.items() if nome == "GND")}, chapter 2 says {gnd}',
                 'PINAGEM: the same seven GND pins as chapter 2, 3V3 at 36, VBUS at 40')
 
+        # the examples of the Home Assistant figure (the node, the broker and its port, the sensor's id), constants of the tool, against what chapter 23 says
+        cap23 = (m.CAPITULOS / 'cap23-home-assistant.md').read_text(encoding='utf-8')
+        confere(f'`{m.NO_EXEMPLO}`' in cap23 and f'IP Servidor {m.BROKER_EXEMPLO}; Porta {m.PORTA_EXEMPLO};' in cap23 and f'`t{m.HWID_EXEMPLO}`' in cap23,
+                f'chapter 23 does not say the examples of the figure: node {m.NO_EXEMPLO}, broker {m.BROKER_EXEMPLO}:{m.PORTA_EXEMPLO}, key t{m.HWID_EXEMPLO}',
+                'the Home Assistant figure\'s examples (node, broker and port, sensor id) are the ones chapter 23 writes')
+
         # ---- the builder's guards --------------------------------------------------------------------------------------------------------------------------
         s = m.Svg('99-teste', 100)
         s.texto(16, 28, 'um texto')
@@ -367,6 +375,24 @@ def main():
                 ('the socket timeout 4 s -> 6 s (the alarm line\'s wait for an answer)', [('src/SystemDefs_Network.h', 'NET_SOCKET_TIMEOUT_MS = 4000;', 'NET_SOCKET_TIMEOUT_MS = 6000;', 1)], {'22-fluxo.svg'}),
                 ('the alarm topic\'s end /alarm -> /alerta', [('src/TelemetryManager.cpp', 'return mqttDataTopic( ) + "/alarm";', 'return mqttDataTopic( ) + "/alerta";', 1)], {'22-fluxo.svg'}),
                 ('the ack topic\'s end /alarm/ack -> /alerta/ack', [('src/TelemetryManager.cpp', 'return mqttDataTopic( ) + "/alarm/ack";', 'return mqttDataTopic( ) + "/alerta/ack";', 1)], {'22-fluxo.svg'}),
+                ('the discovery prefix homeassistant -> casa in HaDiscovery.h', [(HA_DISCOVERY, 'constexpr const char* PREFIX = "homeassistant";', 'constexpr const char* PREFIX = "casa";', 1)], {'23-fluxo.svg'}),
+                ('the discovery topic\'s component sensor -> leitor', [(HA_DISCOVERY, '"%s/sensor/%s/%s/config"', '"%s/leitor/%s/%s/config"', 1)], {'23-fluxo.svg'}),
+                ('the discovery topic\'s end config -> cfg', [(HA_DISCOVERY, '"%s/sensor/%s/%s/config"', '"%s/sensor/%s/%s/cfg"', 1)], {'23-fluxo.svg'}),
+                ('the default data topic simut/data -> lab/dados, in the new configuration and in the blank field\'s fallback',
+                 [('src/StorageManager.cpp', 'safeCopy(_currentConfig.mqttTopic, "simut/data"', 'safeCopy(_currentConfig.mqttTopic, "lab/dados"', 1),
+                  (TELEMETRY, 'if (t.length( ) == 0) t = "simut/data";', 'if (t.length( ) == 0) t = "lab/dados";', 1)], {'23-fluxo.svg'}),
+                ('the status topic\'s end /status -> /estado, with and without a folder in the data topic',
+                 [(TELEMETRY, 'return base.substring(0, lastSlash) + "/status";', 'return base.substring(0, lastSlash) + "/estado";', 1),
+                  (TELEMETRY, 'return base + "/status";', 'return base + "/estado";', 1)], {'23-fluxo.svg'}),
+                ('the word of an online device online -> ligado, in the device\'s message and in what Home Assistant waits for',
+                 [(TELEMETRY, '\\"status\\":\\"online\\",\\"ip\\":', '\\"status\\":\\"ligado\\",\\"ip\\":', 1), (HA_DISCOVERY, '\\"pl_avail\\":\\"online\\"', '\\"pl_avail\\":\\"ligado\\"', 1)], {'23-fluxo.svg'}),
+                ('the word of a vanished device offline -> apagado, in the last will and in what Home Assistant waits for',
+                 [(TELEMETRY, '\\"status\\":\\"offline\\"}', '\\"status\\":\\"apagado\\"}', 1), (HA_DISCOVERY, '\\"pl_not_avail\\":\\"offline\\"', '\\"pl_not_avail\\":\\"apagado\\"', 1)], {'23-fluxo.svg'}),
+                ('the availability message\'s key status -> estado, in the device\'s two messages and in the template Home Assistant reads it with',
+                 [(TELEMETRY, '\\"status\\":\\"online\\",\\"ip\\":', '\\"estado\\":\\"online\\",\\"ip\\":', 1), (TELEMETRY, '\\"status\\":\\"offline\\"}', '\\"estado\\":\\"offline\\"}', 1),
+                  (HA_DISCOVERY, '{{ value_json.status }}', '{{ value_json.estado }}', 1)], {'23-fluxo.svg'}),
+                ('the telemetry record\'s timestamp key ts -> t0', [(TELEMETRY, '"{\\"ts\\":%lu", (unsigned long)rec.epoch', '"{\\"t0\\":%lu", (unsigned long)rec.epoch', 1)], {'23-fluxo.svg'}),
+                ('the temperature key\'s prefix t -> T', [(TELEMETRY, 'snprintf(tKey, sizeof(tKey), "t%s", hwid);', 'snprintf(tKey, sizeof(tKey), "T%s", hwid);', 1)], {'23-fluxo.svg'}),
                 ('the BME280 probe pair (4, 5) -> (6, 7)', [(BME_SENSOR, 'probe(4, 5, BME280_ADDR_PRIMARY)', 'probe(6, 7, BME280_ADDR_PRIMARY)', 1)], {'02-bmx280.svg'}),
                 ('the BME280 addresses 0x76/0x77 -> 0x75/0x78 in the driver, code and comments', [(BME_DRIVER, '0x76', '0x75', None), (BME_DRIVER, '0x77', '0x78', None)], {'02-bmx280.svg'}),
             ]
@@ -414,6 +440,20 @@ def main():
                                                                                                          '    -DSIMUT_CLI_FULL=0\n    -DSIMUT_MDNS=0\n    -DSIMUT_BLUETOOTH=1', 1)], 'HD44780_MODE_PARALLEL', '02-pinos-alpha.svg'),
             ('AIR_CHARGER_ACTIVE_HIGH 1 -> 0 (the figure draws a divider off 5 V)', [(CONFIG, '#define AIR_CHARGER_ACTIVE_HIGH 1', '#define AIR_CHARGER_ACTIVE_HIGH 0', 1)], 'AIR_CHARGER_ACTIVE_HIGH', '02-air-energia.svg'),
             ('the Air no longer builds with -DSIMUT_AIR=1', [(PERFIS, '    -DSIMUT_AIR=1\n', '', 1)], 'SIMUT_AIR', '02-pinos-air.svg'),
+            ('the discovery topic\'s component sensor -> binary_sensor: the topic no longer fits between the device\'s line and the broker\'s',
+             [(HA_DISCOVERY, '"%s/sensor/%s/%s/config"', '"%s/binary_sensor/%s/%s/config"', 1)], 'past the lifeline', '23-fluxo.svg'),
+            ('the discovery configs are no longer published retained', [(TELEMETRY, 'ok = _mqttClient.publish(topic, payload, true);', 'ok = _mqttClient.publish(topic, payload, false);', 1)],
+             'retained', '23-fluxo.svg'),
+            ('the online message is no longer published retained', [(TELEMETRY, 'onlinePayload.c_str( ), true);', 'onlinePayload.c_str( ), false);', 1)], 'retained', '23-fluxo.svg'),
+            ('the last will is no longer retained, in the connection with an account and in the one without', [(TELEMETRY, ' 0,\n true,\n willPayload.c_str( )', ' 0,\n false,\n willPayload.c_str( )', 2)],
+             'retained', '23-fluxo.svg'),
+            ('the device says ligado while Home Assistant still waits for online', [(TELEMETRY, '\\"status\\":\\"online\\",\\"ip\\":', '\\"status\\":\\"ligado\\",\\"ip\\":', 1)],
+             'disagree on the availability message', '23-fluxo.svg'),
+            ('Home Assistant reads the availability from a key the device does not write', [(HA_DISCOVERY, '{{ value_json.status }}', '{{ value_json.estado }}', 1)],
+             'disagree on the availability message', '23-fluxo.svg'),
+            ('a new configuration starts with a data topic the blank field does not fall back to', [('src/StorageManager.cpp', 'safeCopy(_currentConfig.mqttTopic, "simut/data"', 'safeCopy(_currentConfig.mqttTopic, "lab/dados"', 1)],
+             'falls back', '23-fluxo.svg'),
+            ('the status topic ends in /estado when the data topic has no folder', [(TELEMETRY, 'return base + "/status";', 'return base + "/estado";', 1)], '/estado', '23-fluxo.svg'),
             ('the telemetry confirms 200 to 399, no longer one class', [('src/TelemetryManager.cpp', 'code >= 200 && code < 300', 'code >= 200 && code < 400', None)], '2xx', '21-cursor.svg'),
         ]
         for k, (descr, edicoes, agulha, figura) in enumerate(recusas):

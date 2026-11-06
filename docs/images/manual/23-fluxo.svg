@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 364" role="img" class="dg">
+<defs>
+<marker id="23-fluxo-ponta" viewBox="0 0 8 8" refX="8" refY="4" markerWidth="8" markerHeight="8" markerUnits="userSpaceOnUse" orient="auto"><path class="dg-ponta" d="M0 0L8 4L0 8z"/></marker>
+<marker id="23-fluxo-ponta-acento" viewBox="0 0 8 8" refX="8" refY="4" markerWidth="8" markerHeight="8" markerUnits="userSpaceOnUse" orient="auto"><path class="dg-ponta-acento" d="M0 0L8 4L0 8z"/></marker>
+</defs>
+<rect class="dg-caixa" x="16.5" y="16.5" width="119" height="47" rx="6"/>
+<text class="dg-t dg-b" x="28" y="36">SIMUT</text>
+<text class="dg-n dg-m" x="28" y="52">simut_0a1b2c</text>
+<rect class="dg-caixa" x="348.5" y="16.5" width="223" height="47" rx="6"/>
+<text class="dg-t dg-b" x="360" y="36">Broker MQTT</text>
+<text class="dg-n dg-m" x="360" y="52">broker.exemplo.com.br:1883</text>
+<rect class="dg-caixa" x="584.5" y="16.5" width="119" height="47" rx="6"/>
+<text class="dg-t dg-b" x="596" y="44">Home Assistant</text>
+<polyline class="dg-fio-fino" points="76,64 76,284"/>
+<polyline class="dg-fio-fino" points="460,64 460,320"/>
+<polyline class="dg-fio-fino" points="644,64 644,320"/>
+<text class="dg-n" x="88" y="108">ao conectar (retida, uma por medição):</text>
+<text class="dg-n" x="88" y="124"><tspan class="dg-m">homeassistant/sensor/simut_0a1b2c/&lt;objeto&gt;/config</tspan></text>
+<text class="dg-n" x="472" y="92">assina <tspan class="dg-m">homeassistant/#</tspan></text>
+<text class="dg-n" x="472" y="108">e cria dispositivo</text>
+<text class="dg-n" x="472" y="124">e entidades</text>
+<polyline class="dg-fio-acento" points="84,136 460,136" marker-end="url(#23-fluxo-ponta-acento)"/>
+<rect class="dg-caixa-acento" x="68.5" y="128.5" width="15" height="15" rx="6"/>
+<text class="dg-n dg-b dg-sobre-acento" x="76" y="140" text-anchor="middle">1</text>
+<polyline class="dg-fio-acento" points="460,136 644,136" marker-end="url(#23-fluxo-ponta-acento)"/>
+<text class="dg-n" x="88" y="180"><tspan class="dg-m">simut/status {status: online}</tspan> (retida)</text>
+<text class="dg-n" x="472" y="164">lê a disponibilidade em</text>
+<text class="dg-n" x="472" y="180"><tspan class="dg-m">simut/status</tspan></text>
+<polyline class="dg-fio-acento" points="84,192 460,192" marker-end="url(#23-fluxo-ponta-acento)"/>
+<rect class="dg-caixa-acento" x="68.5" y="184.5" width="15" height="15" rx="6"/>
+<text class="dg-n dg-b dg-sobre-acento" x="76" y="196" text-anchor="middle">2</text>
+<polyline class="dg-fio-acento" points="460,192 644,192" marker-end="url(#23-fluxo-ponta-acento)"/>
+<text class="dg-n" x="88" y="236"><tspan class="dg-m">simut/data {ts, tSTM0001, ...}</tspan> a cada envio</text>
+<text class="dg-n" x="472" y="220">lê os valores em</text>
+<text class="dg-n" x="472" y="236"><tspan class="dg-m">simut/data</tspan></text>
+<polyline class="dg-fio-acento" points="84,248 460,248" marker-end="url(#23-fluxo-ponta-acento)"/>
+<rect class="dg-caixa-acento" x="68.5" y="240.5" width="15" height="15" rx="6"/>
+<text class="dg-n dg-b dg-sobre-acento" x="76" y="252" text-anchor="middle">3</text>
+<polyline class="dg-fio-acento" points="460,248 644,248" marker-end="url(#23-fluxo-ponta-acento)"/>
+<polyline class="dg-fio" points="72,280 80,288"/>
+<polyline class="dg-fio" points="80,280 72,288"/>
+<circle class="dg-no" cx="460" cy="280" r="4"/>
+<polyline class="dg-fio-tracejado" points="460,280 428,280 428,304 460,304" marker-end="url(#23-fluxo-ponta)"/>
+<text class="dg-n" x="88" y="284">se o aparelho some (última vontade, retida):</text>
+<text class="dg-n" x="88" y="300"><tspan class="dg-m">simut/status {status: offline}</tspan></text>
+<text class="dg-n dg-c2" x="16" y="344">O Home Assistant não manda nada ao aparelho.</text>
+</svg>
