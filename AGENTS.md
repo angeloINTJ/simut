@@ -286,6 +286,26 @@ assim:
   não há fila. `screen <tag>` continua servindo para saltar de tela — e desde a
   v24 abre a árvore de configuração como admin, porque a lista é filtrada pelos
   bits da sessão e um `screen set` sem sessão mostrava três itens.
+- **O terminal de boot e a pergunta de hora do boot têm tag, só na `pico_w_test` e na
+  `pico_w_test_https` (2026-11-06).** O `/api/screenshot` não vê o terminal enquanto o aparelho
+  liga: o `setup()` o desenha e o servidor só atende no `loop()`. Por isso o painel grava, na
+  ordem, cada chamada que o boot faz às seis funções que escrevem o terminal
+  (`src/display/BootReplay.h`; 40 registros, e o boot mais longo que anda reto faz 29, contados em
+  `AppManager_Boot.cpp` em 2026-11-06), e uma tag as repete pelas mesmas seis. `screen boot` lista o
+  gravado: índice, operação, chave (o número do `LangKey` e o texto dela em inglês), sufixo e
+  `skip` ou `pct`. `screen boot <i>` põe o terminal como estava depois da chamada `i`;
+  `screen boot <i> <pct>` desenha, além disso, a barra do gesto (0 a 100); `screen boot <i> cancel`
+  faz o que o boot faz ao soltar o gesto (**Modo AP Cancelado.**); `screen boot end` devolve o
+  painel; `screen clkboot` abre a pergunta de hora como o boot a abre, com a linha em âmbar
+  **Sem Wi-Fi, os dados levam esta hora.** e o PULAR, esteja o Wi-Fi como estiver. A linha
+  **Aguardando roteador** é o primeiro registro `setkey` dessa chave; o `replkey` que vem depois
+  traz os pontinhos (uma sequência de pontinhos da mesma chave é um registro só, o último).
+  Três armadilhas. A lista é a do **último boot**: um boot que não esperou o roteador não tem essa
+  linha, e um boot em AP não tem `end`, porque nunca chama `endBoot()`. Um toque, 30 s sem toque,
+  qualquer outra tag e `screen boot end` devolvem o painel, e o toque no PULAR do terminal
+  recomposto **não** arma o PULAR do boot (só devolve o painel). E `screen boot end` num boot em
+  AP tira do vidro a caixa com o nome da rede e a chave, que o boot nunca soltava: o rádio segue
+  ligado, e a caixa não volta sozinha.
 - **`/api/screenshot` responde 503 nos 5 s após um toque**, inclusive para
   a sessão web que injetou o toque (medido em 19/09: 503 até ~3 s depois; a
   exceção vale só para o fluxo do espelho, `/api/screen_stream`). Capture
