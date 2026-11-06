@@ -368,6 +368,11 @@ def main():
                 f'chapter 26 does not give the examples of the entry figure: the address {m.IP_EXEMPLO} (H=http://...) and a code that starts {m.NONCE_EXEMPLO}',
                 'the entry figure\'s examples (the address and the start of the code) are chapter 26\'s own')
 
+        # the update figure's wait between two tries of login_init is read from the web page; chapter 26 says the same number, and a code that changes it leaves the chapter stale
+        espera = m.Numeros(m.Fonte(m.ROOT)).api_ota()['espera_s']
+        confere(f'repetindo `GET /api/login_init` a cada {espera} s' in cap26, f'chapter 26 does not say "a cada {espera} s" for the tries of login_init, which is what the web page waits',
+                'the wait between two tries of login_init (read from the web page) is the one chapter 26 gives')
+
         # ---- the builder's guards --------------------------------------------------------------------------------------------------------------------------
         s = m.Svg('99-teste', 100)
         s.texto(16, 28, 'um texto')
@@ -555,12 +560,12 @@ def main():
                 ('the session\'s Bearer scheme -> Token', [(WEB_AUTH, 'if (a.startsWith("Bearer ")) return "SIMUTSESS=" + a.substring(7);', 'if (a.startsWith("Token ")) return "SIMUTSESS=" + a.substring(7);', 1)], {'26-entrada.svg', '27-arquitetura.svg'}),
                 ('the session cookie SIMUTSESS -> SESSAO, wherever the code names it', [(WEB_AUTH, 'SIMUTSESS', 'SESSAO', None)], {'26-entrada.svg', '27-arquitetura.svg'}),
                 ('the manifest renamed in the release workflow', [(WORKFLOW_OTA, '*.lng manifest.json > SHA256SUMS', '*.lng manifesto.json > SHA256SUMS', 1)], {'03-arquivos.svg', '27-arquitetura.svg'}),
-                ('the backup route /api/backup -> /api/copia', [(WEB_CORE, '_server->on("/api/backup", HTTP_GET', '_server->on("/api/copia", HTTP_GET', 1)], {'27-ondas.svg'}),
+                ('the backup route /api/backup -> /api/copia', [(WEB_CORE, '_server->on("/api/backup", HTTP_GET', '_server->on("/api/copia", HTTP_GET', 1)], {'26-ota.svg', '27-ondas.svg'}),
                 ('the restore\'s stage operation renamed send, in the code and in the file\'s own header', [(WEB_OTA, 'bool is_stage = (op == "stage");', 'bool is_stage = (op == "send");', 1),
-                                                                                                          (WEB_OTA, 'restore (validate/apply/stage)', 'restore (validate/apply/send)', 1)], {'27-ondas.svg'}),
-                ('the commit flag of the stage 1 -> 2', [(WEB_OTA, 'bool commit = (_server->arg("commit") == "1");', 'bool commit = (_server->arg("commit") == "2");', 1)], {'27-ondas.svg'}),
+                                                                                                          (WEB_OTA, 'restore (validate/apply/stage)', 'restore (validate/apply/send)', 1)], {'26-ota.svg', '27-ondas.svg'}),
+                ('the commit flag of the stage 1 -> 2', [(WEB_OTA, 'bool commit = (_server->arg("commit") == "1");', 'bool commit = (_server->arg("commit") == "2");', 1)], {'26-ota.svg', '27-ondas.svg'}),
                 ('the folder of the language packs /lang -> /idiomas', [(STORAGE_H, '#define DIR_LANG "/lang"', '#define DIR_LANG "/idiomas"', 1)], {'27-ondas.svg', '01-arquitetura.svg'}),
-                ('the version\'s key in the status ver -> versao', [(WEB_API, '\\"name\\":\\"%s\\",\\"ver\\":\\"%s\\"', '\\"name\\":\\"%s\\",\\"versao\\":\\"%s\\"', 1)], {'27-ondas.svg'}),
+                ('the version\'s key in the status ver -> versao', [(WEB_API, '\\"name\\":\\"%s\\",\\"ver\\":\\"%s\\"', '\\"name\\":\\"%s\\",\\"versao\\":\\"%s\\"', 1)], {'26-ota.svg', '27-ondas.svg'}),
                 ('a new sensor type, SHT31, in the enum', [(RECORDS, ' TYPE_BMP280 = 5            /**< temperature + pressure */', ' TYPE_BMP280 = 5,           /**< temperature + pressure */\n TYPE_SHT31 = 6', 1)], {'01-arquitetura.svg'}),
                 ('the file system 1 MiB -> 512 KiB, in ota_layout.h and in platformio.ini', [(OTA_LAYOUT, '#define OTA_FILESYSTEM_SIZE      (1u * 1024u * 1024u)', '#define OTA_FILESYSTEM_SIZE      (512u * 1024u)', 1),
                                                                                                     ('platformio.ini', 'board_build.filesystem_size = 1m', 'board_build.filesystem_size = 512k', 1)], {'01-arquitetura.svg'}),
@@ -587,6 +592,11 @@ def main():
                 ('the login route /api/login -> /api/entrar', [(WEB_CORE, '_server->on("/api/login", HTTP_POST', '_server->on("/api/entrar", HTTP_POST', 1)], {'26-entrada.svg'}),
                 ('the key lockSec of the code\'s answer -> lock_sec', [(WEB_AUTH, '\\"locked\\":%s,\\"lockSec\\":%lu}"', '\\"locked\\":%s,\\"lock_sec\\":%lu}"', 1)], {'26-entrada.svg'}),
                 ('the answer of a logout with a Bearer token 204 -> 205', [(WEB_AUTH, '_server->send(204, "text/plain", "");', '_server->send(205, "text/plain", "");', 1)], {'26-entrada.svg'}),
+                ('the page\'s wait between two tries of login_init 3 s -> 4 s', [(WEBUI, "await new Promise(r => setTimeout(r, 3000));\n                    try { let p = await fetch('/api/login_init", "await new Promise(r => setTimeout(r, 4000));\n                    try { let p = await fetch('/api/login_init", 1)], {'26-ota.svg'}),
+                ('the answer of the apply 202 -> 200', [(WEB_OTA, '_server->send(202, "application/json", "{\\"accepted\\":true,\\"mode\\":\\"apply\\"}");', '_server->send(200, "application/json", "{\\"accepted\\":true,\\"mode\\":\\"apply\\"}");', 1)], {'26-ota.svg'}),
+                ('the good answer of a stage 200 -> 201', [(WEB_OTA, '_server->send(overall_ok ? 200 : 422, "application/json", buf);', '_server->send(overall_ok ? 201 : 422, "application/json", buf);', 1)], {'26-ota.svg'}),
+                ('the header with the backup\'s CRC renamed', [(WEB_OTA, '_server->sendHeader("X-Backup-PCrc"', '_server->sendHeader("X-Backup-Crc"', 1)], {'26-ota.svg'}),
+                ('the extension of a backup .bkp -> .bak', [(WEB_OTA, '"backup_%s_%lu.bkp"', '"backup_%s_%lu.bak"', 1)], {'26-ota.svg'}),
                 ('the BME280 probe pair (4, 5) -> (6, 7)', [(BME_SENSOR, 'probe(4, 5, BME280_ADDR_PRIMARY)', 'probe(6, 7, BME280_ADDR_PRIMARY)', 1)], {'02-bmx280.svg'}),
                 ('the BME280 addresses 0x76/0x77 -> 0x75/0x78 in the driver, code and comments', [(BME_DRIVER, '0x76', '0x75', None), (BME_DRIVER, '0x77', '0x78', None)], {'02-bmx280.svg'}),
             ]
@@ -689,6 +699,9 @@ def main():
             ('a Bearer logout is no longer told apart by the cookie', [(WEB_AUTH, 'const bool byBearer = !_server->hasHeader("Cookie") && _server->hasHeader("Authorization");', 'const bool byBearer = _server->hasHeader("Authorization");', 1)],
              'no cookie', '26-entrada.svg'),
             ('the login sets another cookie than the one the session is read from', [(WEB_AUTH, 'String cookieFlags = "SIMUTSESS=" + newToken', 'String cookieFlags = "SIMUTID=" + newToken', 1)], 'one cookie', '26-entrada.svg'),
+            ('an image staged and valid with commit is no longer the only one committed', [(WEB_OTA, 'if (ok_staged && valid && commit) {', 'if (ok_staged && commit) {', 1)], 'staged and valid image', '26-ota.svg'),
+            ('the apply answers after the device is already restarting', [(WEB_OTA, ' _server->client( ).flush( );\n delay(500); /* TCP flush before the reboot, as below. */', ' delay(500); /* TCP flush before the reboot, as below. */', 1)],
+             'before the device restarts', '26-ota.svg'),
             ('a reading-only wake starts the network', [(BOOT, 'else if (!_airRadioWake) {', 'else if (false) {', 1)], 'never starts', '19-despertar.svg'),
             ('the wake no longer cuts the sensors\' power when it goes to sleep', [(AIR_CPP, 'airSensorPower(_airCfg.sensorPowerPin, false);', 'airSensorPower(_airCfg.sensorPowerPin, true);', 1)], 'falls', '19-despertar.svg'),
             ('the discovery configs are no longer published retained', [(TELEMETRY, 'ok = _mqttClient.publish(topic, payload, true);', 'ok = _mqttClient.publish(topic, payload, false);', 1)],

@@ -65,6 +65,8 @@ WEB_CORE = 'src/WebManager_Core.cpp'
 WEB_METRICS = 'src/WebManager_Metrics.cpp'
 WEB_AUTH = 'src/WebManager_Auth.cpp'
 WEB_H = 'src/WebManager.h'
+OTA_STAGE_H = 'src/ota/firmware_stage.h'
+OTA_VALID_H = 'src/ota/validation.h'
 NET_DEFS = 'src/SystemDefs_Network.h'
 SYSLOG_H = 'src/SyslogManager.h'
 SYSLOG_CPP = 'src/SyslogManager.cpp'
@@ -199,6 +201,13 @@ FIGURAS = (
            'GET /logout, que encerra só a sessão do token (204 com Bearer, 302 para /login com cookie); as rotas, os campos, as chaves das respostas, o nome do cookie e do esquema, o tempo de vida do código e '
            'os códigos do logout vêm de src/WebManager_Core.cpp, src/WebManager_Auth.cpp e src/WebManager.h, e o que o desenho afirma do código gasto por uma tentativa, da senha em SHA-256 calculada pela '
            'página e do logout que só encerra a sessão do token são trechos de src/WebManager_Auth.cpp e de WebUI.h que o código tem de manter; o endereço e o começo do código são os exemplos do capítulo'),
+    Figura('fig-26-ota', '26-ota.svg', 'cap26-api-rest.md', 'desenho_ota_api',
+           'a atualização do firmware pela API, numa sequência entre o cliente e o aparelho, nos quatro passos do capítulo: baixar o backup e conferir o CRC, enviar a imagem com op=stage e commit=1 (a resposta '
+           'com st 5, v 0 e committed 1), aplicar com POST /api/ota/apply (a resposta 202, e o aparelho aplica e reinicia) e confirmar (repetir GET /api/login_init a cada 3 s até responder, entrar de novo e ler '
+           'a versão em /api/status, que é o único comprovante), com a restauração do backup depois (op=validate e op=apply); as rotas, as operações e a chave da versão vêm de src/WebManager_Core.cpp, '
+           'src/WebManager_Ota.cpp e src/WebManager_Api.cpp, os valores da resposta de src/ota/firmware_stage.h e src/ota/validation.h, o intervalo de WebUI.h, e que só uma imagem preparada e válida com commit '
+           'fica pronta para aplicar, que a resposta do apply sai antes de o aparelho reiniciar e que a restauração só aceita o backup validado por último são trechos desses arquivos que o código tem de manter; '
+           'o endereço é o exemplo do capítulo'),
     Figura('fig-27-arquitetura', '27-arquitetura.svg', 'cap27-frota.md', 'desenho_arquitetura',
            'os caminhos de uma frota: vários aparelhos numa rede local, a telemetria e a linha de alarmes que eles empurram ao coletor com os cabeçalhos de identidade, o que o Prometheus e o gestor de frota '
            'perguntam a cada um, o anúncio mDNS à rede local e o manifest.json da release no GitHub que o gestor lê; os nomes dos cabeçalhos e a premissa de que os dois POSTs os levam vêm de '
@@ -770,6 +779,33 @@ class Numeros:
                  'a logout ends only the session whose token is presented, which the figure of the entry draws')
         return {'init': init, 'login': login, 'logout': logout, 'status': self.rota_do('handleApiStatus'), 'vida_s': vida_ms // 1000, 'chaves': chaves, 'campos': (usuario, senha, codigo),
                 'esquema': esquema, 'cookie': cookie, 'ok': ok, 'destino': destino, 'raiz': raiz, 'sem_corpo': sem_corpo, 'pagina': pagina, 'redireciona': redireciona}
+
+
+    def api_ota(self):
+        """What the figure of the update through the API draws that the code says: the routes and the operations the waves' reader finds (the backup, the stage with its commit, the apply, the
+        status and the version in it, the restore's validation and apply), the login route, the header that carries the backup's CRC, the extension of the backup, the answer of a good stage (the
+        keys st, v and committed, the values STAGED, the validation's OK and the 1 of a commit, and the 200 it comes with), the answer of the apply (202, the key accepted) and the interval at which
+        the page waits for the device to come back (WebUI.h). Premises, refused when the code drifts: only a staged and valid image with commit is committed, and the apply's answer goes out
+        before the device restarts."""
+        f = self.f
+        o = self.ondas()
+        f.exigir(WEB_OTA, r'if \(ok_staged && valid && commit\) \{', 'only a staged and valid image with commit=1 is committed, ready for the apply, which is what the figure of the update through the API draws')
+        cabecalho = f.achar(WEB_OTA, r'_server->sendHeader\("(X-Backup-\w+)", String\(scan\.payload_crc32\)\);').group(1)
+        extensao = f.achar(WEB_OTA, r'"backup_%s_%lu\.(\w+)"').group(1)
+        baixou = f.achar(WEB_OTA, r'_server->send\((\d+), "application/octet-stream", ""\);').group(1)
+        st, v, committed = f.achar(WEB_OTA, r'"\{\\"(\w+)\\":%u,\\"bytes\\":%lu,\\"crc32\\":\\"%08lX\\","\s+"\\"(\w+)\\":%u,\\"dsize\\":%lu,\\"dcrc\\":\\"%08lX\\",\\"(\w+)\\":%u,\\"env\\":\\"%s\\"\}"').groups()
+        um = f.achar(WEB_OTA, r'committed \? (\d+)u : 0u').group(1)
+        bom_http = f.achar(WEB_OTA, r'_server->send\(overall_ok \? (\d+) : \d+, "application/json", buf\);').group(1)
+        preparada = f.achar(OTA_STAGE_H, r'STAGED = (\d+),').group(1)
+        v_bom = f.achar(OTA_VALID_H, r'OK\s+= (\d+),').group(1)
+        f.exigir(WEB_OTA, r'\}"\);\s+_server->client\( \)\.flush\( \);\s+delay\(500\); /\* TCP flush before the reboot',
+                 'the answer of the apply is flushed to the client before the device restarts, which is what the figure of the update through the API draws: the answer, and then the restart')
+        codigo, aceito = f.achar(WEB_OTA, r'_server->send\((\d+), "application/json", "\{\\"(\w+)\\":true,\\"mode\\":\\"apply\\"\}"\);').groups()
+        espera_ms = int(f.achar(WEBUI, r"await new Promise\(r => setTimeout\(r, (\d+)\)\);\s+try \{ let p = await fetch\('/api/login_init\?_=' \+ Date\.now\(\)\)").group(1))
+        if espera_ms % 1000:
+            raise Falta(f'{WEBUI}: the page waits {espera_ms} ms between two tries of login_init, which is not whole seconds, and the figure of the update through the API says how many')
+        return {**o, 'init': self.rota_do('handleApiLoginInit'), 'login': self.rota_do('handleApiLogin'), 'crc': cabecalho, 'extensao': extensao, 'baixou': baixou, 'chaves': (st, v, committed),
+                'valores': (preparada, v_bom, um), 'bom_http': bom_http, 'apply_http': codigo, 'aceito': aceito, 'espera_s': espera_ms // 1000}
 
 
     def flash(self):
@@ -2327,6 +2363,30 @@ def desenho_entrada(num, slug):
     q.pedido([rota(e['logout'])])
     q.resposta([[('dg-m', e['sem_corpo']), ('', f' com {e["esquema"]}; '), ('dg-m', e['redireciona']), ('', ' para '), ('dg-m', e['pagina']), ('', ' com cookie')],
                 [('dg-c2', 'encerra só a sessão do token')]])
+    return q.render()
+
+
+def desenho_ota_api(num, slug):
+    a = num.api_ota()
+    s = Svg(slug)
+    q = Sequencia(s, 'Cliente', [('dg-b', 'SIMUT'), ('', ' '), ('dg-m', IP_EXEMPLO)])
+    rota = lambda r: mono(f'{r[0]} {r[1]}')
+    com_op = lambda op, extra='': mono(f'{a["restore"][0]} {a["restore"][1]}?op={op}{extra}')
+    st, v, committed = a['chaves']
+    preparada, v_bom, um = a['valores']
+    chave, versao = a['versao'].split('.')
+    q.pedido([rota(a['backup'])], 1)
+    q.resposta([[('dg-m', a['baixou']), ('', ' o arquivo '), ('dg-m', f'.{a["extensao"]}'), ('', ' e o cabeçalho '), ('dg-m', a['crc'])], [('dg-c2', 'o cliente confere o CRC do arquivo com o do cabeçalho')]])
+    q.pedido([com_op(a['stage'], f'&{a["commit"]}'), [('dg-c2', 'o .bin da imagem, assinado')]], 2)
+    q.resposta([mono(f'{a["bom_http"]} {{"{st}":{preparada},…,"{v}":{v_bom},…,"{committed}":{um},…}}')])
+    q.pedido([rota(a['apply'])], 3)
+    q.resposta([mono(f'{a["apply_http"]} {{"{a["aceito"]}":true,…}}'), [('dg-c2', 'depois de responder, o aparelho aplica a imagem e reinicia')]])
+    q.pedido([rota(a['init']), [('dg-c2', f'a cada {a["espera_s"]}\u00a0s, até o aparelho responder')]], 4)
+    q.resposta([mono(a['bom_http'])])
+    q.pedido([rota(a['estado']), [('dg-c2', 'depois de entrar de novo')]])
+    q.resposta([mono(f'{a["bom_http"]} {{"{chave}":{{…,"{versao}":"…"}}}}'), [('dg-c2', 'só a versão nova, que o próprio aparelho informa, prova a atualização')]])
+    q.pedido([com_op(a['validate']), [('dg-c2', 'o .bkp do primeiro passo')]])
+    q.pedido([com_op(a['apply_op']), [('dg-c2', 'depois de responder, o aparelho restaura e reinicia')]])
     return q.render()
 
 
