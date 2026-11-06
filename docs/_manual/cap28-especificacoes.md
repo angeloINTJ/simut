@@ -391,7 +391,7 @@ O filtro vale só para a flash: o console com `debug on` e o syslog recebem todo
 | Rádio | Liga quando os registros pendentes chegam ao **Lote mínimo**; com o **Lote mínimo** em 0, nunca liga no ciclo | [cap. 19](#cap-19-telemetria) |
 | Depois de um envio que falha | 5 despertares sem rádio | [cap. 19](#cap-19-telemetria) |
 | Rede que não aparece | Duas tentativas por despertar | [cap. 19](#cap-19-telemetria) |
-| Despertar de leitura | 9,31 s, dos quais 6,83 s são a conversão do DS18B20 (v2.4.1-beta, 08/09/2026) | [cap. 19](#cap-19-tempos) |
+| Despertar de leitura | 9,31 s, dos quais 6,83 s são o aquecimento do sensor (0,4 s) e a amostragem (v2.4.1-beta, 08/09/2026) | [cap. 19](#cap-19-tempos) |
 | Despertar de telemetria | Cerca de 12,7 s (v2.4.1-beta, 08/09/2026) | [cap. 19](#cap-19-tempos) |
 | Período real | 60,5 a 60,6 s para 60 s configurados (v2.4.1-beta, 08/09/2026) | [cap. 19](#cap-19-tempos) |
 | Consumo | Cerca de 8,2 mA de média e 17 dias numa 18650 de 3.400 mAh. É uma conta sobre os tempos, não uma medição de corrente | [cap. 19](#cap-19-tempos) |

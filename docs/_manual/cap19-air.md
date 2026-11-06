@@ -168,7 +168,7 @@ Medido em bancada em 08/09/2026, na v2.4.1-beta, com o **Intervalo Histórico** 
 
 | Medição | Resultado |
 |---|---|
-| Despertar de leitura, do boot até a decisão | 9,31 s, dos quais 6,83 s são a conversão do sensor |
+| Despertar de leitura, do boot até a decisão | 9,31 s, dos quais 6,83 s são o aquecimento do sensor (0,4 s) e a amostragem |
 | Despertar de telemetria | cerca de 12,7 s |
 | Dormindo, por ciclo | cerca de 51 s |
 | Período real | 60,5 a 60,6 s, para 60 s configurados |
