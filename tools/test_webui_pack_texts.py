@@ -188,7 +188,7 @@ function run(dict) {
             if (m[4] !== undefined) { if (m[4].trim() !== '') texts.push(unesc(m[4])); continue; }
             if (m[1]) continue;
             const el = new El(m[2]);
-            for (const a of m[3].matchAll(/\b([a-z-]+)="([^"]*)"/gi)) {
+            for (const a of m[3].matchAll(/\b([a-z][a-z0-9-]*)="([^"]*)"/gi)) {
                 if (a[1] === 'id') { el.id = a[2]; byId[el.id] = el; }
                 else if (['title', 'aria-label', 'placeholder', 'alt'].includes(a[1])) texts.push(unesc(a[2]));
             }
@@ -1164,9 +1164,10 @@ def test_selector_mutants(src, ns, dicts):
             continue
         got = selector_cells(selector_findings(mutated, markup, parts, ns, dicts))
         check(got == want, f"selector mutant {name!r}: the selector reads wrong at {sorted(got)}, wanted {sorted(want)}")
-    # the markup half of the fix: a button with no element for the count makes the function throw, and the scenarios report it
+    # the markup half of the fix: a button with no element for the count, and the function leaves the label as the markup has it
+    # (the guard it shares with the label's), so the selector reads the loading word at every moment
     got = selector_findings(code, [s for s in markup if s["id"] != "sensorMselN"], parts, ns, dicts)
-    check(got != [] and all("threw" in f for f in got),
+    check(got != [] and all(re.search(r"reads '(Carregando|Cargando|Loading)\.\.\.'", f) for f in got),
           f"selector mutant 'no #sensorMselN in the markup': {got[:2]}")
 
 

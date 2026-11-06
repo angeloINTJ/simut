@@ -2293,9 +2293,8 @@ global.Chart = H5G;
          * the word. tools/test_webui_pack_texts.py runs the orders the device
          * can answer in. */
         function _updateSensorMselLabel() {
-            const lbl = document.getElementById('sensorMselLbl');
-            if (!lbl) return;
-            const cnt = document.getElementById('sensorMselN');
+            const lbl = document.getElementById('sensorMselLbl'), cnt = document.getElementById('sensorMselN');
+            if (!lbl || !cnt) return;
             const n = _selectedSensors.length;
             if (n === 1) {
                 const checks = document.querySelectorAll('#sensorMselMenu input[type=checkbox]:checked');
