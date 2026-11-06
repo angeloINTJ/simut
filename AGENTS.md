@@ -481,6 +481,15 @@ python3 tools/test_flash_budget.py                   # as duas regras que mantê
   aparelho a recusa no stage, e ela entra pela USB. O limite que sobra é o do
   slot do programa, onde o linker a recusa: 4.484 B adiante quando a isenção
   entrou (#233).
+- **A `pico_w_test` também é isenta do teto de OTA, desde 06/11/2026** (`ota_exempt`, B6 do
+  `PLANO_STABLE.md`; decisão do mantenedor). É a imagem de bancada das suítes (CLI completa e painel
+  TFT), não é imagem de campo e a `release-ota.yml` não a publica. As tags de boot (#325) e os textos
+  da web (#324) levaram o `.bin` assinado dela a 1.040.901 B, 517 B acima do teto: acima dele o
+  aparelho a recusa no stage, então ela entra pela USB. O que a bancada recebe pelo ar sobre ela, a
+  candidata de release, não muda (`ota_trust_bench`). Nenhum procedimento deste manual nem de `tools/`
+  instala a `pico_w_test` pelo ar (conferido por grep em 06/11/2026). O orçamento de flash dela
+  continua valendo, e o limite que sobra é o do slot do programa, onde o linker a recusa: 3.820 B
+  adiante (`.bin` de 1.040.660 B contra 1.044.480 B).
 - O `pio run` já roda os portões de fonte como *extra scripts*: `-Werror` em
   `src/`, códigos de log, packs de idioma, matriz de autorização, ajuda da CLI,
   sondas de flash em SRAM.

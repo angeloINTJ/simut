@@ -52,7 +52,7 @@ Isto não é para tranquilizar; é para não refazer o que já foi feito.
 | B3 | ~~OTA nunca exercitada nesta imagem~~ — **feito em 21/09 e REFEITO em 22/09 na imagem final: 6/6 applies** nos dois sentidos, na `pico_w_release` publicada. Fica o teto, que é margem: a folga de cada imagem está na §3.1, conferida pelo CI | **metade fechada** | A parte "nunca exercitada" caiu com número (T4, §6). A parte do teto não é coisa que teste feche: é margem. E ela **já tem portão** — `check_flash_budget.py::check_ota_bin` compara o `.bin` assinado com `OTA_APP_SAFE_MAX_SIZE` (1.040.384 B) em todo build, que é justamente o que o `used` do linker não vê. Folgas medidas em 21/09 sobre a build de `main`: release 15.684, air **5.076**, alpha 50.036, test 10.828, asserts 13.508, test_https 3.204; as de hoje estão na §3.1 |
 | B4 | **`ctx=205`** — reboot sob telemetria morta, aberto e **não reproduz** | não | As blindagens existem; fica onde está até reproduzir. Registrado, não esquecido |
 | B5 | **Corrente real nunca medida** (os 407,8 mAh/dia são cálculo) | não | O manual **já diz** "aritmética, não medição". Não bloqueia porque nada é afirmado sem marcação — mas nenhuma afirmação de autonomia pode perder a marcação numa stable |
-| B6 | ~~`pico_w_test_https` a 147 B do teto de OTA~~ — **isenta do teto em 02/10** (`ota_exempt` em `tools/flash_budget.json`, com o motivo). A folga dela foi de 3.204 B em 21/09 a 2.699 na `main` 35c9678 e a 147 com o A-04 (#232), que foi cortado até caber | **fechado** | Imagem de bancada: entra no rig pela USB, e a `release-ota.yml` não a publica. Acima do teto, o aparelho recusa a imagem já no stage, e é só isso que se perde: ela continua recebendo a OTA de outras imagens, e o job dela continua conferindo o orçamento de flash. Em 24/09 a escolha foi a dieta ([DIETA_FLASH.md](DIETA_FLASH.md) §11); desta vez, caber pedia cortar código que as imagens de produto também levam, ou mover mais páginas para o LittleFS, cada uma um passo manual antes das suítes. **A isenção não dá espaço sem fim**: o limite que sobra é o fim do slot do programa (1.044.480 B), onde o linker recusa a imagem — 4.484 B adiante quando a isenção entrou (02/10, #233, `.bin` de 1.039.996 B) —, e aí a escolha volta a ser cortar ou mover páginas. A `pico_w_test` e a `pico_w_asserts` também são de bancada e têm menos folga que a release (§3.1); quando uma delas chegar ao teto, a decisão é a mesma |
+| B6 | ~~`pico_w_test_https` a 147 B do teto de OTA~~ — **isenta do teto em 02/10** (`ota_exempt` em `tools/flash_budget.json`, com o motivo). A folga dela foi de 3.204 B em 21/09 a 2.699 na `main` 35c9678 e a 147 com o A-04 (#232), que foi cortado até caber. **A `pico_w_test` foi isentada do mesmo modo em 06/11/2026**, quando passou 517 B do teto (decisão do mantenedor; §3.1) | **fechado** | Imagem de bancada: entra no rig pela USB, e a `release-ota.yml` não a publica. Acima do teto, o aparelho recusa a imagem já no stage, e é só isso que se perde: ela continua recebendo a OTA de outras imagens, e o job dela continua conferindo o orçamento de flash. Em 24/09 a escolha foi a dieta ([DIETA_FLASH.md](DIETA_FLASH.md) §11); desta vez, caber pedia cortar código que as imagens de produto também levam, ou mover mais páginas para o LittleFS, cada uma um passo manual antes das suítes. **A isenção não dá espaço sem fim**: o limite que sobra é o fim do slot do programa (1.044.480 B), onde o linker recusa a imagem — 4.484 B adiante quando a isenção entrou (02/10, #233, `.bin` de 1.039.996 B) —, e aí a escolha volta a ser cortar ou mover páginas. A `pico_w_test` também é de bancada e chegou ao teto em 06/11/2026, quando as tags de boot (#325, +2.248 B de `.bin`) e os textos da web (#324, +744 B) a puseram 517 B acima (1.040.901 B assinada contra 1.040.384 B): a decisão foi a mesma, isenta, e o limite que sobra é o do slot, 3.820 B adiante. A `pico_w_asserts` também é de bancada e tem menos folga que a release (§3.1); quando ela chegar ao teto, a decisão é a mesma |
 | B7 | Issue #118 — mDNS do Air | não | Backlog |
 | B10 | **Cursor de telemetria pula registro em bloco fora de ordem** — medido em 21/09: **6 de 75.778** registros (0,0079%) em 55 arquivos de dia. **Corrigido no #232 (02/10)**: o cursor passou a ser a posição de gravação — arquivo do dia, bloco, registro (`src/TelemetryPosition.h`, opção B do [A04_CURSOR_POR_POSICAO.md](A04_CURSOR_POR_POSICAO.md)), sem mudar o formato do histórico. Na bancada: 0 de 7 registros na `main`, 7 de 7 na branch | não | Resta um limite, escrito no manual (cap. 21): um bloco gravado num arquivo de dia com mais de 3 dias não sai pela telemetria, o que pede o relógio voltar mais de três dias. Onde o aparelho não consegue saber o que já saiu de um arquivo, ele o manda inteiro de novo e registra o evento 554: duplicatas, nunca lacuna |
 | B11 | **A bancada roda `pico_w_test`, não a imagem que a versão publica** | **muda o B2 e o B3** | As suítes do ferro exigem `user`/`tel` da CLI, e a `pico_w_release` tem `SIMUT_CLI_FULL=0`. Provado em 21/09: `user policy` e `tel server` só aparecem no `.bin` de teste, e o aparelho responde os dois. Logo o T1 de 21/09 certifica a `pico_w_test`. O soak (T3) e a OTA (T4) **têm de ir na `pico_w_release`** — nenhum dos dois precisa de CLI, e `telemetry_bench/soak_a6.py` foi escrito exatamente para isso |
@@ -88,12 +88,12 @@ de recebê-la pelo ar: o aparelho a recusa no stage, na validação e no aplicad
 | `pico_w_air` | 1.035.581 | 4.803 |
 | `pico_w_alpha` | 994.717 | 45.667 |
 | `pico2_w_release` | 1.039.681 | 529.087 |
-| `pico_w_test` | 1.038.653 | 1.731 |
 | `pico_w_asserts` | 1.040.125 | 259 |
 | `pico_wire` | 610.273 | 430.111 |
 | `pico_wiretft` | 789.177 | 251.207 |
 | `pico_wiretft_angulo` | 830.161 | 210.223 |
 | `pico2_w_original` | 1.001.793 | 566.975 |
+| `pico_w_test` | isenta | — |
 | `pico_w_test_https` | isenta | — |
 <!-- ota-headroom:end -->
 
@@ -109,11 +109,20 @@ de recebê-la pelo ar: o aparelho a recusa no stage, na validação e no aplicad
   de OTA no painel 3,3 KB. A folga da release cabia três telas dessas, ou seis
   A-04.
 - **A `pico_w_test_https` é isenta** (B6): imagem de bancada, gravada pela USB.
+- **A `pico_w_test` é isenta desde 2026-11-06** (B6; decisão do mantenedor): imagem de bancada, gravada pela USB, que a
+  `release-ota.yml` não publica. Acima do teto o aparelho a recusa no stage, e é só isso que se perde: instalá-la pelo ar. A
+  bancada continua recebendo pelo ar, sobre ela, a candidata de release (`ota_trust_bench`), e o job dela continua conferindo o
+  orçamento de flash. Nenhum procedimento do `AGENTS.md` nem de `tools/` a instala pelo ar (conferido por grep em 2026-11-06).
 - **Histórico da `pico_w_test`:** em 2026-10-28, depois do C1 do sync 6, ela ficou
   101 B acima do teto (`check_flash_budget.py pico_w_test` saía com 1); o #297, que
   serve a página de licença dela pelo LittleFS, tirou-a de lá neste merge (sync 6b,
-  2026-10-28), e a linha da tabela é a medida dele.
-- **A `pico_w_test` ficou a 227 B do teto em 2026-11-06.** As tags `screen boot` e `screen clkboot` (o gravador do terminal de boot, `src/display/BootReplay.h`) somaram 2.248 B de `.bin` e levaram a folga de 2.475 B a 227 B (assinado 1.040.157 contra 1.040.384). Elas só existem onde o console completo e o TFT se encontram, a `pico_w_test` e a `pico_w_test_https` (esta, isenta, cresceu os mesmos 2.248 B de `used`); as outras nove imagens têm o mesmo sha256 de antes, compiladas do zero dos dois lados. Uma adição de 228 B ou mais à `pico_w_test` passa do teto e reprova o job dela; quando isso acontecer vale o que a B6 já diz das imagens de bancada: cortar código, mover páginas para o LittleFS ou isentá-la.
+  2026-10-28), e a linha da tabela era a medida dele (desde 2026-11-06 a imagem é isenta: a nota abaixo).
+- **A `pico_w_test` passou do teto em 2026-11-06 e foi isentada.** As tags `screen boot` e `screen clkboot` (o gravador do
+  terminal de boot, `src/display/BootReplay.h`) somaram 2.248 B de `.bin`: sobre a v2.14.0 elas deixavam a folga em 227 B (assinado
+  1.040.157 contra 1.040.384, de 2.475 B), e os textos da web do #324 (+744 B) já a tinham levado a 1.731 B na `main`. Juntos, o
+  `.bin` assinado é de 1.040.901 B, 517 B acima do teto. O que sobra à imagem é o slot do programa: o `.bin` de 1.040.660 B está a
+  3.820 B dos 1.044.480 B, onde o linker a recusa. As tags só existem nas imagens com o console completo e o TFT; as nove sem elas,
+  compiladas do zero, têm o mesmo `used` e o mesmo `.bin` da `main`.
 - **A folga da `pico2_w_release` é contra o slot, não contra o teto acima.**
   Desde o passo 4 do [OTA_AB_RP2350.md](OTA_AB_RP2350.md) ela atualiza pelo ar
   no outro slot de uma tabela de partições, e o teto dela é esse slot,

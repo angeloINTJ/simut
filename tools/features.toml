@@ -585,6 +585,10 @@ publish             = true
 #   data/web/license.html.gz para /web/ antes de uma suite
 #   (AGENTS.md, "Gravar firmware"): o web_test_suite.py abre /license e acusa "Page asset
 #   missing" sem ele.
+#   Isenta do teto de OTA desde 2026-11-06 (ota_exempt em tools/flash_budget.json, B6 do
+#   PLANO_STABLE.md, decisao do mantenedor): as tags de boot (#325, SIMUT_BOOT_TAGS) e os
+#   textos da web (#324) a levaram acima do teto; o portao nao a confere mais contra o teto
+#   nem contra o "bin", e o orcamento de flash dela continua valendo.
 [profiles.pico_w_test]
 display       = "tft"
 net           = "cyw43"
