@@ -15,6 +15,13 @@
  *   sensorHasSerialNumber. The expected values are what the switch statements
  *   returned before the table, so a regression in the table fails here.
  *
+ *   Also the JSON of a finished scan (ScanResultJson.h), which POST
+ *   /api/action?op=scan_results sends. It used to be printed inline in
+ *   WebManager_Calib.cpp, out of the host's reach, and a BME280 or BMP280 went
+ *   out as {"pin":255,...}: the page printed "GP255" (seen on the capture of
+ *   the manual's figures, 2026-11-06). The result now carries the pair of
+ *   pins the probe drove, and the JSON says it.
+ *
  *   <hardware/gpio.h> is included first for the host stub: SensorHelpers.h
  *   defines an inline gpioInitForRole( ) that names the Pico SDK gpio_* calls,
  *   which the compiler must resolve when it parses the header even though no
@@ -27,8 +34,11 @@
 
 #include <unity.h>
 #include <cstring>
+#include <string>
+#include <vector>
 #include <hardware/gpio.h>
 #include "sensors/SensorHelpers.h"
+#include "sensors/ScanResultJson.h"
 
 void setUp(void) {}
 void tearDown(void) {}
@@ -204,6 +214,99 @@ static void test_i2c_bound_controller_keeps_its_pair(void) {
     TEST_ASSERT_EQUAL_INT(-1, i2cPeripheralFor(5, 4, bound));  /* no hw path at all */
 }
 
+/* ---- The scan's JSON ----------------------------------------------------- */
+
+static ScanResult oneWire(uint8_t pin, const uint8_t* rom) {
+    ScanResult r;
+    r.pin = pin; r.type = TYPE_DS18B20;
+    memcpy(r.rom, rom, 8);
+    return r;
+}
+static ScanResult dht(uint8_t pin) {
+    ScanResult r;
+    r.pin = pin; r.type = TYPE_DHT22;
+    memset(r.rom, 0, 8);
+    return r;
+}
+/* What BME280SensorDriver::scanFinalize( ) pushes: no single GPIO, the bus in sda/scl. */
+static ScanResult i2c(SensorType t, uint8_t sda, uint8_t scl) {
+    ScanResult r;
+    r.pin = PIN_UNUSED; r.type = t;
+    memset(r.rom, 0, 8);
+    r.sda = sda; r.scl = scl;
+    return r;
+}
+static const uint8_t ROM_A[8] = {0x28, 0xFF, 0x64, 0x1E, 0x80, 0x16, 0x03, 0x4A};   /* the manual's example ROM */
+
+/* The drivers of 1-Wire and DHT build `ScanResult res;` and never touch the bus
+ * fields, so a default result must say "no bus": the JSON prints sda/scl only
+ * when they are set. */
+static void test_scan_result_has_no_bus_by_default(void) {
+    ScanResult r;
+    TEST_ASSERT_EQUAL_UINT8(PIN_UNUSED, r.sda);
+    TEST_ASSERT_EQUAL_UINT8(PIN_UNUSED, r.scl);
+}
+
+/* A probe on a pin keeps the three fields it always had, plus the name of its
+ * type, and no bus. */
+static void test_scan_json_probe_on_a_pin(void) {
+    char out[128];
+    scanResultJson(oneWire(2, ROM_A), true, out, sizeof out);
+    TEST_ASSERT_EQUAL_STRING("{\"pin\":2,\"type\":1,\"rom\":\"28FF641E8016034A\",\"name\":\"DS18B20\"}", out);
+    scanResultJson(dht(3), true, out, sizeof out);
+    TEST_ASSERT_EQUAL_STRING("{\"pin\":3,\"type\":2,\"rom\":\"\",\"name\":\"DHT22\"}", out);
+}
+
+/* The defect: a BMx280 went out as pin 255 and the page printed GP255. The pair
+ * the probe drove is in the JSON now, and the name says which chip answered;
+ * pin stays 255 ("no single GPIO") for whoever already reads it. */
+static void test_scan_json_i2c_says_its_pins(void) {
+    char out[128];
+    scanResultJson(i2c(TYPE_BMP280, 4, 5), true, out, sizeof out);
+    TEST_ASSERT_EQUAL_STRING("{\"pin\":255,\"type\":5,\"rom\":\"\",\"name\":\"BMP280\",\"sda\":4,\"scl\":5}", out);
+    scanResultJson(i2c(TYPE_BME280, 4, 5), true, out, sizeof out);
+    TEST_ASSERT_EQUAL_STRING("{\"pin\":255,\"type\":3,\"rom\":\"\",\"name\":\"BME280\",\"sda\":4,\"scl\":5}", out);
+    /* whatever pair the result holds is what is sent, not a constant of the JSON */
+    scanResultJson(i2c(TYPE_BMP280, 8, 9), true, out, sizeof out);
+    TEST_ASSERT_NOT_NULL(strstr(out, "\"sda\":8,\"scl\":9}"));
+}
+
+/* A ROM is printed for a DS18B20 only: a stray byte in another type's rom does not leak. */
+static void test_scan_json_rom_only_for_ds18b20(void) {
+    char out[128];
+    ScanResult r = i2c(TYPE_BMP280, 4, 5);
+    memset(r.rom, 0xAB, 8);
+    scanResultJson(r, true, out, sizeof out);
+    TEST_ASSERT_NULL(strstr(out, "ABAB"));
+}
+
+static void test_scan_json_document(void) {
+    std::vector<ScanResult> none;
+    std::string doc;
+    scanResultsJson(none, doc);
+    TEST_ASSERT_EQUAL_STRING("{\"scanning\":false,\"found\":[]}", doc.c_str());
+
+    std::vector<ScanResult> three = {oneWire(2, ROM_A), dht(3), i2c(TYPE_BMP280, 4, 5)};
+    doc.clear();
+    scanResultsJson(three, doc);
+    TEST_ASSERT_EQUAL_STRING(
+        "{\"scanning\":false,\"found\":["
+        "{\"pin\":2,\"type\":1,\"rom\":\"28FF641E8016034A\",\"name\":\"DS18B20\"},"
+        "{\"pin\":3,\"type\":2,\"rom\":\"\",\"name\":\"DHT22\"},"
+        "{\"pin\":255,\"type\":5,\"rom\":\"\",\"name\":\"BMP280\",\"sda\":4,\"scl\":5}]}", doc.c_str());
+}
+
+/* A buffer too small is cut, never overrun, and always ends in a NUL. */
+static void test_scan_json_small_buffer(void) {
+    for (size_t cap = 1; cap < 80; cap++) {
+        char guarded[96];
+        memset(guarded, 0x5A, sizeof guarded);
+        scanResultJson(i2c(TYPE_BMP280, 4, 5), false, guarded, cap);
+        TEST_ASSERT_TRUE_MESSAGE(memchr(guarded, '\0', cap) != nullptr, "no NUL inside the buffer");
+        for (size_t i = cap; i < sizeof guarded; i++) TEST_ASSERT_EQUAL_UINT8(0x5A, (uint8_t)guarded[i]);
+    }
+}
+
 int main(int /*argc*/, char** /*argv*/) {
     UNITY_BEGIN();
     RUN_TEST(test_i2c_hw_pairs_by_role);
@@ -219,5 +322,11 @@ int main(int /*argc*/, char** /*argv*/) {
     RUN_TEST(test_pin_map);
     RUN_TEST(test_serial_number);
     RUN_TEST(test_table_shape);
+    RUN_TEST(test_scan_result_has_no_bus_by_default);
+    RUN_TEST(test_scan_json_probe_on_a_pin);
+    RUN_TEST(test_scan_json_i2c_says_its_pins);
+    RUN_TEST(test_scan_json_rom_only_for_ds18b20);
+    RUN_TEST(test_scan_json_document);
+    RUN_TEST(test_scan_json_small_buffer);
     return UNITY_END();
 }

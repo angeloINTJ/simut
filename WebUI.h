@@ -4659,8 +4659,15 @@ static const char CFG_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                     if (p.ok && p.body.scanning === false) {
                         const found = p.body.found || [];
                         if (!found.length) { out.textContent = window.t('sens_scan_none', 'No probes answered.'); return; }
+                        /* An I2C part has no single GPIO: its entry says pin 255 (it printed
+                           GP255 until 2026-11-06) and carries the pair the probe drove (sda,
+                           scl) and the chip that answered (name). The line prints what the
+                           firmware says; the pins are not a copy of its constants.
+                           tools/test_webui_pack_texts.py runs this against the firmware's own
+                           JSON (src/sensors/ScanResultJson.h). */
                         out.textContent = found.length + ' ' + window.t('sens_scan_found', 'found') + ': ' +
-                            found.map(f => 'GP' + f.pin + (f.rom ? ' (' + f.rom + ')' : '')).join(', ');
+                            found.map(f => f.sda !== undefined ? 'GP' + f.sda + '/GP' + f.scl + ' (' + f.name + ', I²C)'
+                                                               : 'GP' + f.pin + (f.rom ? ' (' + f.rom + ')' : '')).join(', ');
                         return;
                     }
                 }

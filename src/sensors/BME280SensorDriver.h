@@ -94,20 +94,25 @@ public:
 
  /* ── Scan ── BME280 is I2C, not detectable by sweeping GPIOs, so scanPin is
   * left at the base default (declines every pin) and the probe runs once here,
-  * after the sweep. PIO bit-bang on the default I2C pins (4=SDA, 5=SCL) tries
-  * the primary address; non-default wiring is still configured by hand after
-  * the scan. This is the old BME_SCAN_CHECK block, verbatim. */
+  * after the sweep. PIO bit-bang on the default I2C pins (SCAN_SDA, SCAN_SCL)
+  * tries the primary address; non-default wiring is still configured by hand
+  * after the scan. The result says which pair it drove (sda, scl: the web page
+  * printed "GP255" while it said only pin = 255) and which part answered, by the
+  * chip ID: 0x60 is a BME280 and 0x58 a BMP280, which has no humidity (it was
+  * reported as a BME280 whichever it was). */
  void scanFinalize(std::vector<ScanResult>& out) override {
-  BMx280PIO_RP2040 probe(4, 5, BME280_ADDR_PRIMARY);
+  BMx280PIO_RP2040 probe(SCAN_SDA, SCAN_SCL, BME280_ADDR_PRIMARY);
   if (probe.begin()) {
    ScanResult res;
-   res.pin = 255; /* I2C — no single GPIO */
-   res.type = TYPE_BME280;
+   res.pin = PIN_UNUSED; /* I2C — no single GPIO: the bus is in sda/scl */
+   res.type = probe.isBME280( ) ? TYPE_BME280 : TYPE_BMP280;
    memset(res.rom, 0, 8);
+   res.sda = SCAN_SDA;
+   res.scl = SCAN_SCL;
    out.push_back(res);
   }
 
-  /* The scan just drove pins 4/5 (and every swept pin) as GPIO/1-Wire/PIO,
+  /* The scan just drove SCAN_SDA/SCAN_SCL (4/5) and every swept pin as GPIO/1-Wire/PIO,
    * leaving a hardware-I2C bus off the peripheral. Unlike a reboot, a runtime
    * reload keeps the per-boot _i2cNInit guard and never re-muxes, so a running
    * BME/BMP on Wire answers errors until a power cycle (measured: one scan ->
@@ -228,6 +233,12 @@ public:
  }
 
 private:
+ /* The pair the scan drives for a BMx280: the Pico's default I2C0 pins. The probe
+  * and the result both read these two, and the web page prints what the result
+  * says, so no other place keeps the numbers. */
+ static constexpr uint8_t SCAN_SDA = 4;
+ static constexpr uint8_t SCAN_SCL = 5;
+
  /* PIO fallback — used when pins don't map to hardware I2C. Caller (initBegin)
   * owns cleanup via _list. */
  int8_t getOrCreate(uint8_t sda, uint8_t scl, uint8_t addr) {

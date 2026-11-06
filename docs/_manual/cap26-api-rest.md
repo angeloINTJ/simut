@@ -983,9 +983,17 @@ O mapa completo dos slots, com os tipos que a imagem aceita e os papéis de cada
 | `tel_sync` | Dispara um envio de telemetria agora ([capítulo 21](#cap-21-acoes)) | `200` `{"ok":true}` |
 | `tel_reset` | Volta o cursor da telemetria para reenviar até 30 dias ([capítulo 21](#cap-21-acoes)) | `200` `{"ok":true}` |
 | `sensor_scan` | Começa a busca de sondas nos GPIOs ([capítulo 6](#cap-06-procurar)) | `202` `{"started":true}`; `200` `{"busy":true}` se já está buscando |
-| `scan_results` | Resultado da busca | `{"scanning":true}` enquanto busca; depois `{"scanning":false,"found":[{"pin":2,"type":1,"rom":"28FF641E8016034A"}]}` |
+| `scan_results` | Resultado da busca | `{"scanning":true}` enquanto busca; depois `{"scanning":false,"found":[{"pin":2,"type":1,"rom":"28FF641E8016034A","name":"DS18B20"}]}` (os campos de cada item estão abaixo da tabela) |
 | `sensor_wipe` | Com `slot=N`: grava a hora atual como início do histórico do slot, sem apagar o slot nem os arquivos | `200` `{"ok":true}` |
 | `sensor_accept` | Com `slot=N`: adota a sonda DS18B20 encontrada no GPIO de mesmo número | `200` `{"ok":true,"epoch_moved":false}`; `404` `nosensor`; `422` `badrom` |
+
+Cada item de `found` traz `pin` (o GPIO onde a sonda respondeu), `type` (`1` DS18B20, `2` DHT22, `3` BME280, `5` BMP280), `rom` (a ROM de 16 dígitos hexadecimais, só para o DS18B20; vazio nos outros) e `name` (o nome do tipo). Um sensor I²C não tem um GPIO só: o item traz `pin` `255` (sem pino) e mais dois campos, `sda` e `scl`, os pinos que a busca usou. A busca de BME280 e BMP280 olha só o par GP4/GP5 ([capítulo 6](#cap-06-procurar)), e o `type` diz qual dos dois chips respondeu:
+
+```json
+{"scanning":false,"found":[{"pin":2,"type":1,"rom":"28FF641E8016034A","name":"DS18B20"},{"pin":3,"type":2,"rom":"","name":"DHT22"},{"pin":255,"type":5,"rom":"","name":"BMP280","sda":4,"scl":5}]}
+```
+
+Até a v2.14.0 os itens não traziam `name`, `sda` nem `scl`, e um BME280 ou BMP280 vinha como `{"pin":255,"type":3,"rom":""}`, sempre com o tipo `3`: a página mostrava `GP255`. Quem lê só `pin`, `type` e `rom` continua achando os três campos; para um BMP280, o `type` agora é `5`.
 
 Um `op` desconhecido responde `400` `{"error":"op"}`, e um `slot` ausente ou fora de 0 a 15, `400` `{"error":"slot"}`.
 

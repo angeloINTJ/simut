@@ -600,7 +600,10 @@ jobs:
       # thirty melody names of Alarms & Sounds had 27 typed in English, and the
       # custom select kept the English of the 3 that had a key: each option
       # needs its key, each pack the Ângulo's word for it, and applyLang( )
-      # must sync the custom select of the options it relabels.
+      # must sync the custom select of the options it relabels. The probe scan
+      # printed GP255 for a BME280 or BMP280 (the firmware said pin 255): the
+      # JSON comes from the firmware's own formatter, compiled here with g++,
+      # and sensScan( ) must print what it says, pins and chip.
       # --mutations (by hand) puts each violation back and expects exactly its
       # findings.
       - name: Web UI pack texts (no text typed into the page)

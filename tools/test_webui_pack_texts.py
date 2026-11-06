@@ -46,6 +46,15 @@ found four such places; each has its check here.
     relabelling, and none when nothing changed (a poll must not rebuild an open
     menu).
 
+  * the probe scan of the sensor page (sensScan( ), CFG_PAGE): a BME280 or BMP280
+    came back from the firmware as {"pin":255,...} and the page printed "GP255".
+    The firmware's JSON is built by the firmware's own formatter
+    (src/sensors/ScanResultJson.h, compiled here with g++ the way the native
+    suite compiles it), and sensScan( ) runs under node, as written and
+    minified, against it: the line must be what the JSON says, pins and chip
+    (GP4/GP5 (BMP280, I²C)), with the pins of a pair no constant in the page
+    knows (GP8/GP9), the 1-Wire and DHT lines as they were, and never GP255.
+
 Each check takes the code it judges, so --mutations can put the violations back
 by hand (one mutant per text) and expect each to be found; the clean code must
 give none.
@@ -684,6 +693,163 @@ def test_melody_mutants(src, ns, dicts):
         check(got != [] and any(must in f for f in got), f"melody mutant {name!r}: the test did not find it ({len(got)} findings)")
 
 
+# ── the probe scan of the sensor page ──────────────────────────────────────
+
+# The scans the firmware can finish, as the firmware's own formatter writes them.
+# The bus of the second I2C part is a pair no page and no driver constant knows:
+# a page that printed 4/5 from a copy would fail on it.
+SCAN_CPP = r"""
+#include <cstdio>
+#include <cstring>
+#include <string>
+#include <vector>
+#include <hardware/gpio.h>
+#include "sensors/ScanResultJson.h"
+static ScanResult probe(uint8_t pin, SensorType t) { ScanResult r; r.pin = pin; r.type = t; memset(r.rom, 0, 8); return r; }
+static ScanResult bus(SensorType t, uint8_t sda, uint8_t scl) { ScanResult r = probe(PIN_UNUSED, t); r.sda = sda; r.scl = scl; return r; }
+static std::string doc(const std::vector<ScanResult>& v) { std::string s; scanResultsJson(v, s); return s; }
+int main() {
+    ScanResult ds = probe(2, TYPE_DS18B20);
+    const unsigned char rom[8] = {0x28, 0xFF, 0x64, 0x1E, 0x80, 0x16, 0x03, 0x4A};
+    memcpy(ds.rom, rom, 8);
+    ScanResult dh = probe(3, TYPE_DHT22);
+    ScanResult bmp = bus(TYPE_BMP280, 4, 5), bme = bus(TYPE_BME280, 8, 9);
+    printf("none\t%s\nbmp\t%s\nbme_elsewhere\t%s\nmixed\t%s\n",
+           doc({}).c_str(), doc({bmp}).c_str(), doc({bme}).c_str(), doc({ds, dh, bmp}).c_str());
+    return 0;
+}
+"""
+
+
+def firmware_scans():
+    """{case: the firmware's JSON text}, from ScanResultJson.h compiled for the host, or None when g++ is absent."""
+    gxx = shutil.which("g++") or shutil.which("c++")
+    if not gxx:
+        raise SystemExit("SKIP: g++ is not installed")
+    import tempfile
+    with tempfile.TemporaryDirectory() as tmp:
+        cpp, exe = Path(tmp) / "scan.cpp", Path(tmp) / "scan"
+        cpp.write_text(SCAN_CPP, encoding="utf-8")
+        r = subprocess.run([gxx, "-std=gnu++17", "-Wall", "-Wextra", "-I", str(REPO / "src"), "-I", str(REPO / "test" / "native_stubs"),
+                            str(cpp), "-o", str(exe)], capture_output=True, text=True, timeout=120)
+        if r.returncode != 0:
+            raise RuntimeError("the firmware's scan JSON does not build: " + r.stderr[-1500:])
+        out = subprocess.run([str(exe)], capture_output=True, text=True, timeout=30)
+    return dict(line.split("\t", 1) for line in out.stdout.splitlines() if line)
+
+
+SCAN_HARNESS = r"""
+const CODE = __CODE__, DOCS = __DOCS__, PACKS = __PACKS__;
+(async function () {
+    const out = {};
+    for (const [name, doc] of Object.entries(DOCS)) for (const [lang, dict] of Object.entries(PACKS)) {
+        const els = {};
+        const SE = id => els[id] || (els[id] = { disabled: false, textContent: '' });
+        const window = { t: (k, d) => dict[k] || d };
+        const sensAction = async op => op === 'sensor_scan' ? { ok: true, status: 202, body: { started: true } }
+                                                            : { ok: true, status: 200, body: doc };
+        const sensScan = new Function('SE', 'window', 'sensAction', 'setTimeout', CODE + '\nreturn sensScan;')(SE, window, sensAction, fn => { fn(); return 0; });
+        await sensScan();
+        out[name + '|' + lang] = { text: SE('sens_scan_out').textContent, enabled: !SE('sens_scan').disabled };
+    }
+    console.log(JSON.stringify(out));
+})().catch(e => console.log(JSON.stringify({ error: String((e && e.stack) || e) })));
+"""
+
+
+def scan_code(src):
+    """sensScan( ) of the sensor page, cut out by its name and the next function's."""
+    cfg = block(src, "CFG_PAGE")
+    a = cfg.find("async function sensScan() {")
+    b = cfg.find("async function sensAdopt() {", a) if a >= 0 else -1
+    return cfg[a:b] if a >= 0 and b > a else None
+
+
+def scan_expected(doc, found_word, none_word):
+    """The line the page must show for this firmware answer, from the JSON alone."""
+    found = doc["found"]
+    if not found:
+        return none_word
+    parts = []
+    for f in found:
+        if "sda" in f:
+            parts.append(f"GP{f['sda']}/GP{f['scl']} ({f['name']}, I²C)")
+        else:
+            parts.append(f"GP{f['pin']}" + (f" ({f['rom']})" if f["rom"] else ""))
+    return f"{len(found)} {found_word}: " + ", ".join(parts)
+
+
+def scan_findings(code, docs, ns, dicts):
+    """What is wrong with the line sensScan( ) builds from the firmware's JSON: [] when nothing."""
+    found = []
+    packs = {"English": {}, **dicts}
+    for label, js in (("as written", code), ("minified", ns["_minify_web_block"](code, "js"))):
+        try:
+            res = run_node(SCAN_HARNESS.replace("__CODE__", json.dumps(js)).replace("__DOCS__", json.dumps({k: json.loads(v) for k, v in docs.items()}))
+                           .replace("__PACKS__", json.dumps(packs)))
+        except RuntimeError as e:
+            found.append(f"{label}: {e}")
+            continue
+        if "error" in res:
+            found.append(f"{label}: sensScan( ) threw {res['error'][:300]}")
+            continue
+        for key, got in sorted(res.items()):
+            name, lang = key.split("|")
+            d = packs[lang]
+            want = scan_expected(json.loads(docs[name]), d.get("sens_scan_found", "found"), d.get("sens_scan_none", "No probes answered."))
+            if got["text"] != want:
+                found.append(f"{label}: {lang}, {name}: the page shows {got['text']!r}, the firmware's JSON says {want!r}")
+            if "GP255" in got["text"]:
+                found.append(f"{label}: {lang}, {name}: the page shows GP255, a pin the firmware does not have")
+            if not got["enabled"]:
+                found.append(f"{label}: {lang}, {name}: the Scan button stays disabled")
+    return sorted(set(found))
+
+
+def test_probe_scan(src, ns, dicts):
+    code = scan_code(src)
+    if not check(code is not None, "sensScan( ) is not in the sensor page of WebUI.h (or sensAdopt( ) no longer follows it). "
+                                   "If they moved or were renamed, move this test with them."):
+        return
+    try:
+        docs = firmware_scans()
+    except RuntimeError as e:
+        fails.append(f"probe scan: {e}")
+        return
+    bmp = json.loads(docs["bmp"])["found"]
+    check(len(bmp) == 1 and bmp[0].get("sda") == 4 and bmp[0].get("scl") == 5 and bmp[0].get("name") == "BMP280",
+          f"probe scan: the firmware's JSON for a BMP280 on 4/5 is {docs['bmp']!r}: the test below judges the page against it")
+    for f in scan_findings(code, docs, ns, dicts):
+        fails.append(f"probe scan: {f}")
+
+
+SCAN_MUTANTS = [
+    ("an I2C result printed from pin, as before the fix",
+     r"f\.sda !== undefined \?", "false ?", {"bmp", "bme_elsewhere", "mixed"}),
+    ("the pins copied into the page",
+     r"'GP' \+ f\.sda \+ '/GP' \+ f\.scl", "'GP4/GP5'", {"bme_elsewhere"}),
+    ("the chip name dropped from an I2C line",
+     r" \(' \+ f\.name \+ ', I²C\)'", " (I²C)'", {"bmp", "bme_elsewhere", "mixed"}),
+    ("the ROM dropped from a 1-Wire line",
+     r"\(f\.rom \? ' \(' \+ f\.rom \+ '\)' : ''\)", "''", {"mixed"}),
+]
+
+
+def test_scan_mutants(src, ns, dicts):
+    code = scan_code(src)
+    if code is None:
+        return
+    docs = firmware_scans()
+    check(scan_findings(code, docs, ns, dicts) == [], "scan mutants: the code they start from is not clean")
+    for name, pat, rep, want in SCAN_MUTANTS:
+        mutated, n = re.subn(pat, lambda m, r=rep: r, code)
+        if not check(n == 1, f"scan mutant {name!r}: its pattern matches {n} times in the code, not once "
+                             f"(the mutant no longer describes the code: update it)"):
+            continue
+        got = {m.group(1) for f in scan_findings(mutated, docs, ns, dicts) for m in [re.search(r", (\w+): the page shows", f)] if m}
+        check(got == want, f"scan mutant {name!r}: the page is wrong for {sorted(got)}, wanted {sorted(want)}")
+
+
 def main():
     global WEBUI
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
@@ -697,11 +863,13 @@ def main():
     dicts = {lang: pack_dict(lang) for lang in PACK_FILES}
     tests = [("test_export_box", lambda: test_export_box(src, ns, dicts)),
              ("test_link_state", lambda: test_link_state(src, ns, dicts)),
-             ("test_melody_names", lambda: test_melody_names(src, ns, dicts))]
+             ("test_melody_names", lambda: test_melody_names(src, ns, dicts)),
+             ("test_probe_scan", lambda: test_probe_scan(src, ns, dicts))]
     if args.mutations:
         tests += [("test_export_mutants", lambda: test_export_mutants(src, ns, dicts)),
                   ("test_link_mutants", lambda: test_link_mutants(src, ns, dicts)),
-                  ("test_melody_mutants", lambda: test_melody_mutants(src, ns, dicts))]
+                  ("test_melody_mutants", lambda: test_melody_mutants(src, ns, dicts)),
+                  ("test_scan_mutants", lambda: test_scan_mutants(src, ns, dicts))]
     for name, t in tests:
         before = len(fails)
         try:

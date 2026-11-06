@@ -20,6 +20,7 @@
 #include "AppManager.h"
 #include "LogManager.h"
 #include "DisplayManager.h"
+#include "sensors/ScanResultJson.h"
 #include <LittleFS.h>
 #include <math.h>
 
@@ -952,18 +953,8 @@ void WebManager::handleApiAction( ) {
 			_server->send(200, "application/json", "{\"scanning\":true}");
 			return;
 		}
-		String out = "{\"scanning\":false,\"found\":[";
-		for (size_t i = 0; i < results.size( ); i++) {
-			char rom[20] = {0};
-			if (results[i].type == TYPE_DS18B20) {
-				for (int b = 0; b < 8; b++) snprintf(rom + b * 2, 3, "%02X", results[i].rom[b]);
-			}
-			char item[64];
-			snprintf(item, sizeof(item), "%s{\"pin\":%u,\"type\":%d,\"rom\":\"%s\"}",
-			         i ? "," : "", (unsigned)results[i].pin, (int)results[i].type, rom);
-			out += item;
-		}
-		out += "]}";
+		String out;
+		scanResultsJson(results, out);
 		_server->send(200, "application/json", out);
 		return;
 	}
