@@ -288,8 +288,11 @@ assim:
   não há fila. `screen <tag>` continua servindo para saltar de tela — e desde a
   v24 abre a árvore de configuração como admin, porque a lista é filtrada pelos
   bits da sessão e um `screen set` sem sessão mostrava três itens.
-- **O terminal de boot e a pergunta de hora do boot têm tag, só na `pico_w_test` e na
-  `pico_w_test_https` (2026-11-06).** O `/api/screenshot` não vê o terminal enquanto o aparelho
+- **O terminal de boot e a pergunta de hora do boot têm tag, só na `pico_w_test`
+  (2026-11-06).** A `pico_w_test_https`, que também tem o console completo e o painel, não as leva: depois da
+  #324 ela tinha 1.828 B livres no slot de 1.044.480 B e as tags pedem 2.248 B (o `ld` disse ``region `FLASH'
+  overflowed by 420 bytes`` em 06/11/2026), e o `BootReplay.h` a deixa de fora pelo servidor HTTPS. O
+  `/api/screenshot` não vê o terminal enquanto o aparelho
   liga: o `setup()` o desenha e o servidor só atende no `loop()`. Por isso o painel grava, na
   ordem, cada chamada que o boot faz às seis funções que escrevem o terminal
   (`src/display/BootReplay.h`; 40 registros, e o boot mais longo que anda reto faz 29, contados em
