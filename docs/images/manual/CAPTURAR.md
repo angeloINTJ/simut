@@ -252,7 +252,7 @@ nesta pasta com o nome indicado e rode o script de novo.
       A carga de um período longo: a barra conta os arquivos baixados, e Cancelar deixa na tela a parte mais recente.
 - [ ] `15-celular.png` (Página web) — rota /history; largura 390; sessão admin; um sensor; período 24h; tooltip aberto por toque
       A página no celular, com o gráfico abaixo do calendário e a leitura de um ponto aberta pelo toque.
-- [ ] `15-exportando.png` (Página web) — rota /history; largura 1280; sessão admin; exportação em andamento de um período 1M, caixa Exporting... com 45 %, tempo estimado, contagem OK e err, e o botão Cancelar
+- [ ] `15-exportando.png` (Página web) — rota /history; largura 1280; sessão admin; exportação em andamento de um período 1M, caixa Exportando... com 45 %, tempo estimado, contagens OK e com falha, e o botão Cancelar
       A caixa da exportação em andamento. Cancelar salva o CSV com o que já chegou, com _partial no nome.
 
 ## Capítulo 16 — Log de eventos
