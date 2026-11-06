@@ -73,7 +73,7 @@ Quando nenhum sensor está mais em alarme, a cigarra para, os cartões param de 
 Um alarme de limite no painel: o cartão do sensor pisca em vermelho.
 :::
 
-::: {.figura #fig-07-painel-falha tipo="tft" arquivo="07-painel-falha.png" captura="screen dash; 2 sensores ativos; o DS18B20 do cartão de baixo desligado do pino há mais de 3 leituras; captura na fase âmbar da piscada"}
+::: {.figura #fig-07-painel-falha tipo="tft" arquivo="07-painel-falha.png" captura="screen dash; 2 sensores ativos, os dois DS18B20 (GP0 e GP1); o do GP1, no cartão de baixo, solto da protoboard há mais de 3 leituras; captura na fase âmbar da piscada"}
 Um alarme de falha no painel: o cartão pisca em âmbar e mostra Erro no lugar do valor.
 :::
 
@@ -145,7 +145,7 @@ A página não tem botão próprio de gravar. As mudanças ficam preparadas na a
 - limites e chaves de alarme valem sem reiniciar: **Testar** e **Aplicar agora** funcionam para eles;
 - mudanças de som exigem reinício, e a barra oferece só **Salvar e reiniciar**.
 
-::: {.figura #fig-07-pagina-limites tipo="web" arquivo="07-pagina-limites.png" captura="rota /alarms; largura 1280; sessão admin; 3 sensores ativos (DS18B20, DHT22 e BME280); recorte da seção Limites de Alarme"}
+::: {.figura #fig-07-pagina-limites tipo="web" arquivo="07-pagina-limites.png" captura="rota /alarms; largura 1280; sessão admin; 3 sensores ativos (DS18B20, DHT22 e BMP280); recorte da seção Limites de Alarme"}
 A seção Limites de Alarme: um cartão por sensor ativo, com a chave de alarme e um par de campos por grandeza.
 :::
 

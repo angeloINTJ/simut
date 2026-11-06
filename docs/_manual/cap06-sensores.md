@@ -56,7 +56,7 @@ O aparelho sempre espera 750 ms pela conversão, que é o tempo da resolução d
 
 ## A seção Sensores e GPIO {#cap-06-secao}
 
-::: {.figura #fig-06-sensores tipo="web" arquivo="06-sensores.png" captura="rota /config; largura 1280; sessão admin; imagem release; 3 slots ativos (DS18B20 em GP2, DHT22 em GP3, BME280 em GP4 e GP5); recorte da seção Sensores e GPIO"}
+::: {.figura #fig-06-sensores tipo="web" arquivo="06-sensores.png" captura="rota /config; largura 1280; sessão admin; imagem release; 3 slots ativos (DS18B20 em GP0, DHT22 em GP3, BMP280 em GP4 e GP5); recorte da seção Sensores e GPIO"}
 A seção Sensores e GPIO. A faixa de GP0 a GP15 mostra quais pinos estão ocupados e por qual slot; a tabela lista só os slots em uso.
 :::
 
@@ -106,7 +106,7 @@ Sobre os sensores I²C (BME280 e BMP280):
 
 ## O editor de slot {#cap-06-editor}
 
-::: {.figura #fig-06-editor-ds18b20 tipo="web" arquivo="06-editor-ds18b20.png" captura="rota /config; largura 1280; sessão admin com a permissão Calibração; imagem release; editor do slot 2 aberto, DS18B20 ativo em GP2, relógio sincronizado por NTP, sem correção"}
+::: {.figura #fig-06-editor-ds18b20 tipo="web" arquivo="06-editor-ds18b20.png" captura="rota /config; largura 1280; sessão admin com a permissão Calibração; imagem release; editor do slot 0 aberto, DS18B20 ativo em GP0, relógio sincronizado por NTP, sem correção"}
 O editor de um slot DS18B20: tipo, nome, ID de hardware, estado, o pino 1-Wire, o bloco de calibração e as operações de hardware.
 :::
 
@@ -208,7 +208,7 @@ Na gravação, o aparelho confere as mesmas regras e mais algumas. Se alguma fal
 | `slot N: invalid name` | O nome tem aspas, barra invertida ou caractere de controle |
 | `slot N: driver not in firmware` | Tipo que esta imagem não traz |
 
-::: {.figura #fig-06-editor-aviso tipo="web" arquivo="06-editor-aviso.png" captura="rota /config; largura 1280; sessão admin; editor de um slot DHT22 ativo com o pino Data em GP4, que já pertence ao slot 2; a linha vermelha mostra GP4 já está em uso pelo slot 2."}
+::: {.figura #fig-06-editor-aviso tipo="web" arquivo="06-editor-aviso.png" captura="rota /config; largura 1280; sessão admin; editor do slot 1, DHT22 ativo, com o pino Data trocado para GP4, que já pertence ao slot 2 (o BMP280); a linha vermelha mostra GP4 já está em uso pelo slot 2."}
 O editor avisando um conflito de GPIO antes da gravação.
 :::
 
@@ -234,8 +234,8 @@ A busca por BME280 e BMP280 olha só o par GP4/GP5. Um sensor I²C em outros pin
 **A busca mexe nos pinos.** Para testar cada pino, o aparelho reconfigura um a um os GPIOs de GP0 a GP16, inclusive os de sensores ativos, e a página não recarrega os sensores depois. Desde a v2.7.4, o aparelho devolve ao BMP280 ou BME280 os pinos de I²C de hardware no fim da busca; até a v2.7.3, esse sensor entrava em erro uns 10 s depois e ficava assim até o aparelho perder a energia. O GP16 continua sem voltar ao estado de antes ([capítulo 2](#cap-02-livres)): faça a busca antes de configurar os slots, ou reinicie o aparelho depois dela.
 :::
 
-::: {.figura #fig-06-procurar tipo="web" arquivo="06-procurar.png" captura="rota /config; largura 1280; sessão admin; imagem release; um DS18B20 em GP2 e um DHT22 em GP3 ligados; logo depois de tocar em Procurar sondas e a busca terminar; recorte dos botões e da linha de resultado"}
-O resultado da busca: a ROM identifica o DS18B20; o DHT22 aparece só com o pino.
+::: {.figura #fig-06-procurar tipo="web" arquivo="06-procurar.png" captura="rota /config; largura 1280; sessão admin; imagem release; os sensores da bancada ligados (DS18B20 no GP0 e no GP1, DHT22 no GP3 e no GP10, BMP280 no GP4/GP5); logo depois de tocar em Procurar sondas e a busca terminar; recorte dos botões e da linha de resultado"}
+O resultado da busca: a ROM identifica cada DS18B20; o DHT22 aparece só com o pino.
 :::
 
 ## Grandezas e unidades {#cap-06-grandezas}
@@ -310,11 +310,11 @@ O log de eventos registra a entrada em erro, com o GPIO do sensor ([capítulo 16
 - **Interface web**: na tabela de sensores do **Painel de Controle**, o ponto fica vermelho e a leitura mostra `Error` ([capítulo 13](#cap-13-tabela-sensores)).
 - **Histórico**: os registros do período em erro ficam sem valor para aquele sensor.
 
-::: {.figura #fig-06-painel-sensor tipo="tft" arquivo="06-painel-sensor.png" captura="screen dash; 2 sensores ativos (um DS18B20 e um BME280), ambos lendo, nenhum em alarme"}
+::: {.figura #fig-06-painel-sensor tipo="tft" arquivo="06-painel-sensor.png" captura="screen dash; 2 sensores ativos (o DS18B20 do GP0 e o BMP280 do GP4/GP5), ambos lendo, nenhum em alarme"}
 A tela inicial do painel com dois sensores lendo normalmente.
 :::
 
-::: {.figura #fig-06-painel-erro tipo="tft" arquivo="06-painel-erro.png" captura="screen dash; 2 sensores ativos; a sonda DS18B20 desligada do pino há mais de 3 leituras, alarmes do slot ligados"}
+::: {.figura #fig-06-painel-erro tipo="tft" arquivo="06-painel-erro.png" captura="screen dash; 2 sensores ativos, os dois DS18B20 (GP0 e GP1); o do GP1 solto da protoboard há mais de 3 leituras, alarmes do slot ligados"}
 Um sensor em erro no painel: o cartão mostra Erro no lugar da temperatura e fica âmbar pelo alarme de falha.
 :::
 
