@@ -58,14 +58,17 @@
 #include "simut_config.h"     /* SIMUT_DISPLAY_TFT */
 #include "SystemDefs_Cli.h"   /* SIMUT_CLI_FULL, and the default of 1 the host tests rely on */
 
-/* The console that asks and the panel that draws: no other image has either half to use. */
-#if SIMUT_CLI_FULL && SIMUT_DISPLAY_TFT
-#define SIMUT_BOOT_TAGS 1
-#else
-#define SIMUT_BOOT_TAGS 0
-#endif
+/* The console that asks and the panel that draws: no other image has either half to use. A definition, like NetCaps.h's SIMUT_NET_WIFI, and
+ * not an #if that spreads: what the entanglement watermark counts (tools/check_feature_sprawl.py) is the sites that TEST it. An expression, so
+ * the value is whatever SIMUT_CLI_FULL and SIMUT_DISPLAY_TFT are where it is tested; both are settled by the two includes above. */
+#define SIMUT_BOOT_TAGS (SIMUT_CLI_FULL && SIMUT_DISPLAY_TFT)
 
 #if SIMUT_BOOT_TAGS
+
+/** The English text of a LangKey straight from the table, "" for a raw line or a number off it: for `screen boot`'s list
+ *  (DisplayManager_i18n.cpp). Not tr( ): that one hands out a rotating scratch buffer that Core 1 draws from, and the list is
+ *  written on Core 0. Declared here, and not in DisplayManager.h, so that the header has one switch fewer to count. */
+const char* bootKeyTextEn(int16_t key);
 
 namespace bootreplay {
 

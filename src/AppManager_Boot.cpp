@@ -1531,7 +1531,9 @@ void AppManager::setup( ) {
  LogManager::instance( ).endBootPreamble( );
 #if SIMUT_BOOT_TAGS
  /* The panel's record of the boot's calls stops here too (2026-11-06, display/BootReplay.h). Not at endBoot( ): the boot into the AP never calls it
-  * ("the panel keeps the AP box"), and this is the one exit of setup( ) both boots reach. */
+  * ("the panel keeps the AP box"), and this is the one exit of setup( ) both boots reach. Behind the switch, and not an empty inline like the touch
+  * pass's: an empty inline call here moved two stack slots in the Air's setup( ) (the Air's firmware.bin differed from the base's in 2 bytes, found by
+  * the sha256 of the second from-scratch build), and an #if leaves the compiler nothing to reorder. */
  _displayMgr->bootRecClose( );
 #endif
 

@@ -300,7 +300,8 @@ assim:
   **Sem Wi-Fi, os dados levam esta hora.** e o PULAR, esteja o Wi-Fi como estiver. A linha
   **Aguardando roteador** é o primeiro registro `setkey` dessa chave; o `replkey` que vem depois
   traz os pontinhos (uma sequência de pontinhos da mesma chave é um registro só, o último).
-  Três armadilhas. A lista é a do **último boot**: um boot que não esperou o roteador não tem essa
+  Três armadilhas. Enquanto o terminal recomposto está no vidro o painel é o do boot (`isBooting`): não
+  pisca alarme e a tela de atualização espera. A lista é a do **último boot**: um boot que não esperou o roteador não tem essa
   linha, e um boot em AP não tem `end`, porque nunca chama `endBoot()`. Um toque, 30 s sem toque,
   qualquer outra tag e `screen boot end` devolvem o painel, e o toque no PULAR do terminal
   recomposto **não** arma o PULAR do boot (só devolve o painel). E `screen boot end` num boot em

@@ -589,10 +589,14 @@ void DisplayManager::refreshTheme( ) { _themeChanged = true; }
 #if SIMUT_BOOT_TAGS
 /* Every call the boot makes to the six functions below, until setup( ) ends (2026-11-06, display/BootReplay.h): what `screen boot` plays back so the
  * boot terminal can be captured with /api/screenshot, which cannot see it while it is on the glass. A static and all zero, so it lives in .bss
- * (1,840 B in the two images that have it) and not in .data, which the flash image would carry. Written and read on Core 0 alone: the six are
- * called by the boot, the CLI and the web handlers, and Core 1, which draws the terminal, never calls them. Each of the six notes its call
- * BEFORE it takes _stateMutex, so recording does not lengthen what Core 1 waits on. */
+ * (1,840 B in the two images that have it) and not in .data, which the flash image would carry. Written on Core 0 alone: the six are called by
+ * the boot, the CLI and the web handlers. Core 1, which draws the terminal, reaches one of them, endBoot( ), only through bootReplayEnd( ) in its
+ * touch pass, and by then the recorder is closed, so note( ) returns on its first line without a write; the list is read by the CLI, on Core 0.
+ * Each of the six notes its call BEFORE it takes _stateMutex, so recording does not lengthen what Core 1 waits on. */
 static bootreplay::Recorder<bootreplay::BOOT_REC_CAP> s_bootRec;
+#define BOOT_NOTE(...) s_bootRec.note(__VA_ARGS__)
+#else
+#define BOOT_NOTE(...) ((void)0)   /* nothing: the six below are what they were, which is what keeps the other images' bytes */
 #endif
 
 /* During web reboot, ensure the loopCore1 dispatcher
@@ -601,9 +605,7 @@ static bootreplay::Recorder<bootreplay::BOOT_REC_CAP> s_bootRec;
  * is in any settings screen when reboot is triggered,
  * the boot screen is not rendered and elements of the current screen persist. */
 void DisplayManager::setBootStatus(String msg, bool showSkip) {
-#if SIMUT_BOOT_TAGS
-	s_bootRec.note(bootreplay::OP_SET_RAW, (int16_t)TR_KEYS_COUNT, msg.c_str( ), showSkip, 0);
-#endif
+	BOOT_NOTE(bootreplay::OP_SET_RAW, (int16_t)TR_KEYS_COUNT, msg.c_str( ), showSkip, 0);
 	mutex_enter_blocking(&_stateMutex);
 	if (msg.length( ) > 0) {
 		for (int i = 0; i < 4; i++) _sharedState.bootLogs[i] = _sharedState.bootLogs[i+1];
@@ -616,9 +618,7 @@ void DisplayManager::setBootStatus(String msg, bool showSkip) {
 }
 
 void DisplayManager::replaceBootStatus(String msg, bool showSkip) {
-#if SIMUT_BOOT_TAGS
-	s_bootRec.note(bootreplay::OP_REPLACE_RAW, (int16_t)TR_KEYS_COUNT, msg.c_str( ), showSkip, 0);
-#endif
+	BOOT_NOTE(bootreplay::OP_REPLACE_RAW, (int16_t)TR_KEYS_COUNT, msg.c_str( ), showSkip, 0);
 	mutex_enter_blocking(&_stateMutex);
 	if (msg.length( ) > 0) {
 		_sharedState.bootLogs[4].key = (int16_t)TR_KEYS_COUNT;
@@ -630,9 +630,7 @@ void DisplayManager::replaceBootStatus(String msg, bool showSkip) {
 }
 
 void DisplayManager::setBootStatusKey(LangKey key, const char* suffix, bool showSkip) {
-#if SIMUT_BOOT_TAGS
-	s_bootRec.note(bootreplay::OP_SET_KEY, (int16_t)key, suffix, showSkip, 0);
-#endif
+	BOOT_NOTE(bootreplay::OP_SET_KEY, (int16_t)key, suffix, showSkip, 0);
 	mutex_enter_blocking(&_stateMutex);
 	for (int i = 0; i < 4; i++) _sharedState.bootLogs[i] = _sharedState.bootLogs[i+1];
 	_sharedState.bootLogs[4].key = (int16_t)key;
@@ -647,9 +645,7 @@ void DisplayManager::setBootStatusKey(LangKey key, const char* suffix, bool show
 }
 
 void DisplayManager::replaceBootStatusKey(LangKey key, const char* suffix, bool showSkip) {
-#if SIMUT_BOOT_TAGS
-	s_bootRec.note(bootreplay::OP_REPLACE_KEY, (int16_t)key, suffix, showSkip, 0);
-#endif
+	BOOT_NOTE(bootreplay::OP_REPLACE_KEY, (int16_t)key, suffix, showSkip, 0);
 	mutex_enter_blocking(&_stateMutex);
 	_sharedState.bootLogs[4].key = (int16_t)key;
 	if (suffix && suffix[0]) {
@@ -663,18 +659,14 @@ void DisplayManager::replaceBootStatusKey(LangKey key, const char* suffix, bool 
 }
 
 void DisplayManager::setApProgress(int pct) {
-#if SIMUT_BOOT_TAGS
-	s_bootRec.note(bootreplay::OP_PROGRESS, 0, nullptr, false, pct);
-#endif
+	BOOT_NOTE(bootreplay::OP_PROGRESS, 0, nullptr, false, pct);
 	mutex_enter_blocking(&_stateMutex);
 	_sharedState.apProgressPct = pct; _sharedState.isBooting = true; _isDirty = true;
 	mutex_exit(&_stateMutex);
 }
 
 void DisplayManager::endBoot( ) {
-#if SIMUT_BOOT_TAGS
-	s_bootRec.note(bootreplay::OP_END, 0, nullptr, false, 0);
-#endif
+	BOOT_NOTE(bootreplay::OP_END, 0, nullptr, false, 0);
 	mutex_enter_blocking(&_stateMutex);
 	_sharedState.isBooting = false; _isDirty = true;
 	mutex_exit(&_stateMutex);

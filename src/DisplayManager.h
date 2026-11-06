@@ -496,8 +496,9 @@ public:
 
 #if SIMUT_BOOT_TAGS
 	/* The `screen boot` test tags (2026-11-06, display/BootReplay.h): the six calls above are recorded until the boot is over, and a tag
-	 * plays them back, through the same six, so the boot terminal can be captured with /api/screenshot. Core 0 only. Present only in an
-	 * image with the full console and the TFT: every other image is byte for byte what it was without them. */
+	 * plays them back, through the same six, so the boot terminal can be captured with /api/screenshot. Core 0's, except bootReplayEnd( ),
+	 * which Core 1's touch pass calls too. Present only in an image with the full console and the TFT: every other image is byte for byte what
+	 * it was without them. */
 	/** The terminal as it was after record c.idx, plus what c.verb adds (the bar, or the cancelled gesture's two calls). false, with the
 	 *  panel untouched, for what bootreplay::play( ) refuses. Puts the terminal up until a touch, 30 s of none, another tag or `boot end`. */
 	bool bootReplay(const bootreplay::Cmd& c);
@@ -510,6 +511,16 @@ public:
 	int  bootRecDropped( ) const;
 	/** One line of `screen boot`'s list; false past the last record. */
 	bool bootRecLine(int i, char* out, size_t cap) const;
+	/** A boot terminal a tag put up is on the glass. */
+	bool bootReplayOn( ) const { return _bootReplayOn; }
+#else
+	/* The two the touch pass of handleTouch( ) calls with no #if of its own, EMPTY and inline everywhere else, so that the call leaves nothing in the
+	 * image (the repo's precedent: UiDriverWeb.h's hook and WebManager.h's registerLcdRoutes( ), which says why an out-of-line stub would leave a call
+	 * and a function in every image). Not the boot's call or the handler's: an empty inline there is NOT free. It moved two stack slots in the Air's
+	 * setup( ) and the Air's firmware.bin was no longer the base's (found by the sha256 of a from-scratch build, 2026-11-06), so those two stay behind
+	 * #if SIMUT_BOOT_TAGS, where the compiler is left nothing to reorder. Every image that compiles the touch pass is sha256-equal to the base. */
+	void bootReplayEnd(bool = false) { }
+	static constexpr bool bootReplayOn( ) { return false; }
 #endif
 
 	void forceDashboard( );
@@ -1764,10 +1775,3 @@ private:
 	/* The UI driver's members, last among them (src/ui/UiDriverMembers.h). */
 #include "ui/UiDriverMembers.h"
 };
-
-#if SIMUT_BOOT_TAGS
-/** The English text of a LangKey straight from the table, "" for a raw line or a number off it: for `screen boot`'s list
- *  (DisplayManager_i18n.cpp). Not tr( ): that one hands out a rotating scratch buffer that Core 1 draws from, and the list is
- *  written on Core 0. */
-const char* bootKeyTextEn(int16_t key);
-#endif
