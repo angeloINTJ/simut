@@ -83,6 +83,9 @@ FIGURAS = (
     Figura('fig-02-pinos-air', '02-pinos-air.svg', 'cap02-hardware.md', 'desenho_pinos_air',
            'vista de cima do Pico W com os 40 pinos numerados e os dois do Air (energia dos sensores e carregador) lidos de src/simut_config.h e do perfil pico_w_air; '
            'a pinagem física é a do datasheet do Pico W e os quatro GPIOs do rádio vêm de src/air/AirConfig.h'),
+    Figura('fig-02-air-energia', '02-air-energia.svg', 'cap02-hardware.md', 'desenho_air_energia',
+           'esquema do GP16 acionando a chave do lado positivo que alimenta os sensores e do divisor que leva os 5 V do carregador ao GP17; os pinos e a polaridade vêm de '
+           'src/simut_config.h, o pull-down e o GP16 alto no boot de src/AppManager_Boot.cpp, e o resto é o texto do capítulo'),
     Figura('fig-02-ds18b20', '02-ds18b20.svg', 'cap02-hardware.md', 'desenho_ds18b20',
            'ligação de uma sonda DS18B20 de três fios ao Pico W, com o resistor de 4,7 kΩ entre o dado e o 3V3; os pinos físicos são os do datasheet do Pico W, '
            'o GP2 é um exemplo e vale qualquer pino de slot (o limite vem de src/simut_config.h)'),
@@ -278,7 +281,7 @@ class Numeros:
         else:
             self.f.exigir_flag(env, 'SIMUT_AIR', '1', 'the Air has no display and no buzzer, and only its two pins beyond the slots')
             self.carregador()
-            poe(macro('AIR_SENSOR_POWER_PIN'), 'energia dos sensores', 'saída e sinal de acordado')
+            poe(macro('AIR_SENSOR_POWER_PIN'), 'energia dos sensores', 'saída')
             poe(macro('AIR_CHARGER_PIN'), 'carregador', 'entrada')
         return p
 
@@ -311,7 +314,7 @@ def n(v):
 # Advance widths, in em, of DejaVu Sans, which is about as wide as a system-ui face gets: a line that fits with these fits in Segoe UI, Roboto, Helvetica and Arial.
 _EM = {}
 for _letras, _largura in (
-        (' ', .32), ('ijl', .28), ("'|", .30), ('.,:;!', .34), ('()[]{}/\\-', .39), ('ft', .39), ('r', .41), ('s', .52), ('c', .55), ('k', .59), ('vxyz', .59),
+        (' \u00a0', .32), ('ijl', .28), ("'|", .30), ('.,:;!', .34), ('()[]{}/\\-', .39), ('ft', .39), ('r', .41), ('s', .52), ('c', .55), ('k', .59), ('vxyz', .59),
         ('aeopbdqghnu', .63), ('m', .97), ('w', .82), ('0123456789', .64),
         ('IJ', .30), ('L', .56), ('F', .58), ('E', .63), ('P', .60), ('T', .61), ('Y', .61), ('S', .63), ('B', .69), ('K', .66), ('R', .70), ('AVXZ', .69), ('C', .70),
         ('DNUH', .75), ('GOQ', .79), ('M', .86), ('W', .99),
@@ -332,9 +335,11 @@ def largura_texto(s, tam=13, mono=False):
 
 def quebrar(texto, largura, tam=13, mono=False):
     """`texto` broken at spaces into lines that fit in `largura` px by largura_texto( ). A word wider than a line is an error: breaking inside it, or letting it out of its
-    box, would hide a layout that does not fit."""
+    box, would hide a layout that does not fit. A no-break space (U+00A0, as in "3,3 V") keeps its two words on one line."""
     linhas, atual = [], ''
-    for palavra in texto.split():
+    for palavra in texto.split(' '):
+        if not palavra:
+            continue
         if largura_texto(palavra, tam, mono) > largura:
             raise ValueError(f'the word {palavra!r} is wider than the {largura} px of its line')
         tentativa = f'{atual} {palavra}' if atual else palavra
@@ -514,9 +519,10 @@ PAD_W, PAD_H = 24, 16
 COL_NOME, COL_PAPEL = BX + BW + 8, BX + BW + 76       # the right side: where a pin's name starts, and what it is for
 
 MAPAS = {
-    'release': {'acento': 'TFT, toque e cigarra', '3v3': 'TFT e sensores', 'vbus': '5 V do USB'},
-    'alpha': {'acento': 'LCD e cigarra', '3v3': 'sensores', 'vbus': '5 V do USB, para o LCD'},
-    'air': {'acento': 'energia dos sensores e carregador', '3v3': 'sensores', 'vbus': '5 V do USB'},
+    'release': {'acento': 'TFT, toque e cigarra', '3v3': 'TFT e sensores', 'vbus': '5 V do USB', 'nota': None},
+    'alpha': {'acento': 'LCD e cigarra', '3v3': 'sensores', 'vbus': '5 V do USB, para o LCD', 'nota': None},
+    'air': {'acento': 'energia dos sensores e carregador', '3v3': 'sensores', 'vbus': '5 V do USB',
+            'nota': ('GP{energia}', ' também é o sinal de acordado: fica em nível alto enquanto o aparelho está acordado.')},
 }
 CLASSES_DO_PINO = {'sensor': ('dg-caixa', ''), 'papel': ('dg-caixa-acento', ' dg-sobre-acento'), 'forte': ('dg-caixa-forte', ' dg-sobre-forte'),
                    'apagado': ('dg-caixa-apagada', ' dg-c2')}
@@ -550,7 +556,7 @@ def papel_do_pino(pino, papeis, slots, texto):
 
 def mapa_de_pinos(num, slug, imagem):
     papeis, slots, radio, texto = num.papeis(imagem), num.slots(imagem), num.radio(), MAPAS[imagem]
-    s = Svg(slug, 544)
+    s = Svg(slug, 544 if texto['nota'] is None else 568)
     s.caixa(BX, BY, BW, BH, 'dg-caixa-2', 12)
     s.caixa(BX + 56, 24, 48, 20, 'dg-caixa', 6)
     s.texto(BX + 80, 40, 'USB', 'dg-n dg-m dg-c2', 'middle')
@@ -578,12 +584,7 @@ def mapa_de_pinos(num, slug, imagem):
             rotulo, dispositivo = papel
             mono = rotulo.isupper()
             runs = [('dg-m' if mono else '', rotulo)] + ([('', f' · {dispositivo}')] if dispositivo else [])
-            largo = sum(largura_texto(t, 13, 'dg-m' in c) for c, t in runs)
-            if largo > LARGURA - 8 - COL_PAPEL:
-                s.texto(COL_PAPEL, y + 12, [runs[0]], 'dg-t' + (' dg-c2' if tipo == 'apagado' else ''))
-                s.texto(COL_PAPEL, y + 28, dispositivo, 'dg-t')
-            else:
-                s.texto(COL_PAPEL, y + 12, runs, 'dg-t' + (' dg-c2' if tipo == 'apagado' else ''))
+            s.texto(COL_PAPEL, y + 12, runs, 'dg-t' + (' dg-c2' if tipo == 'apagado' else ''))
     # the group of the left row
     s.linha([(128, 60), (124, 60), (124, 440), (128, 440)], 'dg-fio-fino')
     s.texto(116, 236, 'sensores', 'dg-t', 'end')
@@ -594,6 +595,9 @@ def mapa_de_pinos(num, slug, imagem):
         x, y = 16 + 352 * (k % 2), 488 + 24 * (k // 2)
         s.caixa(x, y, PAD_W, PAD_H, CLASSES_DO_PINO[tipo][0], 6)
         s.texto(x + 32, y + 12, rot, 'dg-t')
+    if texto['nota'] is not None:
+        energia = next(g for g, (rotulo, _) in papeis.items() if rotulo == 'energia dos sensores')
+        s.texto(16, 548, [('dg-m', texto['nota'][0].format(energia=energia)), ('', texto['nota'][1])], 'dg-n dg-c2')
     return s.render()
 
 
@@ -607,6 +611,65 @@ def desenho_pinos_alpha(num, slug):
 
 def desenho_pinos_air(num, slug):
     return mapa_de_pinos(num, slug, 'air')
+
+
+def caixa_de_texto(s, x, y, w, itens, cls='dg-caixa', raio=6, centro=None):
+    """A box at x, `w` wide, whose text is broken to fit inside 12 px of margin on each side: `itens` is [(text, class)], each text broken by quebrar( ). The height is the
+    lines' (8 px, 16 px a line, 8 px). `y` is the top, or None with `centro` the height the box is centred on. Returns (y, height)."""
+    linhas = []
+    for texto, c in itens:
+        tam = 12 if 'dg-n' in c.split() else 13
+        linhas += [(l, c) for l in quebrar(texto, w - 24, tam, 'dg-m' in c.split())]
+    h = 16 + 16 * len(linhas)
+    if y is None:
+        y = centro - h // 2
+    s.caixa(x, y, w, h, cls, raio)
+    for k, (l, c) in enumerate(linhas):
+        s.texto(x + 12, y + 20 + 16 * k, l, c)
+    return y, h
+
+
+def desenho_air_energia(num, slug):
+    num.carregador()
+    g16, g17 = num.macro('AIR_SENSOR_POWER_PIN', 'air'), num.macro('AIR_CHARGER_PIN', 'air')
+    s = Svg(slug, 352)
+    y16, y17 = 96, 256
+    s.caixa(24, 16, 152, 304, 'dg-caixa-2', 12)
+    s.texto(40, 36, 'Pico W', 'dg-t dg-b')
+    s.texto(160, y16 + 4, gp_e_pino(g16), 'dg-t', 'end')
+    s.texto(160, y16 + 20, 'saída', 'dg-n dg-c2', 'end')
+    s.texto(160, y17 + 4, gp_e_pino(g17), 'dg-t', 'end')
+    s.texto(160, y17 + 20, 'entrada, com pull-down', 'dg-n dg-c2', 'end')
+    # the switch the GP16 drives, and the bus it feeds
+    y_chave, _ = caixa_de_texto(s, 256, None, 192, [('chave do lado positivo', 'dg-t dg-b'), ('MOSFET de canal P com acionamento, ou pino EN de um regulador de 3,3 V', 'dg-n dg-c2')],
+                                'dg-caixa', 6, y16)
+    caixa_de_texto(s, 544, None, 152, [('barramento de 3,3 V dos sensores', 'dg-t'), ('DS18B20, DHT22, BME280', 'dg-n dg-c2')], 'dg-caixa-2', 6, y16)
+    s.seta([(176, y16), (256, y16)], 'dg-fio-acento', 'dg-ponta-acento')
+    s.no(176, y16, 'dg-no-acento')
+    s.texto(192, y16 - 8, 'controle', 'dg-n dg-c2')
+    s.seta([(448, y16), (544, y16)])
+    s.texto(460, y16 - 8, '3,3 V', 'dg-n dg-c2')
+    s.seta([(352, 24), (352, y_chave)])
+    s.texto(364, 40, f'entrada: 3V3 (pino {PINO_3V3}), ou a alimentação do regulador', 'dg-n dg-c2')
+    s.texto(256, 176, [('dg-m', f'GP{g16}'), ('', ' alto = acordado: a chave liga os sensores')], 'dg-t')
+    s.texto(256, 192, [('dg-m', f'GP{g16}'), ('', ' baixo = dormindo: os sensores ficam sem energia')], 'dg-t')
+    # the charger, and the divider that brings its 5 V to the GP17
+    caixa_de_texto(s, 544, None, 152, [('carregador de 5 V', 'dg-t')], 'dg-caixa-2', 6, y17)
+    s.seta([(464, y17), (176, y17)], 'dg-fio-acento', 'dg-ponta-acento')
+    s.linha([(544, y17), (496, y17)])
+    s.caixa(464, y17 - 8, 32, 16, 'dg-comp', 6, 2)
+    s.texto(480, y17 - 16, 'R1', 'dg-n dg-m dg-c2', 'middle')
+    s.no(376, y17, 'dg-no-acento')
+    s.linha([(376, y17), (376, y17 + 16)])
+    s.caixa(368, y17 + 16, 16, 32, 'dg-comp', 6, 2)
+    s.texto(392, y17 + 36, 'R2', 'dg-n dg-m dg-c2')
+    s.linha([(376, y17 + 48), (376, y17 + 64)])
+    for k, meia in enumerate((16, 12, 8)):
+        s.linha([(376 - meia, y17 + 64 + 4 * k), (376 + meia, y17 + 64 + 4 * k)])
+    s.texto(396, y17 + 76, 'GND', 'dg-n dg-c2')
+    for k, l in enumerate(quebrar('o divisor leva os 5 V a 3,3 V: GP17 alto = carregador ligado', 168, 12)):
+        s.texto(192, y17 + 28 + 16 * k, l, 'dg-n dg-c2')
+    return s.render()
 
 
 # ---- the chapters --------------------------------------------------------------------------------------------------------------------------------------------

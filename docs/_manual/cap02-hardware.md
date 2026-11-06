@@ -135,7 +135,7 @@ O GP17 espera um divisor resistivo a partir dos 5 V do carregador, que o leve a 
 **Sensores com energia cortada.** O DHT22 precisa de pelo menos 1 s depois de receber energia antes da primeira leitura; o DS18B20 e o BME280 ficam prontos em poucos milissegundos. O aparelho liga o GP16 logo no início do boot, antes de iniciar os sensores. A chave que você usar não deve atrasar a energia além disso.
 :::
 
-::: {.figura #fig-02-air-energia tipo="diagrama" arquivo="02-air-energia.png" captura="GP16 acionando uma chave do lado positivo (MOSFET canal P com acionamento, ou pino EN de um regulador 3,3 V) que alimenta o barramento de 3,3 V dos sensores; à parte, o carregador de 5 V com um divisor resistivo levando ao GP17; legenda 'GP16 alto = acordado'"}
+::: {.figura #fig-02-air-energia tipo="diagrama" arquivo="02-air-energia.svg" captura="desenhado pelo código (tools/manual_diagramas.py): esquema do GP16 acionando a chave do lado positivo que alimenta os sensores e do divisor que leva os 5 V do carregador ao GP17; os pinos e a polaridade vêm de src/simut_config.h, o pull-down e o GP16 alto no boot de src/AppManager_Boot.cpp, e o resto é o texto do capítulo; refazer com python3 tools/manual_diagramas.py --write"}
 O Air: o GP16 corta a energia dos sensores durante o sono, e o GP17 percebe o carregador.
 :::
 

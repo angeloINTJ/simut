@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 544" role="img" class="dg">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 568" role="img" class="dg">
 <rect class="dg-caixa-2" x="176.5" y="36.5" width="159" height="427" rx="12"/>
 <rect class="dg-caixa" x="232.5" y="24.5" width="47" height="19" rx="6"/>
 <text class="dg-n dg-m dg-c2" x="256" y="40" text-anchor="middle">USB</text>
@@ -79,8 +79,7 @@
 <rect class="dg-caixa-acento" x="308.5" y="432.5" width="23" height="15" rx="6"/>
 <text class="dg-n dg-m dg-sobre-acento" x="320" y="444" text-anchor="middle">21</text>
 <text class="dg-t dg-m" x="344" y="444">GP16</text>
-<text class="dg-t" x="412" y="444">energia dos sensores</text>
-<text class="dg-t" x="412" y="460">saída e sinal de acordado</text>
+<text class="dg-t" x="412" y="444">energia dos sensores · saída</text>
 <rect class="dg-caixa-acento" x="308.5" y="412.5" width="23" height="15" rx="6"/>
 <text class="dg-n dg-m dg-sobre-acento" x="320" y="424" text-anchor="middle">22</text>
 <text class="dg-t dg-m" x="344" y="424">GP17</text>
@@ -161,4 +160,5 @@
 <text class="dg-t" x="48" y="524">alimentação e terra</text>
 <rect class="dg-caixa-apagada" x="368.5" y="512.5" width="23" height="15" rx="6"/>
 <text class="dg-t" x="400" y="524">sem uso, ou interno do Pico W</text>
+<text class="dg-n dg-c2" x="16" y="548"><tspan class="dg-m">GP16</tspan> também é o sinal de acordado: fica em nível alto enquanto o aparelho está acordado.</text>
 </svg>

@@ -1,0 +1,49 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 352" role="img" class="dg">
+<defs>
+<marker id="02-air-energia-ponta" viewBox="0 0 8 8" refX="8" refY="4" markerWidth="8" markerHeight="8" markerUnits="userSpaceOnUse" orient="auto"><path class="dg-ponta" d="M0 0L8 4L0 8z"/></marker>
+<marker id="02-air-energia-ponta-acento" viewBox="0 0 8 8" refX="8" refY="4" markerWidth="8" markerHeight="8" markerUnits="userSpaceOnUse" orient="auto"><path class="dg-ponta-acento" d="M0 0L8 4L0 8z"/></marker>
+</defs>
+<rect class="dg-caixa-2" x="24.5" y="16.5" width="151" height="303" rx="12"/>
+<text class="dg-t dg-b" x="40" y="36">Pico W</text>
+<text class="dg-t" x="160" y="100" text-anchor="end"><tspan class="dg-m">GP16</tspan> · pino 21</text>
+<text class="dg-n dg-c2" x="160" y="116" text-anchor="end">saída</text>
+<text class="dg-t" x="160" y="260" text-anchor="end"><tspan class="dg-m">GP17</tspan> · pino 22</text>
+<text class="dg-n dg-c2" x="160" y="276" text-anchor="end">entrada, com pull-down</text>
+<rect class="dg-caixa" x="256.5" y="56.5" width="191" height="79" rx="6"/>
+<text class="dg-t dg-b" x="268" y="76">chave do lado positivo</text>
+<text class="dg-n dg-c2" x="268" y="92">MOSFET de canal P com</text>
+<text class="dg-n dg-c2" x="268" y="108">acionamento, ou pino EN</text>
+<text class="dg-n dg-c2" x="268" y="124">de um regulador de 3,3 V</text>
+<rect class="dg-caixa-2" x="544.5" y="56.5" width="151" height="79" rx="6"/>
+<text class="dg-t" x="556" y="76">barramento de</text>
+<text class="dg-t" x="556" y="92">3,3 V dos sensores</text>
+<text class="dg-n dg-c2" x="556" y="108">DS18B20, DHT22,</text>
+<text class="dg-n dg-c2" x="556" y="124">BME280</text>
+<polyline class="dg-fio-acento" points="176,96 256,96" marker-end="url(#02-air-energia-ponta-acento)"/>
+<circle class="dg-no-acento" cx="176" cy="96" r="4"/>
+<text class="dg-n dg-c2" x="192" y="88">controle</text>
+<polyline class="dg-fio" points="448,96 544,96" marker-end="url(#02-air-energia-ponta)"/>
+<text class="dg-n dg-c2" x="460" y="88">3,3 V</text>
+<polyline class="dg-fio" points="352,24 352,56" marker-end="url(#02-air-energia-ponta)"/>
+<text class="dg-n dg-c2" x="364" y="40">entrada: 3V3 (pino 36), ou a alimentação do regulador</text>
+<text class="dg-t" x="256" y="176"><tspan class="dg-m">GP16</tspan> alto = acordado: a chave liga os sensores</text>
+<text class="dg-t" x="256" y="192"><tspan class="dg-m">GP16</tspan> baixo = dormindo: os sensores ficam sem energia</text>
+<rect class="dg-caixa-2" x="544.5" y="240.5" width="151" height="31" rx="6"/>
+<text class="dg-t" x="556" y="260">carregador de 5 V</text>
+<polyline class="dg-fio-acento" points="464,256 176,256" marker-end="url(#02-air-energia-ponta-acento)"/>
+<polyline class="dg-fio" points="544,256 496,256"/>
+<rect class="dg-comp" x="465" y="249" width="30" height="14" rx="6"/>
+<text class="dg-n dg-m dg-c2" x="480" y="240" text-anchor="middle">R1</text>
+<circle class="dg-no-acento" cx="376" cy="256" r="4"/>
+<polyline class="dg-fio" points="376,256 376,272"/>
+<rect class="dg-comp" x="369" y="273" width="14" height="30" rx="6"/>
+<text class="dg-n dg-m dg-c2" x="392" y="292">R2</text>
+<polyline class="dg-fio" points="376,304 376,320"/>
+<polyline class="dg-fio" points="360,320 392,320"/>
+<polyline class="dg-fio" points="364,324 388,324"/>
+<polyline class="dg-fio" points="368,328 384,328"/>
+<text class="dg-n dg-c2" x="396" y="332">GND</text>
+<text class="dg-n dg-c2" x="192" y="284">o divisor leva os 5 V a</text>
+<text class="dg-n dg-c2" x="192" y="300">3,3 V: GP17 alto =</text>
+<text class="dg-n dg-c2" x="192" y="316">carregador ligado</text>
+</svg>
