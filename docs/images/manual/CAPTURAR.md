@@ -3,7 +3,7 @@
 Gerado por `tools/build_manual.py` — não edite à mão. Salve cada captura
 nesta pasta com o nome indicado e rode o script de novo.
 
-127 pendentes de 245.
+124 pendentes de 245.
 
 
 ## Capítulo 1 — O SIMUT em uma página
@@ -230,18 +230,12 @@ nesta pasta com o nome indicado e rode o script de novo.
 
 - [ ] `15-caminho.png` (Diagrama) — fluxo da esquerda para a direita: sensores → 'registro a cada Intervalo Histórico' → caixa 'bloco aberto (RAM), até 60 registros'; seta tracejada 'cópia a cada registro' para '/history/.wip'; seta cheia 'selar (60 registros, virada do dia, correção do NTP)' para '/history/AAAAMMDD.h5', desenhado como uma pilha de blocos, cada um com 'CRC' e 'mín/máx'; ao lado, uma fila de arquivos diários com o mais antigo marcado 'apagado acima de 86 %'
       Legenda: o registro nasce na RAM, é copiado para o .wip na hora e vai para o arquivo do dia quando o bloco sela.
-- [ ] `15-sensores.png` (Página web) — rota /history; largura 1280; sessão admin; lista Origem aberta com 3 sensores, dois marcados; recorte do cartão da esquerda
-      A lista de sensores aberta. O ponto colorido é a cor da série no gráfico.
 - [ ] `15-calendario.png` (Página web) — rota /history; largura 1280; sessão admin; histórico sintético (tools/gen_synth_history.py) em pelo menos 20 dias do mês da captura; um dia com dados selecionado; recorte do calendário
       O calendário com os dias que têm dados destacados. O dia tocado fica selecionado, e o gráfico mostra as 24 horas dele.
-- [ ] `15-grafico-dois.png` (Página web) — rota /history; largura 1280; sessão admin; dois sensores marcados, um DS18B20 e um DHT22; período 24h; legenda visível; tooltip aberto sobre um ponto; eixos °C e %RH
-      Dois sensores no mesmo gráfico: temperatura no eixo da esquerda, umidade tracejada no da direita, e a legenda no topo.
 - [ ] `15-baldes.png` (Página web) — rota /history; largura 1280; sessão admin; um sensor DS18B20 com histórico sintético de geladeira (tools/gen_synth_history.py); período 7d; faixa mínimo-máximo visível em torno da linha média, com os ciclos de degelo; tooltip mostrando o valor e a faixa entre colchetes
       Uma semana em baldes: a linha é a média de cada balde, e a faixa sombreada vai do mínimo ao máximo. O pico do degelo aparece mesmo resumido.
 - [ ] `15-carregando.png` (Página web) — rota /history; largura 1280; sessão admin; período MAX com 60 dias de histórico sintético no aparelho; carga em andamento na metade, barra mostrando Arquivos: 31/60 e os KB recebidos, botão Cancelar visível
       A carga de um período longo: a barra conta os arquivos baixados, e Cancelar deixa na tela a parte mais recente.
-- [ ] `15-celular.png` (Página web) — rota /history; largura 390; sessão admin; um sensor; período 24h; tooltip aberto por toque
-      A página no celular, com o gráfico abaixo do calendário e a leitura de um ponto aberta pelo toque.
 - [ ] `15-exportando.png` (Página web) — rota /history; largura 1280; sessão admin; exportação em andamento de um período 1M, caixa Exporting... com 45 %, tempo estimado, contagem OK e err, e o botão Cancelar
       A caixa da exportação em andamento. Cancelar salva o CSV com o que já chegou, com _partial no nome.
 
