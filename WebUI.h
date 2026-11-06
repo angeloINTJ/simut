@@ -3433,11 +3433,11 @@ global.Chart = H5G;
                 ov = document.createElement('div');
                 ov.id = 'expOv'; ov.className = 'exp-overlay';
                 ov.innerHTML = '<div class="exp-overlay-box">'
-                    + '<div class="exp-overlay-title">Exporting...</div>'
+                    + '<div class="exp-overlay-title">' + escHtml(window.t('exp_title', 'Exporting...')) + '</div>'
                     + '<div class="exp-overlay-bar"><div class="exp-overlay-fill" id="expF"></div></div>'
                     + '<div class="exp-overlay-stat"><span id="expP">0%</span><span id="expE" style="color:var(--acento)">...</span></div>'
                     + '<div class="exp-overlay-stat" style="margin-top:4px"><span class="ok" id="expK">0 OK</span><span id="expC" style="opacity:.7">--</span><span class="fail" id="expN">0</span></div>'
-                    + '<button type="button" id="expX" style="margin-top:14px;padding:8px;background:transparent;color:var(--perigo);border:1px solid var(--perigo);border-radius:6px;cursor:pointer;font-weight:600;width:100%">Cancelar</button>'
+                    + '<button type="button" id="expX" style="margin-top:14px;padding:8px;background:transparent;color:var(--perigo);border:1px solid var(--perigo);border-radius:6px;cursor:pointer;font-weight:600;width:100%">' + escHtml(window.t('hist_cancel', 'Cancel')) + '</button>'
                     + '</div>';
                 document.body.appendChild(ov);
                 document.getElementById('expX').onclick = () => {
@@ -3450,7 +3450,7 @@ global.Chart = H5G;
             document.getElementById('expF').style.width = state.pct + '%';
             document.getElementById('expP').textContent = state.pct + '%';
             document.getElementById('expK').textContent = state.ok + ' OK';
-            document.getElementById('expN').textContent = state.fail + ' err';
+            document.getElementById('expN').textContent = state.fail + ' ' + window.t('dash_metr_err', 'err');
             document.getElementById('expC').textContent = (state.chunkSecs/3600) + 'h';
             const e = document.getElementById('expE');
             if (state.pct >= 100) e.textContent = 'OK';

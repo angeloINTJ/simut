@@ -587,6 +587,17 @@ jobs:
       - name: Web UI trial note (the Pico 2 W's update on trial, and the way back)
         run: python3 tools/test_webui_trial_note.py
 
+      # The page writes some texts by itself, and each must come from the
+      # pack: the export box of the history page said "Exporting..." in
+      # English and "Cancelar" in Portuguese on every pack, both typed into
+      # its markup (seen on the manual's figures of the v2.14.0, 2026-11-06).
+      # The box runs under node, as written and minified, against a DOM that
+      # records every text it shows; a letter no window.t( ) wrote is a failure,
+      # and the keys it asks for are held to both packs. --mutations (by hand)
+      # puts each violation back and expects exactly its findings.
+      - name: Web UI pack texts (no text typed into the page)
+        run: python3 tools/test_webui_pack_texts.py
+
       # The Pico 2 W boots from slot A of a partition table, and four files say
       # where everything is: the table picotool writes, the map in
       # ota_layout.h, the slot's linker script and the PlatformIO profile. A
