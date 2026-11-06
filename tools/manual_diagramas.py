@@ -79,6 +79,8 @@ DISPLAY_H = 'src/DisplayManager.h'
 NET_CYW43 = 'src/net/NetworkManager_Cyw43.cpp'
 NET_MGR = 'src/NetworkManager.cpp'
 NET_MGR_H = 'src/NetworkManager.h'
+APP_CORE = 'src/AppManager_Core.cpp'
+LOGCODES = 'tools/logcodes.tsv'
 LOG_MANAGER = 'src/LogManager.cpp'
 NET_LINK = 'src/net/NetLink.h'
 
@@ -137,6 +139,10 @@ FIGURAS = (
            'configuração; a primeira espera, o teto, os ciclos, a dormência, o prazo da busca e da tentativa vêm de src/SystemDefs_Network.h, src/NetworkManager.h e '
            'src/net/NetworkManager_Cyw43.cpp, e o que o desenho afirma da escada (dobra, dormência depois dos ciclos, recomeço, zera numa conexão, não pede o AP) é um trecho desses arquivos e de '
            'src/NetworkManager.cpp que o código tem de manter'),
+    Figura('fig-10-correcao', '10-correcao.svg', 'cap10-data-hora.md', 'desenho_correcao',
+           'o que o primeiro acerto do relógio faz com as medições gravadas sob o relógio provisório: o aparelho desligado por 2 h, o boot com o relógio provisório, os blocos carimbados 2 h atrasados, o acerto '
+           'e o deslocamento de +7200 s, com os cinco eventos marcados na linha; o número e o nome de cada evento vêm de tools/logcodes.tsv, a diferença mínima para corrigir de src/NetworkManager.cpp, e o que o '
+           'desenho afirma da correção é um trecho desse arquivo e de src/AppManager_Core.cpp que o código tem de manter; as 2 h e os 3 blocos são o exemplo da figura'),
     Figura('fig-15-caminho', '15-caminho.svg', 'cap15-historico.md', 'desenho_caminho_historico',
            'o caminho de um registro: o bloco aberto na RAM, a cópia em .wip, a selagem no arquivo do dia e a fila de arquivos diários, com o limite de ocupação que apaga o mais antigo; '
            'os registros por bloco vêm de src/HistoryV5.h, o limite de src/StorageManager.cpp e os nomes de src/StorageManager.h e src/HistoryV5.h'),
@@ -316,6 +322,9 @@ PAR_GESTOR = 'gestor de frota'                  # chapter 27's name for the prog
 ONDAS = (('Onda 0', 'um aparelho de bancada de cada imagem em uso'), ('Onda 1', 'poucos aparelhos em uso real'),
          ('Onda 2', 'o resto, em grupos pequenos, um aparelho de cada vez dentro de cada grupo'))
 BARREIRA_ONDAS = 'conferir versão, telemetria e alarmes por um período'
+# The example of the time-correction figure: the device off for 2 h (so the provisional clock, which starts at the last record, is 2 h behind: the correction is +7200 s) and the three
+# blocks it wrote before the first set of the clock. The firmware knows neither; the diagram says it is an example.
+HORAS_DESLIGADO, BLOCOS_EXEMPLO = 2, 3
 
 IMAGEM_DO_PERFIL = {'release': 'pico_w_release', 'alpha': 'pico_w_alpha', 'air': 'pico_w_air'}
 
@@ -754,6 +763,30 @@ class Numeros:
         if max(esperas) >= teto:
             raise Falta(f'{NET_MGR_H}: the ceiling of the wait ({teto // 1000} s) is reached by the ladder\'s waits {[e // 1000 for e in esperas]}, and the figure of the ladder says it is never reached')
         return {'esperas': [e // 1000 for e in esperas], 'tentativa': tentativa // 1000, 'busca': busca // 1000, 'teto': teto // 1000, 'dormencia': dormencia // 1000, 'dormentes': dormentes}
+
+
+    def codigo(self, enum):
+        """(the code, the Portuguese name) the log code table, tools/logcodes.tsv, gives the event `enum`: the figures name an event by its number and by the name the manual uses."""
+        m = self.f.achar(LOGCODES, rf'^(\d+)\t{enum}\t[^\t]*\t([^\t]+)\t')
+        return int(m.group(1)), m.group(2)
+
+    def correcao(self):
+        """What the time-correction figure draws: the five events (the provisional time set at the boot, the NTP sync, the correction's three: NTP correcting, corrected, caches invalidated) with the
+        code and the name the log code table gives each, and the difference a set of the clock has to pass to correct (the literal of endProvisional( ), in seconds). Premises, refused when the
+        code drifts: the provisional clock starts from the last record; the sync is logged before the correction; the correction covers the blocks this boot wrote and shifts them by the
+        difference; and the events come in the order 408 (before the shift), 409 (after it), 410."""
+        f = self.f
+        limiar = int(f.achar(NET_MGR, r'if \(_timeSyncCb && abs\(delta\) > (\d+)\) \{').group(1))
+        f.exigir(NET_MGR, r'void NetworkManager::setProvisionalTime\(uint32_t lastTs, uint32_t elapsedSec\) \{\s+if \(lastTs > \d+\) setProvisionalNow\(lastTs \+ elapsedSec, 0\);',
+                 'the provisional clock starts from the last record of the history, which is what the figure of the correction draws')
+        f.exigir(NET_MGR, r'SYS_NTP_SYNC, 0, "NTP OK: "[^;]*;\s+endProvisional\(', 'the sync is logged before the correction, which is the order of the figure of the correction')
+        f.exigir(NET_MGR, r'_timeSyncCb\(_provisionalBase, delta\);', 'the correction covers only the blocks this boot wrote (from the provisional clock\'s start), which is what the figure of the correction draws')
+        f.exigir(APP_CORE, r'blocks = _storageMgr->shiftHistoryTimeV5\(delta, "", bootTs\);', 'the correction shifts the blocks by the difference, which is what the figure of the correction draws')
+        f.exigir(APP_CORE, r'APP_NTP_CORRECTING[\s\S]*?shiftHistoryTimeV5[\s\S]*?APP_NTP_CORRECTED[\s\S]*?APP_CACHE_INVALIDATED',
+                 'event 408 comes before the shift, 409 after it and 410 last, which is the order of the figure of the correction')
+        eventos = {chave: self.codigo(enum) for chave, enum in (('provisorio', 'NET_PROVISIONAL_TIME'), ('ntp', 'SYS_NTP_SYNC'), ('corrigindo', 'APP_NTP_CORRECTING'),
+                                                                 ('corrigidos', 'APP_NTP_CORRECTED'), ('caches', 'APP_CACHE_INVALIDATED'))}
+        return {'limiar': limiar, 'eventos': eventos}
 
 
 def pino_de(gpio):
@@ -1814,6 +1847,44 @@ def desenho_escada(num, slug):
     s.texto(84, 208, f'recomeça na espera de {e["esperas"][0]}\u00a0s, e se repete até a rede voltar', 'dg-n')
     s.texto(16, 248, 'A escada não abre o AP de configuração: ele só abre quando alguém pede.', 'dg-n dg-c2')
     s.texto(16, 264, 'Uma conexão bem-sucedida, a qualquer momento, zera a escada.', 'dg-n dg-c2')
+    return s.render()
+
+
+def desenho_correcao(num, slug):
+    c = num.correcao()
+    ev = c['eventos']
+    s = Svg(slug)
+    acento = ('dg-fio-acento', 'dg-ponta-acento')
+    desloc = HORAS_DESLIGADO * 80                         # the time off, 80 px an hour: the same width is the shift of the blocks
+    x_boot, x_ntp, x_fim, y_a = 16 + desloc, 448, 704, 100
+    marca = lambda chave, sufixo='': [('dg-b', str(ev[chave][0])), ('', f' {ev[chave][1]}{sufixo}')]
+    # the clock: off, provisional (the panel paints it amber), set
+    s.caixa(16, y_a, desloc, 32, 'dg-caixa-apagada', 0)
+    s.texto(16 + desloc // 2, y_a + 20, f'desligado por {HORAS_DESLIGADO}\u00a0h', 'dg-n', 'middle')
+    s.caixa(x_boot, y_a, x_ntp - x_boot, 32, 'dg-caixa-aviso', 0)
+    s.texto((x_boot + x_ntp) // 8 * 4, y_a + 20, 'relógio provisório', 'dg-n', 'middle')
+    s.caixa(x_ntp, y_a, x_fim - x_ntp, 32, 'dg-caixa-ok', 0)
+    s.texto((x_ntp + x_fim) // 8 * 4, y_a + 20, 'relógio acertado', 'dg-n', 'middle')
+    for x in (x_boot, x_ntp):
+        s.linha([(x, y_a - 8), (x, y_a + 40)], 'dg-fio')
+    # the events, on the line: the boot's, and the sync's with the correction's three
+    s.linha([(x_boot, y_a - 8), (x_boot, 80)], 'dg-fio-fino')
+    rotulo(s, x_boot + 8, 84, [marca('provisorio')], 716)
+    s.linha([(x_ntp, y_a - 8), (x_ntp, 28)], 'dg-fio-fino')
+    rotulo(s, x_ntp + 8, 32, [marca('ntp'), marca('corrigindo', f', +{HORAS_DESLIGADO * 3600}\u00a0s'), marca('corrigidos', f', {BLOCOS_EXEMPLO}\u00a0blocos'), marca('caches')], 716)
+    s.texto(x_boot, 156, 'boot', 'dg-n', 'middle')
+    s.texto(x_ntp, 156, 'primeiro acerto', 'dg-n', 'middle')
+    s.texto(x_ntp, 172, f'corrige se a diferença passa de {c["limiar"]}\u00a0s', 'dg-n dg-c2', 'middle')
+    # the blocks written since the boot: stamped by the provisional clock, 2 h behind (they fall in the time the device was off), then shifted by the difference
+    passo, largura = 64, 40
+    s.texto(64, 200, f'gravados com a hora provisória, {HORAS_DESLIGADO}\u00a0h atrás', 'dg-n')
+    for k in range(BLOCOS_EXEMPLO):
+        s.caixa(64 + passo * k, 208, largura, 32, 'dg-caixa-aviso', 0)
+        s.caixa(64 + desloc + passo * k, 288, largura, 32, 'dg-caixa-ok', 0)
+    centro = (2 * 64 + passo * (BLOCOS_EXEMPLO - 1) + largura) // 8 * 4
+    s.seta([(centro, 240), (centro, 264), (centro + desloc, 264), (centro + desloc, 288)], *acento)
+    s.texto(centro + desloc // 2, 260, f'+{HORAS_DESLIGADO * 3600}\u00a0s ({HORAS_DESLIGADO}\u00a0h)', 'dg-n', 'middle')
+    s.texto(64 + desloc, 340, 'depois do acerto, na hora em que aconteceram', 'dg-n')
     return s.render()
 
 

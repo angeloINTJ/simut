@@ -73,6 +73,9 @@ LOG_H = 'src/LogManager.h'
 DISPLAY_H = 'src/DisplayManager.h'
 NET_CYW43 = 'src/net/NetworkManager_Cyw43.cpp'
 NET_MGR_H = 'src/NetworkManager.h'
+NET_MGR = 'src/NetworkManager.cpp'
+APP_CORE = 'src/AppManager_Core.cpp'
+LOGCODES = 'tools/logcodes.tsv'
 BOOT = 'src/AppManager_Boot.cpp'
 
 
@@ -281,6 +284,12 @@ def main():
         confere(all(l in cap09 for l in linhas_do_capitulo) and f'Uma tentativa de entrar na rede leva até {escada["tentativa"]} s' in cap09 and f'Cada busca tem {escada["busca"]} s de prazo' in cap09
                 and f'O aparelho cumpre {["", "uma", "duas", "três"][escada["dormentes"]]} dormências' in cap09,
                 f'chapter 9 does not say the ladder the code gives: {escada}', 'the ladder read from the network code (the waits, the dormancy, the 20 s attempt, the 15 s search, the three dormancies) is the table of chapter 9')
+        # the time correction's events, with the names the log code table gives them, against what chapter 10 calls them, and its 5 s
+        cap10 = (m.CAPITULOS / 'cap10-data-hora.md').read_text(encoding='utf-8')
+        correcao = m.Numeros(fonte).correcao()
+        confere(all(f'**{correcao["eventos"][chave][1]}** ({correcao["eventos"][chave][0]})' in cap10 for chave in ('provisorio', 'corrigindo', 'corrigidos', 'caches')) and f'Se a diferença passa de {correcao["limiar"]} s' in cap10,
+                f'chapter 10 does not call the events as the log code table does: {correcao["eventos"]}, threshold {correcao["limiar"]} s',
+                'the time correction\'s events (524, 408, 409, 410) are named in chapter 10 as tools/logcodes.tsv names them, and its threshold is the code\'s 5 s')
 
         # ---- the builder's guards --------------------------------------------------------------------------------------------------------------------------
         s = m.Svg('99-teste', 100)
@@ -488,6 +497,9 @@ def main():
                 ('the dormant waits served before the restart 3 -> 2', [(NET_DEFS, 'WIFI_DORMANT_MAX_WAITS = 3;', 'WIFI_DORMANT_MAX_WAITS = 2;', 1)], {'09-escada.svg'}),
                 ('the attempt\'s deadline 20 s -> 10 s', [(NET_CYW43, 'else if (timeSince(_stateTimer, 20000)) {', 'else if (timeSince(_stateTimer, 10000)) {', 1)], {'09-escada.svg'}),
                 ('the search\'s deadline 15 s -> 10 s', [(NET_DEFS, 'WIFI_SCAN_TIMEOUT_MS = 15000;', 'WIFI_SCAN_TIMEOUT_MS = 10000;', 1)], {'09-escada.svg'}),
+                ('the correction\'s threshold 5 s -> 9 s', [(NET_MGR, 'if (_timeSyncCb && abs(delta) > 5) {', 'if (_timeSyncCb && abs(delta) > 9) {', 1)], {'10-correcao.svg'}),
+                ('the name of event 408 in the log code table', [(LOGCODES, 'NTP correcting timestamps\tNTP corrigindo timestamps\t', 'NTP correcting timestamps\tNTP corrigindo marcas\t', 1)], {'10-correcao.svg'}),
+                ('the code of the provisional time 524 -> 525 in the log code table', [(LOGCODES, '524\tNET_PROVISIONAL_TIME\t', '525\tNET_PROVISIONAL_TIME\t', 1)], {'10-correcao.svg'}),
                 ('the BME280 probe pair (4, 5) -> (6, 7)', [(BME_SENSOR, 'probe(4, 5, BME280_ADDR_PRIMARY)', 'probe(6, 7, BME280_ADDR_PRIMARY)', 1)], {'02-bmx280.svg'}),
                 ('the BME280 addresses 0x76/0x77 -> 0x75/0x78 in the driver, code and comments', [(BME_DRIVER, '0x76', '0x75', None), (BME_DRIVER, '0x77', '0x78', None)], {'02-bmx280.svg'}),
             ]
@@ -569,6 +581,9 @@ def main():
              'setup AP', '09-escada.svg'),
             ('the restart no longer goes back to the first wait', [('src/NetworkManager.cpp', '_reconnectDelay = WIFI_RECONNECT_BASE_MS;', '_reconnectDelay = WIFI_DORMANT_DELAY_MS;', 1)], 'first wait', '09-escada.svg'),
             ('a connection no longer resets the ladder', [(NET_CYW43, ' _connectCycles = 0; /* Success: reset cycle counter */\n resetReconnectLadder( );', ' _connectCycles = 0; /* Success: reset cycle counter */', 1)], 'resets the ladder', '09-escada.svg'),
+            ('the correction no longer shifts the history', [(APP_CORE, 'blocks = _storageMgr->shiftHistoryTimeV5(delta, "", bootTs);', 'blocks = 0;', 1)], 'shifts', '10-correcao.svg'),
+            ('the correction no longer limits itself to what this boot wrote', [(NET_MGR, '_timeSyncCb(_provisionalBase, delta);', '_timeSyncCb(0, delta);', 1)], 'this boot', '10-correcao.svg'),
+            ('an event of the correction leaves the log code table', [(LOGCODES, 'APP_CACHE_INVALIDATED', 'APP_CACHE_DROPPED', 1)], 'APP_CACHE_INVALIDATED', '10-correcao.svg'),
             ('the discovery configs are no longer published retained', [(TELEMETRY, 'ok = _mqttClient.publish(topic, payload, true);', 'ok = _mqttClient.publish(topic, payload, false);', 1)],
              'retained', '23-fluxo.svg'),
             ('the online message is no longer published retained', [(TELEMETRY, 'onlinePayload.c_str( ), true);', 'onlinePayload.c_str( ), false);', 1)], 'retained', '23-fluxo.svg'),
