@@ -182,8 +182,8 @@ CliDemand parseCliCommand(String input) {
 		cmd.setStrVal1(t1.c_str( ));
 #if SIMUT_BOOT_TAGS
 		/* `screen boot <i> [<pct>|cancel]` and `screen boot end` (2026-11-06) carry up to two more words, lowercased like every
-		 * matched token. Only where the tags exist: an image with the console and no panel (the Air) compiles the parser
-		 * without these two lines, which is part of what keeps its firmware.bin the bytes it was. bootreplay::parse( ) says
+		 * matched token. Only where the tags exist: an image with the console and no panel (the Air), or with the HTTPS server
+		 * (pico_w_test_https), compiles the parser without these two lines, which is part of what keeps its firmware.bin the bytes it was. bootreplay::parse( ) says
 		 * what the words mean; this side only hands them over. */
 		cmd.setStrVal2(t2.c_str( ));
 		cmd.setStrVal3(t3.c_str( ));

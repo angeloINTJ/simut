@@ -11,9 +11,10 @@
  * said to those six, in order, and a test tag says it again through the same six once the boot is over: what lands on
  * the glass is drawn by the boot's own code, not by a lookalike of it.
  *
- * WHERE. Only in an image with the full console AND the TFT (SIMUT_BOOT_TAGS: pico_w_test and pico_w_test_https). The
- * whole file is inside that switch, so every other image compiles it to nothing, and what they carry is unchanged: the
- * nine other firmware.bin are the same bytes, sha256 on a build from scratch on each side (the PR says which).
+ * WHERE. Only in pico_w_test: the image with the full console AND the TFT and without the HTTPS server (SIMUT_BOOT_TAGS,
+ * below, says why the HTTPS image is left out). The whole file is inside that switch, so every other image compiles it to
+ * nothing, and what they carry is unchanged: the ten other firmware.bin are the same bytes as main's, sha256 on a build from
+ * scratch on each side (the PR says which).
  *
  * WHAT IS KEPT. One Rec per call, with the operation, the LangKey (TR_KEYS_COUNT for a raw line), the suffix as the
  * 40-byte line would hold it, the skip button and the percent. Two kinds of call are folded into the record before them,
@@ -25,7 +26,7 @@
  * A call that is neither folds into nothing, even a second `set` of the same key: each shifts the window.
  *
  * HOW MUCH. BOOT_REC_CAP records of sizeof(Rec) = 46 bytes, 1,840 B, and the counters and flags after them (6 B): 1,846 B of .bss
- * in each of the two test images (nm, 2026-11-06), and the image's RAM grows 1,848 B by PlatformIO's count. The longest boot that
+ * in pico_w_test (nm, 2026-11-06), and the image's RAM grows 1,848 B by PlatformIO's count. The longest boot that
  * goes straight on (the gesture started and let go, an update just installed, a legacy history purged, a time-sync
  * correction, the router wait ending in a timeout) makes 29 records, counted on 2026-11-06 in AppManager_Boot.cpp
  * (test_bootrec_the_longest_straight_boot_fits_with_room_to_spare), and each flap of the link adds up to four. 40 leaves
@@ -58,11 +59,17 @@
 #include <string.h>
 #include "simut_config.h"     /* SIMUT_DISPLAY_TFT */
 #include "SystemDefs_Cli.h"   /* SIMUT_CLI_FULL, and the default of 1 the host tests rely on */
+#include "FeatureBits.h"      /* SIMUT_FEAT_WEB_HTTPS: 1ul << 1 where the HTTPS server is built in, 0ul where it is not */
 
-/* The console that asks and the panel that draws: no other image has either half to use. A definition, like NetCaps.h's SIMUT_NET_WIFI, and
- * not an #if that spreads: what the entanglement watermark counts (tools/check_feature_sprawl.py) is the sites that TEST it. An expression, so
- * the value is whatever SIMUT_CLI_FULL and SIMUT_DISPLAY_TFT are where it is tested; both are settled by the two includes above. */
-#define SIMUT_BOOT_TAGS (SIMUT_CLI_FULL && SIMUT_DISPLAY_TFT)
+/* The console that asks and the panel that draws: no other image has either half to use. And not the HTTPS image: pico_w_test_https has the console
+ * and the panel too, and no room. After #324 its .bin was 1,042,652 B, 1,828 B under the 1,044,480 B program slot, and the tags need 2,248 B; the
+ * linker said "region `FLASH' overflowed by 420 bytes" on 2026-11-06. The manual's boot figures are captured on pico_w_test, and the HTTPS image has
+ * no use for the tags, so it is the one left out. It is told apart by its server (SIMUT_FEAT_WEB_HTTPS, which no other image with a console and a
+ * panel builds in; tools/test_feature_bits.py pins the set of images), not by its name, because the manifest has no key for this and a key would be a
+ * permanent bit of /api/status (FeatureBits.h) for a test tool of one image. A definition, like NetCaps.h's SIMUT_NET_WIFI, and not an #if that
+ * spreads: what the entanglement watermark counts (tools/check_feature_sprawl.py) is the sites that TEST it. An expression, so the value is whatever
+ * SIMUT_CLI_FULL, SIMUT_DISPLAY_TFT and SIMUT_FEAT_WEB_HTTPS are where it is tested; all three are settled by the includes above. */
+#define SIMUT_BOOT_TAGS (SIMUT_CLI_FULL && SIMUT_DISPLAY_TFT && !SIMUT_FEAT_WEB_HTTPS)
 
 #if SIMUT_BOOT_TAGS
 

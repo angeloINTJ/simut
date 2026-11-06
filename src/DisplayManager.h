@@ -497,7 +497,7 @@ public:
 #if SIMUT_BOOT_TAGS
 	/* The `screen boot` test tags (2026-11-06, display/BootReplay.h): the six calls above are recorded until the boot is over, and a tag
 	 * plays them back, through the same six, so the boot terminal can be captured with /api/screenshot. Core 0's, except bootReplayEnd( ),
-	 * which Core 1's touch pass calls too. Present only in an image with the full console and the TFT: every other image is byte for byte what
+	 * which Core 1's touch pass calls too. Present only in pico_w_test (SIMUT_BOOT_TAGS, display/BootReplay.h): every other image is byte for byte what
 	 * it was without them. */
 	/** The terminal as it was after record c.idx, plus what c.verb adds (the bar, or the cancelled gesture's two calls). false, with the
 	 *  panel untouched, for what bootreplay::play( ) refuses. Puts the terminal up until a touch, 30 s of none, another tag or `boot end`. */

@@ -1548,7 +1548,8 @@ void AppManager::executeCommand(CliDemand cmd) {
  else if (!strcmp(n, "clk")) _displayMgr->showClockEntry(
   clockEntryFrom(_netMgr->getEpoch( ), simutTimeOffsetSeconds( )), false);
 #if SIMUT_BOOT_TAGS
- /* For the manual's captures (2026-11-06), on the two images with this console and a panel. `clkboot` is the question the boot asks of a unit with no
+ /* For the manual's captures (2026-11-06), in pico_w_test only: pico_w_test_https has the console and the panel too, and no room for the tags
+  * (display/BootReplay.h). `clkboot` is the question the boot asks of a unit with no
   * network, with the hint "no Wi-Fi: records take this time" and PULAR where BACK is: showClockEntry( atBoot ), as AppManager_Boot.cpp calls it.
   * `boot` lists what the boot told the terminal; `boot <i> [<pct>|cancel]` puts the terminal up as it was after call i (display/BootReplay.h); `boot end`
   * gives the panel back, and so do a touch, 30 s of none and any other tag. An index off the list, or a word it does not know, is refused. */
@@ -1559,7 +1560,7 @@ void AppManager::executeCommand(CliDemand cmd) {
   if (c.verb == bootreplay::V_LIST) {
    /* A buffer in the frame of executeCommand( ), which is the one every command of the console runs in, on Core 0's ~4 KB stack (docs/CONCURRENCY.md,
     * invariant 5: the big working buffers are statics for that reason). It costs the frame nothing: measured 2026-11-06 on pico_w_test and
-    * pico_w_test_https, base 95a1d2ae against the tree with the tags, the prologue is the same in all four ELFs, sub sp #16, push {r4-r7, lr}, sub sp #420
+    * pico_w_test_https (which carried the tags then), base 95a1d2ae against the tree with the tags, the prologue is the same in all four ELFs, sub sp #16, push {r4-r7, lr}, sub sp #420
     * (456 B), the slot being shared with the locals of cases that are never live together. The control: a 1,024-byte buffer here turned the second sub
     * into 1,260 B, so the reading does see growth. If this frame ever grows, move the listing into a function of its own that the compiler may not inline. */
    char line[128];

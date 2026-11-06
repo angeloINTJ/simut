@@ -589,7 +589,7 @@ void DisplayManager::refreshTheme( ) { _themeChanged = true; }
 #if SIMUT_BOOT_TAGS
 /* Every call the boot makes to the six functions below, until setup( ) ends (2026-11-06, display/BootReplay.h): what `screen boot` plays back so the
  * boot terminal can be captured with /api/screenshot, which cannot see it while it is on the glass. A static and all zero, so it lives in .bss
- * (1,846 B in the two images that have it, 1,840 of records and 6 of counters and flags; the image's RAM grows 1,848 B) and not in .data, which the
+ * (1,846 B in pico_w_test, the one image that has it, 1,840 of records and 6 of counters and flags; the image's RAM grows 1,848 B) and not in .data, which the
  * flash image would carry. Written on Core 0 alone: the six are called by
  * the boot, the CLI and the web handlers. Core 1, which draws the terminal, reaches one of them, endBoot( ), only through bootReplayEnd( ) in its
  * touch pass, and by then the recorder is closed, so note( ) returns on its first line without a write; the list is read by the CLI, on Core 0.
