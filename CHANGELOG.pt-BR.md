@@ -4,6 +4,71 @@
 
 Todas as mudanças notáveis do firmware SIMUT.
 
+## Não lançado
+
+**Quatro lugares onde a página web mostrava um texto no idioma errado, ou errado, achados nas capturas das figuras do manual da v2.14.0 (o Pico 2 W da bancada, em português, 06/11/2026): a caixa de exportação da página Histórico, o estado do enlace da página Rede, os nomes das melodias de Alarmes e Sons e o "GP255" da busca de sondas para um BME280 ou BMP280. Cada um tem uma conferência que falhava no código de antes da correção e passa depois dela. Nenhum foi conferido numa placa ainda; a conferência de cada um está abaixo.**
+
+### A caixa de exportação da página Histórico
+
+- **O que estava errado.** O `_showExpProgress( )` tinha três textos digitados na página: o título "Exporting..." (inglês), o botão "Cancelar" (português) e o contador de erros "err". Em qualquer pacote eles ficavam como digitados.
+- **A correção.** O título é `window.t('exp_title', 'Exporting...')`, uma chave nova que os dois pacotes trazem ("Exportando..."); o botão é `window.t('hist_cancel', 'Cancel')`, a chave que a página já tinha; o contador é `window.t('dash_metr_err', 'err')`, a chave da contagem de erros de sensor do painel de controle ("erro", "error"). "OK" continua digitado: é a mesma palavra nos três idiomas.
+
+### O estado do enlace da página Rede
+
+- **O que estava errado.** O campo Status da página Rede dizia "Connected", em inglês, na página em português. Não era chave faltando: os dois pacotes têm `net_conn` e `net_off`. O `loadNet( )` pintava a palavra uma vez, com o `window.t( )`, quando o `/api/network` respondia. O dicionário é um segundo pedido, o `/api/lang`, e o aparelho atende um pedido por vez: quando o `/api/network` era servido primeiro, o `t( )` não tinha dicionário, e o `applyLang( )`, que só troca o que tem `data-i18n`, nunca voltava ao cartão.
+- **A correção.** O cartão leva `data-i18n` e `data-en`, como as opções de tema, e o `t( )` ainda o pinta traduzido na hora quando o dicionário chegou primeiro. Trocar o idioma na página agora também troca a palavra: antes, um cartão pintado com o dicionário já carregado mantinha a palavra em português na página em inglês.
+
+### Os nomes das melodias de Alarmes e Sons
+
+- **O que estava errado.** Os cinco seletores de melodia têm trinta opções; três tinham chave `data-i18n` (Ascending, Descending, Siren) e vinte e sete estavam digitadas em inglês. A página em português mostrava Click, Ascending, Descending, Dual Beep e Notify, a opção selecionada de cada seletor. Duas dessas cinco tinham chave, então a chave sozinha não era toda a causa: o seletor customizado que desenha cada seletor (`_makeCustomSelect`, no `lang.js`) copia o texto das opções para o botão e o menu quando é montado e quando o `.value` muda, e o `applyLang( )` traduz as opções depois disso.
+- **A correção.** Toda opção tem chave (`alm_mel_<nome>`, 26 novas nos dois pacotes; Pulse é uma chave só, como é uma palavra só no seletor de alarme e no de atenção). O `applyLang( )` junta os seletores cujas opções ele trocou, uma opção cujo texto muda, e sincroniza o seletor customizado deles depois da troca, e nenhum outro: uma página que chama o `applyLang( )` num poll não refaz um menu que o usuário deixou aberto.
+- **As palavras são as do Ângulo.** O painel desenha as mesmas melodias pelo `nomeMelodia( )` (`src/ui/angulo/telas/AjustesSons.cpp`) com os textos do `@ANGULO`, e a web agora diz o que o painel diz, seletor por seletor e índice por índice (pt-BR "Clique", "Bolha", "Bipe duplo", "Carrilhão grave", "Toque suave"; es-ES "Clic", "Burbuja", "Pitido doble", "Carillón grave", "Tintineo suave"). Só Staccato, o termo musical, é igual nos três. Dois valores pt-BR que já existiam mudam para bater: `alm_mel_asc` de "Ascendente" para "Subida" e `alm_mel_desc` de "Descendente" para "Descida" (o es-ES já concordava). Os textos em inglês da página ficam como estavam.
+
+### A busca de sondas
+
+- **O que estava errado.** A busca de sondas da página de sensores escrevia "GP255" para um BME280 ou BMP280. O aparelho empurrava `{pin = 255, type = TYPE_BME280}` para ele ("I2C, nenhum GPIO só") e a página escrevia `'GP' + f.pin`. O capítulo 6 do manual documentava a linha como `GP255`.
+- **A correção.** O `ScanResult` ganha `sda` e `scl` (padrão `PIN_UNUSED`; os drivers de 1-Wire e de DHT os deixam). A busca do BMx280 os põe no par que ela usou, `SCAN_SDA` 4 e `SCAN_SCL` 5 no `BME280SensorDriver.h`, o único lugar que guarda os números, e diz o chip pelo ID (`isBME280( )`: `TYPE_BMP280` para um BMP280; antes dizia `TYPE_BME280` fosse qual fosse o chip). O JSON da busca sai do `WebManager_Calib.cpp` para o `src/sensors/ScanResultJson.h`, um cabeçalho puro que a suíte nativa alcança. `pin`, `type` e `rom` são o que eram; `name` (o nome do tipo) é novo em todo item, e `sda` e `scl` só no item I2C: `{"pin":255,"type":5,"rom":"","name":"BMP280","sda":4,"scl":5}`. Quem lê `pin`, `type` e `rom` acha os mesmos três campos; o `type` de um BMP280 agora é 5, onde era sempre 3. O `sensScan( )` escreve `GP4/GP5 (BMP280, I²C)` a partir de `sda`, `scl` e `name`, e não guarda cópia dos pinos; as linhas do 1-Wire e do DHT22 são as de antes.
+- **Não mudou.** O `sensor scan` da CLI serial ainda imprime `[Pin 255] UNKNOWN` para o mesmo resultado (`CommandManager::renderScanResults( )`, imagens `SIMUT_CLI_FULL`).
+
+### Testes
+
+- O `tools/test_webui_pack_texts.py` é novo, e o CI o roda no job `gates`: uma conferência para cada um dos quatro textos, rodada no node, como escrita e como o minificador do build a deixa, em inglês e em cada pacote. A caixa de exportação roda contra um DOM pequeno que anota todo texto que ela mostra; o `loadNet( )` roda com o `t( )`, o `escHtml( )`, o `applyLang( )` do próprio `lang.js` e a busca do dicionário, nas ordens em que o aparelho pode responder; as opções de melodia são lidas da página e comparadas com os pacotes e com as palavras do `@ANGULO`, e o `applyLang( )` roda contra seletores que anotam quando são sincronizados; o `sensScan( )` roda contra o JSON que o `ScanResultJson.h` escreve, compilado com o g++. Antes das correções as quatro conferências achavam 6, 40, 45 e 36 pontos no código da main; depois, nenhum, e as 17 mutações (`--mutations`) falham cada uma exatamente onde devem.
+- Seis casos novos na suíte `native_sensors` (`test/test_sensors`): **13 para 19** nela e **843 para 849** nas onze suítes, todos passando. Eles fixam o JSON da busca: uma sonda num pino, um BMP280 e um BME280 num par, outro par, a ROM só para o DS18B20, o documento inteiro e um buffer pequeno demais. Antes de o cabeçalho existir a suíte não compilava; cinco mutações do cabeçalho falham cada uma os casos que devem.
+- Os portões do próprio gerador das páginas, o `check_lang_packs.py` (os pacotes crescem 711 B e 732 B, para 53.824 B e 55.877 B, 82% e 85% do teto do arquivo), o `check_ui_texts.py` e os testes vizinhos da web passam.
+
+### O manual
+
+- As fontes do capítulo 6 (a tabela de resultados da busca) e do capítulo 26 (`scan_results`, com os campos de um item e um exemplo) dizem o que a busca escreve agora. O HTML gerado não é regenerado nesta mudança.
+
+### O que não foi conferido
+
+- Nada foi rodado numa placa. A conferência na bancada é: a busca com o BMP280 da protoboard (SDA no GP4, SCL no GP5); a exportação de um intervalo do histórico, em português e em espanhol; a página Rede, aberta com o idioma já definido e o dicionário demorando a chegar; e a seção de sons, nos dois idiomas, com a troca de idioma na página. O seletor customizado de verdade não foi guiado num navegador aqui: o teste usa no lugar dele um `_cselSync( )` que grava.
+
+### Flash
+
+Contra os registros do `95a1d2ae` (a fusão da v2.14.0 na `main`; eles são iguais, ao byte, ao `.bin` de uma build desse commit, lido da build dele feita por outra sessão), `firmware.bin` sem assinatura como o `tools/flash_budget.json` o registra, as onze imagens compiladas do zero num só `pio run` pelo shim do pio sob a trava de build compartilhada, com `-Werror` valendo e nenhum aviso vindo de `src/`.
+O `used` do linker, que o orçamento guarda, varia de +192 a +568 B. O crescimento é o das quatro correções juntas (`lang.js`, quatro páginas, o HTML de 27 chaves, `ScanResultJson.h`) e não é repartido por correção.
+
+| Imagem | `used` antes | depois | Δ | `.bin` antes | depois | Δ |
+|---|---:|---:|---:|---:|---:|---:|
+| `pico_w_release` | 1.024.820 | 1.025.332 | +512 | 1.036.852 | 1.037.364 | +512 |
+| `pico_w_test` | 1.025.636 | 1.026.156 | +520 | 1.037.668 | 1.038.188 | +520 |
+| `pico_w_test_https` (sem registro de `.bin`) | 1.029.972 | 1.030.396 | +424 | 1.042.004 | 1.042.428 | +424 |
+| `pico_w_asserts` | 1.027.116 | 1.027.628 | +512 | 1.039.148 | 1.039.660 | +512 |
+| `pico_w_alpha` | 981.916 | 982.108 | +192 | 994.476 | 994.476 | 0 |
+| `pico_w_air` | 1.019.880 | 1.020.072 | +192 | 1.035.340 | 1.035.340 | 0 |
+| `pico2_w_release` | 1.038.664 | 1.039.184 | +520 | 1.038.688 | 1.039.208 | +520 |
+| `pico_wire` | 597.204 | 597.772 | +568 | 609.240 | 609.808 | +568 |
+| `pico_wiretft` | 776.156 | 776.676 | +520 | 788.192 | 788.712 | +520 |
+| `pico_wiretft_angulo` | 817.132 | 817.652 | +520 | 829.168 | 829.688 | +520 |
+| `pico2_w_original` | 1.000.784 | 1.001.304 | +520 | 1.000.808 | 1.001.328 | +520 |
+
+O `.bin` do `pico_w_alpha` e do `pico_w_air` ficam iguais: o alinhamento deles absorve os 192 B. O `pico_w_test_https` não tem registro de `.bin` (isento do teto da atualização pelo ar); o `.bin` dele é lido da build da base (antes) e desta (depois).
+
+Folga sob o teto de 1.040.384 B da atualização pelo ar, para a imagem assinada: release 2.779 (3.291 na v2.14.0), `pico_w_test` 1.955 (2.475), `pico_w_asserts` 483 (995).
+O portão avisa nas três, como já avisava, porque cada uma está a menos de um setor de flash, e não reprova nada. O slot do Pico 2 W é de 1.568.768 B, com 529.319 B sobrando na imagem do Ângulo (529.839) e 567.199 na original (567.719).
+Os pacotes crescem 711 B (`language_pt-BR.lng`, 53.824 B, 82% do teto do arquivo) e 732 B (`language_es-ES.lng`, 55.877 B, 85%): 27 chaves novas no `@WEBDICT`, e duas palavras do pt-BR que ficaram mais curtas. São arquivos no aparelho, não fazem parte da imagem.
+
 ## v2.14.0 (2026-11-05)
 
 **O painel do alpha e do SIMUT Wire com um LCD 16x2 pode mostrar o LCD: uma caixa, *Tela* (*Display Capture* em inglês), desenha o vidro ponto a ponto, uma vez no Capturar e até quatro vezes por segundo no Ao vivo, a partir do `GET /api/lcd` (#320). Por trás dela está o print virtual (#319), o LCD do alpha desenhado no computador a partir do código do próprio firmware, que faz as 17 figuras de LCD do manual e que a página repete pixel a pixel. Os caracteres são da Hitachi (Tabela 4 do datasheet do HD44780U): o `pico_w_alpha` publicado passa a trazer a ROM A00, reproduzida sem a aprovação escrita que a Advertência 6 pede, por decisão do mantenedor de 04/11/2026. A versão traz ainda treze correções pequenas, achadas lendo o código e pelas notas da bancada (#318), e três mudanças que fecham itens da lista *Conhecido* da v2.13.0: o Salvar dos limites de alarme do painel (F3, #307), a prévia do alinhamento da tela que sobrevivia à saída da tela (#308) e o `GET /api/keypad` no Ângulo (F4, #311). O resto é uma mudança de lugar de nomes entre dois cabeçalhos, que não muda nenhuma imagem (#312), testes, ferramentas, a ação de atestado e documentos.**

@@ -4,6 +4,71 @@
 
 All notable changes to SIMUT firmware.
 
+## Unreleased
+
+**Four places where the web page showed a text in the wrong language, or wrongly, found on the capture of the manual's figures of the v2.14.0 (the bench's Pico 2 W, in Portuguese, 2026-11-06): the export box of the history page, the link state of the Network page, the melody names of Alarms & Sounds, and the probe scan's "GP255" for a BME280 or BMP280. Each has a check that failed on the code before the fix and passes after it. None has been run on a board yet; the check for each is below.**
+
+### The export box of the history page
+
+- **What was wrong.** `_showExpProgress( )` had three texts typed into the page: the title "Exporting..." (English), the button "Cancelar" (Portuguese) and the error counter "err". On either pack they stayed as typed.
+- **The fix.** The title is `window.t('exp_title', 'Exporting...')`, a new key that both packs carry ("Exportando..."); the button is `window.t('hist_cancel', 'Cancel')`, the key the page already had; the counter is `window.t('dash_metr_err', 'err')`, the key of the dashboard's sensor-error count ("erro", "error"). "OK" stays typed: it is the same word in the three languages.
+
+### The link state of the Network page
+
+- **What was wrong.** The Status field of the Network page said "Connected", in English, on the Portuguese page. It was not a missing key: both packs have `net_conn` and `net_off`. `loadNet( )` painted the word once, from `window.t( )`, when `/api/network` answered. The dictionary is a second request, `/api/lang`, and the device answers one request at a time: when `/api/network` was served first, `t( )` had no dictionary, and `applyLang( )`, which relabels only what carries `data-i18n`, never came back to the card.
+- **The fix.** The card carries `data-i18n` and `data-en`, the way the theme options do, and `t( )` still paints it translated at once when the dictionary came first. A language switch on the page flips the word now too: before, a card painted from a dictionary that had arrived kept the Portuguese word on the English page.
+
+### The melody names of Alarms & Sounds
+
+- **What was wrong.** The five melody selects have thirty options; three had a `data-i18n` key (Ascending, Descending, Siren) and twenty-seven were typed in English. The Portuguese page showed Click, Ascending, Descending, Dual Beep and Notify, the selected option of each select. Two of those five had a key, so a key alone was not the whole cause: the custom select that draws each select (`_makeCustomSelect` in `lang.js`) copies the options' text into its button and menu when it is built and when `.value` is set, and `applyLang( )` translates the options after that.
+- **The fix.** Every option has a key (`alm_mel_<name>`, 26 new ones in both packs; Pulse is one key, as it is one word in the alarm and in the attention select). `applyLang( )` collects the selects whose options it relabelled, an option whose text changes, and syncs their custom selects after the relabelling, and no other: a page that calls `applyLang( )` on a poll does not rebuild a menu the user has open.
+- **The words are the Ângulo's.** The panel draws the same melodies from `nomeMelodia( )` (`src/ui/angulo/telas/AjustesSons.cpp`) with their `@ANGULO` texts, and the web now says what the panel says, select by select and index by index (pt-BR "Clique", "Bolha", "Bipe duplo", "Carrilhão grave", "Toque suave"; es-ES "Clic", "Burbuja", "Pitido doble", "Carillón grave", "Tintineo suave"). Only Staccato, the musical term, is the same in the three. Two existing pt-BR values change to match: `alm_mel_asc` "Ascendente" to "Subida" and `alm_mel_desc` "Descendente" to "Descida" (es-ES already agreed). The English texts in the page stay as they were.
+
+### The probe scan
+
+- **What was wrong.** The probe scan of the sensor page printed "GP255" for a BME280 or BMP280. The firmware pushed `{pin = 255, type = TYPE_BME280}` for it ("I2C, no single GPIO") and the page printed `'GP' + f.pin`. The manual's chapter 6 documented the line as `GP255`.
+- **The fix.** `ScanResult` gets `sda` and `scl` (default `PIN_UNUSED`; the 1-Wire and DHT drivers leave them). The BMx280 scan sets them to the pair it drove, `SCAN_SDA` 4 and `SCAN_SCL` 5 in `BME280SensorDriver.h`, the one place that holds the numbers, and reports the chip by its ID (`isBME280( )`: `TYPE_BMP280` for a BMP280; it reported `TYPE_BME280` whichever part answered). The JSON of a scan moves out of `WebManager_Calib.cpp` into `src/sensors/ScanResultJson.h`, a pure header the native suite reaches. `pin`, `type` and `rom` are what they were; `name` (the type's name) is new on every entry, and `sda` and `scl` on an I2C entry only: `{"pin":255,"type":5,"rom":"","name":"BMP280","sda":4,"scl":5}`. A reader of `pin`, `type` and `rom` finds the same three fields; the `type` of a BMP280 is 5 now, where it was always 3. `sensScan( )` prints `GP4/GP5 (BMP280, I²C)` from `sda`, `scl` and `name`, and keeps no copy of the pins; the 1-Wire and DHT22 lines are as they were.
+- **Not changed.** The serial CLI's `sensor scan` still prints `[Pin 255] UNKNOWN` for the same result (`CommandManager::renderScanResults( )`, `SIMUT_CLI_FULL` images).
+
+### Tests
+
+- `tools/test_webui_pack_texts.py` is new, and CI runs it in the `gates` job: one check for each of the four texts, run under node, as written and as the build's minifier leaves it, in English and in each pack. The export box runs against a small DOM that records every text it shows; `loadNet( )` runs with `lang.js`'s own `t( )`, `escHtml( )`, `applyLang( )` and its dictionary fetch, in the orders the device can answer in; the melody options are read off the page and held to the packs and to the Ângulo's `@ANGULO` words, and `applyLang( )` runs against selects that record when they are synced; `sensScan( )` runs against the JSON that `ScanResultJson.h` writes, compiled with g++. Before the fixes the four checks found 6, 40, 45 and 36 points on the code of main; after, none, and its 17 mutants (`--mutations`) each fail exactly where they should.
+- Six new cases in the `native_sensors` suite (`test/test_sensors`): **13 to 19** there and **843 to 849** in the eleven suites, all passing. They pin the scan's JSON: a probe on a pin, a BMP280 and a BME280 on a pair, another pair, a ROM for a DS18B20 only, the whole document, and a buffer too small. Before the header existed the suite did not build; five mutants of the header each fail the cases they should.
+- The page generator's own gates, `check_lang_packs.py` (the packs grow by 711 B and 732 B, to 53,824 B and 55,877 B, 82% and 85% of the file ceiling), `check_ui_texts.py` and the neighbour web tests pass.
+
+### The manual
+
+- The sources of chapter 6 (the results table of the scan) and chapter 26 (`scan_results`, with the fields of an item and an example) say what the scan prints now. The generated HTML is not regenerated in this change.
+
+### What was not checked
+
+- Not run on a board. The check on the bench is: the scan with the BMP280 on the protoboard (SDA on GP4, SCL on GP5); the export of a range of the history, in Portuguese and in Spanish; the Network page, loaded with the language already set, with the dictionary slow to arrive; and the Sounds section, in both languages, with the language switch on the page. The real custom select was not driven in a browser here: the test stands in a recording `_cselSync( )` for it.
+
+### Flash
+
+Against the records of `95a1d2ae` (the v2.14.0 merge on `main`; they equal, to the byte, the `.bin` of a build of that commit, read from another session's build of it), `firmware.bin` unsigned as `tools/flash_budget.json` records it, all eleven images built from zero in one `pio run` through the pio shim under the shared build lock, `-Werror` holding and no warning from `src/`.
+The linker's `used`, which the budget holds, moves by +192 to +568 B. The growth is the four fixes together (`lang.js`, four pages, the markup of 27 keys, `ScanResultJson.h`) and is not split by fix.
+
+| Image | `used` before | after | Δ | `.bin` before | after | Δ |
+|---|---:|---:|---:|---:|---:|---:|
+| `pico_w_release` | 1,024,820 | 1,025,332 | +512 | 1,036,852 | 1,037,364 | +512 |
+| `pico_w_test` | 1,025,636 | 1,026,156 | +520 | 1,037,668 | 1,038,188 | +520 |
+| `pico_w_test_https` (no `.bin` record) | 1,029,972 | 1,030,396 | +424 | 1,042,004 | 1,042,428 | +424 |
+| `pico_w_asserts` | 1,027,116 | 1,027,628 | +512 | 1,039,148 | 1,039,660 | +512 |
+| `pico_w_alpha` | 981,916 | 982,108 | +192 | 994,476 | 994,476 | 0 |
+| `pico_w_air` | 1,019,880 | 1,020,072 | +192 | 1,035,340 | 1,035,340 | 0 |
+| `pico2_w_release` | 1,038,664 | 1,039,184 | +520 | 1,038,688 | 1,039,208 | +520 |
+| `pico_wire` | 597,204 | 597,772 | +568 | 609,240 | 609,808 | +568 |
+| `pico_wiretft` | 776,156 | 776,676 | +520 | 788,192 | 788,712 | +520 |
+| `pico_wiretft_angulo` | 817,132 | 817,652 | +520 | 829,168 | 829,688 | +520 |
+| `pico2_w_original` | 1,000,784 | 1,001,304 | +520 | 1,000,808 | 1,001,328 | +520 |
+
+The `.bin` of `pico_w_alpha` and `pico_w_air` are equal: their alignment absorbs the 192 B. `pico_w_test_https` has no `.bin` record (exempt from the over-the-air ceiling); its `.bin` is read from the build of the base (before) and from this one (after).
+
+Slack under the 1,040,384 B over-the-air ceiling, for the signed image: release 2,779 (3,291 in v2.14.0), `pico_w_test` 1,955 (2,475), `pico_w_asserts` 483 (995).
+The gate warns for all three, as it did, because each is under one flash sector, and fails nothing. The Pico 2 W's slot is 1,568,768 B, with 529,319 B left on the Ângulo image (529,839) and 567,199 on the original (567,719).
+The packs grow by 711 B (`language_pt-BR.lng`, 53,824 B, 82% of the file ceiling) and 732 B (`language_es-ES.lng`, 55,877 B, 85%): 27 new `@WEBDICT` keys, and two pt-BR words that got shorter. They are files on the device, not part of the image.
+
 ## v2.14.0 (2026-11-05)
 
 **The dashboard of the SIMUT alpha and of the SIMUT Wire with a 16x2 LCD can show the LCD: a Display Capture box draws the glass dot by dot, once on Capture and up to four times a second on Live view, from `GET /api/lcd` (#320). Behind it is the print virtual (#319), the alpha's LCD drawn on the host from the firmware's own code, which makes the manual's 17 LCD figures and which the page repeats pixel for pixel. The characters are Hitachi's (Table 4 of the HD44780U datasheet): the published `pico_w_alpha` now carries ROM A00, reproduced without the written approval its Caution 6 asks for, on the maintainer's decision of 2026-11-04. The release also has thirteen small fixes found by reading the code and by the bench's notes (#318), and three changes that close items of v2.13.0's *Known* list: the panel's alarm-limits save (F3, #307), the display-alignment preview that outlived its screen (#308) and `GET /api/keypad` on the Ângulo (F4, #311). The rest is a move of names between two headers that changes no image (#312), tests, tools, the attestation action and documents.**
