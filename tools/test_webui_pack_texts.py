@@ -31,6 +31,21 @@ found four such places; each has its check here.
     first visit (no language stored yet). The card must read the pack's word at
     the end of each, and switch with the language.
 
+  * the melody names of Alarms & Sounds (ALARMS_PAGE): thirty <option>s in five
+    selects, three of them with a data-i18n key and the rest typed in English,
+    so the Portuguese page showed Click, Ascending, Descending, Dual Beep and
+    Notify. Every option now has a key, both packs carry it, and its word is
+    the one the Ângulo's panel draws for the same melody (@ANGULO, by the
+    select and the index, read off nomeMelodia( ) in AjustesSons.cpp): web and
+    panel say the same. A key alone did not show: the custom select
+    (_makeCustomSelect, lang.js) copies the options' text when it is built and
+    when .value is set, and applyLang( ) translates the options after that, so
+    even 'Ascending' kept its English on the button. applyLang( ) runs under
+    node (lang.js's own line) against selects that record when they are synced:
+    it must sync again every select whose options it relabelled, after the
+    relabelling, and none when nothing changed (a poll must not rebuild an open
+    menu).
+
 Each check takes the code it judges, so --mutations can put the violations back
 by hand (one mutant per text) and expect each to be found; the clean code must
 give none.
@@ -409,6 +424,266 @@ def test_link_mutants(src, ns, dicts):
         check(got == want, f"link mutant {name!r}: the card reads wrong at {sorted(got)}, wanted {sorted(want)}")
 
 
+# ── the melody names of the sound settings ─────────────────────────────────
+
+ANGULO_SONS = REPO / "src" / "ui" / "angulo" / "telas" / "AjustesSons.cpp"
+SOM_IDS = {"TOQUE": "touch", "CONFIRMACAO": "confirm", "ERRO": "error", "ALARME": "alarm", "ATENCAO": "attention"}
+# The one word that is the same in the three languages (the musical term), so
+# the packs keep it as it is, the Ângulo's too.
+SAME_WORD = {"Staccato"}
+_angulo_cache = {}
+
+
+def fnv1a32(s):
+    h = 0x811c9dc5
+    for b in s.encode("utf-8"):
+        h = ((h ^ b) * 0x01000193) & 0xFFFFFFFF
+    return h
+
+
+def angulo_texts(lang):
+    """{FNV-1a of the English: text} of the pack's @ANGULO section."""
+    if lang not in _angulo_cache:
+        lines = PACK_FILES[lang].read_text(encoding="utf-8").split("\n")
+        out = {}
+        for ln in lines[lines.index("@ANGULO") + 1:]:
+            if ln.startswith("@"):
+                break
+            if ln.strip():
+                h, _, txt = ln.partition(" ")
+                out[int(h, 16)] = txt
+        _angulo_cache[lang] = out
+    return _angulo_cache[lang]
+
+
+def angulo_melodies():
+    """{select id: {index: the Ângulo's English}} read off nomeMelodia( )."""
+    text = ANGULO_SONS.read_text(encoding="utf-8")
+    a = text.index("const char *nomeMelodia(")
+    body = text[a:text.index("\n}\n", a)]
+    out = {}
+    for m in re.finditer(r"case SOM_(\w+):\s*switch \( melodia \) \{(.*?)\}\s*break;", body, re.S):
+        out[SOM_IDS[m.group(1)]] = {int(i): en for i, en in re.findall(r'case (\d+): return UA_TXT\( "([^"]+)" \);', m.group(2))}
+    return out
+
+
+def melody_selects(src):
+    """{id: [(value, data-i18n key or None, English text)]} for each select.mel-sel of the alarms page."""
+    page = block(src, "ALARMS_PAGE")
+    out = {}
+    for m in re.finditer(r'<select id="mel_(\w+)" class="mel-sel">(.*?)</select>', page, re.S):
+        opts = []
+        for o in re.finditer(r'<option value="(\d+)"([^>]*)>([^<]*)</option>', m.group(2)):
+            k = re.search(r'data-i18n="([^"]+)"', o.group(2))
+            opts.append((int(o.group(1)), k.group(1) if k else None, o.group(3)))
+        out[m.group(1)] = opts
+    return out
+
+
+def melody_findings(src, dicts):
+    """What is wrong with the melody names in this page and these packs: [] when nothing."""
+    found = []
+    sels, ang = melody_selects(src), angulo_melodies()
+    if sorted(sels) != sorted(ang) or any(len(o) != len(ang[i]) for i, o in sels.items()):
+        return [f"the alarms page has the melody selects {sorted(sels)} with {[len(o) for o in sels.values()]} options, "
+                f"the Ângulo {sorted(ang)} with {[len(v) for v in ang.values()]}: the two lists no longer line up"]
+    for sid, opts in sels.items():
+        for val, key, en in opts:
+            where = f"#mel_{sid} option {val} ({en!r})"
+            if not key:
+                found.append(f"{where} has no data-i18n key, so it stays in English on every pack")
+                continue
+            for lang, d in dicts.items():
+                word = d.get(key, "")
+                panel = angulo_texts(lang).get(fnv1a32(ang[sid][val]))
+                if not word.strip():
+                    found.append(f"{lang}: @WEBDICT has no {key!r} ({where})")
+                elif panel is None:
+                    found.append(f"{lang}: @ANGULO has no text for {ang[sid][val]!r}, the Ângulo's name for {where}")
+                elif word != panel:
+                    found.append(f"{lang}: {where} reads {word!r} on the web and {panel!r} on the Ângulo's panel")
+                elif word == en and en not in SAME_WORD:
+                    # the web and the panel agree, and both are English: the pack never translated it
+                    found.append(f"{lang}: {where} is the English {en!r} on the web and on the panel: not a translation")
+    return sorted(set(found))
+
+
+# What node does not have: the page's storage, the elements applyLang( ) walks
+# ([data-i18n], each option knowing its select) and the custom select. The
+# custom select is the part this test stands in for: _cselSync( ) here only
+# records what the select's options say when it is called, as the real one
+# copies the options' text into the button and the menu (and, like the real one,
+# does nothing for a select whose wrapper is not built).
+SYNC_HARNESS = r"""
+var __store = {};
+Object.defineProperty(globalThis, 'localStorage', { configurable: true, writable: true, value: {
+    getItem: function (k) { return Object.prototype.hasOwnProperty.call(__store, k) ? __store[k] : null; },
+    setItem: function (k, v) { __store[k] = String(v); } } });
+var __opts = [], __synced = [];
+Object.defineProperty(globalThis, 'document', { configurable: true, writable: true, value: {
+    querySelectorAll: function (sel) { return sel === '[data-i18n]' ? __opts : []; },
+    createElement: function () { var s = ''; return {
+        set textContent(v) { s = String(v); },
+        get innerHTML() { return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); } }; } } });
+var window = globalThis;
+var dict = { pt: {} };
+__LANG_JS__
+globalThis._cselSync = function (s) {
+    if (!s._cw) return;
+    __synced.push({ id: s.id, labels: s.options.map(function (o) { return o.innerHTML; }) });
+};
+function __make(sels) {
+    __opts.length = 0; __synced.length = 0;
+    return sels.map(function (d) {
+        var sel = { id: d.id, tagName: 'SELECT', _cw: d.wrapped ? {} : undefined, options: [] };
+        d.options.forEach(function (od) {
+            var attrs = od.key ? { 'data-i18n': od.key } : {}, html = od.en;
+            var o = { tagName: 'OPTION', parentNode: sel,
+                get innerHTML() { return html; }, set innerHTML(v) { html = String(v); },
+                getAttribute: function (n) { return Object.prototype.hasOwnProperty.call(attrs, n) ? attrs[n] : null; },
+                setAttribute: function (n, v) { attrs[n] = String(v); },
+                hasAttribute: function (n) { return Object.prototype.hasOwnProperty.call(attrs, n); } };
+            sel.options.push(o);
+            if (od.key) __opts.push(o);
+        });
+        return sel;
+    });
+}
+var __labels = function (sels) { return sels.map(function (s) { return s.options.map(function (o) { return o.innerHTML; }); }); };
+(function () {
+    var spec = __SPEC__, out = {};
+    /* the page as the browser parses it: English options, the dictionary not here yet */
+    var sels = __make(spec.selects);
+    localStorage.setItem('simut_lang', 'pt');
+    applyLang();                                         /* loadAlarms( ) calls it before /api/lang has answered */
+    out.beforeDict = { syncs: __synced.length, labels: __labels(sels) };
+    dict.pt = spec.pack; applyLang();                    /* the dictionary arrives */
+    out.afterDict = { synced: __synced.slice(), labels: __labels(sels) };
+    var n = __synced.length;
+    applyLang(); applyLang();                            /* the dashboard-style repeated calls: nothing changed */
+    out.repeated = __synced.length - n;
+    n = __synced.length;
+    localStorage.setItem('simut_lang', 'en'); applyLang();
+    out.toEnglish = { synced: __synced.slice(n), labels: __labels(sels) };
+    n = __synced.length;
+    localStorage.setItem('simut_lang', 'pt'); applyLang();
+    out.backToPt = { synced: __synced.slice(n), labels: __labels(sels) };
+    /* the dictionary first: lang.js applied it before the options were in the DOM, then the page's first applyLang( ) */
+    dict.pt = spec.pack; sels = __make(spec.selects);
+    applyLang();
+    out.dictFirst = { synced: __synced.slice(), labels: __labels(sels) };
+    console.log(JSON.stringify(out));
+})();
+"""
+
+
+def apply_lang_line(src):
+    m = re.search(r"^[ \t]*(window\.applyLang = function.*)$", block(src, "LANG_JS"), re.M)
+    return m.group(1) if m else None
+
+
+def lang_helpers(src):
+    """lang.js's own one-line window.escHtml and window.applyLang."""
+    lang = block(src, "LANG_JS")
+    got = [re.search(rf"^[ \t]*(window\.{n} = function.*)$", lang, re.M) for n in ("escHtml", "applyLang")]
+    return [g.group(1) for g in got] if all(got) else None
+
+
+def sync_findings(helpers, src, ns, dicts):
+    """What is wrong with applyLang( ) and the custom selects of the melody names: [] when nothing."""
+    sels = melody_selects(src)
+    found = []
+    for lang, d in dicts.items():
+        keys = {k for opts in sels.values() for _, k, _ in opts if k}
+        spec = {"pack": {k: d[k] for k in keys if k in d},
+                "selects": [{"id": f"mel_{sid}", "wrapped": True,
+                             "options": [{"key": k, "en": en} for _, k, en in opts]} for sid, opts in sels.items()]
+                         # a select the custom wrapper has not been built for, and one with no keyed option
+                         + [{"id": "unwrapped", "wrapped": False, "options": [{"key": "alm_mel_asc", "en": "Ascending"}]},
+                            {"id": "plain", "wrapped": True, "options": [{"key": None, "en": "Plain"}]}]}
+        want = [[d.get(k, en) if k else en for _, k, en in opts] for opts in sels.values()] + [[d.get("alm_mel_asc", "Ascending")], ["Plain"]]
+        english = [[en for _, k, en in opts] for opts in sels.values()] + [["Ascending"], ["Plain"]]
+        for label, line in (("as written", helpers), ("minified", [ns["_minify_web_block"](h, "js") for h in helpers])):
+            try:
+                res = run_node(SYNC_HARNESS.replace("__LANG_JS__", "\n".join(line)).replace("__SPEC__", json.dumps(spec)))
+            except RuntimeError as e:
+                found.append(f"{label}: {lang}: {e}")
+                continue
+            ids = [f"mel_{sid}" for sid in sels]
+            for when in ("afterDict", "dictFirst"):
+                got = res[when]
+                synced = {x["id"] for x in got["synced"]}
+                missing = [i for i in ids if i not in synced]
+                if missing:
+                    found.append(f"{label}: {lang}: {when}: the custom select of {missing} is not synced after applyLang( ) relabelled its options")
+                for x in got["synced"]:
+                    k = ids.index(x["id"]) if x["id"] in ids else None
+                    if k is not None and x["labels"] != want[k]:
+                        found.append(f"{label}: {lang}: {when}: {x['id']} was synced while its options read {x['labels']}, wanted {want[k]}")
+                if {"unwrapped", "plain"} & synced:
+                    found.append(f"{label}: {lang}: {when}: a select with no wrapper, or with no relabelled option, was synced")
+                if got["labels"] != want:
+                    found.append(f"{label}: {lang}: {when}: the options read {got['labels']}, wanted {want}")
+            if res["beforeDict"]["syncs"]:
+                found.append(f"{label}: {lang}: applyLang( ) with no dictionary changed nothing, and still synced {res['beforeDict']['syncs']} selects")
+            if res["repeated"]:
+                found.append(f"{label}: {lang}: two more applyLang( ) calls with nothing changed synced {res['repeated']} selects again: "
+                             f"an open menu would be rebuilt at every poll")
+            for when, goal in (("toEnglish", english), ("backToPt", want)):
+                got = res[when]
+                missing = [i for i in ids if i not in {x["id"] for x in got["synced"]}]
+                if missing:
+                    found.append(f"{label}: {lang}: {when}: the custom select of {missing} is not synced after the language switch")
+                if got["labels"] != goal:
+                    found.append(f"{label}: {lang}: {when}: the options read {got['labels']}, wanted {goal}")
+    return sorted(set(found))
+
+
+def test_melody_names(src, ns, dicts):
+    for f in melody_findings(src, dicts):
+        fails.append(f"melody names: {f}")
+    helpers = lang_helpers(src)
+    if not check(helpers is not None, "lang.js lacks window.escHtml or window.applyLang as one line each; this test runs lang.js's own"):
+        return
+    for f in sync_findings(helpers, src, ns, dicts):
+        fails.append(f"melody names, custom select: {f}")
+
+
+# Each mutant breaks one thing; what it must give is listed by the part of the
+# check that sees it.
+def test_melody_mutants(src, ns, dicts):
+    helpers = lang_helpers(src)
+    if helpers is None:
+        return
+    check(melody_findings(src, dicts) == [] and sync_findings(helpers, src, ns, dicts) == [],
+          "melody mutants: the code they start from is not clean")
+    # (a) an option loses its key
+    m, n = re.subn(r'<option value="3" data-i18n="alm_mel_snap">', '<option value="3">', src, count=1)
+    if check(n == 1, "melody mutant 'an option without its key': its pattern matches nothing (update it)"):
+        got = melody_findings(m, dicts)
+        check(len(got) == 1 and "has no data-i18n key" in got[0], f"melody mutant 'an option without its key': {got}")
+    # (b) a pack word that is not the panel's
+    bad = {lang: dict(d, alm_mel_asc="Ascendente") for lang, d in dicts.items()}
+    got = melody_findings(src, {"pt-BR": bad["pt-BR"]})
+    check(len(got) == 1 and "'Ascendente' on the web and 'Subida' on the Ângulo's panel" in got[0], f"melody mutant 'a word other than the panel's': {got}")
+    # (c) a pack that lacks a key, and one that keeps the English
+    got = melody_findings(src, {"es-ES": {k: v for k, v in dicts["es-ES"].items() if k != "alm_mel_bell"}})
+    check(len(got) == 1 and "has no 'alm_mel_bell'" in got[0], f"melody mutant 'a key missing from a pack': {got}")
+    got = melody_findings(src, {"pt-BR": dict(dicts["pt-BR"], alm_mel_bubble="Bubble")})
+    check(len(got) == 1 and "reads 'Bubble' on the web and 'Bolha' on the Ângulo's panel" in got[0],
+          f"melody mutant 'the English kept in a pack': {got}")
+    # (d) applyLang( ) without the sync, and one that syncs at every call
+    line = helpers[1]
+    for name, pat, rep, must in (
+            ("no sync after the relabelling", r"relabeled\.forEach\(s => \{ if \(window\._cselSync\) _cselSync\(s\); \}\);", "", "is not synced after"),
+            ("a sync at every call", r" && el\.innerHTML !== h", "", "an open menu would be rebuilt")):
+        mut, k = re.subn(pat, lambda mm, r=rep: r, line, count=1)
+        if not check(k == 1, f"melody mutant {name!r}: its pattern matches nothing in applyLang( ) (update it)"):
+            continue
+        got = sync_findings([helpers[0], mut], src, ns, dicts)
+        check(got != [] and any(must in f for f in got), f"melody mutant {name!r}: the test did not find it ({len(got)} findings)")
+
+
 def main():
     global WEBUI
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
@@ -421,10 +696,12 @@ def main():
     ns = generator()
     dicts = {lang: pack_dict(lang) for lang in PACK_FILES}
     tests = [("test_export_box", lambda: test_export_box(src, ns, dicts)),
-             ("test_link_state", lambda: test_link_state(src, ns, dicts))]
+             ("test_link_state", lambda: test_link_state(src, ns, dicts)),
+             ("test_melody_names", lambda: test_melody_names(src, ns, dicts))]
     if args.mutations:
         tests += [("test_export_mutants", lambda: test_export_mutants(src, ns, dicts)),
-                  ("test_link_mutants", lambda: test_link_mutants(src, ns, dicts))]
+                  ("test_link_mutants", lambda: test_link_mutants(src, ns, dicts)),
+                  ("test_melody_mutants", lambda: test_melody_mutants(src, ns, dicts))]
     for name, t in tests:
         before = len(fails)
         try:

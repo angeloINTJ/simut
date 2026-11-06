@@ -591,12 +591,16 @@ jobs:
       # pack. The export box of the history page said "Exporting..." in
       # English and "Cancelar" in Portuguese on every pack, both typed into its
       # markup; the Network page painted Connected once, from window.t( ), and
-      # kept the English whenever /api/network answered before /api/lang (both
+      # kept the English whenever /api/network answered before /api/lang (all
       # seen on the manual's figures of the v2.14.0, 2026-11-06). Each runs
       # under node, as written and minified: the box against a DOM that records
       # every text it shows (a letter no window.t( ) wrote is a failure, and
       # the keys it asks for are held to both packs); loadNet( ) with lang.js's
-      # own t( ) and applyLang( ) in the orders the device can answer in.
+      # own t( ) and applyLang( ) in the orders the device can answer in. The
+      # thirty melody names of Alarms & Sounds had 27 typed in English, and the
+      # custom select kept the English of the 3 that had a key: each option
+      # needs its key, each pack the Ângulo's word for it, and applyLang( )
+      # must sync the custom select of the options it relabels.
       # --mutations (by hand) puts each violation back and expects exactly its
       # findings.
       - name: Web UI pack texts (no text typed into the page)

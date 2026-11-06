@@ -7000,12 +7000,12 @@ static const char ALARMS_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                     <span class="sound-label" data-i18n="alm_touch">Touch</span>
                     <div class="mel-group">
                         <select id="mel_touch" class="mel-sel">
-                            <option value="0">Click</option>
-                            <option value="1">Bubble</option>
-                            <option value="2">Tick</option>
-                            <option value="3">Snap</option>
-                            <option value="4">Drop</option>
-                            <option value="5">Chirp</option>
+                            <option value="0" data-i18n="alm_mel_click">Click</option>
+                            <option value="1" data-i18n="alm_mel_bubble">Bubble</option>
+                            <option value="2" data-i18n="alm_mel_tick">Tick</option>
+                            <option value="3" data-i18n="alm_mel_snap">Snap</option>
+                            <option value="4" data-i18n="alm_mel_drop">Drop</option>
+                            <option value="5" data-i18n="alm_mel_chirp">Chirp</option>
                         </select>
                         <button type="button" class="btn-test" aria-label="Test sound" onclick="testSound('touch')"><svg class="ic"><use href="#i-sound"/></svg></button>
                     </div>
@@ -7016,11 +7016,11 @@ static const char ALARMS_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                     <div class="mel-group">
                         <select id="mel_confirm" class="mel-sel">
                             <option value="0" data-i18n="alm_mel_asc">Ascending</option>
-                            <option value="1">Fanfare</option>
-                            <option value="2">Chime</option>
-                            <option value="3">Triumph</option>
-                            <option value="4">Sparkle</option>
-                            <option value="5">Resolve</option>
+                            <option value="1" data-i18n="alm_mel_fanfare">Fanfare</option>
+                            <option value="2" data-i18n="alm_mel_chime">Chime</option>
+                            <option value="3" data-i18n="alm_mel_triumph">Triumph</option>
+                            <option value="4" data-i18n="alm_mel_sparkle">Sparkle</option>
+                            <option value="5" data-i18n="alm_mel_resolve">Resolve</option>
                         </select>
                         <button type="button" class="btn-test" aria-label="Test sound" onclick="testSound('confirm')"><svg class="ic"><use href="#i-sound"/></svg></button>
                     </div>
@@ -7031,11 +7031,11 @@ static const char ALARMS_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                     <div class="mel-group">
                         <select id="mel_error" class="mel-sel">
                             <option value="0" data-i18n="alm_mel_desc">Descending</option>
-                            <option value="1">Buzz</option>
-                            <option value="2">Low</option>
-                            <option value="3">Harsh</option>
-                            <option value="4">Decline</option>
-                            <option value="5">Blip</option>
+                            <option value="1" data-i18n="alm_mel_buzz">Buzz</option>
+                            <option value="2" data-i18n="alm_mel_low">Low</option>
+                            <option value="3" data-i18n="alm_mel_harsh">Harsh</option>
+                            <option value="4" data-i18n="alm_mel_decline">Decline</option>
+                            <option value="5" data-i18n="alm_mel_blip">Blip</option>
                         </select>
                         <button type="button" class="btn-test" aria-label="Test sound" onclick="testSound('error')"><svg class="ic"><use href="#i-sound"/></svg></button>
                     </div>
@@ -7045,12 +7045,12 @@ static const char ALARMS_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                     <span class="sound-label" data-i18n="alm_alarm">Alarm</span>
                     <div class="mel-group">
                         <select id="mel_alarm" class="mel-sel">
-                            <option value="0">Dual Beep</option>
+                            <option value="0" data-i18n="alm_mel_dual">Dual Beep</option>
                             <option value="1" data-i18n="alm_mel_siren">Siren</option>
-                            <option value="2">Rapid</option>
-                            <option value="3">Pulse</option>
-                            <option value="4">Escalate</option>
-                            <option value="5">Staccato</option>
+                            <option value="2" data-i18n="alm_mel_rapid">Rapid</option>
+                            <option value="3" data-i18n="alm_mel_pulse">Pulse</option>
+                            <option value="4" data-i18n="alm_mel_escalate">Escalate</option>
+                            <option value="5" data-i18n="alm_mel_staccato">Staccato</option>
                         </select>
                         <button type="button" class="btn-test" aria-label="Test sound" onclick="testSound('alarm')"><svg class="ic"><use href="#i-sound"/></svg></button>
                     </div>
@@ -7064,12 +7064,12 @@ static const char ALARMS_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                     <span class="sound-label" data-i18n="alm_attention">Attention</span>
                     <div class="mel-group">
                         <select id="mel_attention" class="mel-sel">
-                            <option value="0">Notify</option>
-                            <option value="1">Bell</option>
-                            <option value="2">Pulse</option>
-                            <option value="3">Chime Low</option>
-                            <option value="4">Rise</option>
-                            <option value="5">Soft Ding</option>
+                            <option value="0" data-i18n="alm_mel_notify">Notify</option>
+                            <option value="1" data-i18n="alm_mel_bell">Bell</option>
+                            <option value="2" data-i18n="alm_mel_pulse">Pulse</option>
+                            <option value="3" data-i18n="alm_mel_chimelow">Chime Low</option>
+                            <option value="4" data-i18n="alm_mel_rise">Rise</option>
+                            <option value="5" data-i18n="alm_mel_softding">Soft Ding</option>
                         </select>
                         <button type="button" class="btn-test" aria-label="Test sound" onclick="testSound('attention')"><svg class="ic"><use href="#i-sound"/></svg></button>
                     </div>
@@ -8346,7 +8346,15 @@ static const char LANG_JS[] PROGMEM = R"raw(
         .replace('%S', window.PINPOL.alpha === 1 ? '0-9 A-Z' : '0-9');
 
     window.t = function(key, def) { let lang = localStorage.getItem('simut_lang') || 'en'; if (lang === 'en' || typeof dict === 'undefined' || !dict[lang] || !dict[lang][key]) return def; return dict[lang][key]; };
-    window.applyLang = function() { let lang = localStorage.getItem('simut_lang') || 'en'; document.querySelectorAll('.lang-select').forEach(s => s.value = lang); document.querySelectorAll('[data-i18n]').forEach(el => { let key = el.getAttribute('data-i18n'); if (el.tagName === 'INPUT' && el.hasAttribute('placeholder')) { if (!el.hasAttribute('data-en')) el.setAttribute('data-en', el.getAttribute('placeholder')); } else { if (!el.hasAttribute('data-en')) el.setAttribute('data-en', el.innerHTML); } let fromDict = (lang !== 'en' && typeof dict !== 'undefined' && dict[lang] && dict[lang][key]); let text = fromDict ? dict[lang][key] : el.getAttribute('data-en'); if (text !== null && text !== undefined) { if (el.tagName === 'INPUT' && el.hasAttribute('placeholder')) el.setAttribute('placeholder', text); else el.innerHTML = fromDict ? escHtml(text) : text; } }); };
+    /* applyLang( ) relabels an <option>, but the custom select that shows it
+       (_makeCustomSelect, below) copied the text when it was built and when
+       .value was last set, so a label translated after that stayed in English:
+       the melody names of Alarms & Sounds on the Portuguese page of the v2.14.0
+       capture (2026-11-06), 'Ascending' included, which had its key. A select
+       whose options changed is synced again, and only that one, so a page that
+       calls applyLang( ) on a poll does not rebuild a menu the user has open.
+       tools/test_webui_pack_texts.py runs this against selects that record it. */
+    window.applyLang = function() { let lang = localStorage.getItem('simut_lang') || 'en'; const relabeled = new Set(); document.querySelectorAll('.lang-select').forEach(s => s.value = lang); document.querySelectorAll('[data-i18n]').forEach(el => { let key = el.getAttribute('data-i18n'); if (el.tagName === 'INPUT' && el.hasAttribute('placeholder')) { if (!el.hasAttribute('data-en')) el.setAttribute('data-en', el.getAttribute('placeholder')); } else { if (!el.hasAttribute('data-en')) el.setAttribute('data-en', el.innerHTML); } let fromDict = (lang !== 'en' && typeof dict !== 'undefined' && dict[lang] && dict[lang][key]); let text = fromDict ? dict[lang][key] : el.getAttribute('data-en'); if (text !== null && text !== undefined) { if (el.tagName === 'INPUT' && el.hasAttribute('placeholder')) el.setAttribute('placeholder', text); else { const h = fromDict ? escHtml(text) : text; if (el.tagName === 'OPTION' && el.parentNode && el.innerHTML !== h) relabeled.add(el.parentNode); el.innerHTML = h; } } }); relabeled.forEach(s => { if (window._cselSync) _cselSync(s); }); };
     window.setLang = function(lang) { localStorage.setItem('simut_lang', lang); applyLang(); if(typeof window.onLangChange === 'function') window.onLangChange(); };
     window.showToast = function(msg, type, ms) { var el = document.getElementById('net-toast'); if (!el) return; el.textContent = msg; el.className = type + ' show'; setTimeout(function() { el.className = ''; }, ms || 3000); };
     window.fetchSafe = function(url, options) { options = options || {}; const timeout = options.timeout || 15000; const retries = (options.retries !== undefined) ? options.retries : 2; function attempt(n) { const ctrl = new AbortController(); const timer = setTimeout(() => ctrl.abort(), timeout); return fetch(url, Object.assign({}, options, { signal: ctrl.signal })).then(function(resp) { clearTimeout(timer); if (!resp.ok && resp.status >= 500 && resp.status !== 503) throw new Error('Server error'); return resp; }).catch(function(err) { clearTimeout(timer); if (n < retries) { var delay = Math.min(1000 * Math.pow(2, n), 8000); return new Promise(resolve => setTimeout(() => resolve(attempt(n + 1)), delay)); } throw err; }); } return attempt(0); };
