@@ -51,6 +51,7 @@ PERFIS = 'tools/generated/profiles.ini'
 BME_DRIVER = 'src/sensors/BME280Driver.h'
 BME_SENSOR = 'src/sensors/BME280SensorDriver.h'
 AIR_CONFIG = 'src/air/AirConfig.h'
+MENU = 'src/display/SettingsMenu.h'
 RELEASE_MANIFEST = 'tools/release_manifest.py'
 WORKFLOW_OTA = '.github/workflows/release-ota.yml'
 
@@ -351,6 +352,11 @@ def main():
                 ('an image renamed in ENVS of release_manifest.py (releasetwo -> pico2)', [(RELEASE_MANIFEST, '"releasetwo": "pico2_w_release"', '"pico2": "pico2_w_release"', 1)], {'03-arquivos.svg'}),
                 ('a language pack taken out of data/lang', [('data/lang/language_es-ES.lng', None, None, None)], {'03-arquivos.svg'}),
                 ('the checksum file renamed in the Checksums step of the release workflow', [(WORKFLOW_OTA, '> SHA256SUMS', '> SUMS256', 1)], {'03-arquivos.svg'}),
+                ('the setup AP\'s address 192.168.4.1 -> 192.168.5.1', [('src/WebAddress.h', '#define SIMUT_AP_IP_TEXT "192.168.4.1"', '#define SIMUT_AP_IP_TEXT "192.168.5.1"', 1)], {'04-fluxo.svg'}),
+                ('the default device name simut -> medidor (the AP is medidor_SETUP)', [('src/StorageManager.cpp', 'safeCopy(_currentConfig.deviceName, "simut"', 'safeCopy(_currentConfig.deviceName, "medidor"', 1)], {'04-fluxo.svg'}),
+                ('the setup AP moved to the 9th place of the panel\'s menu', [(MENU, 'MENU_PIN_POLICY, MENU_SETUP_AP,\n\tMENU_LANG,', 'MENU_PIN_POLICY, MENU_LANG,\n\tMENU_SETUP_AP,', 1)], {'04-fluxo.svg'}),
+                ('the console\'s enable renamed in the parser', [('src/CommandParser.cpp', 'if (t0 == "enable")', 'if (t0 == "habilitar")', 1)], {'04-fluxo.svg'}),
+                ('the reload\'s own message names another command', [('src/AppManager_Commands.cpp', "Use 'reload confirm' para prosseguir", "Use 'reboot confirm' para prosseguir", 1)], {'04-fluxo.svg'}),
                 ('the BME280 probe pair (4, 5) -> (6, 7)', [(BME_SENSOR, 'probe(4, 5, BME280_ADDR_PRIMARY)', 'probe(6, 7, BME280_ADDR_PRIMARY)', 1)], {'02-bmx280.svg'}),
                 ('the BME280 addresses 0x76/0x77 -> 0x75/0x78 in the driver, code and comments', [(BME_DRIVER, '0x76', '0x75', None), (BME_DRIVER, '0x77', '0x78', None)], {'02-bmx280.svg'}),
             ]

@@ -56,6 +56,8 @@ BME_SENSOR = 'src/sensors/BME280SensorDriver.h'
 BME_DRIVER = 'src/sensors/BME280Driver.h'
 BOOT = 'src/AppManager_Boot.cpp'
 RELEASE_MANIFEST = 'tools/release_manifest.py'
+COMANDOS = 'src/CommandParser.cpp'
+MENU = 'src/display/SettingsMenu.h'
 WORKFLOW_OTA = '.github/workflows/release-ota.yml'
 
 
@@ -100,6 +102,10 @@ FIGURAS = (
     Figura('fig-03-arquivos', '03-arquivos.svg', 'cap03-instalar.md', 'desenho_arquivos',
            'os arquivos de uma versão (quatro imagens, em colunas neutras, dois pacotes de idioma, o manifesto e as somas) e o caminho de cada um até o aparelho, com o acento só nos '
            'caminhos; as imagens vêm de ENVS em tools/release_manifest.py, os pacotes de data/lang e os nomes do manifesto e das somas do passo Checksums de .github/workflows/release-ota.yml'),
+    Figura('fig-04-fluxo', '04-fluxo.svg', 'cap04-primeiro-boot.md', 'desenho_primeiro_boot',
+           'fluxograma do primeiro boot, da senha do admin ao aparelho pronto, com os dois caminhos para pôr o aparelho na rede; o nome e o endereço do ponto de acesso, o número do '
+           'item do menu (a posição de MENU_SETUP_AP em MENU_ORDER) e as palavras dos comandos vêm de src/StorageManager.cpp, src/net/NetworkManager_Cyw43.cpp, src/WebAddress.h, '
+           'src/display/SettingsMenu.h, src/CommandParser.cpp e src/AppManager_Commands.cpp'),
 )
 
 
@@ -331,6 +337,31 @@ class Numeros:
         return self.f.listar('data/lang', '*.lng'), m.group(1), m.group(2)
 
 
+    def ap(self):
+        """The setup access point: its network name (the device's default name, which StorageManager gives a new config, and the suffix NetworkManager appends), its
+        address (SIMUT_AP_IP_TEXT) and the number of its item in the panel's menu (the place of MENU_SETUP_AP in MENU_ORDER, counted from 1)."""
+        nome = self.f.achar('src/StorageManager.cpp', r'safeCopy\(_currentConfig\.deviceName, "([^"]+)", sizeof').group(1)
+        sufixo = self.f.achar('src/net/NetworkManager_Cyw43.cpp', r'String apName = String\(deviceName\) \+ "([^"]+)";').group(1)
+        ip = self.f.achar('src/WebAddress.h', r'^#define SIMUT_AP_IP_TEXT "([^"]+)"').group(1)
+        itens = re.findall(r'MENU_\w+', self.f.achar(MENU, r'MENU_ORDER\[\] = \{([^}]*)\}').group(1))
+        if 'MENU_SETUP_AP' not in itens:
+            raise Falta(f'{MENU}: MENU_ORDER no longer lists MENU_SETUP_AP, and the figure of the first boot sends the release to that item of the menu')
+        return {'ssid': nome + sufixo, 'ip': ip, 'item': itens.index('MENU_SETUP_AP') + 1}
+
+    def comandos(self):
+        """The console commands the first boot uses, as the parser and the reload's own message spell them: ap, enable, configure terminal, system ssid, system pass
+        and reload confirm. The words are captured, not matched: a command renamed in the parser is a command renamed in the figure."""
+        f = self.f
+        ap = f.achar(COMANDOS, r'if \(t0 == "(\w+)" \|\| [^)]*\) \{ cmd\.type = CMD_AP;').group(1)
+        enable = f.achar(COMANDOS, r'if \(t0 == "(\w+)"\)\s*\{ cmd\.type = CMD_ENABLE;').group(1)
+        c = f.achar(COMANDOS, r't0 == "config" \|\| t0 == "(\w+)"\) && t1 == "(\w+)"\) \{ cmd\.type = CMD_CONFIGURE;')
+        sistema = f.achar(COMANDOS, r'if \(t0 == "(system)"\) \{').group(1)
+        ssid = f.achar(COMANDOS, r'if \(t1 == "(\w+)"\)\s+\{ cmd\.type = CMD_SET_WIFI_SSID').group(1)
+        senha = f.achar(COMANDOS, r'if \(t1 == "(\w+)"\)\s+\{ cmd\.type = CMD_SET_WIFI_PASS').group(1)
+        reload = f.achar('src/AppManager_Commands.cpp', r"case CMD_RELOAD:\s+if \(!cmd\.confirmed\) \{[^}]*?Use '([^']+)' para prosseguir").group(1)
+        return {'ap': ap, 'enable': enable, 'configure': f'{c.group(1)} {c.group(2)}', 'ssid': f'{sistema} {ssid}', 'pass': f'{sistema} {senha}', 'reload': reload}
+
+
 def pino_de(gpio):
     return PINO_DO_GPIO[gpio]
 
@@ -392,11 +423,20 @@ class Svg:
     same bytes. Boxes are drawn inside their coordinates (a 1 px line at x + .5, so that it is a whole pixel at 720 px). Text is placed by its baseline; the builder keeps the
     estimated box of every text and refuses one that overlaps another, leaves the canvas or sits off the grid."""
 
-    def __init__(self, slug, altura):
-        if altura % GRADE:
+    def __init__(self, slug, altura=None):
+        """`altura` is the canvas height, or None to let the drawing say: the height is then its lowest point and 16 px (a flow is laid out from the top, and its height is
+        what its boxes add up to)."""
+        if altura is not None and altura % GRADE:
             raise ValueError(f'{slug}: the height {altura} is off the {GRADE} px grid')
-        self.slug, self.altura = slug, altura
+        self.slug, self._altura, self.fundo = slug, altura, 0
         self.corpo, self.textos, self.pontas = [], [], set()
+
+    @property
+    def altura(self):
+        return self._altura if self._altura is not None else -(-(self.fundo + 16) // GRADE) * GRADE
+
+    def _abaixo(self, y):
+        self.fundo = max(self.fundo, y)
 
     def _grade(self, *valores):
         for v in valores:
@@ -409,6 +449,7 @@ class Svg:
         if raio not in (0, 6, 12):
             raise ValueError(f'{self.slug}: a corner radius of {raio}: the Ângulo has 6 and 12')
         d = traco / 2
+        self._abaixo(y + h)
         self.corpo.append(f'<rect class="{cls}" x="{n(x + d)}" y="{n(y + d)}" width="{n(w - traco)}" height="{n(h - traco)}" rx="{raio}"/>')
 
     def texto(self, x, y, conteudo, cls='dg-t', ancora='start'):
@@ -422,7 +463,8 @@ class Svg:
         x0 = x if ancora == 'start' else x - w if ancora == 'end' else x - w / 2
         caixa = (x0, y - tam + 2, x0 + w, y + 4)
         rotulo = ''.join(s for _, s in runs)
-        if caixa[0] < 4 or caixa[2] > LARGURA - 4 or caixa[1] < 0 or caixa[3] > self.altura:
+        self._abaixo(caixa[3])
+        if caixa[0] < 4 or caixa[2] > LARGURA - 4 or caixa[1] < 0 or (self._altura is not None and caixa[3] > self._altura):
             raise ValueError(f'{self.slug}: the text {rotulo!r} (about {w} px wide, from x={n(x0)}) leaves the canvas')
         for outra, rot in self.textos:
             if min(caixa[2], outra[2]) - max(caixa[0], outra[0]) > 1 and min(caixa[3], outra[3]) - max(caixa[1], outra[1]) > 1:
@@ -434,17 +476,20 @@ class Svg:
 
     def linha(self, pontos, cls='dg-fio'):
         self._grade(*[v for p in pontos for v in p])
+        self._abaixo(max(y for _, y in pontos))
         self.corpo.append(f'<polyline class="{cls}" points="{" ".join(f"{x},{y}" for x, y in pontos)}"/>')
 
     def seta(self, pontos, cls='dg-fio', ponta='dg-ponta'):
         """A line whose last point is an arrowhead's tip."""
         self._grade(*[v for p in pontos for v in p])
+        self._abaixo(max(y for _, y in pontos))
         self.pontas.add(ponta)
         self.corpo.append(f'<polyline class="{cls}" points="{" ".join(f"{x},{y}" for x, y in pontos)}" marker-end="url(#{self.slug}-{ponta[3:]})"/>')
 
     def no(self, x, y, cls='dg-no'):
         """A junction or a terminal: a dot of 8 px."""
         self._grade(x, y)
+        self._abaixo(y + 4)
         self.corpo.append(f'<circle class="{cls}" cx="{x}" cy="{y}" r="4"/>')
 
     def render(self):
@@ -660,7 +705,12 @@ def caixa_de_texto(s, x, y, w, itens, cls='dg-caixa', raio=6, centro=None):
     linhas = []
     for texto, c in itens:
         tam = 12 if 'dg-n' in c.split() else 13
-        linhas += [(l, c) for l in quebrar(texto, w - 24, tam, 'dg-m' in c.split())]
+        if isinstance(texto, str):
+            linhas += [(l, c) for l in quebrar(texto, w - 24, tam, 'dg-m' in c.split())]
+        else:                       # runs, in one line: the code's font for a command in the middle of a sentence
+            if sum(largura_texto(tx, tam, 'dg-m' in cr.split() or 'dg-m' in c.split()) for cr, tx in texto) > w - 24:
+                raise ValueError(f'{s.slug}: the line {"".join(tx for _, tx in texto)!r} does not fit in a box of {w} px')
+            linhas.append((texto, c))
     h = 16 + 16 * len(linhas)
     if y is None:
         y = centro - h // 2
@@ -772,6 +822,72 @@ def desenho_arquivos(num, slug):
             s.texto(x + chip // 2, d.esq()[1] + 4, nome, 'dg-n dg-m', 'middle')
         s.seta([(direita, d.esq()[1]), d.esq()], *ponta)
     s.texto(16, 376, [('', 'Cada imagem tem o nome '), ('dg-m', 'simut_v<versão>_<imagem>.uf2'), ('', ' e o mesmo com '), ('dg-m', '.bin'), ('', '.')], 'dg-n dg-c2')
+    return s.render()
+
+
+def desenho_primeiro_boot(num, slug):
+    ap, cmd = num.ap(), num.comandos()
+    s = Svg(slug)
+    ponta = ('dg-fio-acento', 'dg-ponta-acento')
+    # the first three steps, in a row: the console, the password, the panel's question (the release's only)
+    passos = ([('Liga o aparelho com o console USB aberto', 'dg-t')],
+              [('Anota a senha do admin', 'dg-t'), ('ela aparece uma única vez', 'dg-n dg-c2')],
+              [('O painel pergunta a data e a hora', 'dg-t'), ('só na release: SALVAR ou PULAR', 'dg-n dg-c2')])
+    caixas = [bloco(s, x, None, w, itens, 'dg-caixa', 6, 48) for (x, w), itens in zip(((16, 176), (224, 192), (448, 256)), passos)]
+    for a, b in zip(caixas, caixas[1:]):
+        s.seta([a.dir(), b.esq()], *ponta)
+    # two ways to put the device on the network: the access point (release and alpha), the console (the Air)
+    s.linha([caixas[2].base(), (caixas[2].base()[0], 96), (184, 96)])
+    s.seta([(544, 96), (544, 112)], *ponta)
+    s.no(544, 96)
+    s.seta([(184, 96), (184, 112)], *ponta)
+    esquerda = [
+        [([('', 'Comando '), ('dg-m', cmd['ap']), ('', ' no console')], 'dg-t'), (f'ou, na release, o item {ap["item"]} do menu do painel', 'dg-n dg-c2')],
+        [([('', 'Conecta na rede '), ('dg-m', ap['ssid'])], 'dg-t'), ('no celular ou no computador', 'dg-n dg-c2')],
+        [([('', 'Abre '), ('dg-m', ap['ip'])], 'dg-t'), ('no navegador', 'dg-n dg-c2')],
+        [([('', 'Entra como '), ('dg-m', 'admin'), ('', ' e troca a senha')], 'dg-t')],
+        [('Página Rede', 'dg-t'), ('Buscar, escolher a rede e digitar a senha', 'dg-n dg-c2')],
+        [('Salvar e reiniciar', 'dg-t')],
+    ]
+    direita = [[(cmd['enable'], 'dg-t dg-m')], [(cmd['configure'], 'dg-t dg-m')], [(f'{cmd["ssid"]} <rede>', 'dg-t dg-m')], [(f'{cmd["pass"]} <senha>', 'dg-t dg-m')],
+               [(cmd['reload'], 'dg-t dg-m')]]
+    altura = lambda itens: 16 + 16 * sum(1 if not isinstance(tx, str) else len(quebrar(tx, 280, 12 if 'dg-n' in c.split() else 13, 'dg-m' in c.split())) for tx, c in itens)
+    alt_e = sum(altura(i) for i in esquerda) + 16 * (len(esquerda) - 1)
+    folga = alt_e - sum(altura(i) for i in direita)
+    if folga % (4 * (len(direita) - 1)):
+        raise ValueError(f'{slug}: the Air\'s chain cannot be spread over the access point\'s height ({folga} px over {len(direita) - 1} gaps, on the 4 px grid)')
+    topo, base = 152, 152 + alt_e
+    s.caixa(16, 112, 336, base + 16 - 112, 'dg-caixa-2', 12)
+    s.caixa(384, 112, 320, base + 16 - 112, 'dg-caixa-2', 12)
+    s.texto(32, 136, 'release e alpha: pelo ponto de acesso', 'dg-t dg-b')
+    s.texto(400, 136, 'Air: pelo console', 'dg-t dg-b')
+    for x, w, cadeia, vao in ((32, 304, esquerda, 16), (400, 288, direita, folga // (len(direita) - 1))):
+        y, anterior = topo, None
+        for itens in cadeia:
+            b = bloco(s, x, y, w, itens)
+            if anterior:
+                s.seta([anterior.base(), b.topo()], *ponta)
+            anterior, y = b, y + b.h + vao
+    # they meet at the device on the network, and the rest of the way is the same
+    s.linha([(184, base + 16), (184, base + 32), (360, base + 32)])
+    s.linha([(544, base + 16), (544, base + 32), (360, base + 32)])
+    s.no(360, base + 32)
+    rede = bloco(s, 256, base + 48, 208, [('Aparelho na rede', 'dg-t')])
+    s.seta([(360, base + 32), rede.topo()], *ponta)
+    fim = [[('Pacote de idioma e reinício', 'dg-t')], [('Fuso e hora', 'dg-t')], [('Primeiro sensor', 'dg-t')], [('PIN do painel', 'dg-t'), ('só na release', 'dg-n dg-c2')],
+           [('Pronto para usar', 'dg-t dg-b')]]
+    centro = rede.y + rede.h + 16 + 16 + 32
+    ultima = None
+    primeira = None
+    for i, itens in enumerate(fim):
+        b = bloco(s, 20 + 140 * i, None, 120, itens, 'dg-caixa', 6, centro)
+        if primeira is None:
+            primeira = b
+        if ultima:
+            s.seta([ultima.dir(), b.esq()], *ponta)
+        ultima = b
+    s.linha([rede.base(), (360, rede.y + rede.h + 16), (primeira.topo()[0], rede.y + rede.h + 16)])
+    s.seta([(primeira.topo()[0], rede.y + rede.h + 16), primeira.topo()], *ponta)
     return s.render()
 
 
