@@ -186,12 +186,12 @@ A seção Configuração de Sons com os valores de fábrica: todos os sons ligad
 
 | Linha | Controles | Fábrica |
 |---|---|---|
-| **Toque** (*Touch*) | Melodia, botão de teste, chave | Ligado, `Click` |
-| **Confirmação** (*Confirm*) | Melodia, botão de teste, chave | Ligado, **Ascendente** |
-| **Erro** (*Error*) | Melodia, botão de teste, chave | Ligado, **Descendente** |
-| **Alarme** (*Alarm*) | Melodia, botão de teste, chave | Ligado, `Dual Beep` |
+| **Toque** (*Touch*) | Melodia, botão de teste, chave | Ligado, **Clique** |
+| **Confirmação** (*Confirm*) | Melodia, botão de teste, chave | Ligado, **Subida** |
+| **Erro** (*Error*) | Melodia, botão de teste, chave | Ligado, **Descida** |
+| **Alarme** (*Alarm*) | Melodia, botão de teste, chave | Ligado, **Bipe duplo** |
 | **Sons Web** (*Web Sounds*) | Chave | Ligado |
-| **Atenção** (*Attention*) | Melodia, botão de teste, chave | Ligado, `Notify` |
+| **Atenção** (*Attention*) | Melodia, botão de teste, chave | Ligado, **Aviso** |
 | **Mudo Global** (*Global Mute*) | Chave | Desligado |
 | **Vol. Sistema** (*System Volume*) | Controle deslizante, de 0 a 100 %, em passos de 5 | 70 % |
 | **Vol. Alarme** (*Alarm Volume*) | Controle deslizante, de 0 a 100 %, em passos de 5 | 70 % |
@@ -314,11 +314,11 @@ O formato do pedido está no [capítulo 26](#cap-26); o uso a partir de um servi
 
 | Som | Quando toca | Melodias |
 |---|---|---|
-| Toque | A cada toque no painel | `Click`, `Bubble`, `Tick`, `Snap`, `Drop`, `Chirp` |
-| Confirmação | Quando uma ação dá certo | **Ascendente**, `Fanfare`, `Chime`, `Triumph`, `Sparkle`, `Resolve` |
-| Erro | Quando uma ação é recusada | **Descendente**, `Buzz`, `Low`, `Harsh`, `Decline`, `Blip` |
-| Alarme | Enquanto um alarme está ativo | `Dual Beep`, **Sirene**, `Rapid`, `Pulse`, `Escalate`, `Staccato` |
-| Atenção | Ao abrir uma tela de confirmação no painel | `Notify`, `Bell`, `Pulse`, `Chime Low`, `Rise`, `Soft Ding` |
+| Toque | A cada toque no painel | **Clique**, **Bolha**, **Tique**, **Estalo**, **Gota**, **Gorjeio** |
+| Confirmação | Quando uma ação dá certo | **Subida**, **Fanfarra**, **Carrilhão**, **Triunfo**, **Brilho**, **Resolução** |
+| Erro | Quando uma ação é recusada | **Descida**, **Zumbido**, **Grave**, **Áspero**, **Queda**, **Bip** |
+| Alarme | Enquanto um alarme está ativo | **Bipe duplo**, **Sirene**, **Rápido**, **Pulso**, **Crescente**, **Staccato** |
+| Atenção | Ao abrir uma tela de confirmação no painel | **Aviso**, **Sino**, **Pulso**, **Carrilhão grave**, **Subida**, **Toque suave** |
 
 Os ajustes gerais:
 

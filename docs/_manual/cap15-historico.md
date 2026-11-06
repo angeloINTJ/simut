@@ -179,7 +179,7 @@ O calendário com os dias que têm dados destacados. O dia tocado fica seleciona
 
 **Lacunas.** Um trecho sem registros aparece interrompido, e não ligado por uma reta. O gráfico interrompe a linha quando dois registros seguidos estão separados por mais de 3,5 vezes o **Intervalo Histórico**, com o mínimo de 90 s.
 
-**Mínimos e máximos.** Com um só sensor marcado, a faixa acima do gráfico mostra o máximo e o mínimo de cada grandeza na janela, como **Max Temp:** e **Min Temp:**, com uma casa decimal. Eles são calculados sobre todos os registros da janela, e não só sobre os pontos desenhados. Com mais de um sensor marcado, a faixa some.
+**Mínimos e máximos.** Com um só sensor marcado, a faixa acima do gráfico mostra o máximo e o mínimo de cada grandeza na janela, como **Máx Temp:** e **Mín Temp:** (*Max Temp:*, *Min Temp:*), com uma casa decimal. Eles são calculados sobre todos os registros da janela, e não só sobre os pontos desenhados. Com mais de um sensor marcado, a faixa some.
 
 ::: {.figura #fig-15-grafico-dois tipo="web" arquivo="15-grafico-dois.png" captura="rota /history; largura 1280; sessão admin; dois sensores marcados, um DS18B20 e um DHT22; período 24h; legenda visível; tooltip aberto sobre um ponto; eixos °C e %RH"}
 Dois sensores no mesmo gráfico: temperatura no eixo da esquerda, umidade tracejada no da direita, e a legenda no topo.
@@ -253,14 +253,14 @@ A exportação leva para um arquivo CSV exatamente a janela e os sensores que es
 1. Escolha os sensores em **Origem:**.
 2. Escolha o período, ou toque num dia do calendário, e espere o gráfico carregar.
 3. Toque em **⤓ CSV**, abaixo do gráfico.
-4. Espere a caixa **Exporting...** terminar. Ela mostra a porcentagem, o tempo estimado e quantos dias chegaram (`OK`) ou falharam (`err`). O botão **Cancelar** interrompe a exportação e salva o que já chegou.
+4. Espere a caixa **Exportando...** (*Exporting...*) terminar. Ela mostra a porcentagem, o tempo estimado e quantos dias chegaram (**OK**) ou falharam (**com falha**). O botão **Cancelar** interrompe a exportação e salva o que já chegou.
 5. O navegador salva o arquivo, e um aviso mostra o número de linhas.
 
 Se você tocar em **⤓ CSV** antes de carregar o gráfico, a página avisa **Carregue um intervalo no gráfico**. Se a janela não tem registros, o aviso é **Sem dados neste período**.
 
 Enquanto a exportação roda, os controles do gráfico ficam travados. A exportação aproveita os arquivos que o gráfico já baixou e só vai ao aparelho pelo que falta, pelo arquivo do dia corrente e pelo bloco aberto.
 
-::: {.figura #fig-15-exportando tipo="web" arquivo="15-exportando.png" captura="rota /history; largura 1280; sessão admin; exportação em andamento de um período 1M, caixa Exporting... com 45 %, tempo estimado, contagem OK e err, e o botão Cancelar"}
+::: {.figura #fig-15-exportando tipo="web" arquivo="15-exportando.png" captura="rota /history; largura 1280; sessão admin; exportação em andamento de um período 1M, caixa Exportando... com 45 %, tempo estimado, contagens OK e com falha, e o botão Cancelar"}
 A caixa da exportação em andamento. Cancelar salva o CSV com o que já chegou, com _partial no nome.
 :::
 
