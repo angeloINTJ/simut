@@ -85,6 +85,8 @@ OTA_APPLIER = 'src/ota/applier.cpp'
 AIR_CPP = 'src/AppManager_Air.cpp'
 APP_H = 'src/AppManager.h'
 BOOT = 'src/AppManager_Boot.cpp'
+PARSER = 'src/CommandParser.cpp'
+APP_CMDS = 'src/AppManager_Commands.cpp'
 
 
 def confere(cond, msg, ok=None):
@@ -373,6 +375,12 @@ def main():
         confere(f'repetindo `GET /api/login_init` a cada {espera} s' in cap26, f'chapter 26 does not say "a cada {espera} s" for the tries of login_init, which is what the web page waits',
                 'the wait between two tries of login_init (read from the web page) is the one chapter 26 gives')
 
+        # the modes figure reads the idle timeout, the grace and the held event from the code; chapter 19 says the same numbers, and a code that changes one leaves the chapter stale
+        modos = m.Numeros(m.Fonte(m.ROOT)).modos()
+        confere(f'{modos["idle_s"]} s de fábrica' in cap19 and f'M0 por só {modos["graca_s"]} s' in cap19 and f'**{modos["nome"]}** ({modos["codigo"]})' in cap19,
+                f'chapter 19 does not say what the code says: {modos["idle_s"]} s de fábrica, M0 por só {modos["graca_s"]} s, **{modos["nome"]}** ({modos["codigo"]})',
+                'the idle timeout, the grace and the held event (read from the code) are the ones chapter 19 gives')
+
         # ---- the builder's guards --------------------------------------------------------------------------------------------------------------------------
         s = m.Svg('99-teste', 100)
         s.texto(16, 28, 'um texto')
@@ -597,6 +605,11 @@ def main():
                 ('the good answer of a stage 200 -> 201', [(WEB_OTA, '_server->send(overall_ok ? 200 : 422, "application/json", buf);', '_server->send(overall_ok ? 201 : 422, "application/json", buf);', 1)], {'26-ota.svg'}),
                 ('the header with the backup\'s CRC renamed', [(WEB_OTA, '_server->sendHeader("X-Backup-PCrc"', '_server->sendHeader("X-Backup-Crc"', 1)], {'26-ota.svg'}),
                 ('the extension of a backup .bkp -> .bak', [(WEB_OTA, '"backup_%s_%lu.bkp"', '"backup_%s_%lu.bak"', 1)], {'26-ota.svg'}),
+                ('the idle timeout a build starts with 300 s -> 600 s', [(CONFIG, '#define AIR_IDLE_TIMEOUT_SEC 300', '#define AIR_IDLE_TIMEOUT_SEC 600', 1)], {'19-modos.svg'}),
+                ('the grace of an interrupted cycle 10 s -> 20 s', [(CONFIG, '#define AIR_RESUME_GRACE_SEC 10', '#define AIR_RESUME_GRACE_SEC 20', 1)], {'19-modos.svg'}),
+                ('the unclean boots that hold M0 3 -> 4', [(CONFIG, '#define AIR_MAX_DIRTY_BOOTS 3', '#define AIR_MAX_DIRTY_BOOTS 4', 1)], {'19-modos.svg'}),
+                ('the name of the held event in the log code table', [(LOGCODES, 'Air cycle held in M0\tCiclo Air retido em M0\t', 'Air cycle held in M0\tCiclo Air retido\t', 1)], {'19-modos.svg'}),
+                ('the word of the hibernate command hibernate -> hibernar', [(PARSER, 't1 == "hibernate" || t1 == "sleep"', 't1 == "hibernar" || t1 == "sleep"', 1)], {'19-modos.svg'}),
                 ('the BME280 probe pair (4, 5) -> (6, 7)', [(BME_SENSOR, 'probe(4, 5, BME280_ADDR_PRIMARY)', 'probe(6, 7, BME280_ADDR_PRIMARY)', 1)], {'02-bmx280.svg'}),
                 ('the BME280 addresses 0x76/0x77 -> 0x75/0x78 in the driver, code and comments', [(BME_DRIVER, '0x76', '0x75', None), (BME_DRIVER, '0x77', '0x78', None)], {'02-bmx280.svg'}),
             ]
@@ -702,6 +715,15 @@ def main():
             ('an image staged and valid with commit is no longer the only one committed', [(WEB_OTA, 'if (ok_staged && valid && commit) {', 'if (ok_staged && commit) {', 1)], 'staged and valid image', '26-ota.svg'),
             ('the apply answers after the device is already restarting', [(WEB_OTA, ' _server->client( ).flush( );\n delay(500); /* TCP flush before the reboot, as below. */', ' delay(500); /* TCP flush before the reboot, as below. */', 1)],
              'before the device restarts', '26-ota.svg'),
+            ('air stop no longer disarms the cycle', [(APP_CMDS, '_airCfg.flags &= (uint8_t)~AIR_FLAG_CYCLE_ARMED;', '/* kept armed */', 1)], 'disarms the cycle', '19-modos.svg'),
+            ('a wake on the charger no longer leaves the cycle armed', [(BOOT, 'AIR_BOOT_MARK("charger present: staying awake in M0");', '_airCfg.flags &= (uint8_t)~AIR_FLAG_CYCLE_ARMED; AIR_BOOT_MARK("charger present: staying awake in M0");', 1)],
+             'leaves the cycle armed', '19-modos.svg'),
+            ('a crash loop is no longer held in M0', [(BOOT, '} else if (dirty >= AIR_MAX_DIRTY_BOOTS) {', '} else if (false) {', 1)], 'held in M0', '19-modos.svg'),
+            ('a wake starts the web server', [(BOOT, 'AIR_BOOT_MARK("web skipped (wake)");', 'AIR_BOOT_MARK("web started");', 1)], 'web server', '19-modos.svg'),
+            ('a wake starts Bluetooth', [(BOOT, '_cmdMgr->beginBluetooth(_storageMgr->getConfig().deviceName);', 'if (true) _cmdMgr->beginBluetooth(_storageMgr->getConfig().deviceName);', 1)], 'does not start Bluetooth', '19-modos.svg'),
+            ('the radio no longer counts the record the wake writes', [(AIR_CPP, 'getPendingEstimate( ) + 1UL >= minBatch;', 'getPendingEstimate( ) >= minBatch;', 1)], 'counting the one the wake writes', '19-modos.svg'),
+            ('the idle timeout runs on the charger', [(LOOP, '} else if (timeSince(_airLastActivityMs, idleSec * 1000UL)) {', '} if (timeSince(_airLastActivityMs, idleSec * 1000UL)) {', 1)], 'does not run on the charger', '19-modos.svg'),
+            ('M0 no longer lasts the grace when there is one', [(LOOP, ': (uint32_t)_airCfg.idleTimeoutSec;', ': (uint32_t)_airCfg.idleTimeoutSec + 1;', 1)], 'the grace when there is one', '19-modos.svg'),
             ('a reading-only wake starts the network', [(BOOT, 'else if (!_airRadioWake) {', 'else if (false) {', 1)], 'never starts', '19-despertar.svg'),
             ('the wake no longer cuts the sensors\' power when it goes to sleep', [(AIR_CPP, 'airSensorPower(_airCfg.sensorPowerPin, false);', 'airSensorPower(_airCfg.sensorPowerPin, true);', 1)], 'falls', '19-despertar.svg'),
             ('the discovery configs are no longer published retained', [(TELEMETRY, 'ok = _mqttClient.publish(topic, payload, true);', 'ok = _mqttClient.publish(topic, payload, false);', 1)],

@@ -1,0 +1,58 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 524" role="img" class="dg">
+<defs>
+<marker id="19-modos-ponta" viewBox="0 0 8 8" refX="8" refY="4" markerWidth="8" markerHeight="8" markerUnits="userSpaceOnUse" orient="auto"><path class="dg-ponta" d="M0 0L8 4L0 8z"/></marker>
+<marker id="19-modos-ponta-acento" viewBox="0 0 8 8" refX="8" refY="4" markerWidth="8" markerHeight="8" markerUnits="userSpaceOnUse" orient="auto"><path class="dg-ponta-acento" d="M0 0L8 4L0 8z"/></marker>
+</defs>
+<rect class="dg-caixa-2" x="16.5" y="16.5" width="135" height="491" rx="12"/>
+<text class="dg-t dg-b" x="32" y="36">M0</text>
+<text class="dg-n dg-c2" x="32" y="52">acordado</text>
+<text class="dg-n" x="32" y="84">web e API</text>
+<text class="dg-n" x="32" y="100">console USB</text>
+<text class="dg-n" x="32" y="116">Bluetooth</text>
+<text class="dg-n" x="32" y="132">rádio ligado</text>
+<rect class="dg-caixa-2" x="480.5" y="16.5" width="223" height="491" rx="12"/>
+<text class="dg-t dg-b" x="496" y="36">M1, o ciclo</text>
+<rect class="dg-caixa" x="496.5" y="56.5" width="175" height="39" rx="6"/>
+<text class="dg-n" x="584" y="80" text-anchor="middle">dormir</text>
+<rect class="dg-caixa" x="496.5" y="140.5" width="175" height="39" rx="6"/>
+<text class="dg-n" x="584" y="164" text-anchor="middle">despertar</text>
+<rect class="dg-caixa" x="496.5" y="224.5" width="175" height="39" rx="6"/>
+<text class="dg-n" x="584" y="248" text-anchor="middle">ler os sensores</text>
+<rect class="dg-caixa" x="496.5" y="308.5" width="175" height="39" rx="6"/>
+<text class="dg-n" x="584" y="332" text-anchor="middle">gravar no histórico</text>
+<rect class="dg-caixa-acento" x="496.5" y="392.5" width="175" height="55" rx="6"/>
+<text class="dg-n dg-b dg-sobre-acento" x="584" y="408" text-anchor="middle">rádio e envio</text>
+<text class="dg-n dg-sobre-acento" x="584" y="424" text-anchor="middle">se os pendentes chegam</text>
+<text class="dg-n dg-sobre-acento" x="584" y="440" text-anchor="middle">ao lote mínimo</text>
+<polyline class="dg-fio" points="584,96 584,140" marker-end="url(#19-modos-ponta)"/>
+<polyline class="dg-fio" points="584,180 584,224" marker-end="url(#19-modos-ponta)"/>
+<polyline class="dg-fio" points="584,264 584,308" marker-end="url(#19-modos-ponta)"/>
+<polyline class="dg-fio" points="584,348 584,392" marker-end="url(#19-modos-ponta)"/>
+<polyline class="dg-fio" points="672,328 688,328 688,76 672,76" marker-end="url(#19-modos-ponta)"/>
+<polyline class="dg-fio" points="672,420 688,420 688,328"/>
+<text class="dg-n dg-b" x="168" y="40">entra em M1</text>
+<text class="dg-n" x="168" y="56"><tspan class="dg-m">air hibernate</tspan></text>
+<text class="dg-n" x="168" y="72"><tspan class="dg-c2">arma o ciclo na flash</tspan></text>
+<polyline class="dg-fio-acento" points="152,84 480,84" marker-end="url(#19-modos-ponta-acento)"/>
+<text class="dg-n" x="168" y="116"><tspan class="dg-m">air idle</tspan>: 300 s sem atividade</text>
+<text class="dg-n" x="168" y="132"><tspan class="dg-c2">e sem o carregador ligado</tspan></text>
+<polyline class="dg-fio-acento" points="152,144 480,144" marker-end="url(#19-modos-ponta-acento)"/>
+<text class="dg-n dg-b" x="168" y="168">sai de M1</text>
+<text class="dg-n" x="168" y="184"><tspan class="dg-m">air stop</tspan>, pelo USB</text>
+<text class="dg-n" x="168" y="200"><tspan class="dg-c2">desarma o ciclo na flash</tspan></text>
+<polyline class="dg-fio" points="480,212 152,212" marker-end="url(#19-modos-ponta)"/>
+<text class="dg-n" x="168" y="244">carregador ligado num despertar</text>
+<text class="dg-n" x="168" y="260"><tspan class="dg-c2">o ciclo continua armado</tspan></text>
+<polyline class="dg-fio" points="480,272 152,272" marker-end="url(#19-modos-ponta)"/>
+<text class="dg-n" x="168" y="304">boot limpo (energia, RUN, reload, atualização)</text>
+<text class="dg-n" x="168" y="320"><tspan class="dg-c2">M0 pelo tempo de ociosidade inteiro,</tspan></text>
+<text class="dg-n" x="168" y="336"><tspan class="dg-c2">depois o ciclo volta</tspan></text>
+<polyline class="dg-fio" points="480,348 152,348" marker-end="url(#19-modos-ponta)"/>
+<text class="dg-n" x="168" y="380">reinício pelo vigia (watchdog)</text>
+<text class="dg-n" x="168" y="396"><tspan class="dg-c2">M0 por 10 s, depois o ciclo volta</tspan></text>
+<polyline class="dg-fio" points="480,408 152,408" marker-end="url(#19-modos-ponta)"/>
+<text class="dg-n" x="168" y="440">3 reinícios seguidos pelo vigia</text>
+<text class="dg-n" x="168" y="456"><tspan class="dg-c2">M0 pelo tempo de ociosidade inteiro,</tspan></text>
+<text class="dg-n" x="168" y="472"><tspan class="dg-c2">evento 411, Ciclo Air retido em M0</tspan></text>
+<polyline class="dg-fio" points="480,484 152,484" marker-end="url(#19-modos-ponta)"/>
+</svg>

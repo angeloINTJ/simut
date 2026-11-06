@@ -91,6 +91,8 @@ OTA_STAGING = 'src/ota/staging.cpp'
 OTA_APPLIER = 'src/ota/applier.cpp'
 AIR_CPP = 'src/AppManager_Air.cpp'
 APP_H = 'src/AppManager.h'
+PARSER = 'src/CommandParser.cpp'
+APP_CMDS = 'src/AppManager_Commands.cpp'
 LOG_MANAGER = 'src/LogManager.cpp'
 NET_LINK = 'src/net/NetLink.h'
 
@@ -161,6 +163,13 @@ FIGURAS = (
            'as etapas de uma atualização no Pico W, numa linha em escala (o backup, o envio e a conferência da imagem, a aplicação, o boot da imagem nova), e o que um corte de energia custa em cada uma; '
            'os tempos do envio e da volta da interface web são os medidos que o capítulo traz (v2.7.0, 22/09/2026), os da aplicação e do boot são as estimativas da janela de confirmação de WebUI.h, e que o envio '
            'só escreve na área de preparo e que só a aplicação reescreve o programa são trechos de src/ota/staging.cpp e src/ota/applier.cpp que o código tem de manter'),
+    Figura('fig-19-modos', '19-modos.svg', 'cap19-air.md', 'desenho_modos',
+           'os dois modos do Air e como ele passa de um ao outro: M0, acordado (interface web e API, console USB, Bluetooth, rádio ligado), e M1, o ciclo (dormir, despertar, ler os sensores, gravar no '
+           'histórico e, se os pendentes chegam ao lote mínimo, rádio e envio); para M1 por air hibernate e pela ociosidade (air idle, 300 s sem atividade e sem o carregador); de M1 para M0 por air stop '
+           '(desarma o ciclo), pelo carregador ligado num despertar (o ciclo continua armado), por um boot limpo (M0 pelo tempo de ociosidade inteiro, depois o ciclo volta), por um reinício do vigia (M0 por 10 s, '
+           'depois o ciclo volta) e por três reinícios seguidos (M0 pelo tempo de ociosidade inteiro e o evento 411, Ciclo Air retido em M0); as palavras dos comandos vêm de src/CommandParser.cpp, os tempos '
+           'de src/simut_config.h, o evento de tools/logcodes.tsv, e o que o desenho afirma das duas entradas, do air stop, do carregador, das três saídas, da interface web, do Bluetooth, do rádio e da ordem '
+           'das fases são trechos de src/AppManager_Air.cpp, src/AppManager_Boot.cpp, src/AppManager_Commands.cpp, src/AppManager_Loop.cpp e src/AppManager.h que o código tem de manter'),
     Figura('fig-19-despertar', '19-despertar.svg', 'cap19-air.md', 'desenho_despertar',
            'dois despertares do Air, cada um em escala, num intervalo de 60 s: o de leitura (boot, aquecimento de 0,4 s, amostragem e a decisão que grava o histórico, a 9,31 s do boot) e o de telemetria, que '
            'repete as larguras até a decisão e acrescenta a conexão e o envio, até cerca de 12,7 s; GP16 alto durante todo o despertar, a faixa do rádio ligado só no de telemetria e o sono entre eles fora de '
@@ -808,6 +817,39 @@ class Numeros:
                 'valores': (preparada, v_bom, um), 'bom_http': bom_http, 'apply_http': codigo, 'aceito': aceito, 'espera_s': espera_ms // 1000}
 
 
+    def modos(self):
+        """What the figure of the two modes draws that the code says: the words of the commands (air hibernate, air idle, air stop, from CommandParser.cpp), the idle timeout a build starts with
+        (AIR_IDLE_TIMEOUT_SEC), the grace of an interrupted cycle (AIR_RESUME_GRACE_SEC), the unclean boots in a row that hold M0 (AIR_MAX_DIRTY_BOOTS) and the event that says so (the code and the
+        name the log code table gives APP_AIR_CYCLE_HELD). Premises, refused when the code drifts, each with its own text: both ways into the cycle arm it in the flash (the command and the idle
+        timeout, which does not run on the charger); the wait in M0 is the grace when there is one and the idle timeout otherwise; `air stop` disarms the cycle; a wake on the charger comes up in M0
+        and leaves the cycle armed; a clean boot waits the whole idle timeout, a crash loop is held in M0 with the event and any other unclean boot waits the grace; a wake starts neither the web
+        server nor Bluetooth; the radio is raised when the pending records, counting the one the wake writes, reach the minimum batch; and the phases come in their order."""
+        f = self.f
+        hibernar = f.achar(PARSER, r'if \(t1 == "(\w+)" \|\| t1 == "\w+"\) \{ cmd\.type = CMD_AIR_HIBERNATE; return cmd; \}').group(1)
+        parar = f.achar(PARSER, r'if \(t1 == "(\w+)" \|\| t1 == "\w+"\) \{ cmd\.type = CMD_AIR_STOP; return cmd; \}').group(1)
+        ociosidade = f.achar(PARSER, r'if \(t1 == "(\w+)"\) \{ cmd\.type = CMD_AIR_IDLE;').group(1)
+        f.exigir(AIR_CPP, r'if \(!airCycleArmed\(_airCfg\)\) \{\s+_airCfg\.flags \|= AIR_FLAG_CYCLE_ARMED;', 'entering the cycle arms it in the flash, which is what the figure of the modes draws on both ways in')
+        f.exigir(APP_CMDS, r'case CMD_AIR_HIBERNATE:[\s\S]*?airStartHibernate\( \);', 'the command hibernate enters the cycle, which is what the figure of the modes draws')
+        f.exigir(LOOP, r'if \(airOnCharger\( \)\) \{\s+_airLastActivityMs = millis\( \);\s+\} else if \(timeSince\(_airLastActivityMs, idleSec \* 1000UL\)\) \{\s+airStartHibernate\( \);',
+                 'the idle timeout enters the cycle, and does not run on the charger, which is what the figure of the modes draws')
+        f.exigir(LOOP, r'const uint32_t idleSec = _airResumeGraceSec \? \(uint32_t\)_airResumeGraceSec\s+: \(uint32_t\)_airCfg\.idleTimeoutSec;',
+                 'M0 lasts the grace when there is one and the idle timeout otherwise, which is what the figure of the modes draws for the ways back')
+        f.exigir(APP_CMDS, r'case CMD_AIR_STOP:[\s\S]*?_airCfg\.flags &= \(uint8_t\)~AIR_FLAG_CYCLE_ARMED;', 'the command stop disarms the cycle in the flash, which is what the figure of the modes draws')
+        f.exigir(BOOT, r'if \(_airActive && airOnCharger\( \)\) \{\s+_airActive = false;\s+_airPhase = AIR_PHASE_OFF;\s+_airWokeFromSleep = false;\s+AIR_BOOT_MARK\("charger present: staying awake in M0"\);\s+\}',
+                 'a wake that finds the charger comes up in M0 and leaves the cycle armed, which is what the figure of the modes draws')
+        f.exigir(BOOT, r'if \(clean\) \{\s+_airResumeGraceSec = 0;[^\n]*\n\s+AIR_BOOT_MARK\("cycle armed, resuming after the idle timeout"\);\s+\} else if \(dirty >= AIR_MAX_DIRTY_BOOTS\) \{\s+_airResumeGraceSec = 0;[^\n]*\n\s+'
+                       r'LOG_CODE\(LOG_WARN, "APP", APP_AIR_CYCLE_HELD, dirty,[\s\S]*?\} else \{\s+_airResumeGraceSec = AIR_RESUME_GRACE_SEC;',
+                 'a clean boot waits the whole idle timeout, a crash loop is held in M0 with the event and any other unclean boot waits the grace, which is what the figure of the modes draws')
+        f.exigir(BOOT, r'_airWebUp = !_airActive;\s+if \(_airActive\) \{\s+AIR_BOOT_MARK\("web skipped \(wake\)"\);', 'a wake does not start the web server, which is what the figure of the modes draws as M0 only')
+        f.exigir(BOOT, r'if \(!_airActive\)\s+#endif\s+_cmdMgr->beginBluetooth\(', 'a wake does not start Bluetooth, which is what the figure of the modes draws as M0 only')
+        f.exigir(AIR_CPP, r'return \(uint32_t\)_telemetryMgr->getPendingEstimate\( \) \+ 1UL >= minBatch;',
+                 'the radio is raised when the pending records, counting the one the wake writes, reach the minimum batch, which is what the figure of the modes draws')
+        self.ordem_das_fases()
+        codigo, nome = self.codigo('APP_AIR_CYCLE_HELD')
+        return {'hibernar': hibernar, 'parar': parar, 'ociosidade': ociosidade, 'idle_s': self.macro('AIR_IDLE_TIMEOUT_SEC', 'air'), 'graca_s': self.macro('AIR_RESUME_GRACE_SEC', 'air'),
+                'sujos': self.macro('AIR_MAX_DIRTY_BOOTS', 'air'), 'codigo': codigo, 'nome': nome}
+
+
     def flash(self):
         """The Pico W's flash as ota_layout.h lays it out, in KiB: the whole (OTA_FLASH_TOTAL), the area of the program (OTA_APP_MAX_SIZE), the largest image an update may be, the one that does not
         touch the config snapshot (OTA_APP_SAFE_MAX_SIZE), the file system (OTA_FILESYSTEM_SIZE) and the update's data at the end (OTA_EEPROM_RESERVED). The macros are evaluated from their
@@ -945,6 +987,12 @@ class Numeros:
         return {'aplicacao': aplicacao, 'boot': boot}
 
 
+    def ordem_das_fases(self):
+        """Premise, refused when the code drifts: the phases of a wake come in the order warm-up, sampling, decision, connection, send, sleep (the figures of the wake and of the modes draw them so)."""
+        self.f.exigir(APP_H, r'AIR_PHASE_OFF = 0,[^\n]*\n\s+AIR_PHASE_WARMUP,[^\n]*\n\s+AIR_PHASE_SAMPLE,[^\n]*\n\s+AIR_PHASE_DECIDE,[^\n]*\n\s+AIR_PHASE_PERSIST,[^\n]*\n\s+AIR_PHASE_CONNECT,[^\n]*\n\s+AIR_PHASE_FLUSH,[^\n]*\n\s+AIR_PHASE_SLEEP',
+                      'the phases of a wake come in this order (warm-up, sampling, decision, connection, send, sleep), which is the order of the figure of the wake')
+
+
     def despertar(self):
         """What the Air wake figure draws that the code says: the warm-up, in seconds (the literal of the WARMUP phase). Premises, refused when the code drifts: the phases come in the order
         warm-up, sampling, decision, connection, send, sleep; a reading-only wake never starts the network; the sampling connects the Wi-Fi in parallel on a telemetry wake; the decision always writes
@@ -952,8 +1000,7 @@ class Numeros:
         also where the radio is powered down. The measured times are constants of the tool."""
         f = self.f
         aquecimento = int(f.achar(AIR_CPP, r'case AIR_PHASE_WARMUP: \{[\s\S]*?if \(timeSince\(_airPhaseTimer, (\d+)\)\) \{\s+_airPhase = AIR_PHASE_SAMPLE;').group(1))
-        f.exigir(APP_H, r'AIR_PHASE_OFF = 0,[^\n]*\n\s+AIR_PHASE_WARMUP,[^\n]*\n\s+AIR_PHASE_SAMPLE,[^\n]*\n\s+AIR_PHASE_DECIDE,[^\n]*\n\s+AIR_PHASE_PERSIST,[^\n]*\n\s+AIR_PHASE_CONNECT,[^\n]*\n\s+AIR_PHASE_FLUSH,[^\n]*\n\s+AIR_PHASE_SLEEP',
-                 'the phases of a wake come in this order (warm-up, sampling, decision, connection, send, sleep), which is the order of the figure of the wake')
+        self.ordem_das_fases()
         f.exigir(BOOT, r'else if \(!_airRadioWake\) \{\s+/\* Reading-only wake: the network is not started at all\.',
                  'a reading-only wake never starts the network, which is what the figure of the wake draws: the radio band only in the telemetry wake')
         f.exigir(AIR_CPP, r'if \(_airRadioWake && !_airNetGaveUp\) \{\s+_netMgr->update\( \);', 'the sampling connects the Wi-Fi in parallel on a telemetry wake, which is what the figure of the wake draws')
@@ -2388,6 +2435,66 @@ def desenho_ota_api(num, slug):
     q.pedido([com_op(a['validate']), [('dg-c2', 'o .bkp do primeiro passo')]])
     q.pedido([com_op(a['apply_op']), [('dg-c2', 'depois de responder, o aparelho restaura e reinicia')]])
     return q.render()
+
+
+def desenho_modos(num, slug):
+    m = num.modos()
+    s = Svg(slug)
+    x0, w0, x1, w1 = 16, 136, 480, 224                      # M0 at the left, M1 at the right, and the arrows between them
+    cinza = lambda texto: [('dg-c2', texto)]
+    entradas = [([[('dg-m', f'air {m["hibernar"]}')], cinza('arma o ciclo na flash')]),
+                ([[('dg-m', f'air {m["ociosidade"]}'), ('', f': {m["idle_s"]}\u00a0s sem atividade')], cinza('e sem o carregador ligado')])]
+    saidas = [[[('dg-m', f'air {m["parar"]}'), ('', ', pelo USB')], cinza('desarma o ciclo na flash')],
+              [[('', 'carregador ligado num despertar')], cinza('o ciclo continua armado')],
+              [[('', 'boot limpo (energia, RUN, reload, atualização)')], cinza('M0 pelo tempo de ociosidade inteiro,'), cinza('depois o ciclo volta')],
+              [[('', 'reinício pelo vigia (watchdog)')], cinza(f'M0 por {m["graca_s"]}\u00a0s, depois o ciclo volta')],
+              [[('', f'{m["sujos"]} reinícios seguidos pelo vigia')], cinza('M0 pelo tempo de ociosidade inteiro,'), cinza(f'evento {m["codigo"]}, {m["nome"]}')]]
+    # the rows, from the top: a heading, the labels above an arrow, the arrow 8 px under the last line, 20 px to the next row
+    y, linhas = 44, []
+    for grupo, itens, sentido in (('entra em M1', entradas, 'direita'), ('sai de M1', saidas, 'esquerda')):
+        linhas.append(('titulo', grupo, y - 8))
+        for item in itens:
+            y_seta = y + 16 * len(item) + 8
+            linhas.append((sentido, item, y, y_seta))
+            y = y_seta + 20
+        y += 8
+    fim = y - 4
+    # the two states, then what is inside them
+    s.caixa(x0, 16, w0, fim - 16, 'dg-caixa-2', 12)
+    s.texto(x0 + 16, 36, 'M0', 'dg-t dg-b')
+    s.texto(x0 + 16, 52, 'acordado', 'dg-n dg-c2')
+    for k, texto in enumerate(('web e API', 'console USB', 'Bluetooth', 'rádio ligado')):
+        s.texto(x0 + 16, 84 + 16 * k, texto, 'dg-n')
+    s.caixa(x1, 16, w1, fim - 16, 'dg-caixa-2', 12)
+    s.texto(x1 + 16, 36, 'M1, o ciclo', 'dg-t dg-b')
+    xc, wc, hc, salto = x1 + 16, 176, 40, 84
+    tops = [56 + salto * k for k in range(5)]
+    passos = (('dormir', None), ('despertar', None), ('ler os sensores', None), ('gravar no histórico', None))
+    for top, (nome, _) in zip(tops, passos):
+        s.caixa(xc, top, wc, hc, 'dg-caixa', 6)
+        s.texto(xc + wc // 2, top + 24, nome, 'dg-n', 'middle')
+    h_radio = 56
+    s.caixa(xc, tops[4], wc, h_radio, 'dg-caixa-acento', 6)
+    for k, (texto, cls) in enumerate((('rádio e envio', 'dg-n dg-b dg-sobre-acento'), ('se os pendentes chegam', 'dg-n dg-sobre-acento'), ('ao lote mínimo', 'dg-n dg-sobre-acento'))):
+        s.texto(xc + wc // 2, tops[4] + 16 + 16 * k, texto, cls, 'middle')
+    for k in range(4):
+        s.seta([(xc + wc // 2, tops[k] + hc), (xc + wc // 2, tops[k + 1])], 'dg-fio', 'dg-ponta')
+    trilho = xc + wc + 16
+    y_gravar, y_dormir, y_radio = tops[3] + hc // 2, tops[0] + hc // 2, tops[4] + h_radio // 2
+    s.seta([(xc + wc, y_gravar), (trilho, y_gravar), (trilho, y_dormir), (xc + wc, y_dormir)], 'dg-fio', 'dg-ponta')
+    s.linha([(xc + wc, y_radio), (trilho, y_radio), (trilho, y_gravar)], 'dg-fio')
+    # the arrows between the states
+    for tipo, dados, *resto in linhas:
+        if tipo == 'titulo':
+            s.texto(x0 + w0 + 16, resto[0] + 4, dados, 'dg-n dg-b')
+            continue
+        y_linha, y_seta = resto
+        rotulo(s, x0 + w0 + 16, y_linha + 12, dados, x1 - 8)
+        if tipo == 'direita':
+            s.seta([(x0 + w0, y_seta), (x1, y_seta)], 'dg-fio-acento', 'dg-ponta-acento')
+        else:
+            s.seta([(x1, y_seta), (x0 + w0, y_seta)], 'dg-fio', 'dg-ponta')
+    return s.render()
 
 
 # ---- the chapters --------------------------------------------------------------------------------------------------------------------------------------------
