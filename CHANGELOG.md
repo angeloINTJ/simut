@@ -102,7 +102,7 @@ The packs grow by 772 B (`language_pt-BR.lng`, 53,885 B, 82% of the file ceiling
 ### The captions
 
 - The 19 captions that began with "Legenda: " (chapters 15 to 28: 12 on diagram blocks, 7 on web blocks) now begin with the sentence, capitalised: the page already writes "Figura N." before each one.
-- `docs/MANUAL.pt-BR.html` is not drawn again in this change; its next build puts the diagrams in the page.
+- `docs/MANUAL.pt-BR.html` was regenerated with them before #326 merged (6ea1f03d): 105 of 245 figures pending then, and 96 once #323's captures joined.
 
 ## v2.14.0 (2026-11-05)
 

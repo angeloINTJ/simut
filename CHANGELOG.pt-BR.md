@@ -102,7 +102,7 @@ Os pacotes crescem 772 B (`language_pt-BR.lng`, 53.885 B, 82% do teto do arquivo
 ### As legendas
 
 - As 19 legendas que começavam com "Legenda: " (capítulos 15 a 28: 12 em blocos de diagrama, 7 em blocos de tela da web) agora começam pela frase, com inicial maiúscula: a página já escreve "Figura N." antes de cada uma.
-- O `docs/MANUAL.pt-BR.html` não é gerado de novo nesta mudança; a próxima montagem põe os diagramas na página.
+- O `docs/MANUAL.pt-BR.html` foi gerado de novo com eles antes do merge do #326 (6ea1f03d): 105 de 245 figuras pendentes então, e 96 depois que as capturas do #323 entraram.
 
 ## v2.14.0 (2026-11-05)
 
