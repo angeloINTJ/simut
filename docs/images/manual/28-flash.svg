@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 272" role="img" class="dg">
+<text class="dg-n" x="704" y="28" text-anchor="end">dados da atualização: 4 KiB, no fim</text>
+<text class="dg-n" x="356" y="44" text-anchor="end">teto da atualização web: 1.016 KiB</text>
+<text class="dg-n dg-c2" x="356" y="60" text-anchor="end">4 KiB abaixo do fim do programa</text>
+<rect class="dg-caixa" x="16.5" y="84.5" width="343" height="47" rx="0"/>
+<rect class="dg-caixa-2" x="360.5" y="84.5" width="339" height="47" rx="0"/>
+<rect class="dg-caixa-forte" x="700.5" y="84.5" width="3" height="47" rx="0"/>
+<text class="dg-t dg-b" x="188" y="104" text-anchor="middle">programa</text>
+<text class="dg-n dg-c2" x="188" y="120" text-anchor="middle">1.020 KiB</text>
+<text class="dg-t dg-b" x="528" y="104" text-anchor="middle">sistema de arquivos (LittleFS)</text>
+<text class="dg-n dg-c2" x="528" y="120" text-anchor="middle">1.024 KiB</text>
+<polyline class="dg-fio" points="356,68 356,132"/>
+<polyline class="dg-fio" points="700,36 700,84"/>
+<polyline class="dg-fio-acento" points="360,144 360,148 700,148 700,144"/>
+<text class="dg-n" x="700" y="168" text-anchor="end">a imagem nova é recebida nesta área</text>
+<polyline class="dg-fio-fino" points="16,196 16,200 704,200 704,196"/>
+<text class="dg-n" x="360" y="220" text-anchor="middle">flash do Pico W: 2 MB (2.048 KiB)</text>
+<text class="dg-n dg-c2" x="16" y="252">Em escala, menos o teto e os dados da atualização, que estão ampliados para aparecer.</text>
+</svg>

@@ -25,7 +25,7 @@ Este capítulo reúne em tabelas os números do SIMUT: faixas, valores de fábri
 | Wi-Fi | Só 2,4 GHz. Uma rede só de 5 GHz não aparece na busca | [cap. 9](#cap-09-wifi) |
 | Segurança do Wi-Fi do AP de configuração | WPA2 | [cap. 9](#cap-09-ap) |
 
-::: {.figura #fig-28-flash tipo="diagrama" arquivo="28-flash.png" captura="barra horizontal dos 2 MB da flash do Pico W, em escala: 1.020 KiB do programa (com a marca do teto de 1.016 KiB da atualização web), 1.024 KiB do sistema de arquivos LittleFS e 4 KiB dos dados da atualização no fim; anotar que a imagem nova é recebida na área do sistema de arquivos"}
+::: {.figura #fig-28-flash tipo="diagrama" arquivo="28-flash.svg" captura="desenhado pelo código (tools/manual_diagramas.py): a flash de 2 MB do Pico W numa barra em escala, da esquerda para a direita: os 1.020 KiB do programa (com a marca do teto de 1.016 KiB da atualização web, 4 KiB abaixo do fim do programa), os 1.024 KiB do sistema de arquivos LittleFS, onde a imagem nova é recebida, e os 4 KiB dos dados da atualização no fim; o teto e os dados estão ampliados para aparecer; os tamanhos vêm de src/ota/ota_layout.h (conferidos com board_build.filesystem_size de platformio.ini) e que o espaço do programa, a área de preparo (que começa onde ele acaba e tem o tamanho do sistema de arquivos) e os dados da atualização, que terminam a flash, se seguem, e que a maior imagem da atualização web é o teto, são trechos desse arquivo que o código tem de manter; refazer com python3 tools/manual_diagramas.py --write"}
 Legenda: a flash de 2 MB. O teto da atualização web fica 4 KiB abaixo do fim do espaço do programa.
 :::
 

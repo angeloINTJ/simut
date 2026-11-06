@@ -381,6 +381,14 @@ def main():
                 f'chapter 19 does not say what the code says: {modos["idle_s"]} s de fábrica, M0 por só {modos["graca_s"]} s, **{modos["nome"]}** ({modos["codigo"]})',
                 'the idle timeout, the grace and the held event (read from the code) are the ones chapter 19 gives')
 
+        # the flash figure reads the sizes from the layout; chapter 28's table gives the same ones, and a layout that changes one leaves the chapter stale
+        cap28 = (m.CAPITULOS / 'cap28-especificacoes.md').read_text(encoding='utf-8')
+        flash = m.Numeros(m.Fonte(m.ROOT)).flash_e_atualizacao()
+        confere(f'| Espaço do programa | {m.milhar(flash["programa"])} KiB,' in cap28 and f'| Dados da atualização | {flash["dados"]} KiB no fim da flash |' in cap28
+                and f'({m.milhar(flash["teto"])} KiB) |' in cap28 and f'| Sistema de arquivos (LittleFS) | {flash["sistema"] // 1024} MiB |' in cap28,
+                f'chapter 28 does not say what the layout says: program {flash["programa"]} KiB, file system {flash["sistema"]} KiB, ceiling {flash["teto"]} KiB, data {flash["dados"]} KiB',
+                'the sizes of the flash (read from the layout) are the ones chapter 28\'s table gives')
+
         # ---- the builder's guards --------------------------------------------------------------------------------------------------------------------------
         s = m.Svg('99-teste', 100)
         s.texto(16, 28, 'um texto')
@@ -576,7 +584,7 @@ def main():
                 ('the version\'s key in the status ver -> versao', [(WEB_API, '\\"name\\":\\"%s\\",\\"ver\\":\\"%s\\"', '\\"name\\":\\"%s\\",\\"versao\\":\\"%s\\"', 1)], {'26-ota.svg', '27-ondas.svg'}),
                 ('a new sensor type, SHT31, in the enum', [(RECORDS, ' TYPE_BMP280 = 5            /**< temperature + pressure */', ' TYPE_BMP280 = 5,           /**< temperature + pressure */\n TYPE_SHT31 = 6', 1)], {'01-arquitetura.svg'}),
                 ('the file system 1 MiB -> 512 KiB, in ota_layout.h and in platformio.ini', [(OTA_LAYOUT, '#define OTA_FILESYSTEM_SIZE      (1u * 1024u * 1024u)', '#define OTA_FILESYSTEM_SIZE      (512u * 1024u)', 1),
-                                                                                                    ('platformio.ini', 'board_build.filesystem_size = 1m', 'board_build.filesystem_size = 512k', 1)], {'01-arquitetura.svg'}),
+                                                                                                    ('platformio.ini', 'board_build.filesystem_size = 1m', 'board_build.filesystem_size = 512k', 1)], {'01-arquitetura.svg', '28-flash.svg'}),
                 ('the config folder /config -> /conf', [(STORAGE_H, '#define DIR_CONFIG "/config"', '#define DIR_CONFIG "/conf"', 1)], {'01-arquitetura.svg'}),
                 ('the event log\'s file /system.blog -> /eventos.blog', [(LOG_H, '#define LOG_FILE_CURRENT "/system.blog"', '#define LOG_FILE_CURRENT "/eventos.blog"', 1)], {'01-arquitetura.svg'}),
                 ('the Air loses the Bluetooth (-DSIMUT_BLUETOOTH=1 out of its profile)', [(PERFIS, '    -DSIMUT_MDNS=0\n    -DSIMUT_BLUETOOTH=1\n    -DPIO_FRAMEWORK_ARDUINO_ENABLE_BLUETOOTH\n    -DSIMUT_AIR=1\n',
@@ -610,6 +618,7 @@ def main():
                 ('the unclean boots that hold M0 3 -> 4', [(CONFIG, '#define AIR_MAX_DIRTY_BOOTS 3', '#define AIR_MAX_DIRTY_BOOTS 4', 1)], {'19-modos.svg'}),
                 ('the name of the held event in the log code table', [(LOGCODES, 'Air cycle held in M0\tCiclo Air retido em M0\t', 'Air cycle held in M0\tCiclo Air retido\t', 1)], {'19-modos.svg'}),
                 ('the word of the hibernate command hibernate -> hibernar', [(PARSER, 't1 == "hibernate" || t1 == "sleep"', 't1 == "hibernar" || t1 == "sleep"', 1)], {'19-modos.svg'}),
+                ('the web update\'s ceiling one sector -> two sectors under the end of the program space', [(OTA_LAYOUT, '(OTA_APP_MAX_SIZE - OTA_FLASH_SECTOR_SIZE)  /* 1016 KiB */', '(OTA_APP_MAX_SIZE - 2u * OTA_FLASH_SECTOR_SIZE)  /* 1016 KiB */', 1)], {'28-flash.svg'}),
                 ('the BME280 probe pair (4, 5) -> (6, 7)', [(BME_SENSOR, 'probe(4, 5, BME280_ADDR_PRIMARY)', 'probe(6, 7, BME280_ADDR_PRIMARY)', 1)], {'02-bmx280.svg'}),
                 ('the BME280 addresses 0x76/0x77 -> 0x75/0x78 in the driver, code and comments', [(BME_DRIVER, '0x76', '0x75', None), (BME_DRIVER, '0x77', '0x78', None)], {'02-bmx280.svg'}),
             ]
@@ -724,6 +733,11 @@ def main():
             ('the radio no longer counts the record the wake writes', [(AIR_CPP, 'getPendingEstimate( ) + 1UL >= minBatch;', 'getPendingEstimate( ) >= minBatch;', 1)], 'counting the one the wake writes', '19-modos.svg'),
             ('the idle timeout runs on the charger', [(LOOP, '} else if (timeSince(_airLastActivityMs, idleSec * 1000UL)) {', '} if (timeSince(_airLastActivityMs, idleSec * 1000UL)) {', 1)], 'does not run on the charger', '19-modos.svg'),
             ('M0 no longer lasts the grace when there is one', [(LOOP, ': (uint32_t)_airCfg.idleTimeoutSec;', ': (uint32_t)_airCfg.idleTimeoutSec + 1;', 1)], 'the grace when there is one', '19-modos.svg'),
+            ('the staging area is no longer the size of the file system', [(OTA_LAYOUT, '(OTA_FILESYSTEM_SIZE)          /* 0x100000 (1024 KB) */', '(OTA_FILESYSTEM_SIZE / 2)        /* 0x100000 (1024 KB) */', 1)], 'file system\'s area', '28-flash.svg'),
+            ('the staging area no longer starts where the program space ends', [(OTA_LAYOUT, '(OTA_APP_MAX_SIZE)             /* 0x0FF000 */', '(OTA_APP_MAX_SIZE + OTA_FLASH_SECTOR_SIZE) /* 0x0FF000 */', 1)], 'where the program space ends', '28-flash.svg'),
+            ('the update\'s data no longer end the flash', [(OTA_LAYOUT, 'OTA_METADATA_OFFSET + OTA_METADATA_SIZE == OTA_FLASH_TOTAL', 'OTA_METADATA_OFFSET + OTA_METADATA_SIZE <= OTA_FLASH_TOTAL', 1)], 'end the flash', '28-flash.svg'),
+            ('the program space no longer ends where the staging area starts', [(OTA_LAYOUT, 'static_assert(OTA_APP_OFFSET + OTA_APP_MAX_SIZE == OTA_STAGING_OFFSET', 'static_assert(OTA_APP_OFFSET + OTA_APP_MAX_SIZE <= OTA_STAGING_OFFSET', 1)], 'follows the program space', '28-flash.svg'),
+            ('the largest image the web update takes is no longer the ceiling', [(OTA_LAYOUT, '#define OTA_IMAGE_MAX      OTA_APP_SAFE_MAX_SIZE', '#define OTA_IMAGE_MAX      OTA_APP_MAX_SIZE', 1)], 'largest image', '28-flash.svg'),
             ('a reading-only wake starts the network', [(BOOT, 'else if (!_airRadioWake) {', 'else if (false) {', 1)], 'never starts', '19-despertar.svg'),
             ('the wake no longer cuts the sensors\' power when it goes to sleep', [(AIR_CPP, 'airSensorPower(_airCfg.sensorPowerPin, false);', 'airSensorPower(_airCfg.sensorPowerPin, true);', 1)], 'falls', '19-despertar.svg'),
             ('the discovery configs are no longer published retained', [(TELEMETRY, 'ok = _mqttClient.publish(topic, payload, true);', 'ok = _mqttClient.publish(topic, payload, false);', 1)],

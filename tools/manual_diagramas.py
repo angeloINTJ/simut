@@ -226,6 +226,11 @@ FIGURAS = (
            'a atualização da frota em três ondas, com a barreira de conferência entre uma onda e a seguinte, e a sequência que cada aparelho percorre em cada onda (backup, envio, aplicação, confirmação, '
            'restauração, idioma) com a rota de cada passo; as rotas, o método de cada uma, as operações do restore, o sinal de confirmar o envio, a chave da versão e a pasta dos idiomas vêm de '
            'src/WebManager_Core.cpp, src/WebManager_Ota.cpp, src/WebManager_Api.cpp e src/StorageManager.h, e as ondas e o que cada uma leva são as frases do capítulo'),
+    Figura('fig-28-flash', '28-flash.svg', 'cap28-especificacoes.md', 'desenho_flash',
+           'a flash de 2 MB do Pico W numa barra em escala, da esquerda para a direita: os 1.020 KiB do programa (com a marca do teto de 1.016 KiB da atualização web, 4 KiB abaixo do fim do programa), os '
+           '1.024 KiB do sistema de arquivos LittleFS, onde a imagem nova é recebida, e os 4 KiB dos dados da atualização no fim; o teto e os dados estão ampliados para aparecer; os tamanhos vêm de '
+           'src/ota/ota_layout.h (conferidos com board_build.filesystem_size de platformio.ini) e que o espaço do programa, a área de preparo (que começa onde ele acaba e tem o tamanho do sistema de arquivos) '
+           'e os dados da atualização, que terminam a flash, se seguem, e que a maior imagem da atualização web é o teto, são trechos desse arquivo que o código tem de manter'),
 )
 
 
@@ -848,6 +853,25 @@ class Numeros:
         codigo, nome = self.codigo('APP_AIR_CYCLE_HELD')
         return {'hibernar': hibernar, 'parar': parar, 'ociosidade': ociosidade, 'idle_s': self.macro('AIR_IDLE_TIMEOUT_SEC', 'air'), 'graca_s': self.macro('AIR_RESUME_GRACE_SEC', 'air'),
                 'sujos': self.macro('AIR_MAX_DIRTY_BOOTS', 'air'), 'codigo': codigo, 'nome': nome}
+
+
+    def flash_e_atualizacao(self):
+        """What the flash figure draws: the sizes flash( ) gives (in KiB), and that the largest image the web update takes is the ceiling, which sits under the end of the program space. Premises,
+        refused when the code drifts, each with its own text: the layout is the program space, then the staging area (which starts where the program space ends and is the size of the file
+        system: the new image is received in the file system's area), then the update's data (the 4 KiB reserved) that end the flash; and the largest image the web update takes is the ceiling."""
+        f = self.f
+        for padrao, porque in ((r'static_assert\(OTA_APP_OFFSET \+ OTA_APP_MAX_SIZE == OTA_STAGING_OFFSET', 'the staging area follows the program space, which is what the figure of the flash draws'),
+                               (r'#define OTA_STAGING_OFFSET\s+\(OTA_APP_MAX_SIZE\)', 'the staging area starts where the program space ends, which is what the figure of the flash draws'),
+                               (r'#define OTA_STAGING_MAX_SIZE\s+\(OTA_FILESYSTEM_SIZE\)', 'the new image is received in the file system\'s area: the staging area is the size of the file system, which is what the figure of the flash draws'),
+                               (r'static_assert\(OTA_STAGING_OFFSET \+ OTA_STAGING_MAX_SIZE == OTA_METADATA_OFFSET', 'the update\'s data follow the staging area, which is what the figure of the flash draws'),
+                               (r'#define OTA_METADATA_SIZE\s+\(OTA_EEPROM_RESERVED\)', 'the update\'s data are the bytes reserved at the end, which is what the figure of the flash draws'),
+                               (r'static_assert\(OTA_METADATA_OFFSET \+ OTA_METADATA_SIZE == OTA_FLASH_TOTAL', 'the update\'s data end the flash, which is what the figure of the flash draws'),
+                               (r'#define OTA_IMAGE_MAX\s+OTA_APP_SAFE_MAX_SIZE', 'the largest image the web update takes is the ceiling, which is what the figure of the flash draws')):
+            f.exigir(OTA_LAYOUT, padrao, porque)
+        fl = self.flash()
+        if not fl['teto'] < fl['programa']:
+            raise Falta(f'{OTA_LAYOUT}: the ceiling of the web update ({fl["teto"]} KiB) is not under the end of the program space ({fl["programa"]} KiB), and the figure of the flash draws it under')
+        return fl
 
 
     def flash(self):
@@ -2494,6 +2518,41 @@ def desenho_modos(num, slug):
             s.seta([(x0 + w0, y_seta), (x1, y_seta)], 'dg-fio-acento', 'dg-ponta-acento')
         else:
             s.seta([(x1, y_seta), (x0 + w0, y_seta)], 'dg-fio', 'dg-ponta')
+    return s.render()
+
+
+def desenho_flash(num, slug):
+    fl = num.flash_e_atualizacao()
+    s = Svg(slug)
+    x0, x1 = 16, 704
+    px = lambda kib: round((x0 + kib * (x1 - x0) / fl['total']) / GRADE) * GRADE        # a size in KiB to the bar's x, on the grid
+    b1 = px(fl['programa'])
+    b2 = min(px(fl['programa'] + fl['sistema']), x1 - GRADE)                            # the update's data are 4 px wide at least, which is more than their scale
+    teto = min(px(fl['teto']), b1 - GRADE)                                              # and the ceiling at least one step under the end of the program space
+    y_barra, h_barra = 84, 48
+    # what the bar says, above it, each on a line down to the bar: the update's data on a row of their own, so that no ceiling can come under their label
+    s.texto(x1, 28, f'dados da atualização: {fl["dados"]}\u00a0KiB, no fim', 'dg-n', 'end')
+    s.texto(teto, 44, f'teto da atualização web: {milhar(fl["teto"])}\u00a0KiB', 'dg-n', 'end')
+    s.texto(teto, 60, f'{fl["programa"] - fl["teto"]}\u00a0KiB abaixo do fim do programa', 'dg-n dg-c2', 'end')
+    # the bar, to scale but for the two small things, with the sizes inside
+    s.caixa(x0, y_barra, b1 - x0, h_barra, 'dg-caixa', 0)
+    s.caixa(b1, y_barra, b2 - b1, h_barra, 'dg-caixa-2', 0)
+    s.caixa(b2, y_barra, x1 - b2, h_barra, 'dg-caixa-forte', 0)
+    for ini, fim, titulo, kib in ((x0, b1, 'programa', fl['programa']), (b1, b2, 'sistema de arquivos (LittleFS)', fl['sistema'])):
+        centro = (ini + fim) // 8 * 4
+        s.texto(centro, y_barra + 20, titulo, 'dg-t dg-b', 'middle')
+        s.texto(centro, y_barra + 36, f'{milhar(kib)}\u00a0KiB', 'dg-n dg-c2', 'middle')
+    s.linha([(teto, 68), (teto, y_barra + h_barra)], 'dg-fio')
+    s.linha([(x1 - GRADE, 36), (x1 - GRADE, y_barra)], 'dg-fio')
+    # the new image, received where the file system lives
+    y_chave = y_barra + h_barra + 16
+    s.linha([(b1, y_chave - 4), (b1, y_chave), (b2, y_chave), (b2, y_chave - 4)], 'dg-fio-acento')
+    s.texto(b2, y_chave + 20, 'a imagem nova é recebida nesta área', 'dg-n', 'end')                     # from the bracket's right end, so that a narrower area never pushes it off the canvas
+    # the whole flash
+    y_total = y_chave + 52
+    s.linha([(x0, y_total - 4), (x0, y_total), (x1, y_total), (x1, y_total - 4)], 'dg-fio-fino')
+    s.texto((x0 + x1) // 8 * 4, y_total + 20, f'flash do Pico W: 2\u00a0MB ({milhar(fl["total"])}\u00a0KiB)', 'dg-n', 'middle')
+    s.texto(x0, y_total + 52, 'Em escala, menos o teto e os dados da atualização, que estão ampliados para aparecer.', 'dg-n dg-c2')
     return s.render()
 
 
