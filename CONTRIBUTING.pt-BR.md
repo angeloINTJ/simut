@@ -105,7 +105,7 @@ Vai adicionar um novo driver de sensor? Siga o guia passo a passo em [docs/addin
 
 ## Orçamento de Flash
 
-A flash está criticamente apertada. A imagem release usa 97,2 % do slot de programa de 1.044.480 B, e o `.bin` de toda imagem, com os 241 B da assinatura, tem de ficar abaixo do teto de atualização pelo ar, de 1.040.384 B — o `pico_w_air` tem 5.076 B de sobra ali, e a imagem de bancada `pico_w_test_https`, 668 (23/09/2026, `tools/flash_budget.json`). Antes de adicionar funcionalidades, considere:
+A flash está criticamente apertada. A imagem release usa 98,2 % do slot de programa de 1.044.480 B, e o `.bin` de toda imagem, com os 241 B da assinatura, tem de ficar abaixo do teto de atualização pelo ar, de 1.040.384 B — o `pico_w_air` tem 4.803 B de sobra ali e o `pico_w_asserts`, 259 (06/11/2026, `docs/analysis/PLANO_STABLE.md` §3.1) —, exceto as duas imagens de bancada, `pico_w_test_https` (desde 02/10/2026) e `pico_w_test` (desde 06/11/2026), que entram no rig pela USB e são isentas dele (`ota_exempt` em `tools/flash_budget.json`, com o motivo); o orçamento de flash delas continua valendo. Antes de adicionar funcionalidades, considere:
 
 1. Pode ser otimizada para usar menos espaço?
 2. Pode substituir algo de menor valor?
