@@ -119,7 +119,7 @@ A página tem duas partes:
 **Sem a permissão Leitura, o gráfico só mostra o bloco aberto.** A página não consegue listar os arquivos do dia, e o gráfico e o CSV ficam só com os registros que ainda estão na RAM, no máximo 60. O calendário marca os dias, mas eles aparecem sem dados. Dê à conta **Histórico** e **Leitura** juntas.
 :::
 
-::: {.figura #fig-15-pagina tipo="web" arquivo="15-pagina.png" captura="rota /history; largura 1280; sessão admin; imagem release; 3 sensores ativos (DS18B20, DHT22, BME280); período 24h; um sensor selecionado; histórico com 20 dias; seção de eventos ainda não carregada"}
+::: {.figura #fig-15-pagina tipo="web" arquivo="15-pagina.png" captura="rota /history; largura 1280; sessão admin; imagem release; 3 sensores ativos (DS18B20, DHT22, BMP280); período 24h; um sensor selecionado; 20 dias de histórico sintético (tools/gen_synth_history.py); seção de eventos ainda não carregada"}
 A página Histórico e Logs: à esquerda, o seletor de sensores e o calendário; à direita, os mínimos e máximos, o gráfico e os controles de período; embaixo, os eventos do sistema.
 :::
 
@@ -163,7 +163,7 @@ O **Calendário** (*Monthly Calendar*) mostra um mês. As setas ao lado do nome 
 - Toque num dia destacado para ver aquele dia inteiro, da 0h às 24h, em 24h.
 - Um dia destacado pode ter só parte das horas: o destaque diz que o arquivo existe, não que o dia está completo.
 
-::: {.figura #fig-15-calendario tipo="web" arquivo="15-calendario.png" captura="rota /history; largura 1280; sessão admin; mês de setembro de 2026 com os dias 1 a 23 destacados; dia 22 selecionado; recorte do calendário"}
+::: {.figura #fig-15-calendario tipo="web" arquivo="15-calendario.png" captura="rota /history; largura 1280; sessão admin; histórico sintético (tools/gen_synth_history.py) em pelo menos 20 dias do mês da captura; um dia com dados selecionado; recorte do calendário"}
 O calendário com os dias que têm dados destacados. O dia tocado fica selecionado, e o gráfico mostra as 24 horas dele.
 :::
 
@@ -194,7 +194,7 @@ O gráfico desenha no máximo um ponto por pixel de largura. Para isso, divide a
 
 Assim, um pico de um minuto num gráfico de um mês continua visível na faixa. O registro mais recente é sempre desenhado com a própria hora.
 
-::: {.figura #fig-15-baldes tipo="web" arquivo="15-baldes.png" captura="rota /history; largura 1280; sessão admin; um sensor DS18B20 de geladeira; período 7d; faixa mínimo-máximo visível em torno da linha média, com os ciclos de degelo; tooltip mostrando o valor e a faixa entre colchetes"}
+::: {.figura #fig-15-baldes tipo="web" arquivo="15-baldes.png" captura="rota /history; largura 1280; sessão admin; um sensor DS18B20 com histórico sintético de geladeira (tools/gen_synth_history.py); período 7d; faixa mínimo-máximo visível em torno da linha média, com os ciclos de degelo; tooltip mostrando o valor e a faixa entre colchetes"}
 Uma semana em baldes: a linha é a média de cada balde, e a faixa sombreada vai do mínimo ao máximo. O pico do degelo aparece mesmo resumido.
 :::
 
@@ -216,7 +216,7 @@ Mensagens no lugar do gráfico:
 | **Erro.** | A página não conseguiu ler o estado do aparelho antes de começar. Recarregue a página |
 | **Conexão perdida.** | A carga falhou no meio. Confira a rede e toque de novo no período |
 
-::: {.figura #fig-15-carregando tipo="web" arquivo="15-carregando.png" captura="rota /history; largura 1280; sessão admin; período MAX com 60 dias no aparelho; carga em andamento na metade, barra mostrando Arquivos: 31/60 e os KB recebidos, botão Cancelar visível"}
+::: {.figura #fig-15-carregando tipo="web" arquivo="15-carregando.png" captura="rota /history; largura 1280; sessão admin; período MAX com 60 dias de histórico sintético no aparelho; carga em andamento na metade, barra mostrando Arquivos: 31/60 e os KB recebidos, botão Cancelar visível"}
 A carga de um período longo: a barra conta os arquivos baixados, e Cancelar deixa na tela a parte mais recente.
 :::
 
@@ -240,10 +240,10 @@ A página mostra as horas no fuso do computador, e o aparelho nomeia os arquivos
 
 ### No celular {#cap-15-celular}
 
-Na largura de um celular, os dois cartões ficam um sobre o outro: primeiro o seletor e o calendário, depois o gráfico. Toque no gráfico para ler um ponto. O toque não impede a rolagem da página.
+Na largura de um celular, os dois cartões ficam um sobre o outro: primeiro o gráfico, depois o seletor e o calendário. Toque no gráfico para ler um ponto. O toque não impede a rolagem da página.
 
-::: {.figura #fig-15-celular tipo="web" arquivo="15-celular.png" captura="rota /history; largura 390; sessão admin; um sensor; período 24h; tooltip aberto por toque"}
-A página no celular, com o gráfico abaixo do calendário e a leitura de um ponto aberta pelo toque.
+::: {.figura #fig-15-celular tipo="web" arquivo="15-celular.png" captura="rota /history; largura 390; sessão admin; um sensor; período 24h; janela começando no título do gráfico; tooltip aberto por toque"}
+A página no celular, com o gráfico acima do seletor e do calendário e a leitura de um ponto aberta pelo toque.
 :::
 
 ## Exportar o histórico em CSV {#cap-15-csv}

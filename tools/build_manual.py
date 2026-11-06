@@ -140,6 +140,22 @@ def data_uri(path: str, mime: str) -> str:
         return f"data:{mime};base64," + base64.b64encode(f.read()).decode("ascii")
 
 
+# A phone figure is captured at 390 px and DPR 2, so its PNG is twice the width the
+# phone shows. Stretched to the text column like a desktop page, it came out 848 x 1902
+# px for a 390 x 844 screen (13-trocar-senha, measured on 2026-11-06). Its captura=
+# says "largura 390", and the frame then takes half the PNG's width: the phone's own.
+PHONE_RE = re.compile(r"\blargura 390\b")
+
+
+def png_width(path: str) -> int:
+    """The width in a PNG's IHDR (bytes 16-19, big-endian), without an image library."""
+    with open(path, "rb") as f:
+        head = f.read(24)
+    if head[:8] != b"\x89PNG\r\n\x1a\n":
+        raise SystemExit(f"build_manual: {path} is not a PNG")
+    return int.from_bytes(head[16:20], "big")
+
+
 def mime_of(name: str) -> str:
     ext = name.rsplit(".", 1)[-1].lower()
     return {"png": "image/png", "jpg": "image/jpeg", "jpeg": "image/jpeg",
@@ -208,7 +224,10 @@ def render_figures(frag: str, chapter_label: str, chapter_title: str, figures: l
         elif have:
             img = f'<img src="{data_uri(path, mime_of(name))}" alt="{html.escape(re.sub(r"<[^>]+>", "", caption))}" loading="lazy">'
             if kind == "web":
-                inner = f'<div class="moldura-web"><div class="barra"><span></span><span></span><span></span></div>{img}</div>'
+                phone = PHONE_RE.search(how) and name.endswith(".png")
+                frame = (f'<div class="moldura-web moldura-celular" style="max-width:{png_width(path) // 2 + 2}px">'
+                         if phone else '<div class="moldura-web">')
+                inner = f'{frame}<div class="barra"><span></span><span></span><span></span></div>{img}</div>'
             else:
                 inner = f'<div class="moldura moldura-{kind}">{img}</div>'
         else:

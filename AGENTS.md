@@ -18,7 +18,9 @@ deste manual antes do primeiro estilo ou da primeira frase.** Parte das regras
 ## 1. A bancada
 
 Desde 22/10/2026, um Pico 2 W (o **alvo**, que roda o SIMUT, com o painel TFT
-e três sensores: DS18B20 no GP0, DHT22 no GP3 e no GP10) e um Pico comum (a
+e os sensores da protoboard: DS18B20 no GP0 e no GP1, DHT22 no GP3 e no GP10, e
+um BMP280 no I²C, com SDA no GP4 e SCL no GP5; o segundo DS18B20 e o BMP280
+entraram em 05/11/2026, pela palavra do mantenedor) e um Pico comum (a
 **PicoHand**, ou "mão") que aciona as linhas RESET (GP0) e BOOTSEL (GP1) do alvo
 por comando serial, mede a sonda e finge o carregador. De 12/10 a 22/10 a
 bancada foi outra: o alvo era um Pico W (o SIMUT Wire, com a rede no módulo

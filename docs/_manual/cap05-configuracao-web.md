@@ -302,7 +302,7 @@ A seção **Sensores e GPIO** (*Sensors & GPIO*) configura os 16 slots de sensor
 
 Alterações de slot e de calibração só se gravam com **Salvar e reiniciar**. Com os 16 slots em uso, a página diz **Os 16 slots estão em uso. Libere um para adicionar outro.**
 
-::: {.figura #fig-05-sensores tipo="web" arquivo="05-sensores.png" captura="rota /config; largura 1280; sessão admin; dois slots configurados (um DS18B20 e um BME280); seção Sensores e GPIO com o mapa de GPIOs e a tabela de slots; editor fechado"}
+::: {.figura #fig-05-sensores tipo="web" arquivo="05-sensores.png" captura="rota /config; largura 1280; sessão admin; dois slots configurados (o DS18B20 do GP0 e o BMP280 do GP4/GP5); seção Sensores e GPIO com o mapa de GPIOs e a tabela de slots; editor fechado"}
 A seção Sensores e GPIO, com o mapa de GPIOs e a tabela de slots. O editor de slot está no capítulo 6.
 :::
 
