@@ -41,7 +41,7 @@ nesta pasta com o nome indicado e rode o script de novo.
 
 - [ ] `04-fluxo.png` (Diagrama) — fluxograma do primeiro boot: 'liga com o console USB aberto' → 'anota a senha do admin' → na release, 'o painel pergunta a data e a hora: SALVAR ou PULAR'; depois dois ramos: release e alpha 'ap no console (na release, também o item 12 do menu) → AP simut_SETUP → 192.168.4.1 → troca de senha → Rede → Salvar e reiniciar'; Air 'console: enable, configure terminal, system ssid, system pass, reload confirm'; os ramos se juntam em 'aparelho na rede' → 'pacote de idioma e reinício' → 'fuso e hora' → 'primeiro sensor' → 'PIN do painel (release)' → 'pronto para usar'
       O primeiro boot em um só desenho: a senha, a hora, a rede, a web, o idioma, os sensores e o PIN.
-- [ ] `04-painel-data-hora.png` (Tela do painel) — release recém-gravada, sem rede configurada, logo depois do boot; tela Data e hora com as cinco colunas e as setas, a linha Sem Wi-Fi, os dados levam esta hora. em âmbar e os botões PULAR e SALVAR; sem rede, GET /api/screenshot não alcança o aparelho: use foto da tela, antes dos 30 s sem toque que levam o painel à tela inicial
+- [ ] `04-painel-data-hora.png` (Tela do painel) — imagem pico_w_test; screen clkboot abre a pergunta do fim do boot como o boot a abre: a tela Data e hora com as cinco colunas e as setas, a linha Sem Wi-Fi, os dados levam esta hora. em âmbar e os botões PULAR e SALVAR; GET /api/screenshot 6 s depois da tag, antes dos 30 s sem toque que levam o painel à tela inicial; conferir uma vez contra a foto do boot real de um aparelho sem rede configurada
       A pergunta do fim do boot num aparelho sem rede: a data e a hora do relógio provisório, prontas para acertar.
 - [ ] `04-painel-ap.png` (Tela do painel) — release recém-gravada, sem rede configurada; ponto de acesso aberto pelo menu (CFG, admin, PIN, item 8 Modo de Configuração, Confirmar) ou pelo comando ap no console USB; a caixa termina com simut_SETUP, PSK e a chave, Acesse no celular: 192.168.4.1 e AP Ativo! Reinicie a placa para sair.; capturar com GET /api/screenshot pelo próprio AP, com sessão admin depois da troca de senha; se a captura não funcionar no AP, use foto da tela; borre a chave antes de publicar
       O painel com o ponto de acesso aberto: a rede, a chave e o aviso de AP ativo ficam na tela.
@@ -194,15 +194,15 @@ nesta pasta com o nome indicado e rode o script de novo.
       O alinhamento da tela, com as quatro setas, o quadrado de zerar e os valores X e Y.
 - [ ] `11-mensagem-ok.png` (Tela do painel) — menu > Alterar Senha; digite duas vezes um PIN novo e válido, com ENTRAR
       Uma mensagem de sucesso: PIN salvo! e ENTENDI.
-- [ ] `11-boot.png` (Foto) — boot com rede configurada e alcançável; capture durante Aguardando roteador; a captura por GET /api/screenshot não alcança o boot, então use foto da tela
+- [ ] `11-boot.png` (Tela do painel) — imagem pico_w_test, depois de um boot com a rede configurada e o roteador fora do ar, para o boot esperar por ele; screen boot lista as chamadas que o boot fez; screen boot W, com W o índice da linha Aguardando roteador; GET /api/screenshot 6 s depois; conferir uma vez contra a foto do boot real no mesmo passo
       A tela de boot com as últimas etapas e o botão PULAR.
-- [ ] `11-boot-gesto.png` (Foto) — boot; linha Mantenha a tela pressionada: Modo AP... no fim da caixa; foto da tela
+- [ ] `11-boot-gesto.png` (Tela do painel) — imagem pico_w_test; screen boot H, com H o índice da linha Mantenha a tela pressionada: Modo AP... na lista de screen boot; GET /api/screenshot 6 s depois
       O convite do gesto do AP no boot.
-- [ ] `11-boot-progresso.png` (Foto) — boot; dedo mantido na tela há cerca de 1,5 s dentro da janela; foto da tela
+- [ ] `11-boot-progresso.png` (Tela do painel) — imagem pico_w_test; screen boot H 50: a linha do gesto com a barra pela metade, como depois de 1,5 s de dedo; GET /api/screenshot 6 s depois
       O gesto em curso: Modo de Configuração e a barra enchendo.
-- [ ] `11-boot-cancelado.png` (Foto) — boot; dedo levantado antes de a barra encher; foto da tela
+- [ ] `11-boot-cancelado.png` (Tela do painel) — imagem pico_w_test; screen boot H cancel: as duas chamadas que o boot faz quando o dedo sai antes de a barra encher; GET /api/screenshot 6 s depois
       O gesto cancelado: Modo AP Cancelado.
-- [ ] `11-boot-ap.png` (Foto) — boot pelo gesto completo; caixa com o nome da rede, PSK e AP Ativo!; foto da tela; a chave da foto deve ser borrada antes de publicar
+- [ ] `11-boot-ap.png` (Tela do painel) — boot pelo gesto completo, com o dedo; a caixa com o nome da rede, PSK e AP Ativo! fica no vidro depois do boot; GET /api/screenshot pelo próprio AP, com o adaptador Wi-Fi USB do PC na rede do aparelho e a rota padrão mantida no cabo; borrar a chave antes de publicar
       O boot no AP: o nome da rede, a chave e AP Ativo!.
 
 ## Capítulo 13 — A interface web no dia a dia
