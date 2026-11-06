@@ -88,10 +88,10 @@ FIGURAS = (
            'src/simut_config.h, o pull-down e o GP16 alto no boot de src/AppManager_Boot.cpp, e o resto é o texto do capítulo'),
     Figura('fig-02-ds18b20', '02-ds18b20.svg', 'cap02-hardware.md', 'desenho_ds18b20',
            'ligação de uma sonda DS18B20 de três fios ao Pico W, com o resistor de 4,7 kΩ entre o dado e o 3V3; os pinos físicos são os do datasheet do Pico W, '
-           'o GP2 é um exemplo e vale qualquer pino de slot (o limite vem de src/simut_config.h)'),
+           'o GP2 é um exemplo e vale qualquer GPIO de sensor (os limites vêm de MAX_SENSORS, em src/simut_config.h)'),
     Figura('fig-02-dht22', '02-dht22.svg', 'cap02-hardware.md', 'desenho_dht22',
            'ligação de um módulo DHT22 de três terminais ao Pico W, com a nota do pull-up; os pinos físicos são os do datasheet do Pico W, '
-           'o GP3 é um exemplo e vale qualquer pino de slot (o limite vem de src/simut_config.h)'),
+           'o GP3 é um exemplo e vale qualquer GPIO de sensor (os limites vêm de MAX_SENSORS, em src/simut_config.h)'),
     Figura('fig-02-bmx280', '02-bmx280.svg', 'cap02-hardware.md', 'desenho_bmx280',
            'ligação de um módulo BME280 de seis pinos ao Pico W, no par de pinos que a busca de sondas tenta (src/sensors/BME280SensorDriver.h), '
            'com o endereço do driver (src/sensors/BME280Driver.h) e os pinos físicos do datasheet do Pico W'),
@@ -191,9 +191,9 @@ PINAGEM = {1: 'GP0', 2: 'GP1', 3: 'GND', 4: 'GP2', 5: 'GP3', 6: 'GP4', 7: 'GP5',
            38: 'GND', 39: 'VSYS', 40: 'VBUS'}
 PINO_DO_GPIO = {int(nome[2:]): pino for pino, nome in PINAGEM.items() if nome.startswith('GP')}
 EXTERNOS = tuple(sorted(g for g in PINO_DO_GPIO if g >= 16))     # the GPIOs beyond GP15 that reach the edge: GP16 to GP22 and GP26 to GP28
-PINO_3V3, PINO_VBUS, PINO_GND = 36, 40, 38                       # the pins the wiring figures name; 38 is one of the seven GND pins and sits beside 3V3
-RESISTOR = '4,7 kΩ'                  # chapter 2 (lines 164, 166, 181, 267) and the DS18B20's and the I2C's usual pull-up; the firmware does not know the resistor
-EXEMPLO_DS18B20, EXEMPLO_DHT22 = 2, 3   # the example GPIOs of DIAGRAMAS_ESPEC.md: any slot pin would do
+PINO_3V3, PINO_GND = 36, 38          # the pins the wiring figures name: 3V3 (OUT), and one of the seven GND pins, on the same row of the board
+RESISTOR = '4,7 kΩ'                  # chapter 2 (lines 164, 166, 181 and 267) gives it for the DS18B20's data line and the I2C's two; the firmware does not know the resistor
+EXEMPLO_DS18B20, EXEMPLO_DHT22 = 2, 3   # the example GPIOs of the wiring figures, those chapter 6 shows (cap06-sensores.md:59, a DS18B20 on GP2 and a DHT22 on GP3): any sensor GPIO would do
 
 IMAGEM_DO_PERFIL = {'release': 'pico_w_release', 'alpha': 'pico_w_alpha', 'air': 'pico_w_air'}
 
@@ -220,9 +220,9 @@ class Numeros:
         return self.macro('MAX_SENSORS', imagem)
 
     def exemplo(self, gpio):
-        """`gpio`, an example pin of a wiring figure, once it is known to be a pin a sensor slot takes."""
+        """`gpio`, an example pin of a wiring figure, once it is known to be a sensor GPIO (GP0 to GP(MAX_SENSORS - 1))."""
         if gpio >= self.slots():
-            raise Falta(f'{CONFIG}: MAX_SENSORS is {self.slots()}, so GP{gpio} is not a sensor slot pin any more, and a figure uses it as the example of one')
+            raise Falta(f'{CONFIG}: MAX_SENSORS is {self.slots()}, so GP{gpio} is not a sensor GPIO any more, and a figure uses it as the example of one')
         return gpio
 
     def spi0(self):
@@ -455,6 +455,13 @@ def terminal(s, y, pico, modulo, papel=None, fio='dg-fio', ate=464, mono=True):
     s.no(ate, y, ponto)
 
 
+def nota_do_dado(num, gpio):
+    """The note under a one-wire figure: the data wire goes on any sensor GPIO, GP0 to GP(MAX_SENSORS - 1) (the chapter's word is sensor, a slot being a place in the configuration,
+    not a pin: cap06-sensores.md:86), `gpio` is only the example, and the ground on any ground pin."""
+    return [('', 'O dado liga num GPIO de sensor ('), ('dg-m', 'GP0'), ('', ' a '), ('dg-m', f'GP{num.slots() - 1}'), ('', '; o '), ('dg-m', f'GP{gpio}'),
+            ('', ' é um exemplo) e o GND, em qualquer pino de terra.')]
+
+
 def desenho_ds18b20(num, slug):
     gpio = num.exemplo(EXEMPLO_DS18B20)
     a, b, c = 72, 120, 168
@@ -471,7 +478,7 @@ def desenho_ds18b20(num, slug):
     s.no(x, a, 'dg-no-acento')
     s.no(x, b, 'dg-no-acento')
     s.texto(x + 20, a + 28, RESISTOR, 'dg-t')
-    s.texto(24, 232, f'O dado liga num GPIO de slot (o GP{gpio} é um exemplo) e o GND, em qualquer pino de terra.', 'dg-n dg-c2')
+    s.texto(24, 232, nota_do_dado(num, gpio), 'dg-n dg-c2')
     return s.render()
 
 
@@ -484,7 +491,7 @@ def desenho_dht22(num, slug):
     terminal(s, b, gp_e_pino(gpio), 'dados', mono=False)
     terminal(s, c, [('dg-m', 'GND'), ('', f' · pino {PINO_GND}')], '−', 'terra', mono=False)
     s.texto(232, b + 28, 'pull-up conforme o módulo', 'dg-n dg-c2')
-    s.texto(24, 232, f'O dado liga num GPIO de slot (o GP{gpio} é um exemplo) e o GND, em qualquer pino de terra.', 'dg-n dg-c2')
+    s.texto(24, 232, nota_do_dado(num, gpio), 'dg-n dg-c2')
     return s.render()
 
 

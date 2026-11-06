@@ -22,5 +22,5 @@
 <circle class="dg-no" cx="216" cy="168" r="4"/>
 <circle class="dg-no" cx="464" cy="168" r="4"/>
 <text class="dg-n dg-c2" x="232" y="148">pull-up conforme o módulo</text>
-<text class="dg-n dg-c2" x="24" y="232">O dado liga num GPIO de slot (o GP3 é um exemplo) e o GND, em qualquer pino de terra.</text>
+<text class="dg-n dg-c2" x="24" y="232">O dado liga num GPIO de sensor (<tspan class="dg-m">GP0</tspan> a <tspan class="dg-m">GP15</tspan>; o <tspan class="dg-m">GP3</tspan> é um exemplo) e o GND, em qualquer pino de terra.</text>
 </svg>

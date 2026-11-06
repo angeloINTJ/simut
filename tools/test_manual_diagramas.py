@@ -138,11 +138,10 @@ def main():
     nomes = [f.arquivo for f in m.FIGURAS]
 
     def precisa(*arquivos):
-        """True when every diagram a control is about has its row (the table grows a few diagrams at a time); else the control is reported as skipped."""
+        """True when every diagram a control is about has its row. A control about a diagram the table no longer draws is a FAIL, not a skip: a skipped control would
+        let the removal of a row pass for a clean tree (the controls were skipped, and said so, only while the table grew a few diagrams at a time, 2026-11-06)."""
         faltam = [a for a in arquivos if a not in nomes]
-        if faltam:
-            PULADOS.append(', '.join(faltam))
-            print(f'skip a control about {", ".join(faltam)}: no row of FIGURAS yet')
+        confere(not faltam, f'a control is about {", ".join(faltam)}, which has no row of FIGURAS')
         return not faltam
 
     with tempfile.TemporaryDirectory(prefix='manual_diagramas_ctl_') as tmp:
@@ -336,7 +335,8 @@ def main():
                 ('HD44780_D7 21 -> 28, the alpha\'s last data line', [(CONFIG, '#define HD44780_D7 21', '#define HD44780_D7 28', 1)], {'02-pinos-alpha.svg'}),
                 ('AIR_CHARGER_PIN 17 -> 21', [(CONFIG, '#define AIR_CHARGER_PIN 17', '#define AIR_CHARGER_PIN 21', 1)], {'02-pinos-air.svg', '02-air-energia.svg'}),
                 ('AIR_SENSOR_POWER_PIN 16 -> 21', [(CONFIG, '#define AIR_SENSOR_POWER_PIN 16', '#define AIR_SENSOR_POWER_PIN 21', 1)], {'02-pinos-air.svg', '02-air-energia.svg'}),
-                ('MAX_SENSORS 16 -> 11 (the LAN build\'s slots)', [(CONFIG, '#define MAX_SENSORS 16 ', '#define MAX_SENSORS 11 ', 1)], set(mapas)),
+                ('MAX_SENSORS 16 -> 11 (the LAN build\'s slots): the three maps and the two figures whose note names the range, not the BME280\'s',
+                 [(CONFIG, '#define MAX_SENSORS 16 ', '#define MAX_SENSORS 11 ', 1)], set(mapas) | {'02-ds18b20.svg', '02-dht22.svg'}),
                 ('SPI0\'s MISO named GP21 in the TFT section', [(CONFIG, 'MOSI=GP19, MISO=GP16, SCK=GP18', 'MOSI=GP19, MISO=GP21, SCK=GP18', 1)], {'02-pinos-release.svg'}),
                 ('BUZZER_PIN 22 -> 21 with HD44780_D7 21 -> 28 (a buzzer on a pin both images leave free)',
                  [(CONFIG, '#define BUZZER_PIN 22', '#define BUZZER_PIN 21', 1), (CONFIG, '#define HD44780_D7 21', '#define HD44780_D7 28', 1)],

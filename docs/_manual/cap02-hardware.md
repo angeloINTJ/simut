@@ -182,7 +182,7 @@ Ponha um resistor de 4,7 kΩ entre o DQ e o 3V3.
 
 Ligue **uma sonda por GPIO**. O aparelho identifica a sonda pelo número de série gravado nela (a ROM) e lê esse número com um comando que só funciona com uma sonda no fio. Com a ROM gravada no slot, o aparelho percebe a troca de sonda ([capítulo 6](#cap-06-adotar)).
 
-::: {.figura #fig-02-ds18b20 tipo="diagrama" arquivo="02-ds18b20.svg" captura="desenhado pelo código (tools/manual_diagramas.py): ligação de uma sonda DS18B20 de três fios ao Pico W, com o resistor de 4,7 kΩ entre o dado e o 3V3; os pinos físicos são os do datasheet do Pico W, o GP2 é um exemplo e vale qualquer pino de slot (o limite vem de src/simut_config.h); refazer com python3 tools/manual_diagramas.py --write"}
+::: {.figura #fig-02-ds18b20 tipo="diagrama" arquivo="02-ds18b20.svg" captura="desenhado pelo código (tools/manual_diagramas.py): ligação de uma sonda DS18B20 de três fios ao Pico W, com o resistor de 4,7 kΩ entre o dado e o 3V3; os pinos físicos são os do datasheet do Pico W, o GP2 é um exemplo e vale qualquer GPIO de sensor (os limites vêm de MAX_SENSORS, em src/simut_config.h); refazer com python3 tools/manual_diagramas.py --write"}
 Um DS18B20: três fios e um resistor de 4,7 kΩ entre o dado e o 3V3.
 :::
 
@@ -198,7 +198,7 @@ O DHT22 mede temperatura e umidade por um único fio de dados.
 
 Ligue **um DHT22 por GPIO**. O aparelho lê cada DHT22 a cada 2 s, o intervalo mínimo do sensor.
 
-::: {.figura #fig-02-dht22 tipo="diagrama" arquivo="02-dht22.svg" captura="desenhado pelo código (tools/manual_diagramas.py): ligação de um módulo DHT22 de três terminais ao Pico W, com a nota do pull-up; os pinos físicos são os do datasheet do Pico W, o GP3 é um exemplo e vale qualquer pino de slot (o limite vem de src/simut_config.h); refazer com python3 tools/manual_diagramas.py --write"}
+::: {.figura #fig-02-dht22 tipo="diagrama" arquivo="02-dht22.svg" captura="desenhado pelo código (tools/manual_diagramas.py): ligação de um módulo DHT22 de três terminais ao Pico W, com a nota do pull-up; os pinos físicos são os do datasheet do Pico W, o GP3 é um exemplo e vale qualquer GPIO de sensor (os limites vêm de MAX_SENSORS, em src/simut_config.h); refazer com python3 tools/manual_diagramas.py --write"}
 Um DHT22: alimentação, dados e terra.
 :::
 
