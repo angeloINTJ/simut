@@ -71,6 +71,8 @@ STORAGE_H = 'src/StorageManager.h'
 OTA_LAYOUT = 'src/ota/ota_layout.h'
 LOG_H = 'src/LogManager.h'
 DISPLAY_H = 'src/DisplayManager.h'
+NET_CYW43 = 'src/net/NetworkManager_Cyw43.cpp'
+NET_MGR_H = 'src/NetworkManager.h'
 BOOT = 'src/AppManager_Boot.cpp'
 
 
@@ -271,6 +273,14 @@ def main():
         confere(f'| Programa | {m.milhar(camadas["programa"])} KiB |' in cap01 and f'| Sistema de arquivos (LittleFS) | {m.milhar(camadas["sistema"])} KiB |' in cap01 and '**o Core 0**' in cap01 and '**o Core 1**' in cap01,
                 f'chapter 1 does not say what ota_layout.h gives: program {camadas["programa"]} KiB, file system {camadas["sistema"]} KiB',
                 'the flash numbers read from ota_layout.h (program and LittleFS) are the ones chapter 1\'s table gives')
+        # the reconnection ladder read from the network code, against the table of chapter 9
+        cap09 = (m.CAPITULOS / 'cap09-rede.md').read_text(encoding='utf-8')
+        escada = m.Numeros(fonte).escada()
+        linhas_do_capitulo = [f'| Queda da conexão (ponto de partida) | {escada["esperas"][0]} s |'] + [f'| {k}ª | {w} s |' for k, w in enumerate(escada['esperas'][1:], 1)] + \
+                             [f'| {len(escada["esperas"])}ª | Dormência: {escada["dormencia"] // 60} min |']
+        confere(all(l in cap09 for l in linhas_do_capitulo) and f'Uma tentativa de entrar na rede leva até {escada["tentativa"]} s' in cap09 and f'Cada busca tem {escada["busca"]} s de prazo' in cap09
+                and f'O aparelho cumpre {["", "uma", "duas", "três"][escada["dormentes"]]} dormências' in cap09,
+                f'chapter 9 does not say the ladder the code gives: {escada}', 'the ladder read from the network code (the waits, the dormancy, the 20 s attempt, the 15 s search, the three dormancies) is the table of chapter 9')
 
         # ---- the builder's guards --------------------------------------------------------------------------------------------------------------------------
         s = m.Svg('99-teste', 100)
@@ -472,6 +482,12 @@ def main():
                 ('the event log\'s file /system.blog -> /eventos.blog', [(LOG_H, '#define LOG_FILE_CURRENT "/system.blog"', '#define LOG_FILE_CURRENT "/eventos.blog"', 1)], {'01-arquitetura.svg'}),
                 ('the Air loses the Bluetooth (-DSIMUT_BLUETOOTH=1 out of its profile)', [(PERFIS, '    -DSIMUT_MDNS=0\n    -DSIMUT_BLUETOOTH=1\n    -DPIO_FRAMEWORK_ARDUINO_ENABLE_BLUETOOTH\n    -DSIMUT_AIR=1\n',
                                                                                               '    -DSIMUT_MDNS=0\n    -DPIO_FRAMEWORK_ARDUINO_ENABLE_BLUETOOTH\n    -DSIMUT_AIR=1\n', 1)], {'01-arquitetura.svg'}),
+                ('the ladder\'s first wait 5 s -> 4 s', [(NET_DEFS, 'WIFI_RECONNECT_BASE_MS = 5000;', 'WIFI_RECONNECT_BASE_MS = 4000;', 1)], {'09-escada.svg'}),
+                ('the fast cycles before the dormancy 5 -> 4', [(NET_DEFS, 'WIFI_MAX_CONNECT_CYCLES = 5;', 'WIFI_MAX_CONNECT_CYCLES = 4;', 1)], {'09-escada.svg'}),
+                ('the dormancy\'s wait 10 min -> 5 min', [(NET_DEFS, 'WIFI_DORMANT_DELAY_MS = 600000;', 'WIFI_DORMANT_DELAY_MS = 300000;', 1)], {'09-escada.svg'}),
+                ('the dormant waits served before the restart 3 -> 2', [(NET_DEFS, 'WIFI_DORMANT_MAX_WAITS = 3;', 'WIFI_DORMANT_MAX_WAITS = 2;', 1)], {'09-escada.svg'}),
+                ('the attempt\'s deadline 20 s -> 10 s', [(NET_CYW43, 'else if (timeSince(_stateTimer, 20000)) {', 'else if (timeSince(_stateTimer, 10000)) {', 1)], {'09-escada.svg'}),
+                ('the search\'s deadline 15 s -> 10 s', [(NET_DEFS, 'WIFI_SCAN_TIMEOUT_MS = 15000;', 'WIFI_SCAN_TIMEOUT_MS = 10000;', 1)], {'09-escada.svg'}),
                 ('the BME280 probe pair (4, 5) -> (6, 7)', [(BME_SENSOR, 'probe(4, 5, BME280_ADDR_PRIMARY)', 'probe(6, 7, BME280_ADDR_PRIMARY)', 1)], {'02-bmx280.svg'}),
                 ('the BME280 addresses 0x76/0x77 -> 0x75/0x78 in the driver, code and comments', [(BME_DRIVER, '0x76', '0x75', None), (BME_DRIVER, '0x77', '0x78', None)], {'02-bmx280.svg'}),
             ]
@@ -547,6 +563,12 @@ def main():
             ('the restore has a fourth operation', [(WEB_OTA, 'restore (validate/apply/stage)', 'restore (validate/apply/stage/rollback)', 1)], 'restore', '27-ondas.svg'),
             ('the Air launches Core 1', [(DISPLAY_H, '#if SIMUT_AIR\n\tstatic constexpr bool kUsesCore1 = false;', '#if SIMUT_AIR\n\tstatic constexpr bool kUsesCore1 = true;', 1)], 'Core 1', '01-arquitetura.svg'),
             ('the file system in platformio.ini is no longer the one ota_layout.h says', [('platformio.ini', 'board_build.filesystem_size = 1m', 'board_build.filesystem_size = 2m', 1)], 'ota_layout.h', '01-arquitetura.svg'),
+            ('the wait no longer doubles', [(NET_CYW43, '_reconnectDelay = min(_reconnectDelay * 2, MAX_RECONNECT_DELAY);', '_reconnectDelay = _reconnectDelay;', 1)], 'doubles', '09-escada.svg'),
+            ('the ceiling of the wait drops below the largest wait of the ladder', [(NET_MGR_H, 'MAX_RECONNECT_DELAY = 120000;', 'MAX_RECONNECT_DELAY = 60000;', 1)], 'ceiling', '09-escada.svg'),
+            ('the ladder asks for the setup AP when it ends', [(NET_CYW43, ' resetReconnectLadder( );\n LOG_CODE(LOG_INFO, "NET", NET_DORMANT_MODE, 0,', ' resetReconnectLadder( );\n beginAP(_deviceName);\n LOG_CODE(LOG_INFO, "NET", NET_DORMANT_MODE, 0,', 1)],
+             'setup AP', '09-escada.svg'),
+            ('the restart no longer goes back to the first wait', [('src/NetworkManager.cpp', '_reconnectDelay = WIFI_RECONNECT_BASE_MS;', '_reconnectDelay = WIFI_DORMANT_DELAY_MS;', 1)], 'first wait', '09-escada.svg'),
+            ('a connection no longer resets the ladder', [(NET_CYW43, ' _connectCycles = 0; /* Success: reset cycle counter */\n resetReconnectLadder( );', ' _connectCycles = 0; /* Success: reset cycle counter */', 1)], 'resets the ladder', '09-escada.svg'),
             ('the discovery configs are no longer published retained', [(TELEMETRY, 'ok = _mqttClient.publish(topic, payload, true);', 'ok = _mqttClient.publish(topic, payload, false);', 1)],
              'retained', '23-fluxo.svg'),
             ('the online message is no longer published retained', [(TELEMETRY, 'onlinePayload.c_str( ), true);', 'onlinePayload.c_str( ), false);', 1)], 'retained', '23-fluxo.svg'),

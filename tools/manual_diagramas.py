@@ -76,6 +76,9 @@ STORAGE_H = 'src/StorageManager.h'
 OTA_LAYOUT = 'src/ota/ota_layout.h'
 LOG_H = 'src/LogManager.h'
 DISPLAY_H = 'src/DisplayManager.h'
+NET_CYW43 = 'src/net/NetworkManager_Cyw43.cpp'
+NET_MGR = 'src/NetworkManager.cpp'
+NET_MGR_H = 'src/NetworkManager.h'
 LOG_MANAGER = 'src/LogManager.cpp'
 NET_LINK = 'src/net/NetLink.h'
 
@@ -129,6 +132,11 @@ FIGURAS = (
            'fluxograma do primeiro boot, da senha do admin ao aparelho pronto, com os dois caminhos para pôr o aparelho na rede; o nome e o endereço do ponto de acesso, o número do '
            'item do menu (a posição de MENU_SETUP_AP em MENU_ORDER) e as palavras dos comandos vêm de src/StorageManager.cpp, src/net/NetworkManager_Cyw43.cpp, src/WebAddress.h, '
            'src/display/SettingsMenu.h, src/CommandParser.cpp e src/AppManager_Commands.cpp'),
+    Figura('fig-09-escada', '09-escada.svg', 'cap09-rede.md', 'desenho_escada',
+           'a escada de reconexão numa linha: a queda, cinco ciclos de espera e tentativa com a espera dobrando, as três esperas de dormência e o recomeço, até a rede voltar, sem abrir o AP de '
+           'configuração; a primeira espera, o teto, os ciclos, a dormência, o prazo da busca e da tentativa vêm de src/SystemDefs_Network.h, src/NetworkManager.h e '
+           'src/net/NetworkManager_Cyw43.cpp, e o que o desenho afirma da escada (dobra, dormência depois dos ciclos, recomeço, zera numa conexão, não pede o AP) é um trecho desses arquivos e de '
+           'src/NetworkManager.cpp que o código tem de manter'),
     Figura('fig-15-caminho', '15-caminho.svg', 'cap15-historico.md', 'desenho_caminho_historico',
            'o caminho de um registro: o bloco aberto na RAM, a cópia em .wip, a selagem no arquivo do dia e a fila de arquivos diários, com o limite de ocupação que apaga o mais antigo; '
            'os registros por bloco vêm de src/HistoryV5.h, o limite de src/StorageManager.cpp e os nomes de src/StorageManager.h e src/HistoryV5.h'),
@@ -713,6 +721,39 @@ class Numeros:
             raise Falta(f'{PERFIS}: the alpha does not write on the LCD alone (SIMUT_DISPLAY_ALPHA, SIMUT_DISPLAY_TFT), and the block diagram gives its Core 1 the LCD')
         self.integracao()
         return {'sensores': tipos, 'slots': self.slots('release'), 'pastas': pastas, 'log': log, 'bluetooth': [i for i in IMAGEM_DO_PERFIL if self.macro('SIMUT_BLUETOOTH', i) == 1]}
+
+
+    def escada(self):
+        """The reconnection ladder, in seconds, as the network code walks it: the first wait (WIFI_RECONNECT_BASE_MS), doubled after each failed attempt up to the ceiling (MAX_RECONNECT_DELAY),
+        for WIFI_MAX_CONNECT_CYCLES attempts; then WIFI_DORMANT_MAX_WAITS waits of WIFI_DORMANT_DELAY_MS before the ladder starts again at the first wait. An attempt has the deadline of the
+        connecting state (a literal in NetworkManager_Cyw43.cpp) and a search WIFI_SCAN_TIMEOUT_MS. Premises, refused when the code drifts: the wait doubles; the dormant waits follow the fast
+        cycles; the restart goes back to the first wait; a connection resets the ladder; the ladder never asks for the setup AP; and no wait of the fast cycles reaches the ceiling."""
+        f = self.f
+        base = int(f.achar(NET_DEFS, r'WIFI_RECONNECT_BASE_MS = (\d+);').group(1))
+        ciclos = int(f.achar(NET_DEFS, r'WIFI_MAX_CONNECT_CYCLES = (\d+);').group(1))
+        dormencia = int(f.achar(NET_DEFS, r'WIFI_DORMANT_DELAY_MS = (\d+);').group(1))
+        dormentes = int(f.achar(NET_DEFS, r'WIFI_DORMANT_MAX_WAITS = (\d+);').group(1))
+        busca = int(f.achar(NET_DEFS, r'WIFI_SCAN_TIMEOUT_MS = (\d+);').group(1))
+        teto = int(f.achar(NET_MGR_H, r'MAX_RECONNECT_DELAY = (\d+);').group(1))
+        inicio = f.achar(NET_CYW43, r'else if \(timeSince\(_stateTimer, (\d+)\)\) \{\s+WiFi\.disconnect\(false\);')
+        tentativa = int(inicio.group(1))
+        f.exigir(NET_CYW43, r'_reconnectDelay = min\(_reconnectDelay \* 2, MAX_RECONNECT_DELAY\);', 'the wait doubles after each failed attempt, up to the ceiling, which is what the figure of the ladder draws')
+        f.exigir(NET_CYW43, r'if \(_backoffCycles >= WIFI_MAX_CONNECT_CYCLES\) \{', 'the dormancy starts after the fast cycles, which is what the figure of the ladder draws')
+        f.exigir(NET_CYW43, r'_dormantWaits\+\+;\s+_reconnectDelay = WIFI_DORMANT_DELAY_MS;', 'each dormant wait is the dormancy\'s, as many as WIFI_DORMANT_MAX_WAITS says, which is what the figure of the ladder draws')
+        f.exigir(NET_CYW43, r'if \(_dormantWaits >= WIFI_DORMANT_MAX_WAITS\) \{[^}]*?resetReconnectLadder\( \);', 'after the dormant waits the ladder starts again, which is what the figure of the ladder draws')
+        f.exigir(NET_MGR, r'void NetworkManager::resetReconnectLadder\( \) \{\s+_reconnectDelay = WIFI_RECONNECT_BASE_MS;', 'the restart goes back to the first wait, which is what the figure of the ladder draws')
+        f.exigir(NET_CYW43, r'if \(WiFi\.status\( \) == WL_CONNECTED\) \{\s+_state = NET_CONNECTED_WAIT_IP;\s+_connectCycles = 0;[^}]*?resetReconnectLadder\( \);', 'a connection resets the ladder, which the figure of the ladder says')
+        texto = f.ler(NET_CYW43)
+        ramo = re.sub(r'/\*.*?\*/', '', texto[inicio.start():texto.find('_state = NET_DISCONNECT_PENDING;', inicio.end())], flags=re.S)
+        if re.search(r'\bbeginAP\s*\(', ramo):
+            raise Falta(f'{NET_CYW43}: the failed attempt\'s branch of the ladder calls beginAP( ), and the figure of the ladder says it never asks for the setup AP: the AP opens only when a person asks')
+        esperas, espera = [], base
+        for _ in range(ciclos):
+            esperas.append(espera)
+            espera = min(espera * 2, teto)
+        if max(esperas) >= teto:
+            raise Falta(f'{NET_MGR_H}: the ceiling of the wait ({teto // 1000} s) is reached by the ladder\'s waits {[e // 1000 for e in esperas]}, and the figure of the ladder says it is never reached')
+        return {'esperas': [e // 1000 for e in esperas], 'tentativa': tentativa // 1000, 'busca': busca // 1000, 'teto': teto // 1000, 'dormencia': dormencia // 1000, 'dormentes': dormentes}
 
 
 def pino_de(gpio):
@@ -1722,6 +1763,57 @@ def desenho_blocos(num, slug):
     bloco(s, 16, y_f + 28, 240, [('programa', 'dg-t dg-b'), (f'{milhar(fl["programa"])} KiB', 'dg-n'), ('o firmware, com a interface web inteira embutida', 'dg-n dg-c2')], 'dg-caixa', 6, altura=96)
     bloco(s, 264, y_f + 28, 240, [('LittleFS', 'dg-t dg-b'), (f'{milhar(fl["sistema"])} KiB', 'dg-n'), (' '.join(a['pastas'][:metade]), 'dg-n dg-m'), (' '.join(a['pastas'][metade:]), 'dg-n dg-m'),
                                   ([('', 'log de eventos '), ('dg-m', a['log'])], 'dg-n')], 'dg-caixa', 6, altura=96)
+    return s.render()
+
+
+def desenho_escada(num, slug):
+    e = num.escada()
+    s = Svg(slug)
+    escala = 1.6                                     # px a second, for the fast part: the waits double, so do their boxes
+    largura = lambda segundos: max(GRADE, round(segundos * escala / GRADE) * GRADE)
+    minutos = lambda segundos: f'{segundos // 60}\u00a0min' if segundos % 60 == 0 else f'{segundos}\u00a0s'
+    # the key: what the three kinds of box are
+    x = 16
+    for classe, texto in (('dg-caixa-acento', f'busca (até {e["busca"]}\u00a0s) e tentativa (até {e["tentativa"]}\u00a0s)'), ('dg-caixa-2', 'espera'), ('dg-caixa-apagada', f'espera de {minutos(e["dormencia"])}, fora de escala')):
+        s.caixa(x, 24, 16, 16, classe, 0)
+        s.texto(x + 24, 36, texto, 'dg-n')
+        x += 24 + largura_texto(texto, 12) + 16 + 4
+        x = (x + 3) // 4 * 4
+    # the line: the fall, then the fast cycles (a wait and an attempt each), then the dormant waits, each before an attempt
+    s.texto(16, 116, 'queda', 'dg-n')
+    s.seta([(52, 112), (64, 112)], 'dg-fio', 'dg-ponta')
+    x_inicio = x = 64
+    caixas = []
+    for k, espera in enumerate(e['esperas']):
+        w = largura(espera)
+        s.caixa(x, 96, w, 32, 'dg-caixa-2', 0)
+        s.texto((x + w // 2) // GRADE * GRADE, 88, f'{espera}\u00a0s', 'dg-n', 'middle')
+        caixas.append((x, w))
+        x += w
+        s.caixa(x, 96, largura(e['tentativa']), 32, 'dg-caixa-acento', 0)
+        x += largura(e['tentativa'])
+    x_rapido = x
+    for k in range(e['dormentes']):
+        s.caixa(x, 96, 40, 32, 'dg-caixa-apagada', 0)
+        s.texto(x + 20, 88, minutos(e['dormencia']), 'dg-n', 'middle')
+        x += 40
+        s.caixa(x, 96, largura(e['tentativa']), 32, 'dg-caixa-acento', 0)
+        x += largura(e['tentativa'])
+    x_fim = x
+    if x_fim > 688:
+        raise ValueError(f'{slug}: the line is {x_fim - x_inicio} px long and does not fit before the restart arrow')
+    # the two phases, bracketed under the line
+    for x1, x2, linhas in ((x_inicio, x_rapido, ['a espera dobra a cada falha', f'teto de {e["teto"]}\u00a0s, que a escada não atinge']),
+                           (x_rapido, x_fim, [f'dormência: {e["dormentes"]} esperas de {minutos(e["dormencia"])}', 'só depois da última tentativa rápida'])):
+        s.linha([(x1 + 4, 136), (x1 + 4, 144), (x2 - 4, 144), (x2 - 4, 136)], 'dg-fio-fino')
+        meio = (x1 + x2) // 8 * 4
+        s.texto(meio, 164, linhas[0], 'dg-n', 'middle')
+        s.texto(meio, 180, linhas[1], 'dg-n dg-c2', 'middle')
+    # the restart, back to the first wait, and what the ladder does not do
+    s.seta([(x_fim, 112), (x_fim + 16, 112), (x_fim + 16, 216), (68, 216), (68, 128)], 'dg-fio', 'dg-ponta')
+    s.texto(84, 208, f'recomeça na espera de {e["esperas"][0]}\u00a0s, e se repete até a rede voltar', 'dg-n')
+    s.texto(16, 248, 'A escada não abre o AP de configuração: ele só abre quando alguém pede.', 'dg-n dg-c2')
+    s.texto(16, 264, 'Uma conexão bem-sucedida, a qualquer momento, zera a escada.', 'dg-n dg-c2')
     return s.render()
 
 
