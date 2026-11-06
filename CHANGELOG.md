@@ -11,7 +11,7 @@ All notable changes to SIMUT firmware.
 ### The export box of the history page
 
 - **What was wrong.** `_showExpProgress( )` had three texts typed into the page: the title "Exporting..." (English), the button "Cancelar" (Portuguese) and the error counter "err". On either pack they stayed as typed.
-- **The fix.** The title is `window.t('exp_title', 'Exporting...')`, a new key that both packs carry ("Exportando..."); the button is `window.t('hist_cancel', 'Cancel')`, the key the page already had; the counter is `window.t('dash_metr_err', 'err')`, the key of the dashboard's sensor-error count ("erro", "error"). "OK" stays typed: it is the same word in the three languages.
+- **The fix.** The title is `window.t('exp_title', 'Exporting...')`, a new key that both packs carry ("Exportando..."); the button is `window.t('hist_cancel', 'Cancel')`, the key the page already had; the counter is `window.t('exp_failed', 'failed')`, a key of its own whose word is the same for 1 and for many ("failed", "com falha", "con fallo"): the first version reused the dashboard's `dash_metr_err` ("erro", "error"), a noun that wrote "2 erro" and "2 error" (found in the review of this branch). "OK" stays typed: it is the same word in the three languages.
 
 ### The link state of the Network page
 
@@ -32,9 +32,9 @@ All notable changes to SIMUT firmware.
 
 ### Tests
 
-- `tools/test_webui_pack_texts.py` is new, and CI runs it in the `gates` job: one check for each of the four texts, run under node, as written and as the build's minifier leaves it, in English and in each pack. The export box runs against a small DOM that records every text it shows; `loadNet( )` runs with `lang.js`'s own `t( )`, `escHtml( )`, `applyLang( )` and its dictionary fetch, in the orders the device can answer in; the melody options are read off the page and held to the packs and to the Ângulo's `@ANGULO` words, and `applyLang( )` runs against selects that record when they are synced; `sensScan( )` runs against the JSON that `ScanResultJson.h` writes, compiled with g++. Before the fixes the four checks found 6, 40, 45 and 36 points on the code of main; after, none, and its 17 mutants (`--mutations`) each fail exactly where they should.
-- Six new cases in the `native_sensors` suite (`test/test_sensors`): **13 to 19** there and **843 to 849** in the eleven suites, all passing. They pin the scan's JSON: a probe on a pin, a BMP280 and a BME280 on a pair, another pair, a ROM for a DS18B20 only, the whole document, and a buffer too small. Before the header existed the suite did not build; five mutants of the header each fail the cases they should.
-- The page generator's own gates, `check_lang_packs.py` (the packs grow by 711 B and 732 B, to 53,824 B and 55,877 B, 82% and 85% of the file ceiling), `check_ui_texts.py` and the neighbour web tests pass.
+- `tools/test_webui_pack_texts.py` is new, and CI runs it in the `gates` job: one check for each of the four texts, run under node, as written and as the build's minifier leaves it, in English and in each pack. The export box runs against a small DOM that records every text it shows; `loadNet( )` runs with `lang.js`'s own `t( )`, `escHtml( )`, `applyLang( )` and its dictionary fetch, in the orders the device can answer in; the melody options are read off the page and held to the packs and to the Ângulo's `@ANGULO` words, and `applyLang( )` runs against selects that record when they are synced; `sensScan( )` runs against the JSON that `ScanResultJson.h` writes, compiled with g++. Before the fixes the four checks found 14, 40, 45 and 36 points on the code of main; after, none, and its 19 mutants (`--mutations`) each fail exactly where they should.
+- Ten new cases in the `native_sensors` suite (`test/test_sensors`): **13 to 23** there and **843 to 853** in the eleven suites, all passing. Six pin the scan's JSON: a probe on a pin, a BMP280 and a BME280 on a pair, another pair, a ROM for a DS18B20 only, the whole document, and a buffer too small. Four run the real `BME280SensorDriver::scanFinalize( )` on the host, in a unit of their own (`bmx_scan_twin.cpp`, with stand-ins for the BMx280 probe and for `Wire`, the way `alpha_driver_twin.cpp` does for the LCD driver): the result carries the pair the probe was built on (GP4 and GP5), a BMP280 and a BME280 come out as the chip ID says, a probe that finds nothing reports nothing, and the whole answer through the formatter is what the page reads. The review of this branch found that the first six could not see the assignments that fix GP255, since they build the result by hand: deleting those assignments kept every case green. Now it fails 2 cases. Before the header existed the suite did not build; five mutants of the header and six of the driver each fail the cases they should, and the suite is clean under ASan and UBSan.
+- The page generator's own gates, `check_lang_packs.py` (the packs grow by 736 B and 757 B, to 53,849 B and 55,902 B, 82% and 85% of the file ceiling), `check_ui_texts.py` and the neighbour web tests pass.
 
 ### The manual
 
@@ -46,28 +46,28 @@ All notable changes to SIMUT firmware.
 
 ### Flash
 
-Against the records of `95a1d2ae` (the v2.14.0 merge on `main`; they equal, to the byte, the `.bin` of a build of that commit, read from another session's build of it), `firmware.bin` unsigned as `tools/flash_budget.json` records it, all eleven images built from zero in one `pio run` through the pio shim under the shared build lock, `-Werror` holding and no warning from `src/`.
-The linker's `used`, which the budget holds, moves by +192 to +568 B. The growth is the four fixes together (`lang.js`, four pages, the markup of 27 keys, `ScanResultJson.h`) and is not split by fix.
+Against the records of `95a1d2ae` (the v2.14.0 merge on `main`; they equal, to the byte, the `.bin` of a build of that commit, read from another session's build of it), `firmware.bin` unsigned as `tools/flash_budget.json` records it, all eleven images built from zero in one `pio run` through the pio shim under the shared build lock, `-Werror` holding and no warning from `src/`. They were built twice, at the fixes and again after the review's two commits; the numbers are the second build's, and seven images are 8 B smaller than in the first.
+The linker's `used`, which the budget holds, moves by +192 to +560 B. The growth is the four fixes together (`lang.js`, four pages, the markup of 27 keys, `ScanResultJson.h`) and is not split by fix.
 
 | Image | `used` before | after | Δ | `.bin` before | after | Δ |
 |---|---:|---:|---:|---:|---:|---:|
-| `pico_w_release` | 1,024,820 | 1,025,332 | +512 | 1,036,852 | 1,037,364 | +512 |
-| `pico_w_test` | 1,025,636 | 1,026,156 | +520 | 1,037,668 | 1,038,188 | +520 |
-| `pico_w_test_https` (no `.bin` record) | 1,029,972 | 1,030,396 | +424 | 1,042,004 | 1,042,428 | +424 |
-| `pico_w_asserts` | 1,027,116 | 1,027,628 | +512 | 1,039,148 | 1,039,660 | +512 |
+| `pico_w_release` | 1,024,820 | 1,025,324 | +504 | 1,036,852 | 1,037,356 | +504 |
+| `pico_w_test` | 1,025,636 | 1,026,148 | +512 | 1,037,668 | 1,038,180 | +512 |
+| `pico_w_test_https` (no `.bin` record) | 1,029,972 | 1,030,388 | +416 | 1,042,004 | 1,042,420 | +416 |
+| `pico_w_asserts` | 1,027,116 | 1,027,620 | +504 | 1,039,148 | 1,039,652 | +504 |
 | `pico_w_alpha` | 981,916 | 982,108 | +192 | 994,476 | 994,476 | 0 |
 | `pico_w_air` | 1,019,880 | 1,020,072 | +192 | 1,035,340 | 1,035,340 | 0 |
 | `pico2_w_release` | 1,038,664 | 1,039,184 | +520 | 1,038,688 | 1,039,208 | +520 |
-| `pico_wire` | 597,204 | 597,772 | +568 | 609,240 | 609,808 | +568 |
-| `pico_wiretft` | 776,156 | 776,676 | +520 | 788,192 | 788,712 | +520 |
+| `pico_wire` | 597,204 | 597,764 | +560 | 609,240 | 609,800 | +560 |
+| `pico_wiretft` | 776,156 | 776,668 | +512 | 788,192 | 788,704 | +512 |
 | `pico_wiretft_angulo` | 817,132 | 817,652 | +520 | 829,168 | 829,688 | +520 |
-| `pico2_w_original` | 1,000,784 | 1,001,304 | +520 | 1,000,808 | 1,001,328 | +520 |
+| `pico2_w_original` | 1,000,784 | 1,001,296 | +512 | 1,000,808 | 1,001,320 | +512 |
 
 The `.bin` of `pico_w_alpha` and `pico_w_air` are equal: their alignment absorbs the 192 B. `pico_w_test_https` has no `.bin` record (exempt from the over-the-air ceiling); its `.bin` is read from the build of the base (before) and from this one (after).
 
-Slack under the 1,040,384 B over-the-air ceiling, for the signed image: release 2,779 (3,291 in v2.14.0), `pico_w_test` 1,955 (2,475), `pico_w_asserts` 483 (995).
-The gate warns for all three, as it did, because each is under one flash sector, and fails nothing. The Pico 2 W's slot is 1,568,768 B, with 529,319 B left on the Ângulo image (529,839) and 567,199 on the original (567,719).
-The packs grow by 711 B (`language_pt-BR.lng`, 53,824 B, 82% of the file ceiling) and 732 B (`language_es-ES.lng`, 55,877 B, 85%): 27 new `@WEBDICT` keys, and two pt-BR words that got shorter. They are files on the device, not part of the image.
+Slack under the 1,040,384 B over-the-air ceiling, for the signed image: release 2,787 (3,291 in v2.14.0), `pico_w_test` 1,963 (2,475), `pico_w_asserts` 491 (995).
+The gate warns for all three, as it did, because each is under one flash sector, and fails nothing. The Pico 2 W's slot is 1,568,768 B, with 529,319 B left on the Ângulo image (529,839) and 567,207 on the original (567,719).
+The packs grow by 736 B (`language_pt-BR.lng`, 53,849 B, 82% of the file ceiling) and 757 B (`language_es-ES.lng`, 55,902 B, 85%): 28 new `@WEBDICT` keys (`exp_title`, `exp_failed` and the 26 `alm_mel_*`), and two pt-BR words that got shorter. They are files on the device, not part of the image.
 
 ## v2.14.0 (2026-11-05)
 
