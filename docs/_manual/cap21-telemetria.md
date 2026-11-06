@@ -14,7 +14,7 @@ Três ideias explicam todo o comportamento:
 
 A telemetria vem desligada de fábrica.
 
-::: {.figura #fig-21-cursor tipo="diagrama" arquivo="21-cursor.png" captura="Fila horizontal com os registros do histórico como pequenos quadrados, na ordem em que foram gravados. Uma marca vertical 'cursor' separa os registros já confirmados (cinza, à esquerda) dos pendentes (coloridos, à direita). Um colchete agrupa os primeiros pendentes como 'lote (até o Lote máximo)'. Uma seta leva o lote ao 'coletor'; a volta '2xx' move o cursor para o fim do lote; uma volta alternativa 'falha' deixa o cursor parado e aponta para 'espera e reenvia'. À direita, o bloco da hora aberta, ainda na RAM, também entra no lote."}
+::: {.figura #fig-21-cursor tipo="diagrama" arquivo="21-cursor.svg" captura="desenhado pelo código (tools/manual_diagramas.py): a fila de registros do histórico com o cursor entre os confirmados e os pendentes, o lote, o coletor, a confirmação 2xx que move o cursor e a falha que o deixa parado; a faixa de códigos que confirma vem de src/TelemetryManager.cpp e a espera depois de uma falha de BACKOFF_MIN_MS e BACKOFF_MAX_MS em src/TelemetryManager.h; refazer com python3 tools/manual_diagramas.py --write"}
 Legenda: o cursor separa o que o coletor já confirmou do que ainda falta. Só uma confirmação o move.
 :::
 

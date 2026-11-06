@@ -484,6 +484,11 @@ svg.dg .dg-fio{stroke:var(--tinta-2);stroke-width:2}
 svg.dg .dg-fio-acento{stroke:var(--acento);stroke-width:2}
 svg.dg .dg-fio-fino{stroke:var(--linha-forte);stroke-width:1;vector-effect:non-scaling-stroke}
 svg.dg .dg-fio-tracejado{stroke:var(--tinta-2);stroke-width:2;stroke-dasharray:6 4}
+svg.dg .dg-fio-ok,svg.dg .dg-fio-perigo{fill:none;stroke-linejoin:round;stroke-width:2}
+svg.dg .dg-fio-ok{stroke:var(--positivo)}
+svg.dg .dg-fio-perigo{stroke:var(--perigo)}
+svg.dg .dg-ponta-ok{fill:var(--positivo)}
+svg.dg .dg-ponta-perigo{fill:var(--perigo)}
 svg.dg .dg-no{fill:var(--tinta-2)}
 svg.dg .dg-no-acento{fill:var(--acento)}
 svg.dg .dg-ponta{fill:var(--tinta-2)}

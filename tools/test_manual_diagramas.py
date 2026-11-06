@@ -360,6 +360,9 @@ def main():
                 ('the records a block holds 60 -> 120 in HistoryV5.h', [('src/HistoryV5.h', '#define H5_BLOCK_MAX_RECORDS    60 ', '#define H5_BLOCK_MAX_RECORDS    120', 1)], {'15-caminho.svg'}),
                 ('the cleanup\'s limit 86 -> 90 percent in StorageManager.cpp', [('src/StorageManager.cpp', '/ info.totalBytes) <= 86) return;', '/ info.totalBytes) <= 90) return;', 1)], {'15-caminho.svg'}),
                 ('the history\'s extension .h5 -> .h6', [('src/HistoryV5.h', '#define HISTORY_FILE_EXT        ".h5"', '#define HISTORY_FILE_EXT        ".h6"', 1)], {'15-caminho.svg'}),
+                ('the telemetry\'s confirming class 2xx -> 3xx', [('src/TelemetryManager.cpp', 'code >= 200 && code < 300', 'code >= 300 && code < 400', None)], {'21-cursor.svg'}),
+                ('the wait after a failure, 5 s -> 7 s', [('src/TelemetryManager.h', 'BACKOFF_MIN_MS = 5000;', 'BACKOFF_MIN_MS = 7000;', 1)], {'21-cursor.svg'}),
+                ('the wait\'s ceiling, 300 s -> 600 s', [('src/TelemetryManager.h', 'BACKOFF_MAX_MS = 300000;', 'BACKOFF_MAX_MS = 600000;', 1)], {'21-cursor.svg'}),
                 ('the BME280 probe pair (4, 5) -> (6, 7)', [(BME_SENSOR, 'probe(4, 5, BME280_ADDR_PRIMARY)', 'probe(6, 7, BME280_ADDR_PRIMARY)', 1)], {'02-bmx280.svg'}),
                 ('the BME280 addresses 0x76/0x77 -> 0x75/0x78 in the driver, code and comments', [(BME_DRIVER, '0x76', '0x75', None), (BME_DRIVER, '0x77', '0x78', None)], {'02-bmx280.svg'}),
             ]
@@ -407,6 +410,7 @@ def main():
                                                                                                          '    -DSIMUT_CLI_FULL=0\n    -DSIMUT_MDNS=0\n    -DSIMUT_BLUETOOTH=1', 1)], 'HD44780_MODE_PARALLEL', '02-pinos-alpha.svg'),
             ('AIR_CHARGER_ACTIVE_HIGH 1 -> 0 (the figure draws a divider off 5 V)', [(CONFIG, '#define AIR_CHARGER_ACTIVE_HIGH 1', '#define AIR_CHARGER_ACTIVE_HIGH 0', 1)], 'AIR_CHARGER_ACTIVE_HIGH', '02-air-energia.svg'),
             ('the Air no longer builds with -DSIMUT_AIR=1', [(PERFIS, '    -DSIMUT_AIR=1\n', '', 1)], 'SIMUT_AIR', '02-pinos-air.svg'),
+            ('the telemetry confirms 200 to 399, no longer one class', [('src/TelemetryManager.cpp', 'code >= 200 && code < 300', 'code >= 200 && code < 400', None)], '2xx', '21-cursor.svg'),
         ]
         for k, (descr, edicoes, agulha, figura) in enumerate(recusas):
             if not precisa(figura):

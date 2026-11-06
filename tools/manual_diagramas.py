@@ -109,6 +109,9 @@ FIGURAS = (
     Figura('fig-15-caminho', '15-caminho.svg', 'cap15-historico.md', 'desenho_caminho_historico',
            'o caminho de um registro: o bloco aberto na RAM, a cópia em .wip, a selagem no arquivo do dia e a fila de arquivos diários, com o limite de ocupação que apaga o mais antigo; '
            'os registros por bloco vêm de src/HistoryV5.h, o limite de src/StorageManager.cpp e os nomes de src/StorageManager.h e src/HistoryV5.h'),
+    Figura('fig-21-cursor', '21-cursor.svg', 'cap21-telemetria.md', 'desenho_cursor',
+           'a fila de registros do histórico com o cursor entre os confirmados e os pendentes, o lote, o coletor, a confirmação 2xx que move o cursor e a falha que o deixa parado; '
+           'a faixa de códigos que confirma vem de src/TelemetryManager.cpp e a espera depois de uma falha de BACKOFF_MIN_MS e BACKOFF_MAX_MS em src/TelemetryManager.h'),
 )
 
 
@@ -374,6 +377,18 @@ class Numeros:
                 'pasta': f.achar('src/StorageManager.h', r'^#define DIR_HISTORY "([^"]+)"').group(1),
                 'wip': f.achar('src/StorageManager.h', r'^#define FILE_H5_WIP DIR_HISTORY "([^"]+)"').group(1),
                 'ext': f.achar('src/HistoryV5.h', r'^#define HISTORY_FILE_EXT\s+"([^"]+)"').group(1)}
+
+
+    def telemetria(self):
+        """What the collector's answer means to the telemetry: the HTTP codes that confirm a batch (the test in TelemetryManager.cpp, as "2xx") and the wait after a failure,
+        in seconds, from its first to its ceiling (BACKOFF_MIN_MS and BACKOFF_MAX_MS in TelemetryManager.h)."""
+        f = self.f
+        m = f.achar('src/TelemetryManager.cpp', r'if \(code >= (\d+) && code < (\d+)\) \{')
+        baixo, alto = int(m.group(1)), int(m.group(2))
+        if baixo % 100 or alto != baixo + 100:
+            raise Falta(f'src/TelemetryManager.cpp: the confirming codes are {baixo} to {alto - 1}, no longer one whole class (2xx), which is what the figure of the cursor draws')
+        espera = (int(f.achar('src/TelemetryManager.h', r'BACKOFF_MIN_MS = (\d+);').group(1)), int(f.achar('src/TelemetryManager.h', r'BACKOFF_MAX_MS = (\d+);').group(1)))
+        return {'ok': f'{baixo // 100}xx', 'espera_min': espera[0] // 1000, 'espera_max': espera[1] // 1000}
 
 
 def pino_de(gpio):
@@ -942,6 +957,50 @@ def desenho_caminho_historico(num, slug):
     s.texto(696, fila + 52, 'hoje: nunca é apagado', 'dg-n dg-c2', 'end')
     s.linha([(636, c + 104), (636, fila)])
     s.texto(628, c + 152, 'o arquivo de hoje', 'dg-n dg-c2', 'end')
+    return s.render()
+
+
+def desenho_cursor(num, slug):
+    tel = num.telemetria()
+    s = Svg(slug)
+    ok, perigo = ('dg-fio-ok', 'dg-ponta-ok'), ('dg-fio-perigo', 'dg-ponta-perigo')
+    ponta = ('dg-fio-acento', 'dg-ponta-acento')
+    confirmados, pendentes, na_ram = 8, 8, 4
+    x_cursor = 16 + 20 * confirmados + 4                  # between the last confirmed record and the first pending one
+    x_pend = x_cursor + 8
+    x_ram = x_pend + 20 * pendentes + 4                   # the hour still open in the RAM: a box of its own, at the end of the queue
+    x_dir = x_ram + 20 * na_ram + 8                       # the box's right edge
+    antes, depois = 64, 176                               # the two rows of squares: before the answer and after a 2xx
+    for y, quadrado in ((antes, 'dg-caixa-aviso'), (depois, 'dg-caixa-2')):
+        for i in range(confirmados):
+            s.caixa(16 + 20 * i, y, 16, 16, 'dg-caixa-2', 0)
+        s.caixa(x_ram - 8, y - 8, 20 * na_ram + 16, 32, 'dg-caixa', 6)
+        for i in range(pendentes):
+            s.caixa(x_pend + 20 * i, y, 16, 16, quadrado, 0)
+        for i in range(na_ram):
+            s.caixa(x_ram + 20 * i, y, 16, 16, quadrado, 0)
+    s.texto(16, 28, 'antes', 'dg-n dg-b')
+    s.texto(16, 140, 'depois de um ' + tel['ok'], 'dg-n dg-b')
+    s.texto(16, 48, 'confirmados', 'dg-n dg-c2')
+    s.texto(x_pend + 28, 48, 'pendentes', 'dg-n dg-c2')
+    s.texto(x_ram + 40, 48, 'hora aberta, na RAM', 'dg-n dg-c2', 'middle')
+    s.linha([(x_cursor, 56), (x_cursor, 88)], 'dg-fio-acento')
+    s.texto(x_cursor, 48, 'cursor', 'dg-t dg-b', 'middle')
+    s.linha([(x_dir - 4, 168), (x_dir - 4, 200)], 'dg-fio-acento')
+    s.texto(x_dir - 4, 160, 'cursor', 'dg-t dg-b', 'middle')
+    # the batch: the first pending records, up to the Lote máximo, with the hour that is still open
+    s.linha([(x_pend, 100), (x_pend, 104), (x_dir, 104), (x_dir, 100)], 'dg-fio-fino')
+    s.texto((x_pend + x_dir) // 8 * 4, 124, 'lote (até o Lote máximo)', 'dg-t', 'middle')
+    coletor = bloco(s, 544, None, 160, [('coletor', 'dg-t dg-b')], 'dg-caixa-2', 6, 120)
+    s.seta([(x_dir, 72), (504, 72), (504, 120), coletor.esq()], *ponta)
+    # the answer: a 2xx moves the cursor to the end of the batch; anything else leaves it, and the device waits and sends the same stretch again
+    s.seta([(coletor.x, 128), (520, 128), (520, 184), (x_dir + 4, 184)], *ok)
+    s.texto(512, 160, tel['ok'], 'dg-t dg-ok dg-b', 'end')
+    s.seta([coletor.base(), (624, 216)], *perigo)
+    s.texto(636, 184, 'falha', 'dg-t dg-perigo dg-b')
+    bloco(s, 528, 216, 176, [('espera e reenvia', 'dg-t dg-b'), (f'{tel["espera_min"]}\u00a0s, dobrando até {tel["espera_max"]}\u00a0s', 'dg-n dg-c2'),
+                             ('o cursor não se move', 'dg-n dg-c2')], 'dg-caixa', 6)
+    s.texto(16, 264, 'Cada quadrado é um registro do histórico, na ordem em que foi gravado.', 'dg-n dg-c2')
     return s.render()
 
 

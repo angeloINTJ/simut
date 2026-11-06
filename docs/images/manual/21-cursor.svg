@@ -1,0 +1,72 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 296" role="img" class="dg">
+<defs>
+<marker id="21-cursor-ponta-acento" viewBox="0 0 8 8" refX="8" refY="4" markerWidth="8" markerHeight="8" markerUnits="userSpaceOnUse" orient="auto"><path class="dg-ponta-acento" d="M0 0L8 4L0 8z"/></marker>
+<marker id="21-cursor-ponta-ok" viewBox="0 0 8 8" refX="8" refY="4" markerWidth="8" markerHeight="8" markerUnits="userSpaceOnUse" orient="auto"><path class="dg-ponta-ok" d="M0 0L8 4L0 8z"/></marker>
+<marker id="21-cursor-ponta-perigo" viewBox="0 0 8 8" refX="8" refY="4" markerWidth="8" markerHeight="8" markerUnits="userSpaceOnUse" orient="auto"><path class="dg-ponta-perigo" d="M0 0L8 4L0 8z"/></marker>
+</defs>
+<rect class="dg-caixa-2" x="16.5" y="64.5" width="15" height="15" rx="0"/>
+<rect class="dg-caixa-2" x="36.5" y="64.5" width="15" height="15" rx="0"/>
+<rect class="dg-caixa-2" x="56.5" y="64.5" width="15" height="15" rx="0"/>
+<rect class="dg-caixa-2" x="76.5" y="64.5" width="15" height="15" rx="0"/>
+<rect class="dg-caixa-2" x="96.5" y="64.5" width="15" height="15" rx="0"/>
+<rect class="dg-caixa-2" x="116.5" y="64.5" width="15" height="15" rx="0"/>
+<rect class="dg-caixa-2" x="136.5" y="64.5" width="15" height="15" rx="0"/>
+<rect class="dg-caixa-2" x="156.5" y="64.5" width="15" height="15" rx="0"/>
+<rect class="dg-caixa" x="344.5" y="56.5" width="95" height="31" rx="6"/>
+<rect class="dg-caixa-aviso" x="188.5" y="64.5" width="15" height="15" rx="0"/>
+<rect class="dg-caixa-aviso" x="208.5" y="64.5" width="15" height="15" rx="0"/>
+<rect class="dg-caixa-aviso" x="228.5" y="64.5" width="15" height="15" rx="0"/>
+<rect class="dg-caixa-aviso" x="248.5" y="64.5" width="15" height="15" rx="0"/>
+<rect class="dg-caixa-aviso" x="268.5" y="64.5" width="15" height="15" rx="0"/>
+<rect class="dg-caixa-aviso" x="288.5" y="64.5" width="15" height="15" rx="0"/>
+<rect class="dg-caixa-aviso" x="308.5" y="64.5" width="15" height="15" rx="0"/>
+<rect class="dg-caixa-aviso" x="328.5" y="64.5" width="15" height="15" rx="0"/>
+<rect class="dg-caixa-aviso" x="352.5" y="64.5" width="15" height="15" rx="0"/>
+<rect class="dg-caixa-aviso" x="372.5" y="64.5" width="15" height="15" rx="0"/>
+<rect class="dg-caixa-aviso" x="392.5" y="64.5" width="15" height="15" rx="0"/>
+<rect class="dg-caixa-aviso" x="412.5" y="64.5" width="15" height="15" rx="0"/>
+<rect class="dg-caixa-2" x="16.5" y="176.5" width="15" height="15" rx="0"/>
+<rect class="dg-caixa-2" x="36.5" y="176.5" width="15" height="15" rx="0"/>
+<rect class="dg-caixa-2" x="56.5" y="176.5" width="15" height="15" rx="0"/>
+<rect class="dg-caixa-2" x="76.5" y="176.5" width="15" height="15" rx="0"/>
+<rect class="dg-caixa-2" x="96.5" y="176.5" width="15" height="15" rx="0"/>
+<rect class="dg-caixa-2" x="116.5" y="176.5" width="15" height="15" rx="0"/>
+<rect class="dg-caixa-2" x="136.5" y="176.5" width="15" height="15" rx="0"/>
+<rect class="dg-caixa-2" x="156.5" y="176.5" width="15" height="15" rx="0"/>
+<rect class="dg-caixa" x="344.5" y="168.5" width="95" height="31" rx="6"/>
+<rect class="dg-caixa-2" x="188.5" y="176.5" width="15" height="15" rx="0"/>
+<rect class="dg-caixa-2" x="208.5" y="176.5" width="15" height="15" rx="0"/>
+<rect class="dg-caixa-2" x="228.5" y="176.5" width="15" height="15" rx="0"/>
+<rect class="dg-caixa-2" x="248.5" y="176.5" width="15" height="15" rx="0"/>
+<rect class="dg-caixa-2" x="268.5" y="176.5" width="15" height="15" rx="0"/>
+<rect class="dg-caixa-2" x="288.5" y="176.5" width="15" height="15" rx="0"/>
+<rect class="dg-caixa-2" x="308.5" y="176.5" width="15" height="15" rx="0"/>
+<rect class="dg-caixa-2" x="328.5" y="176.5" width="15" height="15" rx="0"/>
+<rect class="dg-caixa-2" x="352.5" y="176.5" width="15" height="15" rx="0"/>
+<rect class="dg-caixa-2" x="372.5" y="176.5" width="15" height="15" rx="0"/>
+<rect class="dg-caixa-2" x="392.5" y="176.5" width="15" height="15" rx="0"/>
+<rect class="dg-caixa-2" x="412.5" y="176.5" width="15" height="15" rx="0"/>
+<text class="dg-n dg-b" x="16" y="28">antes</text>
+<text class="dg-n dg-b" x="16" y="140">depois de um 2xx</text>
+<text class="dg-n dg-c2" x="16" y="48">confirmados</text>
+<text class="dg-n dg-c2" x="216" y="48">pendentes</text>
+<text class="dg-n dg-c2" x="392" y="48" text-anchor="middle">hora aberta, na RAM</text>
+<polyline class="dg-fio-acento" points="180,56 180,88"/>
+<text class="dg-t dg-b" x="180" y="48" text-anchor="middle">cursor</text>
+<polyline class="dg-fio-acento" points="436,168 436,200"/>
+<text class="dg-t dg-b" x="436" y="160" text-anchor="middle">cursor</text>
+<polyline class="dg-fio-fino" points="188,100 188,104 440,104 440,100"/>
+<text class="dg-t" x="312" y="124" text-anchor="middle">lote (até o Lote máximo)</text>
+<rect class="dg-caixa-2" x="544.5" y="104.5" width="159" height="31" rx="6"/>
+<text class="dg-t dg-b" x="556" y="124">coletor</text>
+<polyline class="dg-fio-acento" points="440,72 504,72 504,120 544,120" marker-end="url(#21-cursor-ponta-acento)"/>
+<polyline class="dg-fio-ok" points="544,128 520,128 520,184 444,184" marker-end="url(#21-cursor-ponta-ok)"/>
+<text class="dg-t dg-ok dg-b" x="512" y="160" text-anchor="end">2xx</text>
+<polyline class="dg-fio-perigo" points="624,136 624,216" marker-end="url(#21-cursor-ponta-perigo)"/>
+<text class="dg-t dg-perigo dg-b" x="636" y="184">falha</text>
+<rect class="dg-caixa" x="528.5" y="216.5" width="175" height="63" rx="6"/>
+<text class="dg-t dg-b" x="540" y="236">espera e reenvia</text>
+<text class="dg-n dg-c2" x="540" y="252">5 s, dobrando até 300 s</text>
+<text class="dg-n dg-c2" x="540" y="268">o cursor não se move</text>
+<text class="dg-n dg-c2" x="16" y="264">Cada quadrado é um registro do histórico, na ordem em que foi gravado.</text>
+</svg>
