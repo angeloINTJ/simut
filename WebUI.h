@@ -2101,7 +2101,7 @@ global.Chart = H5G;
                 <div class="grp">
                     <label data-i18n="hist_src">Sensors</label>
                     <div class="msel" id="sensorMsel">
-                        <button type="button" class="msel-btn" id="sensorMselBtn" onclick="_toggleSensorMenu(event)"><span id="sensorMselLbl" data-i18n="hist_loading">Loading...</span><span style="float:right;">▼</span></button>
+                        <button type="button" class="msel-btn" id="sensorMselBtn" onclick="_toggleSensorMenu(event)"><span id="sensorMselN"></span><span id="sensorMselLbl" data-i18n="hist_loading">Loading...</span><span style="float:right;">▼</span></button>
                         <div class="msel-menu" id="sensorMselMenu" style="display:none;"></div>
                     </div>
                 </div>
@@ -2277,19 +2277,41 @@ global.Chart = H5G;
             loadGraphRange(_currentRangeIdx);
         }
 
+        /* The label shows the name of the one sensor drawn, or a word of the
+         * pack, and it carries a key only while it shows a word. applyLang( )
+         * rewrites every element that carries data-i18n with the pack's text,
+         * or with the data-en it recorded; the label kept the markup's
+         * hist_loading for good, so /api/lang answering after /api/status put
+         * "Carregando..." back over the sensor's name, and a language switch
+         * did it again in any language (the Portuguese page of the v2.14.0
+         * capture, 2026-11-06, Pico 2 W: the list open, the first sensor
+         * checked, its chart drawn). A name is not translated, so the label
+         * drops both attributes; a word gets its key and its English, as the
+         * link state of the Network page does. The "N" of "N selected" is a
+         * text of its own, #sensorMselN, that no key owns: applyLang( )
+         * replaces the whole text of an element, and the number would go with
+         * the word. tools/test_webui_pack_texts.py runs the orders the device
+         * can answer in. */
         function _updateSensorMselLabel() {
             const lbl = document.getElementById('sensorMselLbl');
             if (!lbl) return;
+            const cnt = document.getElementById('sensorMselN');
             const n = _selectedSensors.length;
-            if (n === 0) { lbl.textContent = window.t('hist_none_sel', 'None'); return; }
             if (n === 1) {
                 const checks = document.querySelectorAll('#sensorMselMenu input[type=checkbox]:checked');
                 if (checks.length > 0) {
                     const lblTxt = checks[0].parentNode.querySelector('span:last-child');
-                    if (lblTxt) { lbl.textContent = lblTxt.textContent; return; }
+                    if (lblTxt) {
+                        lbl.removeAttribute('data-i18n'); lbl.removeAttribute('data-en');
+                        cnt.textContent = ''; lbl.textContent = lblTxt.textContent;
+                        return;
+                    }
                 }
             }
-            lbl.textContent = `${n} ${window.t('hist_n_sel', 'selected')}`;
+            lbl.setAttribute('data-i18n', n === 0 ? 'hist_none_sel' : 'hist_n_sel');
+            lbl.setAttribute('data-en', n === 0 ? 'None' : 'selected');
+            cnt.textContent = n === 0 ? '' : n + ' ';
+            lbl.textContent = n === 0 ? window.t('hist_none_sel', 'None') : window.t('hist_n_sel', 'selected');
         }
 
         function _toggleSensorMenu(ev) {

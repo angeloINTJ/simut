@@ -603,7 +603,12 @@ jobs:
       # must sync the custom select of the options it relabels. The probe scan
       # printed GP255 for a BME280 or BMP280 (the firmware said pin 255): the
       # JSON comes from the firmware's own formatter, compiled here with g++,
-      # and sensScan( ) must print what it says, pins and chip.
+      # and sensScan( ) must print what it says, pins and chip. The Origem
+      # selector of the history page read "Carregando..." over the sensor's
+      # name: its label kept data-i18n="hist_loading", and applyLang( ) put the
+      # word back when /api/lang answered after /api/status and at a language
+      # switch; _updateSensorMselLabel( ) runs with lang.js's own applyLang( )
+      # in the orders the device can answer in, with one sensor, two and none.
       # --mutations (by hand) puts each violation back and expects exactly its
       # findings.
       - name: Web UI pack texts (no text typed into the page)

@@ -6,7 +6,7 @@ visible text goes through window.t('key', 'English') (or a data-i18n attribute),
 and the pack's @WEBDICT answers. A text typed into the page outside both stays
 as typed, in whatever language its author wrote it, on every page of every
 pack. The capture of the manual's figures on 2026-11-06 (v2.14.0, in Portuguese)
-found four such places; each has its check here.
+found the places below; each has its check here.
 
   * the export box of the history page (_showExpProgress( ), WebUI.h): its
     title said "Exporting..." in English and its button "Cancelar" in
@@ -54,6 +54,24 @@ found four such places; each has its check here.
     minified, against it: the line must be what the JSON says, pins and chip
     (GP4/GP5 (BMP280, I²C)), with the pins of a pair no constant in the page
     knows (GP8/GP9), the 1-Wire and DHT lines as they were, and never GP255.
+
+  * the Origem selector of the history page (_updateSensorMselLabel( ),
+    HIST_PAGE): its label said "Carregando..." over the sensor's name, with the
+    list open and the chart drawn. The label carried the markup's
+    data-i18n="hist_loading" for good, so applyLang( ), which rewrites every
+    element that carries data-i18n, put the word back when /api/lang answered
+    after /api/status, and at a language switch in any language (the English
+    returned as the data-en the first applyLang( ) had recorded: "Loading...").
+    The function runs under node, as written and minified, with lang.js's own
+    t( ), escHtml( ), applyLang( ) and its /api/lang line, against the button as
+    the page's markup has it and a menu of two sensors, in the orders the device
+    can answer in (dictionary first, dictionary late, first visit), with one
+    sensor, two and none. Then the language is switched to English and back, and
+    the selection moved to each of the other two states and back to the first,
+    with the switches at each. What the selector reads (the count's text and the
+    label's) must be the sensor's "ID — name" at every moment, "2 selecionados"
+    / "2 seleccionados" / "2 selected" for two, "Nenhum" / "Ninguno" / "None"
+    for none.
 
 Each check takes the code it judges, so --mutations can put the violations back
 by hand (one mutant per text) and expect each to be found; the clean code must
@@ -881,6 +899,258 @@ def test_scan_mutants(src, ns, dicts):
         check(got == want, f"scan mutant {name!r}: the page is wrong for {sorted(got)}, wanted {sorted(want)}")
 
 
+# ── what the next checks share: a page function beside lang.js's own code ──
+
+# What node does not have, for a page function that runs together with lang.js's
+# own t( ), escHtml( ) and applyLang( ) and the line that asks /api/lang for the
+# dictionary: the page's storage, elements that keep their attributes and their
+# text (the scenario says which ones the page has, by id and as [data-i18n]),
+# and the dictionary request, answered when the scenario says so. LINK_HARNESS
+# and SYNC_HARNESS above are older and keep their own copies of these lines.
+LANG_ENV = r"""
+var __store = {};
+Object.defineProperty(globalThis, 'localStorage', { configurable: true, writable: true, value: {
+    getItem: function (k) { return Object.prototype.hasOwnProperty.call(__store, k) ? __store[k] : null; },
+    setItem: function (k, v) { __store[k] = String(v); } } });
+class __El {
+    constructor(tag, attrs, html) { this.tagName = tag; this._a = attrs || {}; this._h = html || ''; }
+    get innerHTML() { return this._h; }  set innerHTML(v) { this._h = String(v); }
+    get textContent() { return this._h; }  set textContent(v) { this._h = String(v); }
+    getAttribute(n) { return Object.prototype.hasOwnProperty.call(this._a, n) ? this._a[n] : null; }
+    setAttribute(n, v) { this._a[n] = String(v); }
+    removeAttribute(n) { delete this._a[n]; }
+    hasAttribute(n) { return Object.prototype.hasOwnProperty.call(this._a, n); }
+}
+var __byId = function () { return null; }, __i18n = function () { return []; };
+var __query = function (s) { throw new Error('the harness has no answer for the selector ' + s); };
+Object.defineProperty(globalThis, 'document', { configurable: true, writable: true, value: {
+    getElementById: function (id) { return __byId(id); },
+    querySelectorAll: function (s) { return s === '[data-i18n]' ? __i18n() : s === '.lang-select' ? [] : __query(s); },
+    createElement: function () { var s = ''; return {
+        set textContent(v) { s = String(v); },
+        get innerHTML() { return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); } }; } } });
+var window = globalThis;
+var dict = { pt: {} };
+var __pack = null, __arrive = null;
+globalThis.fetch = function () { return new Promise(function (res) { __arrive = function () { res({ json: function () { return __pack; } }); }; }); };
+__LANG_JS__
+function __startLang() {
+__FETCH_LINE__
+}
+var __tick = function () { return new Promise(function (r) { setTimeout(r, 0); }); };
+var __unesc = function (s) { return s.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&amp;/g, '&'); };
+"""
+
+# The three orders the device can answer in, for every check that runs LANG_ENV:
+# the dictionary before the page's own request, after it, and a first visit (no
+# language stored yet, so the dictionary's arrival stores the pack's).
+ORDERS = {"dict-first": "dictionary first", "late": "dictionary late", "first-visit": "first visit"}
+
+
+def lang_env(parts):
+    """LANG_ENV with lang.js's own lines in it (the four lang_js_parts( ) found)."""
+    return LANG_ENV.replace("__LANG_JS__", "\n".join(parts[:3])).replace("__FETCH_LINE__", parts[3])
+
+
+def merged(rows):
+    """Findings as lines: {(label, text): {context}} to 'as written, minified: text (contexts)', the two runs on one line when they agree."""
+    by_text = {}
+    for (label, text), ctx in rows.items():
+        by_text.setdefault((text, frozenset(ctx)), []).append(label)
+    return sorted(f"{', '.join(sorted(labels, key=['as written', 'minified'].index))}: {text} ({', '.join(sorted(ctx))})"
+                  for (text, ctx), labels in by_text.items())
+
+
+# ── the Origem selector of the history page ────────────────────────────────
+
+def selector_code(src):
+    """_updateSensorMselLabel( ) of the history page, cut out by its name and the next function's."""
+    hist = block(src, "HIST_PAGE")
+    a = hist.find("function _updateSensorMselLabel() {")
+    b = hist.find("function _toggleSensorMenu(", a) if a >= 0 else -1
+    return hist[a:b] if a >= 0 and b > a else None
+
+
+def selector_markup(src):
+    """The button of the selector as the page ships it: [{id, attrs, text}] for each <span> in it that has an id."""
+    m = re.search(r'<button\b[^>]*\bid="sensorMselBtn"[^>]*>(.*?)</button>', block(src, "HIST_PAGE"), re.S)
+    if not m:
+        return None
+    out = []
+    for s in re.finditer(r"<span([^>]*)>([^<]*)</span>", m.group(1)):
+        attrs = dict(re.findall(r'\b([a-z][a-z0-9-]*)="([^"]*)"', s.group(1)))
+        if "id" in attrs:
+            out.append({"id": attrs.pop("id"), "attrs": attrs, "text": s.group(2)})
+    return out
+
+
+# The selector's button, built from the page's own markup, and the menu of two
+# sensors that populateSensorMsel( ) fills (a checkbox in a <label> whose last
+# <span> is the "ID — name"). What the selector reads is the count's text plus
+# the label's text, the two <span>s the button holds; a page with no count
+# element (the code before the fix) reads the label alone. A scenario is the
+# order the device can answer in, the selection the list opens with (one, two or
+# no sensor), and then what the user does: the language switched to English and
+# back, and the selection moved to each of the other two states and back to the
+# first, the language switched at each.
+SELECTOR_HARNESS = r"""
+var __spec = __SPEC__;
+var NAMES = ['LIB_SENS — GELADEIRA', 'STH0003 — SALA'];
+var __els = {}, __list = [], __menu = [], _selectedSensors = [];
+__byId = function (id) { return __els[id] || null; };
+__i18n = function () { return __list.filter(function (e) { return e.hasAttribute('data-i18n'); }); };
+__query = function (s) {
+    if (s === '#sensorMselMenu input[type=checkbox]:checked') return __menu.filter(function (c) { return c.checked; });
+    throw new Error('the harness has no answer for the selector ' + s);
+};
+__CODE__
+function __page() {
+    __store = {}; dict.pt = {}; __els = {}; __list = []; __menu = []; _selectedSensors = [];
+    __spec.forEach(function (s) { var e = new __El('SPAN', JSON.parse(JSON.stringify(s.attrs)), s.text); __els[s.id] = e; __list.push(e); });
+    NAMES.forEach(function (n, i) {
+        var txt = new __El('SPAN', {}, n);
+        __menu.push({ checked: false, value: String(10 + i), parentNode: { querySelector: function (q) { return q === 'span:last-child' ? txt : null; } } });
+    });
+}
+function __choose(sel) {
+    var n = sel === 'one' ? 1 : sel === 'two' ? 2 : 0;
+    _selectedSensors = [];
+    __menu.forEach(function (b, i) { b.checked = i < n; if (b.checked) _selectedSensors.push(parseInt(b.value, 10)); });
+}
+function __read() { var c = __els['sensorMselN'], l = __els['sensorMselLbl']; return (c ? c.textContent : '') + (l ? l.textContent : ''); }
+var WALK = { one: ['two', 'none'], two: ['one', 'none'], none: ['one', 'two'] };
+async function __scenario(order, first, pack) {
+    __page(); __pack = pack;
+    if (order !== 'first-visit') localStorage.setItem('simut_lang', 'pt');
+    __startLang();                                        /* lang.js asks for the dictionary as it loads */
+    var seen = [];
+    var note = function (when, sel) { seen.push([when, sel, __read()]); };
+    var show = function (sel, when) { __choose(sel); _updateSensorMselLabel(); if (when) note(when, sel); };
+    var lang = function (l) { localStorage.setItem('simut_lang', l); applyLang(); };
+    if (order === 'dict-first') { __arrive(); await __tick(); show(first, 'painted'); }
+    else { show(first); __arrive(); await __tick(); note('arrived', first); }
+    lang('en'); note('switched to English', first);
+    lang('pt'); note('switched back', first);
+    [WALK[first][0], first, WALK[first][1], first].forEach(function (sel) {
+        show(sel, 'painted'); lang('en'); note('switched to English', sel); lang('pt'); note('switched back', sel);
+    });
+    return seen;
+}
+(async function () {
+    var out = {}, packs = __PACKS__;
+    for (var lg of Object.keys(packs))
+        for (var order of ['dict-first', 'late', 'first-visit'])
+            for (var first of ['one', 'two', 'none'])
+                out[lg + '|' + order + '|' + first] = await __scenario(order, first, packs[lg]);
+    console.log(JSON.stringify(out));
+})().catch(function (e) { console.log(JSON.stringify({ error: String((e && e.stack) || e) })); });
+"""
+
+SELECTOR_NAME = "LIB_SENS — GELADEIRA"      # the first sensor of the harness's menu, as the page writes it
+SELECTION = {"one": "one sensor", "two": "two sensors", "none": "no sensor"}
+MOMENTS = "painted|arrived|switched to English|switched back"
+
+
+def selector_findings(code, markup, parts, ns, dicts):
+    """What is wrong with the selector's label in this _updateSensorMselLabel( ) and this markup: [] when nothing."""
+    found, rows = [], {}
+    for lang, d in dicts.items():
+        for key, en in (("hist_none_sel", "None"), ("hist_n_sel", "selected")):
+            if not d.get(key, "").strip() or d[key] == en:
+                found.append(f"{lang}: @WEBDICT has {key} = {d.get(key)!r}, which is not a translation of {en!r}")
+    for label, js in (("as written", code), ("minified", ns["_minify_web_block"](code, "js"))):
+        prog = (lang_env(parts) + SELECTOR_HARNESS.replace("__CODE__", js).replace("__SPEC__", json.dumps(markup))
+                .replace("__PACKS__", json.dumps(dicts)))
+        try:
+            res = run_node(prog)
+        except RuntimeError as e:
+            found.append(f"{label}: {e}")
+            continue
+        if "error" in res:
+            found.append(f"{label}: the scenarios threw {res['error'][:300]}")
+            continue
+        for key, seen in sorted(res.items()):
+            lang, order, _ = key.split("|")
+            d = dicts[lang]
+            for when, sel, got in seen:
+                none_w, n_w = ("None", "selected") if when == "switched to English" else (d.get("hist_none_sel", ""), d.get("hist_n_sel", ""))
+                want = {"one": SELECTOR_NAME, "two": f"2 {n_w}", "none": none_w}[sel]
+                if got != want:
+                    rows.setdefault((label, f"{lang}, {SELECTION[sel]}: the selector reads {got!r} {when}, wanted {want!r}"), set()).add(ORDERS[order])
+    return sorted(set(found)) + merged(rows)
+
+
+def test_selector(src, ns, dicts):
+    parts, missing = lang_js_parts(src)
+    code, markup = selector_code(src), selector_markup(src)
+    if not check(not missing, f"lang.js lacks {missing} as one line each; this test runs lang.js's own"):
+        return
+    if not check(code is not None, "_updateSensorMselLabel( ) is not in the history page of WebUI.h (or _toggleSensorMenu( ) "
+                                   "no longer follows it). If they moved or were renamed, move this test with them."):
+        return
+    if not check(markup is not None and any(s["id"] == "sensorMselLbl" for s in markup),
+                 "the history page has no <span id=\"sensorMselLbl\"> in the button #sensorMselBtn. If it moved, move this test with it."):
+        return
+    for f in selector_findings(code, markup, parts, ns, dicts):
+        fails.append(f"origem selector: {f}")
+
+
+def selector_cells(findings):
+    """{(selection, moment)} the findings are about, for the mutants."""
+    return {m.groups() for f in findings
+            for m in [re.search(rf", ({'|'.join(SELECTION.values())}): the selector reads .+? ({MOMENTS}), wanted", f)] if m}
+
+
+# Each mutant takes one piece of the fix out. What it must give is the set of
+# (selection, moment) at which the selector reads wrong, whatever the pack or
+# the order: a label that cannot be relabelled misses `arrived` and both
+# switches; one with no English of its own gives the translated word for the
+# English; a count inside the label's text loses the number the first time
+# applyLang( ) writes the word; a count that is not emptied stays in front of
+# a name or of "None"; a word painted from the English literal misses only
+# `painted`.
+SELECTOR_MUTANTS = [
+    ("the label keeps its data-i18n for one sensor (the defect as shipped: the markup's hist_loading comes back)",
+     r"lbl\.removeAttribute\('data-i18n'\); lbl\.removeAttribute\('data-en'\);\s*", "",
+     {("one sensor", "arrived"), ("one sensor", "switched to English"), ("one sensor", "switched back")}),
+    ("no data-en on the word: the first applyLang( ) takes the translated text, or the old one, for the English",
+     r"lbl\.setAttribute\('data-en', n === 0 \? 'None' : 'selected'\);\s*", "",
+     {("two sensors", "switched to English"), ("no sensor", "switched to English")}),
+    ("the count back inside the label's text: applyLang( ) drops the number",
+     r"cnt\.textContent = n === 0 \? '' : n \+ ' ';\s*lbl\.textContent = (n === 0 \? window\.t\('hist_none_sel', 'None'\) : window\.t\('hist_n_sel', 'selected'\));",
+     r"cnt.textContent = ''; lbl.textContent = (n === 0 ? '' : n + ' ') + (\1);",
+     {("two sensors", "arrived"), ("two sensors", "switched to English"), ("two sensors", "switched back")}),
+    ("the count not emptied when the label shows a sensor's name",
+     r"cnt\.textContent = ''; lbl\.textContent = lblTxt\.textContent;", "lbl.textContent = lblTxt.textContent;",
+     {("one sensor", "painted"), ("one sensor", "switched to English"), ("one sensor", "switched back")}),
+    ("the count not emptied when the label shows None",
+     r"cnt\.textContent = n === 0 \? '' : n \+ ' ';", "cnt.textContent = n + ' ';",
+     {("no sensor", "painted"), ("no sensor", "arrived"), ("no sensor", "switched to English"), ("no sensor", "switched back")}),
+    ("the word painted from the English literal, not from t( )",
+     r"n === 0 \? window\.t\('hist_none_sel', 'None'\) : window\.t\('hist_n_sel', 'selected'\);", "n === 0 ? 'None' : 'selected';",
+     {("no sensor", "painted"), ("two sensors", "painted")}),
+]
+
+
+def test_selector_mutants(src, ns, dicts):
+    parts, missing = lang_js_parts(src)
+    code, markup = selector_code(src), selector_markup(src)
+    if missing or code is None or markup is None:
+        return
+    check(selector_findings(code, markup, parts, ns, dicts) == [], "selector mutants: the code they start from is not clean")
+    for name, pat, rep, want in SELECTOR_MUTANTS:
+        mutated, n = re.subn(pat, rep, code)
+        if not check(n == 1, f"selector mutant {name!r}: its pattern matches {n} times in the code, not once "
+                             f"(the mutant no longer describes the code: update it)"):
+            continue
+        got = selector_cells(selector_findings(mutated, markup, parts, ns, dicts))
+        check(got == want, f"selector mutant {name!r}: the selector reads wrong at {sorted(got)}, wanted {sorted(want)}")
+    # the markup half of the fix: a button with no element for the count makes the function throw, and the scenarios report it
+    got = selector_findings(code, [s for s in markup if s["id"] != "sensorMselN"], parts, ns, dicts)
+    check(got != [] and all("threw" in f for f in got),
+          f"selector mutant 'no #sensorMselN in the markup': {got[:2]}")
+
+
 def main():
     global WEBUI
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
@@ -895,12 +1165,14 @@ def main():
     tests = [("test_export_box", lambda: test_export_box(src, ns, dicts)),
              ("test_link_state", lambda: test_link_state(src, ns, dicts)),
              ("test_melody_names", lambda: test_melody_names(src, ns, dicts)),
-             ("test_probe_scan", lambda: test_probe_scan(src, ns, dicts))]
+             ("test_probe_scan", lambda: test_probe_scan(src, ns, dicts)),
+             ("test_selector", lambda: test_selector(src, ns, dicts))]
     if args.mutations:
         tests += [("test_export_mutants", lambda: test_export_mutants(src, ns, dicts)),
                   ("test_link_mutants", lambda: test_link_mutants(src, ns, dicts)),
                   ("test_melody_mutants", lambda: test_melody_mutants(src, ns, dicts)),
-                  ("test_scan_mutants", lambda: test_scan_mutants(src, ns, dicts))]
+                  ("test_scan_mutants", lambda: test_scan_mutants(src, ns, dicts)),
+                  ("test_selector_mutants", lambda: test_selector_mutants(src, ns, dicts))]
     for name, t in tests:
         before = len(fails)
         try:
