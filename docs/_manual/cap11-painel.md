@@ -635,7 +635,7 @@ Ao ligar, o painel mostra `SIMUT` em letras grandes, a versão e uma caixa com `
 
 Num aparelho sem rede configurada e com o relógio provisório, o boot não termina na tela inicial: logo depois da última etapa, o painel abre a tela **Data e hora**, com **PULAR** e **SALVAR** ([Data e hora](#cap-11-data-hora)).
 
-::: {.figura #fig-11-boot tipo="foto" arquivo="11-boot.png" captura="boot com rede configurada e alcançável; capture durante Aguardando roteador; a captura por GET /api/screenshot não alcança o boot, então use foto da tela"}
+::: {.figura #fig-11-boot tipo="tft" arquivo="11-boot.png" captura="imagem pico_w_test, depois de um boot com a rede configurada e o roteador fora do ar, para o boot esperar por ele; screen boot lista as chamadas que o boot fez; screen boot W, com W o índice da linha Aguardando roteador; GET /api/screenshot 6 s depois; conferir uma vez contra a foto do boot real no mesmo passo"}
 A tela de boot com as últimas etapas e o botão PULAR.
 :::
 
@@ -660,19 +660,19 @@ Com o AP aberto pelo gesto, a caixa mostra **Iniciando Ponto de Acesso (AP)...**
 **A chave fica na tela.** Com o AP aberto no boot, o painel não passa à tela inicial: a caixa do boot fica parada nessas últimas linhas, com o nome da rede e a chave, até o aparelho reiniciar. Anote a chave na primeira configuração; ela não muda.
 :::
 
-::: {.figura #fig-11-boot-gesto tipo="foto" arquivo="11-boot-gesto.png" captura="boot; linha Mantenha a tela pressionada: Modo AP... no fim da caixa; foto da tela"}
+::: {.figura #fig-11-boot-gesto tipo="tft" arquivo="11-boot-gesto.png" captura="imagem pico_w_test; screen boot H, com H o índice da linha Mantenha a tela pressionada: Modo AP... na lista de screen boot; GET /api/screenshot 6 s depois"}
 O convite do gesto do AP no boot.
 :::
 
-::: {.figura #fig-11-boot-progresso tipo="foto" arquivo="11-boot-progresso.png" captura="boot; dedo mantido na tela há cerca de 1,5 s dentro da janela; foto da tela"}
+::: {.figura #fig-11-boot-progresso tipo="tft" arquivo="11-boot-progresso.png" captura="imagem pico_w_test; screen boot H 50: a linha do gesto com a barra pela metade, como depois de 1,5 s de dedo; GET /api/screenshot 6 s depois"}
 O gesto em curso: Modo de Configuração e a barra enchendo.
 :::
 
-::: {.figura #fig-11-boot-cancelado tipo="foto" arquivo="11-boot-cancelado.png" captura="boot; dedo levantado antes de a barra encher; foto da tela"}
+::: {.figura #fig-11-boot-cancelado tipo="tft" arquivo="11-boot-cancelado.png" captura="imagem pico_w_test; screen boot H cancel: as duas chamadas que o boot faz quando o dedo sai antes de a barra encher; GET /api/screenshot 6 s depois"}
 O gesto cancelado: Modo AP Cancelado.
 :::
 
-::: {.figura #fig-11-boot-ap tipo="foto" arquivo="11-boot-ap.png" captura="boot pelo gesto completo; caixa com o nome da rede, PSK e AP Ativo!; foto da tela; a chave da foto deve ser borrada antes de publicar"}
+::: {.figura #fig-11-boot-ap tipo="tft" arquivo="11-boot-ap.png" captura="boot pelo gesto completo, com o dedo; a caixa com o nome da rede, PSK e AP Ativo! fica no vidro depois do boot; GET /api/screenshot pelo próprio AP, com o adaptador Wi-Fi USB do PC na rede do aparelho e a rota padrão mantida no cabo; borrar a chave antes de publicar"}
 O boot no AP: o nome da rede, a chave e AP Ativo!.
 :::
 
