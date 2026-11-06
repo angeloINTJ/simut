@@ -112,6 +112,9 @@ FIGURAS = (
     Figura('fig-21-cursor', '21-cursor.svg', 'cap21-telemetria.md', 'desenho_cursor',
            'a fila de registros do histórico com o cursor entre os confirmados e os pendentes, o lote, o coletor, a confirmação 2xx que move o cursor e a falha que o deixa parado; '
            'a faixa de códigos que confirma vem de src/TelemetryManager.cpp e a espera depois de uma falha de BACKOFF_MIN_MS e BACKOFF_MAX_MS em src/TelemetryManager.h'),
+    Figura('fig-22-fluxo', '22-fluxo.svg', 'cap22-linha-alarmes.md', 'desenho_linha_alarmes',
+           'a fila de alarmes na RAM e as duas raias, HTTP e MQTT, com a confirmação que tira os registros da fila; o reenvio, a espera da resposta e as pontas dos dois tópicos vêm de '
+           'src/TelemetryManager.h, src/SystemDefs_Network.h e src/TelemetryManager.cpp'),
 )
 
 
@@ -389,6 +392,16 @@ class Numeros:
             raise Falta(f'src/TelemetryManager.cpp: the confirming codes are {baixo} to {alto - 1}, no longer one whole class (2xx), which is what the figure of the cursor draws')
         espera = (int(f.achar('src/TelemetryManager.h', r'BACKOFF_MIN_MS = (\d+);').group(1)), int(f.achar('src/TelemetryManager.h', r'BACKOFF_MAX_MS = (\d+);').group(1)))
         return {'ok': f'{baixo // 100}xx', 'espera_min': espera[0] // 1000, 'espera_max': espera[1] // 1000}
+
+
+    def alarmes(self):
+        """The alarm line's numbers: the wait before the queue is sent again (ALARM_RETRY_INTERVAL_MS), the time an HTTP answer is waited for (NET_SOCKET_TIMEOUT_MS) and the
+        two MQTT topics' ends, the data topic's with "/alarm" and with "/alarm/ack"."""
+        f = self.f
+        return {'reenvio': int(f.achar('src/TelemetryManager.h', r'ALARM_RETRY_INTERVAL_MS = (\d+);').group(1)) // 1000,
+                'espera': int(f.achar('src/SystemDefs_Network.h', r'NET_SOCKET_TIMEOUT_MS = (\d+);').group(1)) // 1000,
+                'topico': f.achar('src/TelemetryManager.cpp', r'mqttAlarmTopic\( \) \{\s+return mqttDataTopic\( \) \+ "([^"]+)";').group(1),
+                'ack': f.achar('src/TelemetryManager.cpp', r'mqttAlarmAckTopic\( \) \{\s+return mqttDataTopic\( \) \+ "([^"]+)";').group(1)}
 
 
 def pino_de(gpio):
@@ -1001,6 +1014,45 @@ def desenho_cursor(num, slug):
     bloco(s, 528, 216, 176, [('espera e reenvia', 'dg-t dg-b'), (f'{tel["espera_min"]}\u00a0s, dobrando até {tel["espera_max"]}\u00a0s', 'dg-n dg-c2'),
                              ('o cursor não se move', 'dg-n dg-c2')], 'dg-caixa', 6)
     s.texto(16, 264, 'Cada quadrado é um registro do histórico, na ordem em que foi gravado.', 'dg-n dg-c2')
+    return s.render()
+
+
+def desenho_linha_alarmes(num, slug):
+    a, ok_http = num.alarmes(), num.telemetria()['ok']
+    s = Svg(slug)
+    ponta = ('dg-fio-acento', 'dg-ponta-acento')
+    ok, perigo = ('dg-fio-ok', 'dg-ponta-ok'), ('dg-fio-perigo', 'dg-ponta-perigo')
+    segundos = lambda n: f'{n}\u00a0s'
+    # the queue in the RAM: the same for both transports, three records waiting
+    s.caixa(16, 96, 128, 232, 'dg-caixa-2', 12)
+    s.texto(32, 120, 'fila na RAM', 'dg-t dg-b')
+    for k in range(3):
+        s.caixa(32, 168 + 32 * k, 96, 24, 'dg-caixa', 6)
+        s.texto(80, 184 + 32 * k, f'seq {k + 1}', 'dg-n dg-m', 'middle')
+    # the HTTP lane: the whole queue in one POST, and the collector's answer
+    s.caixa(168, 16, 536, 160, 'dg-caixa-2', 12)
+    s.texto(184, 40, 'HTTP', 'dg-t dg-b')
+    s.caixa(568, 80, 120, 88, 'dg-caixa', 6)
+    s.texto(628, 100, 'coletor', 'dg-t dg-b', 'middle')
+    s.seta([(144, 112), (568, 112)], *ponta)
+    s.texto(184, 104, 'POST com a fila inteira', 'dg-t')
+    s.seta([(568, 136), (144, 136)], *ok)
+    s.texto(184, 128, f'{ok_http}: os três registros saem da fila', 'dg-t dg-ok')
+    s.seta([(568, 160), (144, 160)], *perigo)
+    s.texto(184, 152, f'outro código ou nada em {segundos(a["espera"])}: a fila fica, novo envio em {segundos(a["reenvio"])}', 'dg-t dg-perigo')
+    # the MQTT lane: the publish confirms nothing; only the collector's message on the ack topic takes the records out
+    s.caixa(168, 192, 536, 208, 'dg-caixa-2', 12)
+    s.texto(184, 216, 'MQTT', 'dg-t dg-b')
+    broker = bloco(s, 360, 240, 104, [('broker', 'dg-t dg-b')])
+    coletor = bloco(s, 568, 240, 120, [('coletor', 'dg-t dg-b'), ('grava e publica a confirmação', 'dg-n dg-c2')])
+    s.seta([(144, 256), broker.esq()], *ponta)
+    s.texto(184, 248, [('', 'publish em '), ('dg-m', f'<tópico>{a["topico"]}')], 'dg-n')
+    s.seta([broker.dir(), (coletor.x, 256)], *ponta)
+    s.seta([(coletor.x, 288), (broker.x + 72, 288), (broker.x + 72, broker.y + broker.h)], *ok)
+    s.seta([(broker.x + 32, broker.y + broker.h), (broker.x + 32, 312), (144, 312)], *ok)
+    s.texto(184, 332, [('', 'seq 1, 2 e 3 em '), ('dg-m', f'<tópico>{a["ack"]}')], 'dg-n')
+    s.texto(184, 348, 'o aparelho tira os três da fila', 'dg-n dg-c2')
+    s.texto(184, 384, f'Sem a confirmação, a fila inteira é publicada de novo a cada {segundos(a["reenvio"])}.', 'dg-t')
     return s.render()
 
 

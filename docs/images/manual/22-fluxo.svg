@@ -1,0 +1,41 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 416" role="img" class="dg">
+<defs>
+<marker id="22-fluxo-ponta-acento" viewBox="0 0 8 8" refX="8" refY="4" markerWidth="8" markerHeight="8" markerUnits="userSpaceOnUse" orient="auto"><path class="dg-ponta-acento" d="M0 0L8 4L0 8z"/></marker>
+<marker id="22-fluxo-ponta-ok" viewBox="0 0 8 8" refX="8" refY="4" markerWidth="8" markerHeight="8" markerUnits="userSpaceOnUse" orient="auto"><path class="dg-ponta-ok" d="M0 0L8 4L0 8z"/></marker>
+<marker id="22-fluxo-ponta-perigo" viewBox="0 0 8 8" refX="8" refY="4" markerWidth="8" markerHeight="8" markerUnits="userSpaceOnUse" orient="auto"><path class="dg-ponta-perigo" d="M0 0L8 4L0 8z"/></marker>
+</defs>
+<rect class="dg-caixa-2" x="16.5" y="96.5" width="127" height="231" rx="12"/>
+<text class="dg-t dg-b" x="32" y="120">fila na RAM</text>
+<rect class="dg-caixa" x="32.5" y="168.5" width="95" height="23" rx="6"/>
+<text class="dg-n dg-m" x="80" y="184" text-anchor="middle">seq 1</text>
+<rect class="dg-caixa" x="32.5" y="200.5" width="95" height="23" rx="6"/>
+<text class="dg-n dg-m" x="80" y="216" text-anchor="middle">seq 2</text>
+<rect class="dg-caixa" x="32.5" y="232.5" width="95" height="23" rx="6"/>
+<text class="dg-n dg-m" x="80" y="248" text-anchor="middle">seq 3</text>
+<rect class="dg-caixa-2" x="168.5" y="16.5" width="535" height="159" rx="12"/>
+<text class="dg-t dg-b" x="184" y="40">HTTP</text>
+<rect class="dg-caixa" x="568.5" y="80.5" width="119" height="87" rx="6"/>
+<text class="dg-t dg-b" x="628" y="100" text-anchor="middle">coletor</text>
+<polyline class="dg-fio-acento" points="144,112 568,112" marker-end="url(#22-fluxo-ponta-acento)"/>
+<text class="dg-t" x="184" y="104">POST com a fila inteira</text>
+<polyline class="dg-fio-ok" points="568,136 144,136" marker-end="url(#22-fluxo-ponta-ok)"/>
+<text class="dg-t dg-ok" x="184" y="128">2xx: os três registros saem da fila</text>
+<polyline class="dg-fio-perigo" points="568,160 144,160" marker-end="url(#22-fluxo-ponta-perigo)"/>
+<text class="dg-t dg-perigo" x="184" y="152">outro código ou nada em 4 s: a fila fica, novo envio em 15 s</text>
+<rect class="dg-caixa-2" x="168.5" y="192.5" width="535" height="207" rx="12"/>
+<text class="dg-t dg-b" x="184" y="216">MQTT</text>
+<rect class="dg-caixa" x="360.5" y="240.5" width="103" height="31" rx="6"/>
+<text class="dg-t dg-b" x="372" y="260">broker</text>
+<rect class="dg-caixa" x="568.5" y="240.5" width="119" height="63" rx="6"/>
+<text class="dg-t dg-b" x="580" y="260">coletor</text>
+<text class="dg-n dg-c2" x="580" y="276">grava e publica</text>
+<text class="dg-n dg-c2" x="580" y="292">a confirmação</text>
+<polyline class="dg-fio-acento" points="144,256 360,256" marker-end="url(#22-fluxo-ponta-acento)"/>
+<text class="dg-n" x="184" y="248">publish em <tspan class="dg-m">&lt;tópico&gt;/alarm</tspan></text>
+<polyline class="dg-fio-acento" points="464,256 568,256" marker-end="url(#22-fluxo-ponta-acento)"/>
+<polyline class="dg-fio-ok" points="568,288 432,288 432,272" marker-end="url(#22-fluxo-ponta-ok)"/>
+<polyline class="dg-fio-ok" points="392,272 392,312 144,312" marker-end="url(#22-fluxo-ponta-ok)"/>
+<text class="dg-n" x="184" y="332">seq 1, 2 e 3 em <tspan class="dg-m">&lt;tópico&gt;/alarm/ack</tspan></text>
+<text class="dg-n dg-c2" x="184" y="348">o aparelho tira os três da fila</text>
+<text class="dg-t" x="184" y="384">Sem a confirmação, a fila inteira é publicada de novo a cada 15 s.</text>
+</svg>

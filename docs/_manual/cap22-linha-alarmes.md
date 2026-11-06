@@ -35,7 +35,7 @@ A linha de alarmes vem desligada de fábrica.
 
 A linha usa o transporte, o servidor, a porta, a chave de acesso e o TLS da telemetria de medições. Só o formato e o caminho são próprios dela.
 
-::: {.figura #fig-22-fluxo tipo="diagrama" arquivo="22-fluxo.png" captura="Diagrama em duas raias, HTTP e MQTT. À esquerda, a fila na RAM do aparelho com registros seq 1, 2 e 3. Raia HTTP: seta 'POST com a fila inteira' até o coletor; volta '2xx' e os três registros saem da fila; volta alternativa 'outro código ou nada em 4 s' e a fila fica, com 'novo envio em 15 s'. Raia MQTT: seta 'publish em <tópico>/alarm' até o broker e daí ao coletor; o coletor grava e publica a confirmação com os seq 1, 2 e 3 em '<tópico>/alarm/ack'; o broker entrega ao aparelho, que tira os três da fila. Uma nota mostra que, sem a confirmação, a fila inteira é publicada de novo a cada 15 s."}
+::: {.figura #fig-22-fluxo tipo="diagrama" arquivo="22-fluxo.svg" captura="desenhado pelo código (tools/manual_diagramas.py): a fila de alarmes na RAM e as duas raias, HTTP e MQTT, com a confirmação que tira os registros da fila; o reenvio, a espera da resposta e as pontas dos dois tópicos vêm de src/TelemetryManager.h, src/SystemDefs_Network.h e src/TelemetryManager.cpp; refazer com python3 tools/manual_diagramas.py --write"}
 Legenda: no HTTP, a resposta 2xx confirma o lote. No MQTT, a publicação não confirma nada: só a mensagem de confirmação do coletor tira os registros da fila.
 :::
 
