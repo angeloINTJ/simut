@@ -17,7 +17,7 @@ All notable changes to SIMUT firmware.
 
 ### The gate
 
-- `tools/manual_diagramas.py --check` draws the 28 again and compares the text with the committed files and with the chapters' figure blocks. `tools/test_manual_diagramas.py` holds it to its word with 848 controls, 0 failed on 2026-11-06 (Python 3.14.4 and 3.11.11 in isolated mode, 28 and 31 s): 96 changes of a number or a name in a copy of the sources, each of which must change exactly the diagrams that draw it; 77 premises broken, each of which must make the tool refuse to draw and say which; and each of the 231 patterns the tool reads, mangled, must exit 2 naming the file and the pattern. Both run in the `gates` job, after the alpha LCD's figures; they have not run on GitHub yet, which happens on the pull request.
+- `tools/manual_diagramas.py --check` draws the 28 again and compares the text with the committed files and with the chapters' figure blocks. `tools/test_manual_diagramas.py` holds it to its word with 862 controls, 0 failed on 2026-11-06 (Python 3.14.4 and 3.11.11 in isolated mode, 28 and 31 s): 96 changes of a number or a name in a copy of the sources, each of which must change exactly the diagrams that draw it; 77 premises broken, each of which must make the tool refuse to draw and say which; and each of the 232 patterns the tool reads, mangled, must exit 2 naming the file and the pattern. Both run in the `gates` job, after the alpha LCD's figures; they have not run on GitHub yet, which happens on the pull request.
 - The diagrams are put in the page inline, as `<svg>` styled by the `dg-*` classes of `tools/build_manual.py`, on a 4 px grid and with no literal colour; the build refuses two SVG with the same id.
 
 ### The captions
