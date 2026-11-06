@@ -3,7 +3,7 @@
 Gerado por `tools/build_manual.py` — não edite à mão. Salve cada captura
 nesta pasta com o nome indicado e rode o script de novo.
 
-133 pendentes de 245.
+127 pendentes de 245.
 
 
 ## Capítulo 1 — O SIMUT em uma página
@@ -56,15 +56,11 @@ nesta pasta com o nome indicado e rode o script de novo.
       Uma alteração que se aplica sem reinício: o selo diz Não exige reinício e os três botões aparecem.
 - [ ] `05-confirmacao.png` (Página web) — rota /config; largura 1280; sessão admin; Nome do aparelho alterado; janela de confirmação aberta depois de tocar em Salvar e reiniciar
       A confirmação de Salvar e reiniciar, que avisa quanto tempo o aparelho fica fora do ar.
-- [ ] `05-erro-carga.png` (Página web) — rota /config; largura 1280; sessão admin; aparelho sem responder a /api/config (por exemplo, rede interrompida depois de a página abrir); faixa de erro visível e campos desabilitados
-      A faixa de erro de carga: os campos ficam desabilitados para que nada em branco seja gravado.
 - [ ] `05-data-hora.png` (Página web) — rota /config; largura 1280; sessão admin; NTP desligado e gravado; seção Data e Hora com os campos de data e hora preenchidos; mensagem Hora aplicada. abaixo do botão Aplicar Agora
       A seção Data e Hora com o NTP desligado, depois de um acerto manual.
 
 ## Capítulo 6 — Sensores e calibração
 
-- [ ] `06-editor-ds18b20.png` (Página web) — rota /config; largura 1280; sessão admin com a permissão Calibração; imagem release; editor do slot 0 aberto, DS18B20 ativo em GP0, relógio sincronizado por NTP, sem correção
-      O editor de um slot DS18B20: tipo, nome, ID de hardware, estado, o pino 1-Wire, o bloco de calibração e as operações de hardware.
 - [ ] `06-editor-bme280.png` (Página web) — rota /config; largura 390; sessão admin; imagem release; editor de um slot novo com o tipo BME280 escolhido, Pino 0 — SDA em GP4, Pino 1 — SCL em GP5, ID de hardware e nome preenchidos, Ativo ligado, ainda não gravado
       Um slot novo de BME280 no celular: dois seletores de pino, SDA e SCL.
 - [ ] `06-editor-aviso.png` (Página web) — rota /config; largura 1280; sessão admin; editor do slot 1, DHT22 ativo, com o pino Data trocado para GP4, que já pertence ao slot 2 (o BMP280); a linha vermelha mostra GP4 já está em uso pelo slot 2.
@@ -144,8 +140,6 @@ nesta pasta com o nome indicado e rode o script de novo.
       A seção IPv4 com o DHCP desligado e os campos do IP fixo preenchidos.
 - [ ] `09-servidor-web.png` (Página web) — rota /network; largura 1280; sessão admin; imagem release; certificado HTTPS instalado; página aberta por https; recorte das seções Servidor de Hora (NTP) e Servidor Web, com o interruptor Conexões persistentes visível e ligado
       A seção Servidor Web num aparelho com certificado instalado: o interruptor de conexões persistentes só aparece nesse caso.
-- [ ] `09-busca.png` (Página web) — rota /network; largura 1280; sessão admin; busca concluída com 5 redes de exemplo (MinhaRede protegida -48 dBm com 4 barras, uma rede aberta com 2 barras, as outras protegidas); lista aberta abaixo do campo SSID
-      A lista de redes depois de Buscar: cadeado, nome, barras e sinal em dBm, da mais forte para a mais fraca.
 - [ ] `09-escada.png` (Diagrama) — linha do tempo da escada de reconexão: queda; cinco ciclos de busca, busca e tentativa de 20 s com esperas de 5, 10, 20, 40 e 80 s; três dormências de 10 min antes de cada busca; ao fim, o recomeço da escada, que se repete até a rede voltar; nenhum AP de configuração na linha
       A escada de reconexão: esperas que dobram, três dormências de 10 min e o recomeço, até a rede voltar.
 - [ ] `09-aviso-certificado.png` (Página web) — rota https://192.0.2.10/login; largura 1280; navegador Chrome sem a exceção aceita; certificado autoassinado recém-instalado; página de aviso do navegador
@@ -153,8 +147,6 @@ nesta pasta com o nome indicado e rode o script de novo.
 
 ## Capítulo 10 — Data e hora
 
-- [ ] `10-log-ntp.png` (Página web) — rota /history; largura 1280; sessão admin; aba de eventos carregada logo depois de um boot com NTP; linhas 524 Hora provisória do flash, 14 IP obtido, 13 NTP sincronizado, 408 NTP corrigindo timestamps com contexto de alguns segundos, 409 e 410 visíveis
-      Os eventos de um boot com NTP: a hora provisória, o acerto e a correção do histórico.
 - [ ] `10-acerto-manual.png` (Página web) — rota /config; largura 1280; sessão admin; NTP desligado e gravado; seção Data e Hora com os campos Data e Hora preenchidos e a mensagem Hora aplicada.
       O acerto manual com o NTP desligado: data, hora e o botão Aplicar Agora da seção.
 - [ ] `10-correcao.png` (Diagrama) — linha do tempo: aparelho desligado por 2 h; boot com relógio provisório a partir do último registro, 2 h atrasado; medições carimbadas com a hora provisória; acerto por NTP com correção de +7200 s; os blocos gravados desde o boot deslocados 2 h para a frente; eventos 524, 13, 408, 409 e 410 marcados na linha
@@ -209,8 +201,6 @@ nesta pasta com o nome indicado e rode o script de novo.
 
 - [ ] `13-entrada-bloqueio.png` (Página web) — rota /login; largura 390; sem sessão; uma senha errada acabou de ser enviada; a mensagem Bloqueado por 2s. Tentativas excessivas. está na tela e o botão Entrar está desativado
       O bloqueio depois de uma senha errada. O botão Entrar volta sozinho quando a contagem termina.
-- [ ] `13-trocar-senha.png` (Página web) — rota /login, depois de tocar em Trocar senha; largura 390; sem sessão; Nova Senha preenchida com 8 caracteres entre letras e dígitos, sem símbolo; Repetir Nova Senha vazia
-      O formulário de troca de senha. Três requisitos estão verdes e Símbolo ainda não; o botão Salvar Nova Senha continua desativado.
 - [ ] `13-aviso-sessao-segura.png` (Página web) — rota /login; largura 1280; navegador com cookie seguro de uma visita HTTPS anterior ao mesmo endereço, aparelho agora em HTTP; logo depois de uma entrada com senha certa
       A faixa amarela que aparece quando o navegador não consegue guardar a sessão nova.
 - [ ] `13-troca-obrigatoria.png` (Página web) — rota /force_chpass; largura 390; sessão de uma conta recém-criada com senha temporária; Nova Senha preenchida com uma senha que atende às quatro exigências e Repetir Nova Senha igual
@@ -259,8 +249,6 @@ nesta pasta com o nome indicado e rode o script de novo.
 
 - [ ] `16-transicao.png` (Diagrama) — linha do tempo de 3 horas da família Telemetria: pontos cinza pequenos a cada envio (console), pontos grandes onde o registro vai para a flash; flash no 1º envio depois do boot, na 1ª falha (coletor cai), nenhuma nas falhas seguintes, na 1ª volta, e um por hora nos trechos estáveis; marcas 'Registros de rotina suprimidos (5), ctx = N' a cada hora
       Legenda: o console vê todos os eventos; a flash guarda as transições e um registro por hora de cada família.
-- [ ] `16-eventos-celular.png` (Página web) — rota /history; largura 390; sessão admin; seção Eventos do Sistema carregada, rolada até a tabela; só ERR marcado
-      A tabela de eventos no celular, com o filtro de entrada: só erros.
 
 ## Capítulo 17 — Atualização, backup e restauração
 
