@@ -70,6 +70,9 @@ SYSLOG_CPP = 'src/SyslogManager.cpp'
 LOOP = 'src/AppManager_Loop.cpp'
 NETWORK = 'src/NetworkManager.cpp'
 RECORDS = 'src/SystemDefs_Records.h'
+WEB_OTA = 'src/WebManager_Ota.cpp'
+WEB_API = 'src/WebManager_Api.cpp'
+STORAGE_H = 'src/StorageManager.h'
 LOG_MANAGER = 'src/LogManager.cpp'
 NET_LINK = 'src/net/NetLink.h'
 
@@ -152,6 +155,10 @@ FIGURAS = (
            'perguntam a cada um, o anúncio mDNS à rede local e o manifest.json da release no GitHub que o gestor lê; os nomes dos cabeçalhos e a premissa de que os dois POSTs os levam vêm de '
            'src/TelemetryManager.cpp, o esquema e o nome do cookie da sessão de src/WebManager_Auth.cpp, a rota e o esquema do /metrics de src/WebManager_Core.cpp e src/WebManager_Metrics.cpp, o serviço '
            'e as imagens do anúncio de src/NetworkManager.cpp e SIMUT_MDNS, o nome do manifesto do passo Checksums de .github/workflows/release-ota.yml'),
+    Figura('fig-27-ondas', '27-ondas.svg', 'cap27-frota.md', 'desenho_ondas',
+           'a atualização da frota em três ondas, com a barreira de conferência entre uma onda e a seguinte, e a sequência que cada aparelho percorre em cada onda (backup, envio, aplicação, confirmação, '
+           'restauração, idioma) com a rota de cada passo; as rotas, o método de cada uma, as operações do restore, o sinal de confirmar o envio, a chave da versão e a pasta dos idiomas vêm de '
+           'src/WebManager_Core.cpp, src/WebManager_Ota.cpp, src/WebManager_Api.cpp e src/StorageManager.h, e as ondas e o que cada uma leva são as frases do capítulo'),
 )
 
 
@@ -288,6 +295,12 @@ IP_COLETOR_EXEMPLO, NIVEL_MINIMO, COLETORES_SYSLOG = '192.0.2.10', 'Nível Míni
 # collector of syslog). tools/test_manual_diagramas.py checks that the chapter still says them.
 PAR_GESTAO, PAR_PROMETHEUS, PAR_REDE_LOCAL = 'servidor de gestão', 'Prometheus', 'rede local'
 PAR_GESTOR = 'gestor de frota'                  # chapter 27's name for the program that asks every device (the 27 figures' peer)
+# The waves of a fleet's update, chapter 27's own sentences ("Em ondas": the three numbered paragraphs, each name and what the paragraph says the wave holds), and the barrier between two of them
+# as the key to the figure words it: what the paragraphs say is checked between waves (the version, the telemetry, the alarm line) and for how long (a period). The firmware knows none of it;
+# tools/test_manual_diagramas.py checks that the chapter still says them.
+ONDAS = (('Onda 0', 'um aparelho de bancada de cada imagem em uso'), ('Onda 1', 'poucos aparelhos em uso real'),
+         ('Onda 2', 'o resto, em grupos pequenos, um aparelho de cada vez dentro de cada grupo'))
+BARREIRA_ONDAS = 'conferir versão, telemetria e alarmes por um período'
 
 IMAGEM_DO_PERFIL = {'release': 'pico_w_release', 'alpha': 'pico_w_alpha', 'air': 'pico_w_air'}
 
@@ -620,6 +633,30 @@ class Numeros:
         anuncio = self.mdns()
         return {'cabecalhos': rotulo_cabecalhos, 'sessao': esquema, 'cookie': cookie, 'esquema_metricas': metricas['esquema'], 'metodo': metricas['metodo'], 'rota': metricas['rota'],
                 'mdns': anuncio['servico'], 'imagens_mdns': anuncio['imagens'], 'manifesto': self.publicados()[1]}
+
+
+    def ondas(self):
+        """The update sequence a wave runs on each device, as the routes and the code have it: the backup (GET /api/backup), the stage of the image (POST /api/restore, op stage, with commit),
+        the apply (POST /api/ota/apply), the version read back (sys.ver of GET /api/status), the restore of the backup (op validate, then op apply) and the language packs (the /lang folder). The
+        routes are found by their handlers, so a path renamed in the code is renamed in the figure. Premises: the restore's three operations are the three the figure names, and an apply of
+        a backup that was not the one validated last is refused with a 409 (which is why the restore comes after the validation)."""
+        f = self.f
+
+        def rota(handler):
+            m = f.achar(WEB_CORE, rf'_server->on\("(/[\w/.]+)", HTTP_(\w+),\s*std::bind\(&WebManager::{handler}, this\)')
+            return m.group(2), m.group(1)
+
+        stage, apply = f.achar(WEB_OTA, r'bool is_stage = \(op == "(\w+)"\);\s+bool is_apply = \(op == "(\w+)"\);').groups()
+        comentario = f.achar(WEB_OTA, r'@brief OTA endpoints — backup, restore \((\w+)/(\w+)/(\w+)\) and apply\.').groups()
+        validate = [w for w in comentario if w not in (stage, apply)]
+        if len(comentario) != 3 or len(validate) != 1 or {stage, apply} - set(comentario):
+            raise Falta(f'{WEB_OTA}: the restore\'s operations are {comentario} in the header and {stage}, {apply} in the code, and the figure of the waves names three: stage, apply and the validation')
+        f.exigir(WEB_OTA, r'NOT_VALIDATED \? 409', 'an apply of a backup that was not the one validated last is refused with a 409, which is why the figure of the waves restores after it has validated')
+        chave, versao = f.achar(WEB_API, r'\{\\"(\w+)\\":\{\\"name\\":\\"%s\\",\\"(\w+)\\":\\"%s\\"').groups()
+        argumento, valor = f.achar(WEB_OTA, r'bool commit = \(_server->arg\("(\w+)"\) == "(\w+)"\);').groups()
+        return {'backup': rota('handleApiBackup'), 'restore': rota('handleApiRestoreFinish'), 'apply': rota('handleApiOtaApply'), 'estado': rota('handleApiStatus'),
+                'stage': stage, 'validate': validate[0], 'apply_op': apply, 'commit': f'{argumento}={valor}', 'versao': f'{chave}.{versao}',
+                'idioma': f.achar(STORAGE_H, r'^#define DIR_LANG "(/\w+)"').group(1)}
 
 
 def pino_de(gpio):
@@ -1517,6 +1554,57 @@ def desenho_arquitetura(num, slug):
     bloco(s, x_p, y_g + 48, l_p, [('GitHub', 'dg-t'), ('ativos da release', 'dg-n dg-c2')])
     s.seta([(120, 280), (120, 360)], *tracejada)
     rotulo(s, 132, 304, ['anúncio mDNS', mono(fr['mdns'])] + quebrar(so_nas, 284 - 132, 12), 284)
+    return s.render()
+
+
+def desenho_ondas(num, slug):
+    o = num.ondas()
+    s = Svg(slug)
+    acento = ('dg-fio-acento', 'dg-ponta-acento')
+    x_e, l_e = 16, 344                                  # the waves' column
+    x_p, l_p = 392, 312                                 # the sequence's panel
+    # the three waves, with a barrier between two: the next one waits for the check
+    ondas, y = [], 16
+    for k, (nome, texto) in enumerate(ONDAS):
+        c = bloco(s, x_e, y, l_e, [(nome, 'dg-t dg-b'), (texto, 'dg-n dg-c2')], 'dg-caixa-2', 12)
+        if ondas:
+            s.seta([barreira.base(), c.topo()], *acento)
+        ondas.append(c)
+        y = c.y + c.h + 24
+        if k < len(ONDAS) - 1:
+            if largura_texto(BARREIRA_ONDAS, 12) > l_e - 16:
+                raise ValueError(f'{slug}: the barrier\'s text does not fit in one line of its box, {l_e} px')
+            barreira = Cx(x_e, y, l_e, 32)
+            s.caixa(barreira.x, barreira.y, barreira.w, barreira.h, 'dg-caixa-apagada', 6)
+            s.texto(barreira.x + l_e // 2, barreira.y + 20, BARREIRA_ONDAS, 'dg-n', 'middle')
+            s.seta([c.base(), barreira.topo()], *acento)
+            y = barreira.y + barreira.h + 24
+    # the sequence each device goes through, in every wave: the route of each step, as the code has it
+    metodo = lambda chave: f'{o[chave][0]} {o[chave][1]}'
+    passos = (('backup', [mono(metodo('backup'))]),
+              ('envio', [mono(f'{metodo("restore")}?op={o["stage"]}&{o["commit"]}')]),
+              ('aplicação', [mono(metodo('apply'))]),
+              ('confirmação', [[('', 'versão nova em '), ('dg-m', o['versao'])]]),
+              ('restauração', [mono(f'{metodo("restore")}?op={o["validate"]}'), [('', 'depois '), ('dg-m', f'?op={o["apply_op"]}')]]),
+              ('idioma', [[('', 'pacotes em '), ('dg-m', o['idioma']), ('', ', e reinicia')]]))
+    y_p = 16
+    fim_do_painel = 84 + sum(16 + 16 * len(det) + 8 for _, det in passos) + 4
+    s.caixa(x_p, y_p, l_p, fim_do_painel - y_p, 'dg-caixa', 12)
+    s.texto(x_p + 12, 40, 'em cada aparelho', 'dg-t dg-b')
+    s.texto(x_p + 12, 56, 'a mesma sequência, em todas as ondas', 'dg-n dg-c2')
+    y = 84
+    for k, (nome, detalhes) in enumerate(passos):
+        s.caixa(x_p + 12, y, 16, 16, 'dg-caixa-acento', 6)
+        s.texto(x_p + 20, y + 12, str(k + 1), 'dg-n dg-b dg-sobre-acento', 'middle')
+        s.texto(x_p + 36, y + 12, nome, 'dg-t dg-b')
+        rotulo(s, x_p + 36, y + 28, detalhes, x_p + l_p - 8)
+        y += 16 + 16 * len(detalhes) + 8
+    # each wave runs it: thin lines from the three waves to one arrow that meets the panel
+    meio = ondas[1].y + ondas[1].h // 2
+    for c in ondas:
+        s.linha([(x_e + l_e, c.y + c.h // 2), (x_e + l_e + 16, c.y + c.h // 2)], 'dg-fio-fino')
+    s.linha([(x_e + l_e + 16, ondas[0].y + ondas[0].h // 2), (x_e + l_e + 16, ondas[-1].y + ondas[-1].h // 2)], 'dg-fio-fino')
+    s.seta([(x_e + l_e + 16, meio), (x_p, meio)], 'dg-fio', 'dg-ponta')
     return s.render()
 
 

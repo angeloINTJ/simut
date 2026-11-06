@@ -65,6 +65,9 @@ SYSLOG_CPP = 'src/SyslogManager.cpp'
 LOOP = 'src/AppManager_Loop.cpp'
 NETWORK = 'src/NetworkManager.cpp'
 RECORDS = 'src/SystemDefs_Records.h'
+WEB_OTA = 'src/WebManager_Ota.cpp'
+WEB_API = 'src/WebManager_Api.cpp'
+STORAGE_H = 'src/StorageManager.h'
 BOOT = 'src/AppManager_Boot.cpp'
 
 
@@ -255,6 +258,10 @@ def main():
         confere(m.PAR_GESTOR in cap27 and 'GitHub' in cap27 and m.PAR_PROMETHEUS in cap27 and 'coletor' in cap27.lower(),
                 f'chapter 27 does not say the names of the fleet figure\'s peers: {m.PAR_GESTOR}, GitHub, {m.PAR_PROMETHEUS}',
                 'the fleet figure\'s peers (gestor de frota, GitHub, Prometheus, coletor) are the words chapter 27 uses')
+        # the waves figure's waves (their names and what each holds) against the three paragraphs of chapter 27's "Em ondas", and the words of the barrier
+        confere(all(f'**{nome}.** {texto[0].upper()}{texto[1:]}' in cap27 for nome, texto in m.ONDAS) and all(palavra in cap27 for palavra in ('versão', 'telemetria', 'linha de alarmes', 'período')),
+                f'chapter 27 does not say the waves of the figure: {m.ONDAS}',
+                'the waves figure\'s three waves are the three paragraphs of chapter 27 (Onda 0, 1 and 2), and the words of the barrier (versão, telemetria, alarmes, período) are in the chapter')
 
         # ---- the builder's guards --------------------------------------------------------------------------------------------------------------------------
         s = m.Svg('99-teste', 100)
@@ -443,6 +450,12 @@ def main():
                 ('the session\'s Bearer scheme -> Token', [(WEB_AUTH, 'if (a.startsWith("Bearer ")) return "SIMUTSESS=" + a.substring(7);', 'if (a.startsWith("Token ")) return "SIMUTSESS=" + a.substring(7);', 1)], {'27-arquitetura.svg'}),
                 ('the session cookie SIMUTSESS -> SESSAO', [(WEB_AUTH, 'if (a.startsWith("Bearer ")) return "SIMUTSESS=" + a.substring(7);', 'if (a.startsWith("Bearer ")) return "SESSAO=" + a.substring(7);', 1)], {'27-arquitetura.svg'}),
                 ('the manifest renamed in the release workflow', [(WORKFLOW_OTA, '*.lng manifest.json > SHA256SUMS', '*.lng manifesto.json > SHA256SUMS', 1)], {'03-arquivos.svg', '27-arquitetura.svg'}),
+                ('the backup route /api/backup -> /api/copia', [(WEB_CORE, '_server->on("/api/backup", HTTP_GET', '_server->on("/api/copia", HTTP_GET', 1)], {'27-ondas.svg'}),
+                ('the restore\'s stage operation renamed send, in the code and in the file\'s own header', [(WEB_OTA, 'bool is_stage = (op == "stage");', 'bool is_stage = (op == "send");', 1),
+                                                                                                          (WEB_OTA, 'restore (validate/apply/stage)', 'restore (validate/apply/send)', 1)], {'27-ondas.svg'}),
+                ('the commit flag of the stage 1 -> 2', [(WEB_OTA, 'bool commit = (_server->arg("commit") == "1");', 'bool commit = (_server->arg("commit") == "2");', 1)], {'27-ondas.svg'}),
+                ('the folder of the language packs /lang -> /idiomas', [(STORAGE_H, '#define DIR_LANG "/lang"', '#define DIR_LANG "/idiomas"', 1)], {'27-ondas.svg'}),
+                ('the version\'s key in the status ver -> versao', [(WEB_API, '\\"name\\":\\"%s\\",\\"ver\\":\\"%s\\"', '\\"name\\":\\"%s\\",\\"versao\\":\\"%s\\"', 1)], {'27-ondas.svg'}),
                 ('the BME280 probe pair (4, 5) -> (6, 7)', [(BME_SENSOR, 'probe(4, 5, BME280_ADDR_PRIMARY)', 'probe(6, 7, BME280_ADDR_PRIMARY)', 1)], {'02-bmx280.svg'}),
                 ('the BME280 addresses 0x76/0x77 -> 0x75/0x78 in the driver, code and comments', [(BME_DRIVER, '0x76', '0x75', None), (BME_DRIVER, '0x77', '0x78', None)], {'02-bmx280.svg'}),
             ]
@@ -514,6 +527,8 @@ def main():
             ('the telemetry\'s POST no longer carries the identity headers', [(TELEMETRY, ' addIdentityHeaders(http, _storageRef);\n\n http.setTimeout(NET_SOCKET_TIMEOUT_MS);', ' http.setTimeout(NET_SOCKET_TIMEOUT_MS);', 1)], 'identity headers', '27-arquitetura.svg'),
             ('the session is read from the Bearer header before the cookie', [(WEB_AUTH, '\tif (_server->hasHeader("Cookie")) return _server->header("Cookie");\n\tif (_server->hasHeader("Authorization")) {', '\tif (_server->hasHeader("Authorization")) {', 1)],
              'cookie', '27-arquitetura.svg'),
+            ('an apply of a backup that was not the one just validated is no longer refused', [(WEB_OTA, 'NOT_VALIDATED ? 409', 'NOT_VALIDATED ? 200', 1)], 'validated', '27-ondas.svg'),
+            ('the restore has a fourth operation', [(WEB_OTA, 'restore (validate/apply/stage)', 'restore (validate/apply/stage/rollback)', 1)], 'restore', '27-ondas.svg'),
             ('the discovery configs are no longer published retained', [(TELEMETRY, 'ok = _mqttClient.publish(topic, payload, true);', 'ok = _mqttClient.publish(topic, payload, false);', 1)],
              'retained', '23-fluxo.svg'),
             ('the online message is no longer published retained', [(TELEMETRY, 'onlinePayload.c_str( ), true);', 'onlinePayload.c_str( ), false);', 1)], 'retained', '23-fluxo.svg'),

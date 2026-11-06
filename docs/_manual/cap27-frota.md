@@ -469,7 +469,7 @@ Uma imagem de 1 MB leva cerca de 30 s para chegar. Não desligue nem reinicie o 
 
 Nunca atualize a frota inteira de uma vez.
 
-::: {.figura #fig-27-ondas tipo="diagrama" arquivo="27-ondas.png" captura="diagrama: a frota dividida em três ondas; onda 0 com um aparelho de bancada, onda 1 com poucos aparelhos de cada imagem, onda 2 com o resto; entre as ondas, uma barreira 'conferir versão, telemetria e alarmes por um período'; dentro de cada aparelho, a sequência backup, envio, aplicação, confirmação, restauração, idioma"}
+::: {.figura #fig-27-ondas tipo="diagrama" arquivo="27-ondas.svg" captura="desenhado pelo código (tools/manual_diagramas.py): a atualização da frota em três ondas, com a barreira de conferência entre uma onda e a seguinte, e a sequência que cada aparelho percorre em cada onda (backup, envio, aplicação, confirmação, restauração, idioma) com a rota de cada passo; as rotas, o método de cada uma, as operações do restore, o sinal de confirmar o envio, a chave da versão e a pasta dos idiomas vêm de src/WebManager_Core.cpp, src/WebManager_Ota.cpp, src/WebManager_Api.cpp e src/StorageManager.h, e as ondas e o que cada uma leva são as frases do capítulo; refazer com python3 tools/manual_diagramas.py --write"}
 A atualização em ondas. Cada onda só começa depois de a anterior se provar estável.
 :::
 
