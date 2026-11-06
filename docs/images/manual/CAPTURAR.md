@@ -207,7 +207,7 @@ nesta pasta com o nome indicado e rode o script de novo.
       Uma semana em baldes: a linha é a média de cada balde, e a faixa sombreada vai do mínimo ao máximo. O pico do degelo aparece mesmo resumido.
 - [ ] `15-carregando.png` (Página web) — rota /history; largura 1280; sessão admin; período MAX com 60 dias de histórico sintético no aparelho; carga em andamento na metade, barra mostrando Arquivos: 31/60 e os KB recebidos, botão Cancelar visível
       A carga de um período longo: a barra conta os arquivos baixados, e Cancelar deixa na tela a parte mais recente.
-- [ ] `15-exportando.png` (Página web) — rota /history; largura 1280; sessão admin; exportação em andamento de um período 1M, caixa Exporting... com 45 %, tempo estimado, contagem OK e err, e o botão Cancelar
+- [ ] `15-exportando.png` (Página web) — rota /history; largura 1280; sessão admin; exportação em andamento de um período 1M, caixa Exportando... com 45 %, tempo estimado, contagens OK e com falha, e o botão Cancelar
       A caixa da exportação em andamento. Cancelar salva o CSV com o que já chegou, com _partial no nome.
 
 ## Capítulo 17 — Atualização, backup e restauração

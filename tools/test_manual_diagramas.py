@@ -659,7 +659,7 @@ def main():
                 ('the name of the held event in the log code table', [(LOGCODES, 'Air cycle held in M0\tCiclo Air retido em M0\t', 'Air cycle held in M0\tCiclo Air retido\t', 1)], {'19-modos.svg'}),
                 ('the word of the hibernate command hibernate -> hibernar', [(PARSER, 't1 == "hibernate" || t1 == "sleep"', 't1 == "hibernar" || t1 == "sleep"', 1)], {'19-modos.svg'}),
                 ('the web update\'s ceiling one sector -> two sectors under the end of the program space', [(OTA_LAYOUT, '(OTA_APP_MAX_SIZE - OTA_FLASH_SECTOR_SIZE)  /* 1016 KiB */', '(OTA_APP_MAX_SIZE - 2u * OTA_FLASH_SECTOR_SIZE)  /* 1016 KiB */', 1)], {'28-flash.svg'}),
-                ('the BME280 probe pair (4, 5) -> (6, 7)', [(BME_SENSOR, 'probe(4, 5, BME280_ADDR_PRIMARY)', 'probe(6, 7, BME280_ADDR_PRIMARY)', 1)], {'02-bmx280.svg'}),
+                ('the BME280 probe pair (4, 5) -> (6, 7)', [(BME_SENSOR, 'SCAN_SDA = 4;', 'SCAN_SDA = 6;', 1), (BME_SENSOR, 'SCAN_SCL = 5;', 'SCAN_SCL = 7;', 1)], {'02-bmx280.svg'}),
                 ('the BME280 addresses 0x76/0x77 -> 0x75/0x78 in the driver, code and comments', [(BME_DRIVER, '0x76', '0x75', None), (BME_DRIVER, '0x77', '0x78', None)], {'02-bmx280.svg'}),
             ]
 

@@ -444,7 +444,7 @@ jobs:
       # must change exactly its diagrams, every premise broken must refuse to draw and say which, every pattern mangled must exit 2 naming it, and the log policy's mirror must answer like
       # LogPolicy.cpp compiled with the runner's g++ (the figure's scenario and 300 random runs). Standard library and g++ only. 0.2 and 28 s here on 2026-11-06 (g++ 15, Python 3.14; the
       # same results under Python 3.11 in isolated mode, 0.2 and 31 s). The job installs no pandoc: where the runner has none, the test skips its 3 controls that run build_manual.py through
-      # pandoc and says so on its last line (859 controls, 1 skipped, here on 2026-11-06 with pandoc hidden from the test; 862 with it). The controls before them read render_figures( ) and
+      # pandoc and says so on its last line (861 controls, 1 skipped, here on 2026-11-06 with pandoc hidden from the test; 864 with it). The controls before them read render_figures( ) and
       # svg_id_errors( ) directly, so the SVG in line and the rule of the ids are held either way; only the whole build through pandoc is held on the bench alone.
       - name: Manual diagrams drawn by code (manual_diagramas.py --check)
         run: python3 tools/manual_diagramas.py --check
@@ -600,6 +600,42 @@ jobs:
       # not; both packs carry the keys.
       - name: Web UI trial note (the Pico 2 W's update on trial, and the way back)
         run: python3 tools/test_webui_trial_note.py
+
+      # The page writes some texts by itself, and each must come from the
+      # pack. The export box of the history page said "Exporting..." in
+      # English and "Cancelar" in Portuguese on every pack, both typed into its
+      # markup; the Network page painted Connected once, from window.t( ), and
+      # kept the English whenever /api/network answered before /api/lang (all
+      # seen on the manual's figures of the v2.14.0, 2026-11-06). Each runs
+      # under node, as written and minified: the box against a DOM that records
+      # every text it shows (a letter no window.t( ) wrote is a failure, and
+      # the keys it asks for are held to both packs); loadNet( ) with lang.js's
+      # own t( ) and applyLang( ) in the orders the device can answer in. The
+      # thirty melody names of Alarms & Sounds had 27 typed in English, and the
+      # custom select kept the English of the 3 that had a key: each option
+      # needs its key, each pack the Ângulo's word for it, and applyLang( )
+      # must sync the custom select of the options it relabels. The probe scan
+      # printed GP255 for a BME280 or BMP280 (the firmware said pin 255): the
+      # JSON comes from the firmware's own formatter, compiled here with g++,
+      # and sensScan( ) must print what it says, pins and chip. The Origem
+      # selector of the history page read "Carregando..." over the sensor's
+      # name: its label kept data-i18n="hist_loading", and applyLang( ) put the
+      # word back when /api/lang answered after /api/status and at a language
+      # switch; _updateSensorMselLabel( ) runs with lang.js's own applyLang( )
+      # in the orders the device can answer in, with one sensor, two and none.
+      # The Max and Min badges above the chart typed "Max " and "Min " into the
+      # markup and kept key.toUpperCase() ("TEMP") for a channel's name when
+      # /api/lang answered late: renderExtremes( ) runs the same way, and the
+      # packs must carry hist_max and hist_min. The overlay over the chart and
+      # the two progress lines kept the markup's data-i18n="hist_loading" while
+      # they showed "No data for this period", "Error", "Complete": the page's
+      # own chart load and log load run under node with lang.js's own
+      # applyLang( ), in the orders the device can answer in (the dictionary
+      # arriving while a load is on included) and on a second load.
+      # --mutations (by hand) puts each violation back and expects exactly its
+      # findings.
+      - name: Web UI pack texts (no text typed into the page)
+        run: python3 tools/test_webui_pack_texts.py
 
       # The Pico 2 W boots from slot A of a partition table, and four files say
       # where everything is: the table picotool writes, the map in

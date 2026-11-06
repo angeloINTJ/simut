@@ -432,9 +432,12 @@ class Numeros:
         return tuple(int(x) for x in m.groups())
 
     def bme(self):
-        """The pair of GPIOs the sensor search probes for a BME280, and the two addresses the driver tries, the primary with SDO to GND."""
-        m = self.f.achar(BME_SENSOR, r'BMx280PIO_RP2040 probe\((\d+), (\d+), BME280_ADDR_PRIMARY\)')
-        sda, scl = int(m.group(1)), int(m.group(2))
+        """The pair of GPIOs the sensor search probes for a BME280, and the two addresses the driver tries, the primary with SDO to GND.
+        Since #324 (2026-11-06) the probe takes the pair from SCAN_SDA and SCAN_SCL, the same two the scan reports as the item's sda and scl,
+        so the numbers are read from those constants, and the probe's use of them is a premise."""
+        self.f.achar(BME_SENSOR, r'BMx280PIO_RP2040 probe\(SCAN_SDA, SCAN_SCL, BME280_ADDR_PRIMARY\)')
+        sda = int(self.f.achar(BME_SENSOR, r'static constexpr uint8_t SCAN_SDA = (\d+);').group(1))
+        scl = int(self.f.achar(BME_SENSOR, r'static constexpr uint8_t SCAN_SCL = (\d+);').group(1))
         for g in (sda, scl):
             self.exemplo(g)
         m = self.f.achar(BME_DRIVER, r'\(addr == 0x([0-9A-Fa-f]{2})\) \? \(uint8_t\)0x([0-9A-Fa-f]{2}) : \(uint8_t\)0x([0-9A-Fa-f]{2})')

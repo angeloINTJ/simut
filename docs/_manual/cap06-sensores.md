@@ -224,7 +224,7 @@ O botão **Procurar sondas** varre os pinos do aparelho em busca de sensores lig
 |---|---|
 | `GPn (` ROM `)` | Um DS18B20 no pino `n`; o código entre parênteses é a ROM da sonda |
 | `GPn` sem ROM | Um sensor que respondeu como DHT22 no pino `n` |
-| `GP255` | Um BME280 ou BMP280 nos pinos GP4 (SDA) e GP5 (SCL) |
+| `GPs/GPc (` chip `, I²C)` | Um BME280 ou BMP280 no barramento I²C, nos pinos `s` (SDA) e `c` (SCL), como `GP4/GP5 (BMP280, I²C)`. O aparelho diz qual dos dois chips respondeu (o código de identificação do chip) e quais pinos usou, e a página escreve o que ele diz. Até a v2.14.0 esta linha aparecia como `GP255`, o valor que o aparelho dava no lugar de um pino só |
 | **Nenhuma sonda respondeu.** (*No probes answered.*) | Nada respondeu, ou a busca não terminou em 10 s |
 | **Falha na ação.** (*Action failed.*) | O aparelho recusou ou não respondeu |
 
