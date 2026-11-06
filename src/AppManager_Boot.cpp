@@ -1529,6 +1529,11 @@ void AppManager::setup( ) {
   * point on APP_SENSORS_CALIBRATED means an operator did something, and it is
   * logged like anything else. */
  LogManager::instance( ).endBootPreamble( );
+#if SIMUT_BOOT_TAGS
+ /* The panel's record of the boot's calls stops here too (2026-11-06, display/BootReplay.h). Not at endBoot( ): the boot into the AP never calls it
+  * ("the panel keeps the AP box"), and this is the one exit of setup( ) both boots reach. */
+ _displayMgr->bootRecClose( );
+#endif
 
  /* A unit with no network configured asks for the date and time, and says why
   * (2026-10-01, the maintainer's decision; it used to open the setup AP here

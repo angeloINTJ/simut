@@ -36,6 +36,7 @@ class Adafruit_GFX;
 #include "display/ClockEntry.h" /* the date and time set at the panel */
 #include "display/SettingsMenu.h" /* the Settings menu: items, order, rows */
 #include "display/LangChoice.h" /* the Idioma screen: rows, opening row, what waits for a boot */
+#include "display/BootReplay.h" /* SIMUT_BOOT_TAGS, and what the `screen boot` test tags record and play back */
 #include "display/AlarmLimitsSnap.h" /* the limits editor's Salvar: the copy Core 0 takes out */
 #include "OtaScreen.h"          /* what the panel says during a firmware update */
 #include "Themes.h"
@@ -493,6 +494,24 @@ public:
 	void setApProgress(int pct);
 	void endBoot( );
 
+#if SIMUT_BOOT_TAGS
+	/* The `screen boot` test tags (2026-11-06, display/BootReplay.h): the six calls above are recorded until the boot is over, and a tag
+	 * plays them back, through the same six, so the boot terminal can be captured with /api/screenshot. Core 0 only. Present only in an
+	 * image with the full console and the TFT: every other image is byte for byte what it was without them. */
+	/** The terminal as it was after record c.idx, plus what c.verb adds (the bar, or the cancelled gesture's two calls). false, with the
+	 *  panel untouched, for what bootreplay::play( ) refuses. Puts the terminal up until a touch, 30 s of none, another tag or `boot end`. */
+	bool bootReplay(const bootreplay::Cmd& c);
+	/** Gives the panel back from a terminal a tag put up: endBoot( ) and the dashboard. Without `always` it does nothing when no tag's
+	 *  terminal is up, so a boot in the AP (which never calls endBoot( ), by design) is not taken down by an unrelated tag. */
+	void bootReplayEnd(bool always = false);
+	/** The recorder stops here: the end of setup( ), the one exit the boot into the AP shares with the ordinary boot. */
+	void bootRecClose( );
+	int  bootRecCount( ) const;
+	int  bootRecDropped( ) const;
+	/** One line of `screen boot`'s list; false past the last record. */
+	bool bootRecLine(int i, char* out, size_t cap) const;
+#endif
+
 	void forceDashboard( );
 	/* Resets the touch idle timer (30s → forceDashboard guard).
 	 * Used by CLI 'screen NAME' so the forced screen remains
@@ -872,6 +891,11 @@ private:
 	volatile bool _forceFullRedraw = false;
 	volatile bool _rawTouchState = false;
 	volatile bool _skipPressed = false;
+#if SIMUT_BOOT_TAGS
+	/** A boot terminal a `screen boot` tag put up is on the glass (bootReplay( )). Core 0 sets it; Core 1's touch pass reads it to give the
+	 *  panel back, because the idle guard and the touch chain both stand aside for isBooting and there is no boot behind this one to end it. */
+	volatile bool _bootReplayOn = false;
+#endif
 	volatile uint32_t _lastTouchTimestamp = 0;
 	volatile bool     _lastTouchInjected = false;
 
@@ -1740,3 +1764,10 @@ private:
 	/* The UI driver's members, last among them (src/ui/UiDriverMembers.h). */
 #include "ui/UiDriverMembers.h"
 };
+
+#if SIMUT_BOOT_TAGS
+/** The English text of a LangKey straight from the table, "" for a raw line or a number off it: for `screen boot`'s list
+ *  (DisplayManager_i18n.cpp). Not tr( ): that one hands out a rotating scratch buffer that Core 1 draws from, and the list is
+ *  written on Core 0. */
+const char* bootKeyTextEn(int16_t key);
+#endif

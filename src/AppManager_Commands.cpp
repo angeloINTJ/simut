@@ -1519,6 +1519,11 @@ void AppManager::executeCommand(CliDemand cmd) {
  /* An update screen up keeps the panel from any other (DisplayManager_Ota.cpp):
   * every screen but its own phases puts it down first. */
  if (strncmp(n, "ota", 3) != 0) _displayMgr->showOta(OTA_PH_NONE);
+#if SIMUT_BOOT_TAGS
+ /* So does a boot terminal that `screen boot` put up (2026-11-06): isBooting stays true under it, and the touch chain answers the terminal and not the
+  * screen another tag opens, so the panel would be dead to touch. Only a terminal a tag put up: a boot into the AP keeps its own, as it always did. */
+ if (strcmp(n, "boot") != 0) _displayMgr->bootReplayEnd( );
+#endif
  if (!strcmp(n, "dash")) _displayMgr->forceDashboard( );
  else if (!strcmp(n, "set")) _displayMgr->showSettingsMain( );
  else if (!strcmp(n, "thm")) _displayMgr->showSettingsThemes(cfg.themeIndex);
@@ -1538,6 +1543,27 @@ void AppManager::executeCommand(CliDemand cmd) {
   * Air, which has this command and no panel. */
  else if (!strcmp(n, "clk")) _displayMgr->showClockEntry(
   clockEntryFrom(_netMgr->getEpoch( ), simutTimeOffsetSeconds( )), false);
+#if SIMUT_BOOT_TAGS
+ /* For the manual's captures (2026-11-06), on the two images with this console and a panel. `clkboot` is the question the boot asks of a unit with no
+  * network, with the hint "no Wi-Fi: records take this time" and PULAR where BACK is: showClockEntry( atBoot ), as AppManager_Boot.cpp calls it.
+  * `boot` lists what the boot told the terminal; `boot <i> [<pct>|cancel]` puts the terminal up as it was after call i (display/BootReplay.h); `boot end`
+  * gives the panel back, and so do a touch, 30 s of none and any other tag. An index off the list, or a word it does not know, is refused. */
+ else if (!strcmp(n, "clkboot")) _displayMgr->showClockEntry(
+  clockEntryFrom(_netMgr->getEpoch( ), simutTimeOffsetSeconds( )), true);
+ else if (!strcmp(n, "boot")) {
+  const bootreplay::Cmd c = bootreplay::parse(cmd.strVal2, cmd.strVal3);
+  if (c.verb == bootreplay::V_LIST) {
+   char line[128];
+   for (int i = 0; _displayMgr->bootRecLine(i, line, sizeof(line)); i++) _cmdMgr->consolePrintln(line);
+   _cmdMgr->consolePrintf("%d of %d calls kept, %d dropped\n", _displayMgr->bootRecCount( ), bootreplay::BOOT_REC_CAP, _displayMgr->bootRecDropped( ));
+  } else if (c.verb == bootreplay::V_END) {
+   _displayMgr->bootReplayEnd(true);
+  } else if (!_displayMgr->bootReplay(c)) {
+   _cmdMgr->printError("?screen boot");
+   break;
+  }
+ }
+#endif
 #if SIMUT_PANEL_PIN
  else if (!strcmp(n, "pin")) _displayMgr->showAuthUser( );
 #endif
