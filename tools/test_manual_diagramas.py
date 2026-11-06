@@ -59,6 +59,7 @@ HA_DISCOVERY = 'src/HaDiscovery.h'
 WEB_CORE = 'src/WebManager_Core.cpp'
 WEB_METRICS = 'src/WebManager_Metrics.cpp'
 WEB_AUTH = 'src/WebManager_Auth.cpp'
+WEB_H = 'src/WebManager.h'
 NET_DEFS = 'src/SystemDefs_Network.h'
 SYSLOG_H = 'src/SyslogManager.h'
 SYSLOG_CPP = 'src/SyslogManager.cpp'
@@ -361,6 +362,12 @@ def main():
                 f'interval {m.AIR_INTERVALO_S} s',
                 'the Air wake figure\'s measured times (the setup until the first phase, the wake until the decision, the telemetry wake and the interval they were measured with) are the ones chapter 19\'s table and the energy analysis (08/09/2026) give')
 
+        # the entry figure's examples (constants of the tool) against chapter 26, which gives them
+        cap26 = (m.CAPITULOS / 'cap26-api-rest.md').read_text(encoding='utf-8')
+        confere(f'H=http://{m.IP_EXEMPLO}' in cap26 and '"nonce":"' + m.NONCE_EXEMPLO.rstrip('…') in cap26,
+                f'chapter 26 does not give the examples of the entry figure: the address {m.IP_EXEMPLO} (H=http://...) and a code that starts {m.NONCE_EXEMPLO}',
+                'the entry figure\'s examples (the address and the start of the code) are chapter 26\'s own')
+
         # ---- the builder's guards --------------------------------------------------------------------------------------------------------------------------
         s = m.Svg('99-teste', 100)
         s.texto(16, 28, 'um texto')
@@ -545,8 +552,8 @@ def main():
                 ('the alpha image gets the mDNS announcement too (it loses -DSIMUT_MDNS=0)', [(PERFIS, '    -DHD44780_MODE_PARALLEL=1\n    -DSIMUT_CLI_FULL=0\n    -DSIMUT_MDNS=0\n    -DSIMUT_BLUETOOTH=1',
                                                                                                           '    -DHD44780_MODE_PARALLEL=1\n    -DSIMUT_CLI_FULL=0\n    -DSIMUT_BLUETOOTH=1', 1)], {'20-integracao.svg', '27-arquitetura.svg'}),
                 ('the identity header X-SIMUT-Ver renamed X-SIMUT-Versao', [(TELEMETRY, 'http.addHeader("X-SIMUT-Ver", SIMUT_VERSION);', 'http.addHeader("X-SIMUT-Versao", SIMUT_VERSION);', 1)], {'27-arquitetura.svg'}),
-                ('the session\'s Bearer scheme -> Token', [(WEB_AUTH, 'if (a.startsWith("Bearer ")) return "SIMUTSESS=" + a.substring(7);', 'if (a.startsWith("Token ")) return "SIMUTSESS=" + a.substring(7);', 1)], {'27-arquitetura.svg'}),
-                ('the session cookie SIMUTSESS -> SESSAO', [(WEB_AUTH, 'if (a.startsWith("Bearer ")) return "SIMUTSESS=" + a.substring(7);', 'if (a.startsWith("Bearer ")) return "SESSAO=" + a.substring(7);', 1)], {'27-arquitetura.svg'}),
+                ('the session\'s Bearer scheme -> Token', [(WEB_AUTH, 'if (a.startsWith("Bearer ")) return "SIMUTSESS=" + a.substring(7);', 'if (a.startsWith("Token ")) return "SIMUTSESS=" + a.substring(7);', 1)], {'26-entrada.svg', '27-arquitetura.svg'}),
+                ('the session cookie SIMUTSESS -> SESSAO, wherever the code names it', [(WEB_AUTH, 'SIMUTSESS', 'SESSAO', None)], {'26-entrada.svg', '27-arquitetura.svg'}),
                 ('the manifest renamed in the release workflow', [(WORKFLOW_OTA, '*.lng manifest.json > SHA256SUMS', '*.lng manifesto.json > SHA256SUMS', 1)], {'03-arquivos.svg', '27-arquitetura.svg'}),
                 ('the backup route /api/backup -> /api/copia', [(WEB_CORE, '_server->on("/api/backup", HTTP_GET', '_server->on("/api/copia", HTTP_GET', 1)], {'27-ondas.svg'}),
                 ('the restore\'s stage operation renamed send, in the code and in the file\'s own header', [(WEB_OTA, 'bool is_stage = (op == "stage");', 'bool is_stage = (op == "send");', 1),
@@ -576,6 +583,10 @@ def main():
                 ('the web page\'s estimate of the apply 25 s -> 30 s', [(WEBUI, 'Apply + reboot: ~25 s', 'Apply + reboot: ~30 s', 1)], {'17-ota-linha-tempo.svg'}),
                 ('the web page\'s estimate of the boot 25 s -> 30 s', [(WEBUI, 'Full boot: ~25 s', 'Full boot: ~30 s', 1)], {'17-ota-linha-tempo.svg'}),
                 ('the Air\'s warm-up 400 ms -> 800 ms', [(AIR_CPP, 'if (timeSince(_airPhaseTimer, 400)) {', 'if (timeSince(_airPhaseTimer, 800)) {', 1)], {'19-despertar.svg'}),
+                ('the code\'s lifetime 60 s -> 30 s', [(WEB_H, 'NONCE_LIFETIME_MS = 60000', 'NONCE_LIFETIME_MS = 30000', 1)], {'26-entrada.svg'}),
+                ('the login route /api/login -> /api/entrar', [(WEB_CORE, '_server->on("/api/login", HTTP_POST', '_server->on("/api/entrar", HTTP_POST', 1)], {'26-entrada.svg'}),
+                ('the key lockSec of the code\'s answer -> lock_sec', [(WEB_AUTH, '\\"locked\\":%s,\\"lockSec\\":%lu}"', '\\"locked\\":%s,\\"lock_sec\\":%lu}"', 1)], {'26-entrada.svg'}),
+                ('the answer of a logout with a Bearer token 204 -> 205', [(WEB_AUTH, '_server->send(204, "text/plain", "");', '_server->send(205, "text/plain", "");', 1)], {'26-entrada.svg'}),
                 ('the BME280 probe pair (4, 5) -> (6, 7)', [(BME_SENSOR, 'probe(4, 5, BME280_ADDR_PRIMARY)', 'probe(6, 7, BME280_ADDR_PRIMARY)', 1)], {'02-bmx280.svg'}),
                 ('the BME280 addresses 0x76/0x77 -> 0x75/0x78 in the driver, code and comments', [(BME_DRIVER, '0x76', '0x75', None), (BME_DRIVER, '0x77', '0x78', None)], {'02-bmx280.svg'}),
             ]
@@ -669,6 +680,15 @@ def main():
             ('the wake goes to the radio whether it has a link or not', [(AIR_CPP, '_airPhase = online ? AIR_PHASE_CONNECT : AIR_PHASE_SLEEP;', '_airPhase = AIR_PHASE_CONNECT;', 1)], 'radio', '19-despertar.svg'),
             ('the sampling no longer connects the Wi-Fi in parallel', [(AIR_CPP, 'if (_airRadioWake && !_airNetGaveUp) {', 'if (false) {', 1)], 'parallel', '19-despertar.svg'),
             ('the phases are no longer in the order the figure draws', [(APP_H, '  AIR_PHASE_WARMUP,    /* M1: power sensors, settle */\n  AIR_PHASE_SAMPLE,', '  AIR_PHASE_SAMPLE,\n  AIR_PHASE_WARMUP,    /* M1: power sensors, settle */', 1)], 'order', '19-despertar.svg'),
+            ('a code is no longer spent by the attempt that matches it', [(WEB_AUTH, "if (ls >= 0) { _loginStates[ls].nonce[0] = '\\0'; _loginStates[ls].prevNonce[0] = '\\0'; }", "if (ls >= 0) { _loginStates[ls].prevNonce[0] = '\\0'; }", 1)],
+             'spent by the attempt that matches it', '26-entrada.svg'),
+            ('a code is no longer spent by an attempt that does not match it', [(WEB_AUTH, "_loginStates[ls].nonce[0] = '\\0';\n\t\t_loginStates[ls].prevNonce[0] = '\\0';\n\t\tif (nonceExpired)", "if (nonceExpired)", 1)],
+             'does not match it too', '26-entrada.svg'),
+            ('the login page no longer hashes the password', [(WEBUI, 'if (pass.length !== 64) pass = sha256(pass);', 'if (pass.length !== 64) pass = pass;', 1)], 'in the browser', '26-entrada.svg'),
+            ('a logout ends every session that has the token, not only the first', [(WEB_AUTH, '_activeSessions[i].token = "";\n\t\t\t\tbreak;', '_activeSessions[i].token = "";', 1)], 'only the session', '26-entrada.svg'),
+            ('a Bearer logout is no longer told apart by the cookie', [(WEB_AUTH, 'const bool byBearer = !_server->hasHeader("Cookie") && _server->hasHeader("Authorization");', 'const bool byBearer = _server->hasHeader("Authorization");', 1)],
+             'no cookie', '26-entrada.svg'),
+            ('the login sets another cookie than the one the session is read from', [(WEB_AUTH, 'String cookieFlags = "SIMUTSESS=" + newToken', 'String cookieFlags = "SIMUTID=" + newToken', 1)], 'one cookie', '26-entrada.svg'),
             ('a reading-only wake starts the network', [(BOOT, 'else if (!_airRadioWake) {', 'else if (false) {', 1)], 'never starts', '19-despertar.svg'),
             ('the wake no longer cuts the sensors\' power when it goes to sleep', [(AIR_CPP, 'airSensorPower(_airCfg.sensorPowerPin, false);', 'airSensorPower(_airCfg.sensorPowerPin, true);', 1)], 'falls', '19-despertar.svg'),
             ('the discovery configs are no longer published retained', [(TELEMETRY, 'ok = _mqttClient.publish(topic, payload, true);', 'ok = _mqttClient.publish(topic, payload, false);', 1)],

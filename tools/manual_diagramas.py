@@ -64,6 +64,7 @@ HA_DISCOVERY = 'src/HaDiscovery.h'
 WEB_CORE = 'src/WebManager_Core.cpp'
 WEB_METRICS = 'src/WebManager_Metrics.cpp'
 WEB_AUTH = 'src/WebManager_Auth.cpp'
+WEB_H = 'src/WebManager.h'
 NET_DEFS = 'src/SystemDefs_Network.h'
 SYSLOG_H = 'src/SyslogManager.h'
 SYSLOG_CPP = 'src/SyslogManager.cpp'
@@ -192,6 +193,12 @@ FIGURAS = (
            'o que uma passada manda, vem de SLOTS em src/SyslogManager.h e a porta de SYSLOG_DEFAULT_PORT em src/SystemDefs_Records.h, e cada coisa que o desenho afirma da fila, do laço, do boot e do '
            'reinício é um trecho de src/SyslogManager.cpp, src/AppManager_Loop.cpp, src/AppManager_Boot.cpp, src/LogManager.cpp ou src/net/NetLink.h que o código tem de manter; '
            'o endereço do coletor, o nome do nível e os coletores são os exemplos do capítulo'),
+    Figura('fig-26-entrada', '26-entrada.svg', 'cap26-api-rest.md', 'desenho_entrada',
+           'a entrada na API em dois pedidos, numa sequência entre o cliente e o aparelho: o código de uso único que GET /api/login_init devolve (vale 60 s e serve a uma tentativa), o SHA-256 da senha que o '
+           'cliente calcula, o POST /api/login com user, pass e nonce, a resposta com o Set-Cookie SIMUTSESS e o corpo com ok e redirect, os pedidos seguintes com o cookie ou o Authorization: Bearer e o '
+           'GET /logout, que encerra só a sessão do token (204 com Bearer, 302 para /login com cookie); as rotas, os campos, as chaves das respostas, o nome do cookie e do esquema, o tempo de vida do código e '
+           'os códigos do logout vêm de src/WebManager_Core.cpp, src/WebManager_Auth.cpp e src/WebManager.h, e o que o desenho afirma do código gasto por uma tentativa, da senha em SHA-256 calculada pela '
+           'página e do logout que só encerra a sessão do token são trechos de src/WebManager_Auth.cpp e de WebUI.h que o código tem de manter; o endereço e o começo do código são os exemplos do capítulo'),
     Figura('fig-27-arquitetura', '27-arquitetura.svg', 'cap27-frota.md', 'desenho_arquitetura',
            'os caminhos de uma frota: vários aparelhos numa rede local, a telemetria e a linha de alarmes que eles empurram ao coletor com os cabeçalhos de identidade, o que o Prometheus e o gestor de frota '
            'perguntam a cada um, o anúncio mDNS à rede local e o manifest.json da release no GitHub que o gestor lê; os nomes dos cabeçalhos e a premissa de que os dois POSTs os levam vêm de '
@@ -357,6 +364,7 @@ ENVIO_MEDIDO_S, VOLTA_MEDIDA_S, MEDIDO_EM = (34.9, 35.9), (52, 56), 'v2.7.0, 22/
 # 12,7 s. The figure's interval of 60 s is the one the chapter measured with (1 min). Measurements, not code: the test checks that the chapter and the analysis still say them.
 AIR_SETUP_S, AIR_ATE_DECIDIR_S, AIR_DESPERTAR_TELEMETRIA_S, AIR_INTERVALO_S = 2.47, 9.31, 12.7, 60
 ESCALA_DESPERTAR = 24      # px a second in the wake figure: a sixth of a second a grid step
+NONCE_EXEMPLO = '9f2c…'    # the start of chapter 26's example code (32 hexadecimal digits): the figure of the entry shows it cut
 
 IMAGEM_DO_PERFIL = {'release': 'pico_w_release', 'alpha': 'pico_w_alpha', 'air': 'pico_w_air'}
 
@@ -671,6 +679,21 @@ class Numeros:
             raise Falta(f'{CONFIG}: no image has SIMUT_MDNS on, and the figures draw the announcement of the service as one a device makes')
         return {'servico': f'_{servico.group(1)}._{servico.group(2)}', 'imagens': imagens}
 
+    def sessao(self):
+        """(the scheme the session can travel in besides the cookie, the cookie's name), as sessionTokenHeader( ) in WebManager_Auth.cpp has them. Premise, refused when the code drifts: the
+        cookie is read first, and the Bearer header only when there is no cookie (the figures of the fleet and of the entry draw the session as one or the other)."""
+        f = self.f
+        f.exigir(WEB_AUTH, r'String WebManager::sessionTokenHeader\( \) \{\s+if \(_server->hasHeader\("Cookie"\)\) return _server->header\("Cookie"\);',
+                 'the session is read from the cookie first, and from the Bearer header only when there is no cookie, which the figure of the fleet draws')
+        return f.achar(WEB_AUTH, r'if \(a\.startsWith\("(\w+) "\)\) return "(\w+)=" \+ a\.substring\(7\);').groups()
+
+
+    def rota_do(self, handler):
+        """(the method, the path) of the route whose handler is WebManager::`handler`, as WebManager_Core.cpp registers it: a path renamed in the code is renamed in the figures."""
+        m = self.f.achar(WEB_CORE, rf'_server->on\("(/[\w/.]+)", HTTP_(\w+),\s*std::bind\(&WebManager::{handler}, this\)')
+        return m.group(2), m.group(1)
+
+
     def frota(self):
         """What the fleet figure draws: the four identity headers every POST of the telemetry and of the alarm line carries (the names, from addIdentityHeaders( ) in TelemetryManager.cpp; premises,
         that both POSTs call it), the scheme the session can travel in besides the cookie and the cookie's name (sessionTokenHeader( ) in WebManager_Auth.cpp; premise, that the cookie is
@@ -681,9 +704,7 @@ class Numeros:
         nomes = re.findall(r'http\.addHeader\("(X-SIMUT-\w+)", ', cabecalhos)
         for definicao, o_que in ((r'^bool TelemetryManager::attemptHttpUpload\([^)]*\) \{', 'the telemetry\'s POST'), (r'^bool TelemetryManager::attemptAlarmHttpUpload\([^)]*\) \{', 'the alarm line\'s POST')):
             f.exigir(TELEMETRIA, r'addIdentityHeaders\(http, _storageRef\);', f'{o_que} no longer carries the identity headers, which the figure of the fleet draws on both', self.corpo(TELEMETRIA, definicao))
-        f.exigir(WEB_AUTH, r'String WebManager::sessionTokenHeader\( \) \{\s+if \(_server->hasHeader\("Cookie"\)\) return _server->header\("Cookie"\);',
-                 'the session is read from the cookie first, and from the Bearer header only when there is no cookie, which the figure of the fleet draws')
-        esquema, cookie = f.achar(WEB_AUTH, r'if \(a\.startsWith\("(\w+) "\)\) return "(\w+)=" \+ a\.substring\(7\);').groups()
+        esquema, cookie = self.sessao()
         comum = nomes[0]
         for n in nomes[1:]:
             while not n.startswith(comum):
@@ -702,9 +723,7 @@ class Numeros:
         a backup that was not the one validated last is refused with a 409 (which is why the restore comes after the validation)."""
         f = self.f
 
-        def rota(handler):
-            m = f.achar(WEB_CORE, rf'_server->on\("(/[\w/.]+)", HTTP_(\w+),\s*std::bind\(&WebManager::{handler}, this\)')
-            return m.group(2), m.group(1)
+        rota = self.rota_do
 
         stage, apply = f.achar(WEB_OTA, r'bool is_stage = \(op == "(\w+)"\);\s+bool is_apply = \(op == "(\w+)"\);').groups()
         comentario = f.achar(WEB_OTA, r'@brief OTA endpoints — backup, restore \((\w+)/(\w+)/(\w+)\) and apply\.').groups()
@@ -717,6 +736,40 @@ class Numeros:
         return {'backup': rota('handleApiBackup'), 'restore': rota('handleApiRestoreFinish'), 'apply': rota('handleApiOtaApply'), 'estado': rota('handleApiStatus'),
                 'stage': stage, 'validate': validate[0], 'apply_op': apply, 'commit': f'{argumento}={valor}', 'versao': f'{chave}.{versao}',
                 'idioma': self.pasta('LANG')}
+
+
+    def entrada(self):
+        """What the entry figure draws that the code says: the three routes (GET login_init, POST login, GET logout, by their handlers), the keys of the code's answer, the fields of the form, the
+        lifetime of the code (NONCE_LIFETIME_MS), the session's scheme and cookie, the keys and the redirect of the answer to a good login, and what a logout answers with a Bearer token (204) and
+        with the cookie (302, to the login page). Premises, refused when the code drifts: an attempt spends the code (the one that matches and the one that does not); the login page hashes the
+        password in the browser before it sends it; a logout ends only the session whose token is presented."""
+        f = self.f
+        init, login, logout = self.rota_do('handleApiLoginInit'), self.rota_do('handleApiLogin'), self.rota_do('handleLogout')
+        vida_ms = int(f.achar(WEB_H, r'static const uint32_t NONCE_LIFETIME_MS = (\d+);').group(1))
+        if vida_ms % 1000:
+            raise Falta(f'{WEB_H}: NONCE_LIFETIME_MS is {vida_ms} ms, which is not whole seconds, and the figure of the entry says how many seconds the code lasts')
+        chaves = f.achar(WEB_AUTH, r'snprintf\(json, sizeof\(json\), "\{\\"(\w+)\\":\\"%s\\",\\"(\w+)\\":%s,\\"(\w+)\\":%lu\}"').groups()
+        usuario, senha = f.achar(WEB_AUTH, r'if \(!_server->hasArg\("(\w+)"\) \|\| !_server->hasArg\("(\w+)"\)\) \{').groups()
+        codigo = f.achar(WEB_AUTH, r'bool hasArg\s+= _server->hasArg\("(\w+)"\);').group(1)
+        esquema, cookie = self.sessao()
+        dado = f.achar(WEB_AUTH, r'String cookieFlags = "(\w+)=" \+ newToken \+ "; Path=/;').group(1)
+        if dado != cookie:
+            raise Falta(f'{WEB_AUTH}: the login sets the cookie {dado} and the session is read from {cookie}, and the figure of the entry draws one cookie')
+        ok, destino = f.achar(WEB_AUTH, r'snprintf\(resp, sizeof\(resp\), "\{\\"(\w+)\\":true,\\"(\w+)\\":\\"%s\\"\}", redirect\);').groups()
+        raiz = f.achar(WEB_AUTH, r'mustChangePassword \? "/\w+" : "(/)";').group(1)
+        sem_corpo = f.achar(WEB_AUTH, r'if \(byBearer\) \{[\s\S]*?_server->send\((\d+), "text/plain", ""\);').group(1)
+        pagina, redireciona = f.achar(WEB_AUTH, r'_server->sendHeader\("Location", "(/\w+)", true\);\s+_server->send\((\d+), "text/plain", ""\);').groups()
+        f.exigir(WEB_AUTH, r'if \(curMatch \|\| prevMatch\) \{\s+if \(ls >= 0\) \{ _loginStates\[ls\]\.nonce\[0\] = \'\\0\'; _loginStates\[ls\]\.prevNonce\[0\] = \'\\0\'; \}',
+                 'the code is spent by the attempt that matches it, which is what the figure of the entry says: one attempt')
+        f.exigir(WEB_AUTH, r'_loginStates\[ls\]\.nonce\[0\] = \'\\0\';\s+_loginStates\[ls\]\.prevNonce\[0\] = \'\\0\';\s+if \(nonceExpired\)',
+                 'the code is spent by the attempt that does not match it too, which is what the figure of the entry says: one attempt, right or wrong')
+        f.exigir(WEBUI, r'if \(pass\.length !== 64\) pass = sha256\(pass\);', 'the login page hashes the password in the browser before it sends it, which the figure of the entry draws as a step of the client')
+        f.exigir(WEB_AUTH, r'const bool byBearer = !_server->hasHeader\("Cookie"\) && _server->hasHeader\("Authorization"\);',
+                 'a logout with a Bearer token and no cookie is the one that answers with no body, which the figure of the entry draws')
+        f.exigir(WEB_AUTH, r'session\.indexOf\("\w+=" \+ _activeSessions\[i\]\.token\) != -1\) \{[\s\S]*?_activeSessions\[i\]\.token = "";\s+break;',
+                 'a logout ends only the session whose token is presented, which the figure of the entry draws')
+        return {'init': init, 'login': login, 'logout': logout, 'status': self.rota_do('handleApiStatus'), 'vida_s': vida_ms // 1000, 'chaves': chaves, 'campos': (usuario, senha, codigo),
+                'esquema': esquema, 'cookie': cookie, 'ok': ok, 'destino': destino, 'raiz': raiz, 'sem_corpo': sem_corpo, 'pagina': pagina, 'redireciona': redireciona}
 
 
     def flash(self):
@@ -1616,6 +1669,61 @@ def rotulo(s, x, y, itens, limite, cls='dg-n'):
         s.texto(x, y + 16 * k, runs, cls)
 
 
+class Sequencia:
+    """A sequence between the client, at the left, and the device, at the right, as the figures of chapter 26 draw it: a header and a thin line down from each, and the rows in the order they
+    happen. A request is a solid arrow to the device and an answer a dashed one back, each with its label above (12 px: the lines are strings or runs, the first usually in the code's font);
+    a step of the chapter is an accent square on the client's line; a note is a box beside a line, the client's to its right and the device's to its left. The rows are kept and drawn at the
+    end, when the lines' length is known, so that the lines go under everything."""
+    X_C, X_A = 92, 612
+
+    def __init__(self, s, cliente, aparelho):
+        self.s, self.cliente, self.aparelho = s, cliente, aparelho
+        self.linhas, self.y = [], 64                      # the rows start 16 px under the headers (a header is 32 px, from y=16)
+
+    def _mensagem(self, tipo, itens, numero):
+        y_seta = self.y + 16 * len(itens) + 8             # the labels' lines, then the arrow 12 px under the last baseline, then 12 px to the next row
+        self.linhas.append((tipo, itens, numero, self.y, y_seta))
+        self.y = y_seta + 12
+
+    def pedido(self, itens, numero=None):
+        self._mensagem('pedido', itens, numero)
+
+    def resposta(self, itens, numero=None):
+        self._mensagem('resposta', itens, numero)
+
+    def nota(self, lado, texto, numero=None):
+        w = -(-(largura_texto(texto, 12) + 24) // 8) * 8
+        self.linhas.append(('nota', (lado, texto, w), numero, self.y, self.y + 16))
+        self.y += 44
+
+    def _marca(self, y, numero):
+        self.s.caixa(self.X_C - 8, y - 8, 16, 16, 'dg-caixa-acento', 6)
+        self.s.texto(self.X_C, y + 4, str(numero), 'dg-n dg-b dg-sobre-acento', 'middle')
+
+    def render(self):
+        s = self.s
+        cabecalho = bloco(s, self.X_C - 60, 16, 120, [(self.cliente, 'dg-t dg-b')])
+        bloco(s, self.X_A - 80, 16, 160, [(self.aparelho, 'dg-t')])
+        for x in (self.X_C, self.X_A):
+            s.linha([(x, cabecalho.y + cabecalho.h), (x, self.y)], 'dg-fio-fino')
+        for tipo, dados, numero, y, y_seta in self.linhas:
+            if tipo == 'nota':
+                lado, texto, w = dados
+                bloco(s, self.X_C + 16 if lado == 'cliente' else self.X_A - 16 - w, y, w, [(texto, 'dg-n')], 'dg-caixa-2', 6)
+                if numero:
+                    self._marca(y_seta, numero)
+                continue
+            rotulo(s, self.X_C + 24, y + 12, dados, self.X_A - 8)
+            ponta = self.X_C + (8 if numero else 0)
+            if tipo == 'pedido':
+                s.seta([(ponta, y_seta), (self.X_A, y_seta)], 'dg-fio', 'dg-ponta')
+            else:
+                s.seta([(self.X_A, y_seta), (ponta, y_seta)], 'dg-fio-tracejado', 'dg-ponta')
+            if numero:
+                self._marca(y_seta, numero)
+        return s.render()
+
+
 def desenho_home_assistant(num, slug):
     ha = num.homeassistant()
     s = Svg(slug)
@@ -2199,6 +2307,27 @@ def desenho_despertar(num, slug):
     s.texto(x0, y_nota + 16, 'O despertar de telemetria repete as larguras do de leitura até a decisão.', 'dg-n dg-c2')
     s.texto(x0, y_nota + 32, 'O rádio liga no boot, só no despertar de telemetria; onde a faixa começa não foi medido.', 'dg-n dg-c2')
     return s.render()
+
+
+def desenho_entrada(num, slug):
+    e = num.entrada()
+    s = Svg(slug)
+    q = Sequencia(s, 'Cliente', [('dg-b', 'SIMUT'), ('', ' '), ('dg-m', IP_EXEMPLO)])
+    rota = lambda r: mono(f'{r[0]} {r[1]}')
+    k1, k2, k3 = e['chaves']
+    usuario, senha, codigo = e['campos']
+    q.pedido([rota(e['init'])], 1)
+    q.resposta([mono(f'200 {{"{k1}":"{NONCE_EXEMPLO}","{k2}":false,"{k3}":0}}'), [('dg-c2', f'o código vale {e["vida_s"]}\u00a0s e serve a uma tentativa')]])
+    q.nota('cliente', 'calcula o SHA-256 da senha', 2)
+    q.pedido([rota(e['login']), [('dg-m', usuario), ('', ', '), ('dg-m', senha), ('', ' (o SHA-256) e '), ('dg-m', codigo)]], 3)
+    q.nota('aparelho', 'confere o código e a senha')
+    q.resposta([mono(f'200 Set-Cookie: {e["cookie"]}=…'), mono(f'{{"{e["ok"]}":true,"{e["destino"]}":"{e["raiz"]}"}}')], 4)
+    q.pedido([rota(e['status']), [('dg-m', f'Cookie: {e["cookie"]}=…'), ('', ' ou '), ('dg-m', f'Authorization: {e["esquema"]} …')]], 5)
+    q.resposta([mono('200')])
+    q.pedido([rota(e['logout'])])
+    q.resposta([[('dg-m', e['sem_corpo']), ('', f' com {e["esquema"]}; '), ('dg-m', e['redireciona']), ('', ' para '), ('dg-m', e['pagina']), ('', ' com cookie')],
+                [('dg-c2', 'encerra só a sessão do token')]])
+    return q.render()
 
 
 # ---- the chapters --------------------------------------------------------------------------------------------------------------------------------------------

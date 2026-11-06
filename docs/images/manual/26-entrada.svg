@@ -1,0 +1,46 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 536" role="img" class="dg">
+<defs>
+<marker id="26-entrada-ponta" viewBox="0 0 8 8" refX="8" refY="4" markerWidth="8" markerHeight="8" markerUnits="userSpaceOnUse" orient="auto"><path class="dg-ponta" d="M0 0L8 4L0 8z"/></marker>
+</defs>
+<rect class="dg-caixa" x="32.5" y="16.5" width="119" height="31" rx="6"/>
+<text class="dg-t dg-b" x="44" y="36">Cliente</text>
+<rect class="dg-caixa" x="532.5" y="16.5" width="159" height="31" rx="6"/>
+<text class="dg-t" x="544" y="36"><tspan class="dg-b">SIMUT</tspan> <tspan class="dg-m">192.0.2.10</tspan></text>
+<polyline class="dg-fio-fino" points="92,48 92,520"/>
+<polyline class="dg-fio-fino" points="612,48 612,520"/>
+<text class="dg-n" x="116" y="76"><tspan class="dg-m">GET /api/login_init</tspan></text>
+<polyline class="dg-fio" points="100,88 612,88" marker-end="url(#26-entrada-ponta)"/>
+<rect class="dg-caixa-acento" x="84.5" y="80.5" width="15" height="15" rx="6"/>
+<text class="dg-n dg-b dg-sobre-acento" x="92" y="92" text-anchor="middle">1</text>
+<text class="dg-n" x="116" y="112"><tspan class="dg-m">200 {"nonce":"9f2c…","locked":false,"lockSec":0}</tspan></text>
+<text class="dg-n" x="116" y="128"><tspan class="dg-c2">o código vale 60 s e serve a uma tentativa</tspan></text>
+<polyline class="dg-fio-tracejado" points="612,140 92,140" marker-end="url(#26-entrada-ponta)"/>
+<rect class="dg-caixa-2" x="108.5" y="152.5" width="199" height="31" rx="6"/>
+<text class="dg-n" x="120" y="172">calcula o SHA-256 da senha</text>
+<rect class="dg-caixa-acento" x="84.5" y="160.5" width="15" height="15" rx="6"/>
+<text class="dg-n dg-b dg-sobre-acento" x="92" y="172" text-anchor="middle">2</text>
+<text class="dg-n" x="116" y="208"><tspan class="dg-m">POST /api/login</tspan></text>
+<text class="dg-n" x="116" y="224"><tspan class="dg-m">user</tspan>, <tspan class="dg-m">pass</tspan> (o SHA-256) e <tspan class="dg-m">nonce</tspan></text>
+<polyline class="dg-fio" points="100,236 612,236" marker-end="url(#26-entrada-ponta)"/>
+<rect class="dg-caixa-acento" x="84.5" y="228.5" width="15" height="15" rx="6"/>
+<text class="dg-n dg-b dg-sobre-acento" x="92" y="240" text-anchor="middle">3</text>
+<rect class="dg-caixa-2" x="404.5" y="248.5" width="191" height="31" rx="6"/>
+<text class="dg-n" x="416" y="268">confere o código e a senha</text>
+<text class="dg-n" x="116" y="304"><tspan class="dg-m">200 Set-Cookie: SIMUTSESS=…</tspan></text>
+<text class="dg-n" x="116" y="320"><tspan class="dg-m">{"ok":true,"redirect":"/"}</tspan></text>
+<polyline class="dg-fio-tracejado" points="612,332 100,332" marker-end="url(#26-entrada-ponta)"/>
+<rect class="dg-caixa-acento" x="84.5" y="324.5" width="15" height="15" rx="6"/>
+<text class="dg-n dg-b dg-sobre-acento" x="92" y="336" text-anchor="middle">4</text>
+<text class="dg-n" x="116" y="356"><tspan class="dg-m">GET /api/status</tspan></text>
+<text class="dg-n" x="116" y="372"><tspan class="dg-m">Cookie: SIMUTSESS=…</tspan> ou <tspan class="dg-m">Authorization: Bearer …</tspan></text>
+<polyline class="dg-fio" points="100,384 612,384" marker-end="url(#26-entrada-ponta)"/>
+<rect class="dg-caixa-acento" x="84.5" y="376.5" width="15" height="15" rx="6"/>
+<text class="dg-n dg-b dg-sobre-acento" x="92" y="388" text-anchor="middle">5</text>
+<text class="dg-n" x="116" y="408"><tspan class="dg-m">200</tspan></text>
+<polyline class="dg-fio-tracejado" points="612,420 92,420" marker-end="url(#26-entrada-ponta)"/>
+<text class="dg-n" x="116" y="444"><tspan class="dg-m">GET /logout</tspan></text>
+<polyline class="dg-fio" points="92,456 612,456" marker-end="url(#26-entrada-ponta)"/>
+<text class="dg-n" x="116" y="480"><tspan class="dg-m">204</tspan> com Bearer; <tspan class="dg-m">302</tspan> para <tspan class="dg-m">/login</tspan> com cookie</text>
+<text class="dg-n" x="116" y="496"><tspan class="dg-c2">encerra só a sessão do token</tspan></text>
+<polyline class="dg-fio-tracejado" points="612,508 92,508" marker-end="url(#26-entrada-ponta)"/>
+</svg>
