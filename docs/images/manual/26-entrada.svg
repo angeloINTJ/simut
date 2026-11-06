@@ -15,7 +15,7 @@
 <text class="dg-n" x="116" y="112"><tspan class="dg-m">200 {"nonce":"9f2c…","locked":false,"lockSec":0}</tspan></text>
 <text class="dg-n" x="116" y="128"><tspan class="dg-c2">o código vale 60 s e serve a uma tentativa</tspan></text>
 <polyline class="dg-fio-tracejado" points="612,140 92,140" marker-end="url(#26-entrada-ponta)"/>
-<rect class="dg-caixa-2" x="108.5" y="152.5" width="199" height="31" rx="6"/>
+<rect class="dg-caixa-2" x="108.5" y="152.5" width="207" height="31" rx="6"/>
 <text class="dg-n" x="120" y="172">calcula o SHA-256 da senha</text>
 <rect class="dg-caixa-acento" x="84.5" y="160.5" width="15" height="15" rx="6"/>
 <text class="dg-n dg-b dg-sobre-acento" x="92" y="172" text-anchor="middle">2</text>
@@ -24,8 +24,8 @@
 <polyline class="dg-fio" points="100,236 612,236" marker-end="url(#26-entrada-ponta)"/>
 <rect class="dg-caixa-acento" x="84.5" y="228.5" width="15" height="15" rx="6"/>
 <text class="dg-n dg-b dg-sobre-acento" x="92" y="240" text-anchor="middle">3</text>
-<rect class="dg-caixa-2" x="404.5" y="248.5" width="191" height="31" rx="6"/>
-<text class="dg-n" x="416" y="268">confere o código e a senha</text>
+<rect class="dg-caixa-2" x="388.5" y="248.5" width="207" height="31" rx="6"/>
+<text class="dg-n" x="400" y="268">confere o código e a senha</text>
 <text class="dg-n" x="116" y="304"><tspan class="dg-m">200 Set-Cookie: SIMUTSESS=…</tspan></text>
 <text class="dg-n" x="116" y="320"><tspan class="dg-m">{"ok":true,"redirect":"/"}</tspan></text>
 <polyline class="dg-fio-tracejado" points="612,332 100,332" marker-end="url(#26-entrada-ponta)"/>

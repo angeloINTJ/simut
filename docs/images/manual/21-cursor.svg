@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 296" role="img" class="dg">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 312" role="img" class="dg">
 <defs>
 <marker id="21-cursor-ponta-acento" viewBox="0 0 8 8" refX="8" refY="4" markerWidth="8" markerHeight="8" markerUnits="userSpaceOnUse" orient="auto"><path class="dg-ponta-acento" d="M0 0L8 4L0 8z"/></marker>
 <marker id="21-cursor-ponta-ok" viewBox="0 0 8 8" refX="8" refY="4" markerWidth="8" markerHeight="8" markerUnits="userSpaceOnUse" orient="auto"><path class="dg-ponta-ok" d="M0 0L8 4L0 8z"/></marker>
@@ -64,9 +64,10 @@
 <text class="dg-t dg-ok dg-b" x="512" y="160" text-anchor="end">2xx</text>
 <polyline class="dg-fio-perigo" points="624,136 624,216" marker-end="url(#21-cursor-ponta-perigo)"/>
 <text class="dg-t dg-perigo dg-b" x="636" y="184">falha</text>
-<rect class="dg-caixa" x="528.5" y="216.5" width="175" height="63" rx="6"/>
+<rect class="dg-caixa" x="528.5" y="216.5" width="175" height="79" rx="6"/>
 <text class="dg-t dg-b" x="540" y="236">espera e reenvia</text>
-<text class="dg-n dg-c2" x="540" y="252">5 s, dobrando até 300 s</text>
-<text class="dg-n dg-c2" x="540" y="268">o cursor não se move</text>
+<text class="dg-n dg-c2" x="540" y="252">5 s, dobrando até</text>
+<text class="dg-n dg-c2" x="540" y="268">300 s</text>
+<text class="dg-n dg-c2" x="540" y="284">o cursor não se move</text>
 <text class="dg-n dg-c2" x="16" y="264">Cada quadrado é um registro do histórico, na ordem em que foi gravado.</text>
 </svg>

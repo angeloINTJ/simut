@@ -7,8 +7,8 @@ src/air/AirConfig.h. What the code does not say is a constant here, with where i
 checked by tools/test_manual_diagramas.py against chapter 2's own table), the 4,7 kOhm of the chapter's pull-ups, and the example pins of the wiring figures.
 
 The SVG names classes (dg-*) and never a colour: the manual's CSS (the CSS block of tools/build_manual.py) styles them with its tokens, and build_manual.py puts the <svg>
-in the page itself, so a diagram follows the theme button and the page's fonts, which an <img> could not. The drawing is 720 px wide on a 4 px grid, text 13 px (12 px
-in notes) in the reader's own font: its width varies from machine to machine, so the lines are broken here by a width estimate that errs on the wide side (the width of
+in the page itself, so a diagram follows the theme button and the page's fonts, which an <img> could not. The drawing is 720 px wide on a 4 px grid, text 13 px (notes
+included, the smallest style of the Ângulo's type scale) in the reader's own font: its width varies from machine to machine, so the lines are broken here by a width estimate that errs on the wide side (the width of
 DejaVu Sans), and the builder refuses a text that overlaps another or leaves the canvas.
 
   --write      draws the diagrams and writes them into --images (default docs/images/manual); the same code gives the same bytes.
@@ -45,8 +45,9 @@ HERE = pathlib.Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))        # explicit: python3 -I leaves the script's own folder off the path (build_manual.py, which --preview imports)
 IMAGENS = ROOT / 'docs' / 'images' / 'manual'
 CAPITULOS = ROOT / 'docs' / '_manual'
-LARGURA = 720                        # the drawing's width: the manual's CSS shows it whole up to 720 px (.moldura-diagrama svg)
+LARGURA = 720                        # the drawing's width: the manual's CSS shows it at 720 px and no smaller (.moldura-svg svg: width and min-width)
 GRADE = 4                            # every coordinate and size is a multiple of it (Ângulo, rule 5)
+TAM = 13                             # the size of every text, notes included: 13 px is the smallest style of the Ângulo's type scale (ANGULO.md 3.2), and the manual's CSS has no other
 FLAGS_PADRAO = re.M                  # the flags of every pattern the sources are read with; the controls mangle the matches with the same ones
 
 CONFIG = 'src/simut_config.h'
@@ -1027,6 +1028,8 @@ class Numeros:
         self.ordem_das_fases()
         f.exigir(BOOT, r'else if \(!_airRadioWake\) \{\s+/\* Reading-only wake: the network is not started at all\.',
                  'a reading-only wake never starts the network, which is what the figure of the wake draws: the radio band only in the telemetry wake')
+        f.exigir(BOOT, r'_netMgr->begin\(cfg,\s+_storageMgr->isDnsAuto\( \),\s+_storageMgr->isNtpEnabled\( \),\s+_storageMgr->getSecondaryDns\( \)\);\s+#endif\s+AIR_BOOT_MARK\("net ok"\);',
+                 'a telemetry wake starts the network in the boot (the network manager begins before the boot\'s "net ok" mark), which is what the note of the figure of the wake says')
         f.exigir(AIR_CPP, r'if \(_airRadioWake && !_airNetGaveUp\) \{\s+_netMgr->update\( \);', 'the sampling connects the Wi-Fi in parallel on a telemetry wake, which is what the figure of the wake draws')
         f.exigir(AIR_CPP, r'processHistoryLogging\( \);[\s\S]*?_airPhase = online \? AIR_PHASE_CONNECT : AIR_PHASE_SLEEP;',
                  'the decision always writes the history, and only then chooses the radio (when it has a link) or the sleep, which is what the figure of the wake draws')
@@ -1164,7 +1167,8 @@ def quebrar(texto, largura, tam=13, mono=False):
 class Svg:
     """One diagram's SVG, built from shapes on a 4 px grid. The attributes of every element are written in a fixed order and the numbers by n( ), so the same calls give the
     same bytes. Boxes are drawn inside their coordinates (a 1 px line at x + .5, so that it is a whole pixel at 720 px). Text is placed by its baseline; the builder keeps the
-    estimated box of every text and refuses one that overlaps another, leaves the canvas or sits off the grid."""
+    estimated box of every text and refuses one that overlaps another, leaves the canvas or sits off the grid, and one that crosses the edge of a box (a text is wholly inside a
+    box or wholly outside it: a box's line through a glyph is what the reviewer of 2026-11-06 saw at 2,5x in 16-transicao)."""
 
     def __init__(self, slug, altura=None):
         """`altura` is the canvas height, or None to let the drawing say: the height is then its lowest point and 16 px (a flow is laid out from the top, and its height is
@@ -1172,7 +1176,7 @@ class Svg:
         if altura is not None and altura % GRADE:
             raise ValueError(f'{slug}: the height {altura} is off the {GRADE} px grid')
         self.slug, self._altura, self.fundo = slug, altura, 0
-        self.corpo, self.textos, self.pontas = [], [], set()
+        self.corpo, self.textos, self.pontas, self.caixas = [], [], set(), []
 
     @property
     def altura(self):
@@ -1180,6 +1184,15 @@ class Svg:
 
     def _abaixo(self, y):
         self.fundo = max(self.fundo, y)
+
+    def _corta(self, rotulo, t, b, depois):
+        """Refuse the text `rotulo`, whose estimated box is t = (x0, y0, x1, y1), when it crosses the edge of the box b = (x0, y0, x1, y1): it overlaps it and is not wholly inside it.
+        `depois` are the boxes drawn after b (None when the box is the one being drawn, and the text is already there): a text wholly inside one of them that is filled sits on it, and the edge
+        of b under that box is not seen through it (the USB connector of a pin map, drawn over the edge of the board)."""
+        dentro = t[0] >= b[0] and t[1] >= b[1] and t[2] <= b[2] and t[3] <= b[3]
+        coberto = any(c[4] and t[0] >= c[0] and t[1] >= c[1] and t[2] <= c[2] and t[3] <= c[3] for c in depois or ())
+        if not dentro and not coberto and min(t[2], b[2]) - max(t[0], b[0]) > 1 and min(t[3], b[3]) - max(t[1], b[1]) > 1:
+            raise ValueError(f'{self.slug}: the text {rotulo!r} (about x={n(t[0])} to {n(t[2])}, y={n(t[1])} to {n(t[3])}) crosses the edge of the box at x={b[0]} to {b[2]}, y={b[1]} to {b[3]}')
 
     def _grade(self, *valores):
         for v in valores:
@@ -1192,16 +1205,19 @@ class Svg:
         if raio not in (0, 6, 12):
             raise ValueError(f'{self.slug}: a corner radius of {raio}: the Ângulo has 6 and 12')
         d = traco / 2
+        for (tx0, ty0, tx1, ty1), rot in self.textos:
+            self._corta(rot, (tx0, ty0, tx1, ty1), (x, y, x + w, y + h), None)
+        self.caixas.append((x, y, x + w, y + h, cls != 'dg-caixa-apagada'))
         self._abaixo(y + h)
         self.corpo.append(f'<rect class="{cls}" x="{n(x + d)}" y="{n(y + d)}" width="{n(w - traco)}" height="{n(h - traco)}" rx="{raio}"/>')
 
     def texto(self, x, y, conteudo, cls='dg-t', ancora='start'):
         """A text with its baseline at y. `conteudo` is a string or a list of (class, string) runs, the class '' for plain text: the runs are how a GP name goes in the
-        code's font in the middle of a sentence. The size comes from `cls`: dg-t is 13 px, dg-n is 12 px."""
+        code's font in the middle of a sentence. The size is 13 px for both classes (TAM): dg-t is the text, dg-n the note."""
         self._grade(x, y)
         runs = [('', conteudo)] if isinstance(conteudo, str) else conteudo
         classes = cls.split()
-        tam = 12 if 'dg-n' in classes else 13
+        tam = TAM
         w = sum(largura_texto(s, tam, 'dg-m' in classes or 'dg-m' in c.split()) for c, s in runs)
         x0 = x if ancora == 'start' else x - w if ancora == 'end' else x - w / 2
         caixa = (x0, y - tam + 2, x0 + w, y + 4)
@@ -1212,6 +1228,8 @@ class Svg:
         for outra, rot in self.textos:
             if min(caixa[2], outra[2]) - max(caixa[0], outra[0]) > 1 and min(caixa[3], outra[3]) - max(caixa[1], outra[1]) > 1:
                 raise ValueError(f'{self.slug}: the text {rotulo!r} overlaps {rot!r}')
+        for k, b in enumerate(self.caixas):
+            self._corta(rotulo, caixa, b[:4], self.caixas[k + 1:])
         self.textos.append((caixa, rotulo))
         corpo = ''.join(html.escape(s, quote=False) if not c else f'<tspan class="{c}">{html.escape(s, quote=False)}</tspan>' for c, s in runs)
         a = '' if ancora == 'start' else f' text-anchor="{ancora}"'
@@ -1450,7 +1468,7 @@ def caixa_de_texto(s, x, y, w, itens, cls='dg-caixa', raio=6, centro=None, altur
     on. Returns (y, height)."""
     linhas = []
     for texto, c in itens:
-        tam = 12 if 'dg-n' in c.split() else 13
+        tam = TAM
         if isinstance(texto, str):
             linhas += [(l, c) for l in quebrar(texto, w - 24, tam, 'dg-m' in c.split())]
         else:                       # runs, in one line: the code's font for a command in the middle of a sentence
@@ -1476,7 +1494,8 @@ def desenho_air_energia(num, slug):
     s.texto(160, y16 + 4, gp_e_pino(g16), 'dg-t', 'end')
     s.texto(160, y16 + 20, 'saída', 'dg-n dg-c2', 'end')
     s.texto(160, y17 + 4, gp_e_pino(g17), 'dg-t', 'end')
-    s.texto(160, y17 + 20, 'entrada, com pull-down', 'dg-n dg-c2', 'end')
+    s.texto(160, y17 + 20, 'entrada,', 'dg-n dg-c2', 'end')
+    s.texto(160, y17 + 36, 'com pull-down', 'dg-n dg-c2', 'end')
     # the switch the GP16 drives, and the bus it feeds
     y_chave, _ = caixa_de_texto(s, 256, None, 192, [('chave do lado positivo', 'dg-t dg-b'), ('MOSFET de canal P com acionamento, ou pino EN de um regulador de 3,3 V', 'dg-n dg-c2')],
                                 'dg-caixa', 6, y16)
@@ -1487,7 +1506,8 @@ def desenho_air_energia(num, slug):
     s.seta([(448, y16), (544, y16)])
     s.texto(460, y16 - 8, '3,3 V', 'dg-n dg-c2')
     s.seta([(352, 24), (352, y_chave)])
-    s.texto(364, 40, f'entrada: 3V3 (pino {PINO_3V3}), ou a alimentação do regulador', 'dg-n dg-c2')
+    s.texto(364, 28, f'entrada: 3V3 (pino {PINO_3V3}),', 'dg-n dg-c2')
+    s.texto(364, 44, 'ou a alimentação do regulador', 'dg-n dg-c2')
     s.texto(256, 176, [('dg-m', f'GP{g16}'), ('', ' alto = acordado: a chave liga os sensores')], 'dg-t')
     s.texto(256, 192, [('dg-m', f'GP{g16}'), ('', ' baixo = dormindo: os sensores ficam sem energia')], 'dg-t')
     # the charger, and the divider that brings its 5 V to the GP17
@@ -1504,7 +1524,7 @@ def desenho_air_energia(num, slug):
     for k, meia in enumerate((16, 12, 8)):
         s.linha([(376 - meia, y17 + 64 + 4 * k), (376 + meia, y17 + 64 + 4 * k)])
     s.texto(396, y17 + 76, 'GND', 'dg-n dg-c2')
-    for k, l in enumerate(quebrar('o divisor leva os 5 V a 3,3 V: GP17 alto = carregador ligado', 168, 12)):
+    for k, l in enumerate(quebrar('o divisor leva os 5 V a 3,3 V: GP17 alto = carregador ligado', 168, TAM)):
         s.texto(192, y17 + 28 + 16 * k, l, 'dg-n dg-c2')
     return s.render()
 
@@ -1561,7 +1581,7 @@ def desenho_arquivos(num, slug):
         d = bloco(s, 464, y, 240, [(titulo, 'dg-t'), (nota, 'dg-n dg-c2')])
         chip = min(184, (direita - 16 - 8 * (len(nomes) - 1)) // len(nomes) // 8 * 8)      # 184 wide, or as wide as the images' block allows; a multiple of 8 for the centre
         for k, nome in enumerate(nomes):
-            if largura_texto(nome, 12, True) > chip - 8:
+            if largura_texto(nome, TAM, True) > chip - 8:
                 raise ValueError(f'{slug}: {nome} does not fit in its chip of {chip} px')
             x = direita - chip - (chip + 8) * (len(nomes) - 1 - k)
             s.caixa(x, d.esq()[1] - 16, chip, 32, 'dg-caixa', 6)
@@ -1597,7 +1617,7 @@ def desenho_primeiro_boot(num, slug):
     ]
     direita = [[(cmd['enable'], 'dg-t dg-m')], [(cmd['configure'], 'dg-t dg-m')], [(f'{cmd["ssid"]} <rede>', 'dg-t dg-m')], [(f'{cmd["pass"]} <senha>', 'dg-t dg-m')],
                [(cmd['reload'], 'dg-t dg-m')]]
-    altura = lambda itens: 16 + 16 * sum(1 if not isinstance(tx, str) else len(quebrar(tx, 280, 12 if 'dg-n' in c.split() else 13, 'dg-m' in c.split())) for tx, c in itens)
+    altura = lambda itens: 16 + 16 * sum(1 if not isinstance(tx, str) else len(quebrar(tx, 280, TAM, 'dg-m' in c.split())) for tx, c in itens)
     alt_e = sum(altura(i) for i in esquerda) + 16 * (len(esquerda) - 1)
     folga = alt_e - sum(altura(i) for i in direita)
     if folga % (4 * (len(direita) - 1)):
@@ -1743,11 +1763,11 @@ def desenho_linha_alarmes(num, slug):
     s.seta([(568, 136), (144, 136)], *ok)
     s.texto(184, 128, f'{ok_http}: os três registros saem da fila', 'dg-t dg-ok')
     s.seta([(568, 160), (144, 160)], *perigo)
-    s.texto(184, 152, f'outro código ou nada em {segundos(a["espera"])}: a fila fica, novo envio em {segundos(a["reenvio"])}', 'dg-t dg-perigo')
+    s.texto(184, 152, f'outro código ou nada em {segundos(a["espera"])}: a fila fica, reenvio em {segundos(a["reenvio"])}', 'dg-t dg-perigo')
     # the MQTT lane: the publish confirms nothing; only the collector's message on the ack topic takes the records out
     s.caixa(168, 192, 536, 208, 'dg-caixa-2', 12)
     s.texto(184, 216, 'MQTT', 'dg-t dg-b')
-    broker = bloco(s, 360, 240, 104, [('broker', 'dg-t dg-b')])
+    broker = bloco(s, 384, 240, 104, [('broker', 'dg-t dg-b')])
     coletor = bloco(s, 568, 240, 120, [('coletor', 'dg-t dg-b'), ('grava e publica a confirmação', 'dg-n dg-c2')])
     s.seta([(144, 256), broker.esq()], *ponta)
     s.texto(184, 248, [('', 'publish em '), ('dg-m', f'<tópico>{a["topico"]}')], 'dg-n')
@@ -1766,11 +1786,11 @@ def mono(*partes):
 
 
 def rotulo(s, x, y, itens, limite, cls='dg-n'):
-    """The lines of a label, 16 px apart from the baseline y, in 12 px (`cls`, dg-n and a colour class if it has one): each is a string or a list of (class, text) runs. A line that would
+    """The lines of a label, 16 px apart from the baseline y, in 13 px (`cls`, dg-n and a colour class if it has one): each is a string or a list of (class, text) runs. A line that would
     reach `limite` (the next line of the drawing: a lifeline, a box) is an error, as the builder's own guard is for a text that overlaps another."""
     for k, item in enumerate(itens):
         runs = [('', item)] if isinstance(item, str) else item
-        w = sum(largura_texto(t, 12, c == 'dg-m') for c, t in runs)
+        w = sum(largura_texto(t, TAM, c == 'dg-m') for c, t in runs)
         if x + w > limite:
             raise ValueError(f'{s.slug}: the line {"".join(t for _, t in runs)!r} is about {w} px wide from x={x}, past {limite}')
         s.texto(x, y + 16 * k, runs, cls)
@@ -1778,7 +1798,7 @@ def rotulo(s, x, y, itens, limite, cls='dg-n'):
 
 class Sequencia:
     """A sequence between the client, at the left, and the device, at the right, as the figures of chapter 26 draw it: a header and a thin line down from each, and the rows in the order they
-    happen. A request is a solid arrow to the device and an answer a dashed one back, each with its label above (12 px: the lines are strings or runs, the first usually in the code's font);
+    happen. A request is a solid arrow to the device and an answer a dashed one back, each with its label above (13 px: the lines are strings or runs, the first usually in the code's font);
     a step of the chapter is an accent square on the client's line; a note is a box beside a line, the client's to its right and the device's to its left. The rows are kept and drawn at the
     end, when the lines' length is known, so that the lines go under everything."""
     X_C, X_A = 92, 612
@@ -1799,7 +1819,7 @@ class Sequencia:
         self._mensagem('resposta', itens, numero)
 
     def nota(self, lado, texto, numero=None):
-        w = -(-(largura_texto(texto, 12) + 24) // 8) * 8
+        w = -(-(largura_texto(texto, TAM) + 24) // 8) * 8
         self.linhas.append(('nota', (lado, texto, w), numero, self.y, self.y + 16))
         self.y += 44
 
@@ -1835,21 +1855,21 @@ def desenho_home_assistant(num, slug):
     ha = num.homeassistant()
     s = Svg(slug)
     ponta = ('dg-fio-acento', 'dg-ponta-acento')
-    x_s, x_b, x_h = 76, 460, 644          # the three lifelines, each under the middle of its header; the first gap is wide enough for the discovery topic, in 12 px mono
-    configuracao = f'{ha["prefixo"]}/{ha["componente"]}/{NO_EXEMPLO}/<objeto>/{ha["fim"]}'
+    x_s, x_b, x_h = 80, 452, 644          # the three lifelines, each under the middle of its header; the first gap is wide enough for the discovery topic, in 13 px mono
+    configuracao = (f'{ha["prefixo"]}/{ha["componente"]}/{NO_EXEMPLO}/', f'<objeto>/{ha["fim"]}')
     registro = f'{ha["dados"]} {{{ha["ts"]}, {ha["t"]}{HWID_EXEMPLO}, ...}}'
     disponibilidade = lambda palavra: f'{ha["estado"]} {{{ha["chave"]}: {palavra}}}'
     # the three actors: a header each, 48 px, and a thin line down from it
-    for x, w, titulo, sub in ((x_s - 60, 120, 'SIMUT', NO_EXEMPLO), (x_b - 112, 224, 'Broker MQTT', f'{BROKER_EXEMPLO}:{PORTA_EXEMPLO}'), (x_h - 60, 120, 'Home Assistant', None)):
+    for x, w, titulo, sub in ((x_s - 64, 128, 'SIMUT', NO_EXEMPLO), (x_b - 120, 240, 'Broker MQTT', f'{BROKER_EXEMPLO}:{PORTA_EXEMPLO}'), (x_h - 60, 120, 'Home Assistant', None)):
         s.caixa(x, 16, w, 48, 'dg-caixa', 6)
         if sub is None:
             s.texto(x + 12, 44, titulo, 'dg-t dg-b')
         else:
-            if largura_texto(sub, 12, True) > w - 24:
+            if largura_texto(sub, TAM, True) > w - 24:
                 raise ValueError(f'{slug}: {sub} does not fit in a header of {w} px')
             s.texto(x + 12, 36, titulo, 'dg-t dg-b')
             s.texto(x + 12, 52, sub, 'dg-n dg-m')
-    filas = ((1, ['ao conectar (retida, uma por medição):', mono(configuracao)],
+    filas = ((1, ['ao conectar (retida, uma por medição):', mono(configuracao[0]), mono(configuracao[1])],
               [[('', 'assina '), ('dg-m', f'{ha["prefixo"]}/#')], 'e cria dispositivo', 'e entidades']),
              (2, [[('dg-m', disponibilidade(ha['online'])), ('', ' (retida)')]],
               ['lê a disponibilidade em', mono(ha['estado'])]),
@@ -1888,7 +1908,7 @@ def desenho_coleta(num, slug):
     s = Svg(slug)
     ponta = ('dg-fio-acento', 'dg-ponta-acento')
     ok, perigo = ('dg-fio-ok', 'dg-ponta-ok'), ('dg-fio-perigo', 'dg-ponta-perigo')
-    x_c, x_e, l_e = 424, 440, 248                     # the device's container starts at x_c; the steps inside it start at x_e, l_e wide
+    x_c, x_e, l_e = 440, 456, 232                     # the device's container starts at x_c; the steps inside it start at x_e, l_e wide
     x_m = x_e + l_e // 2                              # the line the steps hang on
     x_p = 92                                          # Prometheus' line, under the middle of its header
     prometheus = bloco(s, 16, 32, 152, [('Prometheus', 'dg-t dg-b'), (f'a cada {INTERVALO_PROMETHEUS}\u00a0s', 'dg-n dg-c2')])
@@ -1922,7 +1942,7 @@ def desenho_coleta(num, slug):
         s.texto(x_p + 16, y_resposta - 8, [('dg-b', codigo), ('', ' ' + significado)], 'dg-t dg-ok' if final else 'dg-t dg-perigo')
     # the lockout a wrong password raises: one rung for each, the heights on a log scale (each rung doubles the wait), the last one the ceiling
     escada = p['escada']
-    passo = min(48, 448 // len(escada) // GRADE * GRADE)
+    passo = min(48, 416 // len(escada) // 8 * 8)                  # a multiple of 8, so that the middle of a bar is on the grid
     alturas_barras = [max(GRADE, math.ceil(math.log2(max(seg, 2)) * 8 / GRADE) * GRADE) for seg in escada]
     y_titulo = fim + 36
     y_base = y_titulo + 32 + max(alturas_barras)
@@ -1968,7 +1988,7 @@ def desenho_syslog(num, slug):
         s.linha([(x_d + 24, y - 4), (x_d + 16, y + 4)], 'dg-fio-perigo')
         rotulo(s, x_d + 36, y + 4 - 8 * (len(linhas) - 1), linhas, 716, 'dg-n dg-perigo')
 
-    perda(nivel.y + nivel.h // 2, ['antes do encaminhamento subir, no boot'])
+    perda(nivel.y + nivel.h // 2, ['antes do encaminhamento', 'subir, no boot'])
     perda(fila.y + 16, ['fila cheia'])
     perda(fila.y + 40, ['travamento ou falta de energia'])
     perda(laco.y + laco.h // 2, ['envio falhou'])
@@ -1983,7 +2003,7 @@ def desenho_syslog(num, slug):
 def desenho_integracao(num, slug):
     ig = num.integracao()
     s = Svg(slug)
-    x_s, l_s, x_r, l_r = 16, 112, 504, 200               # the device's box, and the peers' boxes; the labels sit between, above their arrows
+    x_s, l_s, x_r, l_r = 16, 112, 528, 176               # the device's box, and the peers' boxes; the labels sit between, above their arrows
     x_t = x_s + l_s + 16
     nome = {'air': 'Air'}
     imagens = [nome.get(i, i) for i in ig['imagens_mdns']]
@@ -2028,7 +2048,7 @@ def desenho_arquitetura(num, slug):
     fr = num.frota()
     s = Svg(slug)
     cheia, tracejada = ('dg-fio', 'dg-ponta'), ('dg-fio-tracejado', 'dg-ponta')
-    x_p, l_p = 504, 200                                  # the peers' column
+    x_p, l_p = 520, 184                                  # the peers' column
     imagens = [{'air': 'Air'}.get(i, i) for i in fr['imagens_mdns']]
     so_nas = f'só na imagem {imagens[0]}' if len(imagens) == 1 else f'só nas imagens {", ".join(imagens[:-1])} e {imagens[-1]}'
     # the local network, and the devices in it as a pile: the front box is the one the arrows meet, the two behind it say there are many
@@ -2039,7 +2059,7 @@ def desenho_arquitetura(num, slug):
     s.caixa(72, 104, 160, 176, 'dg-caixa', 6)
     s.texto(84, 124, 'SIMUT', 'dg-t dg-b')
     s.texto(84, 140, 'vários aparelhos,', 'dg-n dg-c2')
-    s.texto(84, 156, 'cada um com o seu uid', 'dg-n dg-c2')
+    s.texto(84, 156, 'cada um com seu uid', 'dg-n dg-c2')
     # what each peer does: the collector is pushed to, Prometheus and the manager ask
     y_c, y_p, y_g = 136, 200, 264
     def seta_de(y, sentido, linhas):
@@ -2057,7 +2077,7 @@ def desenho_arquitetura(num, slug):
     rotulo(s, x_p + 52, y_g + 36, [[('', 'lê o '), ('dg-m', fr['manifesto'])]], 716)
     bloco(s, x_p, y_g + 48, l_p, [('GitHub', 'dg-t'), ('ativos da release', 'dg-n dg-c2')])
     s.seta([(120, 280), (120, 360)], *tracejada)
-    rotulo(s, 132, 304, ['anúncio mDNS', mono(fr['mdns'])] + quebrar(so_nas, 284 - 132, 12), 284)
+    rotulo(s, 132, 304, ['anúncio mDNS', mono(fr['mdns'])] + quebrar(so_nas, 284 - 132, TAM), 284)
     return s.render()
 
 
@@ -2066,7 +2086,7 @@ def desenho_ondas(num, slug):
     s = Svg(slug)
     acento = ('dg-fio-acento', 'dg-ponta-acento')
     x_e, l_e = 16, 344                                  # the waves' column
-    x_p, l_p = 392, 312                                 # the sequence's panel
+    x_p, l_p = 376, 328                                 # the sequence's panel
     # the three waves, with a barrier between two: the next one waits for the check
     ondas, y = [], 16
     for k, (nome, texto) in enumerate(ONDAS):
@@ -2076,11 +2096,11 @@ def desenho_ondas(num, slug):
         ondas.append(c)
         y = c.y + c.h + 24
         if k < len(ONDAS) - 1:
-            if largura_texto(BARREIRA_ONDAS, 12) > l_e - 16:
-                raise ValueError(f'{slug}: the barrier\'s text does not fit in one line of its box, {l_e} px')
-            barreira = Cx(x_e, y, l_e, 32)
+            linhas = quebrar(BARREIRA_ONDAS, l_e - 24, TAM)
+            barreira = Cx(x_e, y, l_e, 16 + 16 * len(linhas))
             s.caixa(barreira.x, barreira.y, barreira.w, barreira.h, 'dg-caixa-apagada', 6)
-            s.texto(barreira.x + l_e // 2, barreira.y + 20, BARREIRA_ONDAS, 'dg-n', 'middle')
+            for j, linha in enumerate(linhas):
+                s.texto(barreira.x + l_e // 2, barreira.y + 20 + 16 * j, linha, 'dg-n', 'middle')
             s.seta([c.base(), barreira.topo()], *acento)
             y = barreira.y + barreira.h + 24
     # the sequence each device goes through, in every wave: the route of each step, as the code has it
@@ -2178,7 +2198,7 @@ def desenho_escada(num, slug):
     for classe, texto in (('dg-caixa-acento', f'busca (até {e["busca"]}\u00a0s) e tentativa (até {e["tentativa"]}\u00a0s)'), ('dg-caixa-2', 'espera'), ('dg-caixa-apagada', f'espera de {minutos(e["dormencia"])}, fora de escala')):
         s.caixa(x, 24, 16, 16, classe, 0)
         s.texto(x + 24, 36, texto, 'dg-n')
-        x += 24 + largura_texto(texto, 12) + 16 + 4
+        x += 24 + largura_texto(texto, TAM) + 16 + 4
         x = (x + 3) // 4 * 4
     # the line: the fall, then the fast cycles (a wait and an attempt each), then the dormant waits, each before an attempt
     s.texto(16, 116, 'queda', 'dg-n')
@@ -2204,8 +2224,8 @@ def desenho_escada(num, slug):
     if x_fim > 688:
         raise ValueError(f'{slug}: the line is {x_fim - x_inicio} px long and does not fit before the restart arrow')
     # the two phases, bracketed under the line
-    for x1, x2, linhas in ((x_inicio, x_rapido, ['a espera dobra a cada falha', f'teto de {e["teto"]}\u00a0s, que a escada não atinge']),
-                           (x_rapido, x_fim, [f'dormência: {e["dormentes"]} esperas de {minutos(e["dormencia"])}', 'só depois da última tentativa rápida'])):
+    for x1, x2, linhas in ((x_inicio, x_rapido, ['a espera dobra a cada falha', f'teto de {e["teto"]}\u00a0s, nunca atingido']),
+                           (x_rapido, x_fim, [f'dormência: {e["dormentes"]} esperas de {minutos(e["dormencia"])}', 'só depois dos ciclos rápidos'])):
         s.linha([(x1 + 4, 136), (x1 + 4, 144), (x2 - 4, 144), (x2 - 4, 136)], 'dg-fio-fino')
         meio = (x1 + x2) // 8 * 4
         s.texto(meio, 164, linhas[0], 'dg-n', 'middle')
@@ -2224,7 +2244,7 @@ def desenho_correcao(num, slug):
     s = Svg(slug)
     acento = ('dg-fio-acento', 'dg-ponta-acento')
     desloc = HORAS_DESLIGADO * 80                         # the time off, 80 px an hour: the same width is the shift of the blocks
-    x_boot, x_ntp, x_fim, y_a = 16 + desloc, 448, 704, 100
+    x_boot, x_ntp, x_fim, y_a = 16 + desloc, 424, 704, 100
     marca = lambda chave, sufixo='': [('dg-b', str(ev[chave][0])), ('', f' {ev[chave][1]}{sufixo}')]
     # the clock: off, provisional (the panel paints it amber), set
     s.caixa(16, y_a, desloc, 32, 'dg-caixa-apagada', 0)
@@ -2286,14 +2306,14 @@ def desenho_transicao(num, slug):
             if tipo in ('boot: 1º envio', 'uma por hora'):
                 s.texto(x - 8, y_f - 20, tipo, 'dg-n', 'end')          # above, beside the line that comes down to the dot
             else:
-                s.texto(x, y_f + 28, tipo, 'dg-n', 'middle')
+                s.texto(x - 8, y_f + 28, tipo, 'dg-n')                    # under the dot, from just before it: wholly inside the outage's box for the failure, wholly outside it for the return
         anterior = e['falha']
     # the accounting records, one an hour after the first suppressed one, with what they count
     codigo_resumo, nome_resumo = tr['resumo']
     for r in sim['relatorios']:
         x = x_de(r['minuto'])
         s.no(x, y_r)
-        for k, linha in enumerate(quebrar(f'{nome_resumo} ({codigo_resumo}), ctx\u00a0=\u00a0{r["n"]}', 132, 12)):
+        for k, linha in enumerate(quebrar(f'{nome_resumo} ({codigo_resumo}), ctx\u00a0=\u00a0{r["n"]}', 132, TAM)):
             s.texto(x, y_r + 28 + 16 * k, linha, 'dg-n', 'middle')
     # the time, under them
     s.linha([(x_de(0), y_eixo), (x_de(DURACAO_H * 60), y_eixo)], 'dg-fio')
@@ -2314,7 +2334,7 @@ def desenho_ota_linha_tempo(num, slug):
                 (2, 'aviso', por_s * round(sum(ENVIO_MEDIDO_S) / 2), envio, [('dg-b', 'envio e conferência da imagem'), ('', f', {envio}')],
                  ['sistema de arquivos já sobrescrito', 'um corte perde os arquivos, e a configuração fica']),
                 (3, 'perigo', por_s * o['aplicacao'], f'cerca de {o["aplicacao"]}\u00a0s', [('dg-b', 'aplicação'), ('', f', cerca de {o["aplicacao"]}\u00a0s')],
-                 ['única janela em que um corte de energia deixa o aparelho sem firmware: exige BOOTSEL e o cabo USB']),
+                 ['única janela em que um corte de energia deixa o aparelho sem firmware:', 'exige BOOTSEL e o cabo USB']),
                 (4, 'ok', por_s * o['boot'], f'cerca de {o["boot"]}\u00a0s', [('dg-b', 'boot da imagem nova'), ('', f', cerca de {o["boot"]}\u00a0s')],
                  ['um corte aqui não muda nada: a imagem nova já está gravada']))
     # the line, to scale: a box for each stage in the colour of what a cut costs there, its number above and its time inside
@@ -2331,7 +2351,7 @@ def desenho_ota_linha_tempo(num, slug):
     # the web interface comes back 52 to 56 s after the apply began: a bracket on the same scale, past the end of the boot
     x1, x2 = inicio_aplicacao + por_s * VOLTA_MEDIDA_S[0], inicio_aplicacao + por_s * VOLTA_MEDIDA_S[1]
     s.linha([(x1, y_l + 36), (x1, y_l + 44), (x2, y_l + 44), (x2, y_l + 36)], 'dg-fio-fino')
-    rotulo(s, x2 + 12, y_l + 48, quebrar(f'interface web de volta, {volta} depois da aplicação', 716 - (x2 + 12) - 8, 12), 716)
+    rotulo(s, x2 + 12, y_l + 48, quebrar(f'interface web de volta, {volta} depois da aplicação', 716 - (x2 + 12) - 8, TAM), 716)
     # what a cut costs at each stage
     y = 136
     s.texto(16, y - 4, 'o que um corte de energia custa em cada etapa', 'dg-t dg-b')
@@ -2410,9 +2430,11 @@ def desenho_despertar(num, slug):
     s.texto(meio, y_fase + 64, 'fora de escala', 'dg-n dg-c2', 'middle')
     um(x1, 'despertar de telemetria', True)
     y_nota = y_fase + 112
-    s.texto(x0, y_nota, 'Em escala. Têm tempo conhecido: os totais, o aquecimento e o boot; a amostragem e o envio são o que falta.', 'dg-n dg-c2')
-    s.texto(x0, y_nota + 16, 'O despertar de telemetria repete as larguras do de leitura até a decisão.', 'dg-n dg-c2')
-    s.texto(x0, y_nota + 32, 'O rádio liga no boot, só no despertar de telemetria; onde a faixa começa não foi medido.', 'dg-n dg-c2')
+    notas = ('Em escala. Têm tempo conhecido: os totais, o aquecimento e o boot;', 'a amostragem e o envio são o que falta.',
+             'O despertar de telemetria repete as larguras do de leitura até a decisão.',
+             'O rádio liga durante o boot, só no despertar de telemetria; a faixa o mostra', 'ligando no fim do boot, e o instante exato não foi medido.')
+    for k, nota in enumerate(notas):
+        s.texto(x0, y_nota + 16 * k, nota, 'dg-n dg-c2')
     return s.render()
 
 
@@ -2464,7 +2486,7 @@ def desenho_ota_api(num, slug):
 def desenho_modos(num, slug):
     m = num.modos()
     s = Svg(slug)
-    x0, w0, x1, w1 = 16, 136, 480, 224                      # M0 at the left, M1 at the right, and the arrows between them
+    x0, w0, x1, w1 = 16, 120, 480, 224                      # M0 at the left, M1 at the right, and the arrows between them
     cinza = lambda texto: [('dg-c2', texto)]
     entradas = [([[('dg-m', f'air {m["hibernar"]}')], cinza('arma o ciclo na flash')]),
                 ([[('dg-m', f'air {m["ociosidade"]}'), ('', f': {m["idle_s"]}\u00a0s sem atividade')], cinza('e sem o carregador ligado')])]
@@ -2529,7 +2551,9 @@ def desenho_flash(num, slug):
     b1 = px(fl['programa'])
     b2 = min(px(fl['programa'] + fl['sistema']), x1 - GRADE)                            # the update's data are 4 px wide at least, which is more than their scale
     teto = min(px(fl['teto']), b1 - GRADE)                                              # and the ceiling at least one step under the end of the program space
-    y_barra, h_barra = 84, 48
+    segmentos = ((x0, b1, 'programa', fl['programa']), (b1, b2, 'sistema de arquivos (LittleFS)', fl['sistema']))
+    titulos = [quebrar(titulo, fim - ini - 32, TAM) for ini, fim, titulo, _ in segmentos]            # a narrow segment (a file system of 512 KiB) takes its title in two lines
+    y_barra, h_barra = 84, max(48, 16 * (max(len(l) for l in titulos) + 1) + 16)
     # what the bar says, above it, each on a line down to the bar: the update's data on a row of their own, so that no ceiling can come under their label
     s.texto(x1, 28, f'dados da atualização: {fl["dados"]}\u00a0KiB, no fim', 'dg-n', 'end')
     s.texto(teto, 44, f'teto da atualização web: {milhar(fl["teto"])}\u00a0KiB', 'dg-n', 'end')
@@ -2538,10 +2562,11 @@ def desenho_flash(num, slug):
     s.caixa(x0, y_barra, b1 - x0, h_barra, 'dg-caixa', 0)
     s.caixa(b1, y_barra, b2 - b1, h_barra, 'dg-caixa-2', 0)
     s.caixa(b2, y_barra, x1 - b2, h_barra, 'dg-caixa-forte', 0)
-    for ini, fim, titulo, kib in ((x0, b1, 'programa', fl['programa']), (b1, b2, 'sistema de arquivos (LittleFS)', fl['sistema'])):
+    for (ini, fim, _, kib), linhas in zip(segmentos, titulos):
         centro = (ini + fim) // 8 * 4
-        s.texto(centro, y_barra + 20, titulo, 'dg-t dg-b', 'middle')
-        s.texto(centro, y_barra + 36, f'{milhar(kib)}\u00a0KiB', 'dg-n dg-c2', 'middle')
+        for k, linha in enumerate(linhas):
+            s.texto(centro, y_barra + 20 + 16 * k, linha, 'dg-t dg-b', 'middle')
+        s.texto(centro, y_barra + 20 + 16 * len(linhas), f'{milhar(kib)}\u00a0KiB', 'dg-n dg-c2', 'middle')
     s.linha([(teto, 68), (teto, y_barra + h_barra)], 'dg-fio')
     s.linha([(x1 - GRADE, 36), (x1 - GRADE, y_barra)], 'dg-fio')
     # the new image, received where the file system lives
@@ -2689,7 +2714,7 @@ def pagina_previa(f, svg, legenda, tema):
     css = bm.CSS.replace('__FONT__', '')
     return (f'<!doctype html>\n<html lang="pt-BR" data-theme="{tema}">\n<head>\n<meta charset="utf-8">\n'
             f'<meta name="viewport" content="width=device-width, initial-scale=1">\n<title>{slug_de(f.arquivo)} ({tema})</title>\n<style>{css}</style>\n</head>\n<body>\n'
-            f'<div class="pagina">\n<figure id="{f.bloco}" class="fig fig-diagrama"><div class="moldura moldura-diagrama">{quadro}</div>'
+            f'<div class="pagina">\n<figure id="{f.bloco}" class="fig fig-diagrama"><div class="moldura moldura-svg">{quadro}</div>'
             f'<figcaption><b>Figura 1.</b> {texto}</figcaption></figure>\n</div>\n</body>\n</html>\n')
 
 

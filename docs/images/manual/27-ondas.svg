@@ -1,57 +1,60 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 360" role="img" class="dg">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 400" role="img" class="dg">
 <defs>
 <marker id="27-ondas-ponta" viewBox="0 0 8 8" refX="8" refY="4" markerWidth="8" markerHeight="8" markerUnits="userSpaceOnUse" orient="auto"><path class="dg-ponta" d="M0 0L8 4L0 8z"/></marker>
 <marker id="27-ondas-ponta-acento" viewBox="0 0 8 8" refX="8" refY="4" markerWidth="8" markerHeight="8" markerUnits="userSpaceOnUse" orient="auto"><path class="dg-ponta-acento" d="M0 0L8 4L0 8z"/></marker>
 </defs>
-<rect class="dg-caixa-2" x="16.5" y="16.5" width="343" height="47" rx="12"/>
+<rect class="dg-caixa-2" x="16.5" y="16.5" width="343" height="63" rx="12"/>
 <text class="dg-t dg-b" x="28" y="36">Onda 0</text>
-<text class="dg-n dg-c2" x="28" y="52">um aparelho de bancada de cada imagem em uso</text>
-<rect class="dg-caixa-apagada" x="16.5" y="88.5" width="343" height="31" rx="6"/>
-<text class="dg-n" x="188" y="108" text-anchor="middle">conferir versão, telemetria e alarmes por um período</text>
-<polyline class="dg-fio-acento" points="188,64 188,88" marker-end="url(#27-ondas-ponta-acento)"/>
-<rect class="dg-caixa-2" x="16.5" y="144.5" width="343" height="47" rx="12"/>
-<text class="dg-t dg-b" x="28" y="164">Onda 1</text>
-<text class="dg-n dg-c2" x="28" y="180">poucos aparelhos em uso real</text>
-<polyline class="dg-fio-acento" points="188,120 188,144" marker-end="url(#27-ondas-ponta-acento)"/>
-<rect class="dg-caixa-apagada" x="16.5" y="216.5" width="343" height="31" rx="6"/>
-<text class="dg-n" x="188" y="236" text-anchor="middle">conferir versão, telemetria e alarmes por um período</text>
-<polyline class="dg-fio-acento" points="188,192 188,216" marker-end="url(#27-ondas-ponta-acento)"/>
-<rect class="dg-caixa-2" x="16.5" y="272.5" width="343" height="63" rx="12"/>
-<text class="dg-t dg-b" x="28" y="292">Onda 2</text>
-<text class="dg-n dg-c2" x="28" y="308">o resto, em grupos pequenos, um aparelho de cada</text>
-<text class="dg-n dg-c2" x="28" y="324">vez dentro de cada grupo</text>
-<polyline class="dg-fio-acento" points="188,248 188,272" marker-end="url(#27-ondas-ponta-acento)"/>
-<rect class="dg-caixa" x="392.5" y="16.5" width="311" height="327" rx="12"/>
-<text class="dg-t dg-b" x="404" y="40">em cada aparelho</text>
-<text class="dg-n dg-c2" x="404" y="56">a mesma sequência, em todas as ondas</text>
-<rect class="dg-caixa-acento" x="404.5" y="84.5" width="15" height="15" rx="6"/>
-<text class="dg-n dg-b dg-sobre-acento" x="412" y="96" text-anchor="middle">1</text>
-<text class="dg-t dg-b" x="428" y="96">backup</text>
-<text class="dg-n" x="428" y="112"><tspan class="dg-m">GET /api/backup</tspan></text>
-<rect class="dg-caixa-acento" x="404.5" y="124.5" width="15" height="15" rx="6"/>
-<text class="dg-n dg-b dg-sobre-acento" x="412" y="136" text-anchor="middle">2</text>
-<text class="dg-t dg-b" x="428" y="136">envio</text>
-<text class="dg-n" x="428" y="152"><tspan class="dg-m">POST /api/restore?op=stage&amp;commit=1</tspan></text>
-<rect class="dg-caixa-acento" x="404.5" y="164.5" width="15" height="15" rx="6"/>
-<text class="dg-n dg-b dg-sobre-acento" x="412" y="176" text-anchor="middle">3</text>
-<text class="dg-t dg-b" x="428" y="176">aplicação</text>
-<text class="dg-n" x="428" y="192"><tspan class="dg-m">POST /api/ota/apply</tspan></text>
-<rect class="dg-caixa-acento" x="404.5" y="204.5" width="15" height="15" rx="6"/>
-<text class="dg-n dg-b dg-sobre-acento" x="412" y="216" text-anchor="middle">4</text>
-<text class="dg-t dg-b" x="428" y="216">confirmação</text>
-<text class="dg-n" x="428" y="232">versão nova em <tspan class="dg-m">sys.ver</tspan></text>
-<rect class="dg-caixa-acento" x="404.5" y="244.5" width="15" height="15" rx="6"/>
-<text class="dg-n dg-b dg-sobre-acento" x="412" y="256" text-anchor="middle">5</text>
-<text class="dg-t dg-b" x="428" y="256">restauração</text>
-<text class="dg-n" x="428" y="272"><tspan class="dg-m">POST /api/restore?op=validate</tspan></text>
-<text class="dg-n" x="428" y="288">depois <tspan class="dg-m">?op=apply</tspan></text>
-<rect class="dg-caixa-acento" x="404.5" y="300.5" width="15" height="15" rx="6"/>
-<text class="dg-n dg-b dg-sobre-acento" x="412" y="312" text-anchor="middle">6</text>
-<text class="dg-t dg-b" x="428" y="312">idioma</text>
-<text class="dg-n" x="428" y="328">pacotes em <tspan class="dg-m">/lang</tspan>, e reinicia</text>
-<polyline class="dg-fio-fino" points="360,40 376,40"/>
-<polyline class="dg-fio-fino" points="360,168 376,168"/>
-<polyline class="dg-fio-fino" points="360,304 376,304"/>
-<polyline class="dg-fio-fino" points="376,40 376,304"/>
-<polyline class="dg-fio" points="376,168 392,168" marker-end="url(#27-ondas-ponta)"/>
+<text class="dg-n dg-c2" x="28" y="52">um aparelho de bancada de cada imagem em</text>
+<text class="dg-n dg-c2" x="28" y="68">uso</text>
+<rect class="dg-caixa-apagada" x="16.5" y="104.5" width="343" height="47" rx="6"/>
+<text class="dg-n" x="188" y="124" text-anchor="middle">conferir versão, telemetria e alarmes por um</text>
+<text class="dg-n" x="188" y="140" text-anchor="middle">período</text>
+<polyline class="dg-fio-acento" points="188,80 188,104" marker-end="url(#27-ondas-ponta-acento)"/>
+<rect class="dg-caixa-2" x="16.5" y="176.5" width="343" height="47" rx="12"/>
+<text class="dg-t dg-b" x="28" y="196">Onda 1</text>
+<text class="dg-n dg-c2" x="28" y="212">poucos aparelhos em uso real</text>
+<polyline class="dg-fio-acento" points="188,152 188,176" marker-end="url(#27-ondas-ponta-acento)"/>
+<rect class="dg-caixa-apagada" x="16.5" y="248.5" width="343" height="47" rx="6"/>
+<text class="dg-n" x="188" y="268" text-anchor="middle">conferir versão, telemetria e alarmes por um</text>
+<text class="dg-n" x="188" y="284" text-anchor="middle">período</text>
+<polyline class="dg-fio-acento" points="188,224 188,248" marker-end="url(#27-ondas-ponta-acento)"/>
+<rect class="dg-caixa-2" x="16.5" y="320.5" width="343" height="63" rx="12"/>
+<text class="dg-t dg-b" x="28" y="340">Onda 2</text>
+<text class="dg-n dg-c2" x="28" y="356">o resto, em grupos pequenos, um aparelho de</text>
+<text class="dg-n dg-c2" x="28" y="372">cada vez dentro de cada grupo</text>
+<polyline class="dg-fio-acento" points="188,296 188,320" marker-end="url(#27-ondas-ponta-acento)"/>
+<rect class="dg-caixa" x="376.5" y="16.5" width="327" height="327" rx="12"/>
+<text class="dg-t dg-b" x="388" y="40">em cada aparelho</text>
+<text class="dg-n dg-c2" x="388" y="56">a mesma sequência, em todas as ondas</text>
+<rect class="dg-caixa-acento" x="388.5" y="84.5" width="15" height="15" rx="6"/>
+<text class="dg-n dg-b dg-sobre-acento" x="396" y="96" text-anchor="middle">1</text>
+<text class="dg-t dg-b" x="412" y="96">backup</text>
+<text class="dg-n" x="412" y="112"><tspan class="dg-m">GET /api/backup</tspan></text>
+<rect class="dg-caixa-acento" x="388.5" y="124.5" width="15" height="15" rx="6"/>
+<text class="dg-n dg-b dg-sobre-acento" x="396" y="136" text-anchor="middle">2</text>
+<text class="dg-t dg-b" x="412" y="136">envio</text>
+<text class="dg-n" x="412" y="152"><tspan class="dg-m">POST /api/restore?op=stage&amp;commit=1</tspan></text>
+<rect class="dg-caixa-acento" x="388.5" y="164.5" width="15" height="15" rx="6"/>
+<text class="dg-n dg-b dg-sobre-acento" x="396" y="176" text-anchor="middle">3</text>
+<text class="dg-t dg-b" x="412" y="176">aplicação</text>
+<text class="dg-n" x="412" y="192"><tspan class="dg-m">POST /api/ota/apply</tspan></text>
+<rect class="dg-caixa-acento" x="388.5" y="204.5" width="15" height="15" rx="6"/>
+<text class="dg-n dg-b dg-sobre-acento" x="396" y="216" text-anchor="middle">4</text>
+<text class="dg-t dg-b" x="412" y="216">confirmação</text>
+<text class="dg-n" x="412" y="232">versão nova em <tspan class="dg-m">sys.ver</tspan></text>
+<rect class="dg-caixa-acento" x="388.5" y="244.5" width="15" height="15" rx="6"/>
+<text class="dg-n dg-b dg-sobre-acento" x="396" y="256" text-anchor="middle">5</text>
+<text class="dg-t dg-b" x="412" y="256">restauração</text>
+<text class="dg-n" x="412" y="272"><tspan class="dg-m">POST /api/restore?op=validate</tspan></text>
+<text class="dg-n" x="412" y="288">depois <tspan class="dg-m">?op=apply</tspan></text>
+<rect class="dg-caixa-acento" x="388.5" y="300.5" width="15" height="15" rx="6"/>
+<text class="dg-n dg-b dg-sobre-acento" x="396" y="312" text-anchor="middle">6</text>
+<text class="dg-t dg-b" x="412" y="312">idioma</text>
+<text class="dg-n" x="412" y="328">pacotes em <tspan class="dg-m">/lang</tspan>, e reinicia</text>
+<polyline class="dg-fio-fino" points="360,48 376,48"/>
+<polyline class="dg-fio-fino" points="360,200 376,200"/>
+<polyline class="dg-fio-fino" points="360,352 376,352"/>
+<polyline class="dg-fio-fino" points="376,48 376,352"/>
+<polyline class="dg-fio" points="376,200 376,200" marker-end="url(#27-ondas-ponta)"/>
 </svg>

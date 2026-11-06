@@ -9,27 +9,27 @@
 <rect class="dg-caixa" x="72.5" y="104.5" width="159" height="175" rx="6"/>
 <text class="dg-t dg-b" x="84" y="124">SIMUT</text>
 <text class="dg-n dg-c2" x="84" y="140">vários aparelhos,</text>
-<text class="dg-n dg-c2" x="84" y="156">cada um com o seu uid</text>
+<text class="dg-n dg-c2" x="84" y="156">cada um com seu uid</text>
 <text class="dg-n" x="300" y="108">telemetria e linha de alarmes</text>
 <text class="dg-n" x="300" y="124"><tspan class="dg-m">X-SIMUT-Uid/Ver/Env/Cfg</tspan></text>
-<polyline class="dg-fio" points="232,136 504,136" marker-end="url(#27-arquitetura-ponta)"/>
+<polyline class="dg-fio" points="232,136 520,136" marker-end="url(#27-arquitetura-ponta)"/>
 <text class="dg-n" x="300" y="172"><tspan class="dg-m">GET /metrics</tspan></text>
 <text class="dg-n" x="300" y="188">HTTP Basic</text>
-<polyline class="dg-fio" points="504,200 232,200" marker-end="url(#27-arquitetura-ponta)"/>
+<polyline class="dg-fio" points="520,200 232,200" marker-end="url(#27-arquitetura-ponta)"/>
 <text class="dg-n" x="300" y="236">API REST</text>
 <text class="dg-n" x="300" y="252">cookie <tspan class="dg-m">SIMUTSESS</tspan> ou Bearer</text>
-<polyline class="dg-fio" points="504,264 232,264" marker-end="url(#27-arquitetura-ponta)"/>
-<rect class="dg-caixa" x="504.5" y="120.5" width="199" height="31" rx="6"/>
-<text class="dg-t" x="516" y="140">coletor</text>
-<rect class="dg-caixa" x="504.5" y="184.5" width="199" height="31" rx="6"/>
-<text class="dg-t" x="516" y="204">Prometheus</text>
-<rect class="dg-comp-acento" x="505" y="249" width="198" height="30" rx="6"/>
-<text class="dg-t" x="516" y="268">gestor de frota</text>
-<polyline class="dg-fio" points="544,280 544,312" marker-end="url(#27-arquitetura-ponta)"/>
-<text class="dg-n" x="556" y="300">lê o <tspan class="dg-m">manifest.json</tspan></text>
-<rect class="dg-caixa" x="504.5" y="312.5" width="199" height="47" rx="6"/>
-<text class="dg-t" x="516" y="332">GitHub</text>
-<text class="dg-n dg-c2" x="516" y="348">ativos da release</text>
+<polyline class="dg-fio" points="520,264 232,264" marker-end="url(#27-arquitetura-ponta)"/>
+<rect class="dg-caixa" x="520.5" y="120.5" width="183" height="31" rx="6"/>
+<text class="dg-t" x="532" y="140">coletor</text>
+<rect class="dg-caixa" x="520.5" y="184.5" width="183" height="31" rx="6"/>
+<text class="dg-t" x="532" y="204">Prometheus</text>
+<rect class="dg-comp-acento" x="521" y="249" width="182" height="30" rx="6"/>
+<text class="dg-t" x="532" y="268">gestor de frota</text>
+<polyline class="dg-fio" points="560,280 560,312" marker-end="url(#27-arquitetura-ponta)"/>
+<text class="dg-n" x="572" y="300">lê o <tspan class="dg-m">manifest.json</tspan></text>
+<rect class="dg-caixa" x="520.5" y="312.5" width="183" height="47" rx="6"/>
+<text class="dg-t" x="532" y="332">GitHub</text>
+<text class="dg-n dg-c2" x="532" y="348">ativos da release</text>
 <polyline class="dg-fio-tracejado" points="120,280 120,360" marker-end="url(#27-arquitetura-ponta)"/>
 <text class="dg-n" x="132" y="304">anúncio mDNS</text>
 <text class="dg-n" x="132" y="320"><tspan class="dg-m">_simut._tcp</tspan></text>

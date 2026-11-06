@@ -1,13 +1,14 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 680" role="img" class="dg">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 696" role="img" class="dg">
 <defs>
 <marker id="04-fluxo-ponta-acento" viewBox="0 0 8 8" refX="8" refY="4" markerWidth="8" markerHeight="8" markerUnits="userSpaceOnUse" orient="auto"><path class="dg-ponta-acento" d="M0 0L8 4L0 8z"/></marker>
 </defs>
 <rect class="dg-caixa" x="16.5" y="24.5" width="175" height="47" rx="6"/>
 <text class="dg-t" x="28" y="44">Liga o aparelho com o</text>
 <text class="dg-t" x="28" y="60">console USB aberto</text>
-<rect class="dg-caixa" x="224.5" y="24.5" width="191" height="47" rx="6"/>
-<text class="dg-t" x="236" y="44">Anota a senha do admin</text>
-<text class="dg-n dg-c2" x="236" y="60">ela aparece uma única vez</text>
+<rect class="dg-caixa" x="224.5" y="16.5" width="191" height="63" rx="6"/>
+<text class="dg-t" x="236" y="36">Anota a senha do admin</text>
+<text class="dg-n dg-c2" x="236" y="52">ela aparece uma única</text>
+<text class="dg-n dg-c2" x="236" y="68">vez</text>
 <rect class="dg-caixa" x="448.5" y="24.5" width="255" height="47" rx="6"/>
 <text class="dg-t" x="460" y="44">O painel pergunta a data e a hora</text>
 <text class="dg-n dg-c2" x="460" y="60">só na release: SALVAR ou PULAR</text>
@@ -17,70 +18,71 @@
 <polyline class="dg-fio-acento" points="544,96 544,112" marker-end="url(#04-fluxo-ponta-acento)"/>
 <circle class="dg-no" cx="544" cy="96" r="4"/>
 <polyline class="dg-fio-acento" points="184,96 184,112" marker-end="url(#04-fluxo-ponta-acento)"/>
-<rect class="dg-caixa-2" x="16.5" y="112.5" width="335" height="391" rx="12"/>
-<rect class="dg-caixa-2" x="384.5" y="112.5" width="319" height="391" rx="12"/>
+<rect class="dg-caixa-2" x="16.5" y="112.5" width="335" height="407" rx="12"/>
+<rect class="dg-caixa-2" x="384.5" y="112.5" width="319" height="407" rx="12"/>
 <text class="dg-t dg-b" x="32" y="136">release e alpha: pelo ponto de acesso</text>
 <text class="dg-t dg-b" x="400" y="136">Air: pelo console</text>
-<rect class="dg-caixa" x="32.5" y="152.5" width="303" height="47" rx="6"/>
+<rect class="dg-caixa" x="32.5" y="152.5" width="303" height="63" rx="6"/>
 <text class="dg-t" x="44" y="172">Comando <tspan class="dg-m">ap</tspan> no console</text>
-<text class="dg-n dg-c2" x="44" y="188">ou, na release, o item 8 do menu do painel</text>
-<rect class="dg-caixa" x="32.5" y="216.5" width="303" height="47" rx="6"/>
-<text class="dg-t" x="44" y="236">Conecta na rede <tspan class="dg-m">simut_SETUP</tspan></text>
-<text class="dg-n dg-c2" x="44" y="252">no celular ou no computador</text>
-<polyline class="dg-fio-acento" points="184,200 184,216" marker-end="url(#04-fluxo-ponta-acento)"/>
-<rect class="dg-caixa" x="32.5" y="280.5" width="303" height="47" rx="6"/>
-<text class="dg-t" x="44" y="300">Abre <tspan class="dg-m">192.168.4.1</tspan></text>
-<text class="dg-n dg-c2" x="44" y="316">no navegador</text>
-<polyline class="dg-fio-acento" points="184,264 184,280" marker-end="url(#04-fluxo-ponta-acento)"/>
-<rect class="dg-caixa" x="32.5" y="344.5" width="303" height="31" rx="6"/>
-<text class="dg-t" x="44" y="364">Entra como <tspan class="dg-m">admin</tspan> e troca a senha</text>
-<polyline class="dg-fio-acento" points="184,328 184,344" marker-end="url(#04-fluxo-ponta-acento)"/>
-<rect class="dg-caixa" x="32.5" y="392.5" width="303" height="47" rx="6"/>
-<text class="dg-t" x="44" y="412">Página Rede</text>
-<text class="dg-n dg-c2" x="44" y="428">Buscar, escolher a rede e digitar a senha</text>
-<polyline class="dg-fio-acento" points="184,376 184,392" marker-end="url(#04-fluxo-ponta-acento)"/>
-<rect class="dg-caixa" x="32.5" y="456.5" width="303" height="31" rx="6"/>
-<text class="dg-t" x="44" y="476">Salvar e reiniciar</text>
-<polyline class="dg-fio-acento" points="184,440 184,456" marker-end="url(#04-fluxo-ponta-acento)"/>
+<text class="dg-n dg-c2" x="44" y="188">ou, na release, o item 8 do menu do</text>
+<text class="dg-n dg-c2" x="44" y="204">painel</text>
+<rect class="dg-caixa" x="32.5" y="232.5" width="303" height="47" rx="6"/>
+<text class="dg-t" x="44" y="252">Conecta na rede <tspan class="dg-m">simut_SETUP</tspan></text>
+<text class="dg-n dg-c2" x="44" y="268">no celular ou no computador</text>
+<polyline class="dg-fio-acento" points="184,216 184,232" marker-end="url(#04-fluxo-ponta-acento)"/>
+<rect class="dg-caixa" x="32.5" y="296.5" width="303" height="47" rx="6"/>
+<text class="dg-t" x="44" y="316">Abre <tspan class="dg-m">192.168.4.1</tspan></text>
+<text class="dg-n dg-c2" x="44" y="332">no navegador</text>
+<polyline class="dg-fio-acento" points="184,280 184,296" marker-end="url(#04-fluxo-ponta-acento)"/>
+<rect class="dg-caixa" x="32.5" y="360.5" width="303" height="31" rx="6"/>
+<text class="dg-t" x="44" y="380">Entra como <tspan class="dg-m">admin</tspan> e troca a senha</text>
+<polyline class="dg-fio-acento" points="184,344 184,360" marker-end="url(#04-fluxo-ponta-acento)"/>
+<rect class="dg-caixa" x="32.5" y="408.5" width="303" height="47" rx="6"/>
+<text class="dg-t" x="44" y="428">Página Rede</text>
+<text class="dg-n dg-c2" x="44" y="444">Buscar, escolher a rede e digitar a senha</text>
+<polyline class="dg-fio-acento" points="184,392 184,408" marker-end="url(#04-fluxo-ponta-acento)"/>
+<rect class="dg-caixa" x="32.5" y="472.5" width="303" height="31" rx="6"/>
+<text class="dg-t" x="44" y="492">Salvar e reiniciar</text>
+<polyline class="dg-fio-acento" points="184,456 184,472" marker-end="url(#04-fluxo-ponta-acento)"/>
 <rect class="dg-caixa" x="400.5" y="152.5" width="287" height="31" rx="6"/>
 <text class="dg-t dg-m" x="412" y="172">enable</text>
-<rect class="dg-caixa" x="400.5" y="228.5" width="287" height="31" rx="6"/>
-<text class="dg-t dg-m" x="412" y="248">configure terminal</text>
-<polyline class="dg-fio-acento" points="544,184 544,228" marker-end="url(#04-fluxo-ponta-acento)"/>
-<rect class="dg-caixa" x="400.5" y="304.5" width="287" height="31" rx="6"/>
-<text class="dg-t dg-m" x="412" y="324">system ssid &lt;rede&gt;</text>
-<polyline class="dg-fio-acento" points="544,260 544,304" marker-end="url(#04-fluxo-ponta-acento)"/>
-<rect class="dg-caixa" x="400.5" y="380.5" width="287" height="31" rx="6"/>
-<text class="dg-t dg-m" x="412" y="400">system pass &lt;senha&gt;</text>
-<polyline class="dg-fio-acento" points="544,336 544,380" marker-end="url(#04-fluxo-ponta-acento)"/>
-<rect class="dg-caixa" x="400.5" y="456.5" width="287" height="31" rx="6"/>
-<text class="dg-t dg-m" x="412" y="476">reload confirm</text>
-<polyline class="dg-fio-acento" points="544,412 544,456" marker-end="url(#04-fluxo-ponta-acento)"/>
-<polyline class="dg-fio" points="184,504 184,520 360,520"/>
-<polyline class="dg-fio" points="544,504 544,520 360,520"/>
-<circle class="dg-no" cx="360" cy="520" r="4"/>
-<rect class="dg-caixa" x="256.5" y="536.5" width="207" height="31" rx="6"/>
-<text class="dg-t" x="268" y="556">Aparelho na rede</text>
-<polyline class="dg-fio-acento" points="360,520 360,536" marker-end="url(#04-fluxo-ponta-acento)"/>
-<rect class="dg-caixa" x="20.5" y="600.5" width="119" height="63" rx="6"/>
-<text class="dg-t" x="32" y="620">Pacote de</text>
-<text class="dg-t" x="32" y="636">idioma e</text>
-<text class="dg-t" x="32" y="652">reinício</text>
-<rect class="dg-caixa" x="160.5" y="616.5" width="119" height="31" rx="6"/>
-<text class="dg-t" x="172" y="636">Fuso e hora</text>
-<polyline class="dg-fio-acento" points="140,632 160,632" marker-end="url(#04-fluxo-ponta-acento)"/>
-<rect class="dg-caixa" x="300.5" y="608.5" width="119" height="47" rx="6"/>
-<text class="dg-t" x="312" y="628">Primeiro</text>
-<text class="dg-t" x="312" y="644">sensor</text>
-<polyline class="dg-fio-acento" points="280,632 300,632" marker-end="url(#04-fluxo-ponta-acento)"/>
-<rect class="dg-caixa" x="440.5" y="608.5" width="119" height="47" rx="6"/>
-<text class="dg-t" x="452" y="628">PIN do painel</text>
-<text class="dg-n dg-c2" x="452" y="644">só na release</text>
-<polyline class="dg-fio-acento" points="420,632 440,632" marker-end="url(#04-fluxo-ponta-acento)"/>
-<rect class="dg-caixa" x="580.5" y="608.5" width="119" height="47" rx="6"/>
-<text class="dg-t dg-b" x="592" y="628">Pronto para</text>
-<text class="dg-t dg-b" x="592" y="644">usar</text>
-<polyline class="dg-fio-acento" points="560,632 580,632" marker-end="url(#04-fluxo-ponta-acento)"/>
-<polyline class="dg-fio" points="360,568 360,584 80,584"/>
-<polyline class="dg-fio-acento" points="80,584 80,600" marker-end="url(#04-fluxo-ponta-acento)"/>
+<rect class="dg-caixa" x="400.5" y="232.5" width="287" height="31" rx="6"/>
+<text class="dg-t dg-m" x="412" y="252">configure terminal</text>
+<polyline class="dg-fio-acento" points="544,184 544,232" marker-end="url(#04-fluxo-ponta-acento)"/>
+<rect class="dg-caixa" x="400.5" y="312.5" width="287" height="31" rx="6"/>
+<text class="dg-t dg-m" x="412" y="332">system ssid &lt;rede&gt;</text>
+<polyline class="dg-fio-acento" points="544,264 544,312" marker-end="url(#04-fluxo-ponta-acento)"/>
+<rect class="dg-caixa" x="400.5" y="392.5" width="287" height="31" rx="6"/>
+<text class="dg-t dg-m" x="412" y="412">system pass &lt;senha&gt;</text>
+<polyline class="dg-fio-acento" points="544,344 544,392" marker-end="url(#04-fluxo-ponta-acento)"/>
+<rect class="dg-caixa" x="400.5" y="472.5" width="287" height="31" rx="6"/>
+<text class="dg-t dg-m" x="412" y="492">reload confirm</text>
+<polyline class="dg-fio-acento" points="544,424 544,472" marker-end="url(#04-fluxo-ponta-acento)"/>
+<polyline class="dg-fio" points="184,520 184,536 360,536"/>
+<polyline class="dg-fio" points="544,520 544,536 360,536"/>
+<circle class="dg-no" cx="360" cy="536" r="4"/>
+<rect class="dg-caixa" x="256.5" y="552.5" width="207" height="31" rx="6"/>
+<text class="dg-t" x="268" y="572">Aparelho na rede</text>
+<polyline class="dg-fio-acento" points="360,536 360,552" marker-end="url(#04-fluxo-ponta-acento)"/>
+<rect class="dg-caixa" x="20.5" y="616.5" width="119" height="63" rx="6"/>
+<text class="dg-t" x="32" y="636">Pacote de</text>
+<text class="dg-t" x="32" y="652">idioma e</text>
+<text class="dg-t" x="32" y="668">reinício</text>
+<rect class="dg-caixa" x="160.5" y="632.5" width="119" height="31" rx="6"/>
+<text class="dg-t" x="172" y="652">Fuso e hora</text>
+<polyline class="dg-fio-acento" points="140,648 160,648" marker-end="url(#04-fluxo-ponta-acento)"/>
+<rect class="dg-caixa" x="300.5" y="624.5" width="119" height="47" rx="6"/>
+<text class="dg-t" x="312" y="644">Primeiro</text>
+<text class="dg-t" x="312" y="660">sensor</text>
+<polyline class="dg-fio-acento" points="280,648 300,648" marker-end="url(#04-fluxo-ponta-acento)"/>
+<rect class="dg-caixa" x="440.5" y="624.5" width="119" height="47" rx="6"/>
+<text class="dg-t" x="452" y="644">PIN do painel</text>
+<text class="dg-n dg-c2" x="452" y="660">só na release</text>
+<polyline class="dg-fio-acento" points="420,648 440,648" marker-end="url(#04-fluxo-ponta-acento)"/>
+<rect class="dg-caixa" x="580.5" y="624.5" width="119" height="47" rx="6"/>
+<text class="dg-t dg-b" x="592" y="644">Pronto para</text>
+<text class="dg-t dg-b" x="592" y="660">usar</text>
+<polyline class="dg-fio-acento" points="560,648 580,648" marker-end="url(#04-fluxo-ponta-acento)"/>
+<polyline class="dg-fio" points="360,584 360,600 80,600"/>
+<polyline class="dg-fio-acento" points="80,600 80,616" marker-end="url(#04-fluxo-ponta-acento)"/>
 </svg>

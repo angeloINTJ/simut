@@ -25,13 +25,13 @@
 <circle class="dg-no-perigo" cx="396" cy="80" r="4"/>
 <polyline class="dg-fio-fino" points="396,88 396,132"/>
 <circle class="dg-no-perigo" cx="396" cy="144" r="8"/>
-<text class="dg-n" x="396" y="172" text-anchor="middle">1ª falha</text>
+<text class="dg-n" x="388" y="172">1ª falha</text>
 <circle class="dg-no-perigo" cx="424" cy="80" r="4"/>
 <circle class="dg-no-perigo" cx="452" cy="80" r="4"/>
 <circle class="dg-no" cx="480" cy="80" r="4"/>
 <polyline class="dg-fio-fino" points="480,88 480,132"/>
 <circle class="dg-no-ok" cx="480" cy="144" r="8"/>
-<text class="dg-n" x="480" y="172" text-anchor="middle">1ª volta</text>
+<text class="dg-n" x="472" y="172">1ª volta</text>
 <circle class="dg-no" cx="508" cy="80" r="4"/>
 <circle class="dg-no" cx="536" cy="80" r="4"/>
 <circle class="dg-no" cx="564" cy="80" r="4"/>

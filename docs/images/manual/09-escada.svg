@@ -4,10 +4,10 @@
 </defs>
 <rect class="dg-caixa-acento" x="16.5" y="24.5" width="15" height="15" rx="0"/>
 <text class="dg-n" x="40" y="36">busca (até 15 s) e tentativa (até 20 s)</text>
-<rect class="dg-caixa-2" x="292.5" y="24.5" width="15" height="15" rx="0"/>
-<text class="dg-n" x="316" y="36">espera</text>
-<rect class="dg-caixa-apagada" x="380.5" y="24.5" width="15" height="15" rx="0"/>
-<text class="dg-n" x="404" y="36">espera de 10 min, fora de escala</text>
+<rect class="dg-caixa-2" x="312.5" y="24.5" width="15" height="15" rx="0"/>
+<text class="dg-n" x="336" y="36">espera</text>
+<rect class="dg-caixa-apagada" x="404.5" y="24.5" width="15" height="15" rx="0"/>
+<text class="dg-n" x="428" y="36">espera de 10 min, fora de escala</text>
 <text class="dg-n" x="16" y="116">queda</text>
 <polyline class="dg-fio" points="52,112 64,112" marker-end="url(#09-escada-ponta)"/>
 <rect class="dg-caixa-2" x="64.5" y="96.5" width="7" height="31" rx="0"/>
@@ -36,10 +36,10 @@
 <rect class="dg-caixa-acento" x="656.5" y="96.5" width="31" height="31" rx="0"/>
 <polyline class="dg-fio-fino" points="68,136 68,144 468,144 468,136"/>
 <text class="dg-n" x="268" y="164" text-anchor="middle">a espera dobra a cada falha</text>
-<text class="dg-n dg-c2" x="268" y="180" text-anchor="middle">teto de 120 s, que a escada não atinge</text>
+<text class="dg-n dg-c2" x="268" y="180" text-anchor="middle">teto de 120 s, nunca atingido</text>
 <polyline class="dg-fio-fino" points="476,136 476,144 684,144 684,136"/>
 <text class="dg-n" x="580" y="164" text-anchor="middle">dormência: 3 esperas de 10 min</text>
-<text class="dg-n dg-c2" x="580" y="180" text-anchor="middle">só depois da última tentativa rápida</text>
+<text class="dg-n dg-c2" x="580" y="180" text-anchor="middle">só depois dos ciclos rápidos</text>
 <polyline class="dg-fio" points="688,112 704,112 704,216 68,216 68,128" marker-end="url(#09-escada-ponta)"/>
 <text class="dg-n" x="84" y="208">recomeça na espera de 5 s, e se repete até a rede voltar</text>
 <text class="dg-n dg-c2" x="16" y="248">A escada não abre o AP de configuração: ele só abre quando alguém pede.</text>

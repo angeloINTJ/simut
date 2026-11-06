@@ -5,35 +5,35 @@
 <rect class="dg-comp-acento" x="17" y="17" width="110" height="390" rx="12"/>
 <text class="dg-t dg-b" x="32" y="40">SIMUT</text>
 <text class="dg-t dg-b" x="144" y="32">o aparelho abre a conexão</text>
-<rect class="dg-caixa" x="504.5" y="40.5" width="199" height="79" rx="6"/>
-<text class="dg-t" x="516" y="84">coletor</text>
+<rect class="dg-caixa" x="528.5" y="40.5" width="175" height="79" rx="6"/>
+<text class="dg-t" x="540" y="84">coletor</text>
 <text class="dg-n" x="144" y="56"><tspan class="dg-b">Telemetria</tspan> (HTTP/HTTPS POST ou MQTT/MQTTS)</text>
-<polyline class="dg-fio" points="128,64 504,64" marker-end="url(#20-integracao-ponta)"/>
+<polyline class="dg-fio" points="128,64 528,64" marker-end="url(#20-integracao-ponta)"/>
 <text class="dg-n" x="144" y="96"><tspan class="dg-b">Linha de alarmes</tspan> (mesmo transporte, com confirmação)</text>
-<polyline class="dg-fio" points="128,104 504,104" marker-end="url(#20-integracao-ponta)"/>
+<polyline class="dg-fio" points="128,104 528,104" marker-end="url(#20-integracao-ponta)"/>
 <text class="dg-n" x="144" y="136"><tspan class="dg-b">Descoberta Home Assistant</tspan> (MQTT, mensagens retidas)</text>
-<polyline class="dg-fio" points="128,144 504,144" marker-end="url(#20-integracao-ponta)"/>
-<rect class="dg-caixa" x="504.5" y="128.5" width="199" height="31" rx="6"/>
-<text class="dg-t" x="516" y="148">broker MQTT</text>
+<polyline class="dg-fio" points="128,144 528,144" marker-end="url(#20-integracao-ponta)"/>
+<rect class="dg-caixa" x="528.5" y="128.5" width="175" height="31" rx="6"/>
+<text class="dg-t" x="540" y="148">broker MQTT</text>
 <text class="dg-n" x="144" y="176"><tspan class="dg-b">Syslog RFC 5424</tspan> (UDP 514)</text>
-<polyline class="dg-fio" points="128,184 504,184" marker-end="url(#20-integracao-ponta)"/>
-<rect class="dg-caixa" x="504.5" y="168.5" width="199" height="31" rx="6"/>
-<text class="dg-t" x="516" y="188">coletor de syslog</text>
+<polyline class="dg-fio" points="128,184 528,184" marker-end="url(#20-integracao-ponta)"/>
+<rect class="dg-caixa" x="528.5" y="168.5" width="175" height="31" rx="6"/>
+<text class="dg-t" x="540" y="188">coletor de syslog</text>
 <polyline class="dg-fio-fino" points="144,208 704,208"/>
 <text class="dg-t dg-b" x="144" y="232">o servidor abre a conexão, na porta da interface web</text>
 <text class="dg-n" x="144" y="256"><tspan class="dg-b">API REST</tspan> com sessão</text>
-<polyline class="dg-fio" points="504,264 128,264" marker-end="url(#20-integracao-ponta)"/>
-<rect class="dg-caixa" x="504.5" y="248.5" width="199" height="31" rx="6"/>
-<text class="dg-t" x="516" y="268">servidor de gestão</text>
+<polyline class="dg-fio" points="528,264 128,264" marker-end="url(#20-integracao-ponta)"/>
+<rect class="dg-caixa" x="528.5" y="248.5" width="175" height="31" rx="6"/>
+<text class="dg-t" x="540" y="268">servidor de gestão</text>
 <text class="dg-n" x="144" y="296"><tspan class="dg-m">GET /metrics</tspan></text>
-<polyline class="dg-fio" points="504,304 128,304" marker-end="url(#20-integracao-ponta)"/>
-<rect class="dg-caixa" x="504.5" y="288.5" width="199" height="31" rx="6"/>
-<text class="dg-t" x="516" y="308">Prometheus</text>
+<polyline class="dg-fio" points="528,304 128,304" marker-end="url(#20-integracao-ponta)"/>
+<rect class="dg-caixa" x="528.5" y="288.5" width="175" height="31" rx="6"/>
+<text class="dg-t" x="540" y="308">Prometheus</text>
 <polyline class="dg-fio-fino" points="144,328 704,328"/>
 <text class="dg-t dg-b" x="144" y="352">anúncio local, sem conexão</text>
 <text class="dg-n" x="144" y="384"><tspan class="dg-b">Anúncio mDNS </tspan><tspan class="dg-m">_simut._tcp</tspan></text>
-<polyline class="dg-fio-tracejado" points="128,392 504,392" marker-end="url(#20-integracao-ponta)"/>
-<rect class="dg-caixa" x="504.5" y="376.5" width="199" height="31" rx="6"/>
-<text class="dg-t" x="516" y="396">rede local</text>
+<polyline class="dg-fio-tracejado" points="128,392 528,392" marker-end="url(#20-integracao-ponta)"/>
+<rect class="dg-caixa" x="528.5" y="376.5" width="175" height="31" rx="6"/>
+<text class="dg-t" x="540" y="396">rede local</text>
 <text class="dg-n dg-c2" x="144" y="408">multicast, só na imagem release</text>
 </svg>

@@ -204,7 +204,7 @@ def render_figures(frag: str, chapter_label: str, chapter_title: str, figures: l
         label = f'<b>Figura {n}.</b> {caption}'
         if have and name.lower().endswith(".svg"):
             svg, figures[-1]["svg_ids"] = inline_svg(path, re.sub(r"<[^>]+>", "", caption))
-            inner = f'<div class="moldura moldura-{kind}">{svg}</div>'
+            inner = f'<div class="moldura moldura-svg">{svg}</div>'
         elif have:
             img = f'<img src="{data_uri(path, mime_of(name))}" alt="{html.escape(re.sub(r"<[^>]+>", "", caption))}" loading="lazy">'
             if kind == "web":
@@ -451,14 +451,15 @@ figcaption b{color:var(--tinta);font-weight:600}
    smoothed (the @media rule at the end): a nearest-neighbour shrink to about 340 px drops the 1 px gaps of the grid unevenly (seen in
    headless Chrome at 390 px by the review of 2026-11-04). */
 .moldura-lcd img{width:639px;image-rendering:pixelated}
-/* The diagrams of tools/manual_diagramas.py are SVG in line, so they follow the theme button and the page's fonts; the file names classes and never a colour, and every
-   colour below is a token. The drawing is 720 px wide: the frame shows it whole up to that size, shrinks it with the page down to 560 px and then scrolls sideways,
-   so the 13 px text is never shrunk past reading (checked in headless Chrome at 390 px, 2026-11-06). Lines are 1 px (boxes, kept at 1 px at any scale) or 2 px (wires). */
-.moldura-diagrama{background:var(--superficie);overflow-x:auto}
-.moldura-diagrama svg{display:block;width:720px;max-width:100%;min-width:560px;height:auto}
+/* The diagrams of tools/manual_diagramas.py are SVG in line, in a frame of their own (moldura-svg; the frame of a diagram that is a PNG, moldura-diagrama, keeps its look), so they
+   follow the theme button and the page's fonts; the file names classes and never a colour, and every colour below is a token. The drawing is 720 px wide (LARGURA in the tool) and
+   is shown at that size and no smaller: where the page is narrower the frame scrolls sideways, because the text of a drawing shrunk to fit is smaller than the 13 px the Ângulo's
+   type scale stops at (the first version let it shrink to 560 px; measured with getScreenCTM in Chrome through Playwright at a real 390 px viewport on 2026-11-06, that rule gave 10,1 px for the 13 px text and 9,3 px for the 12 px notes, and 11,95 px at 720 px; this one gives 13,0 px for every one of the 923 texts of the 28 diagrams at 360, 390, 720, 800 and 1280 px. Headless Chrome's --window-size=390 is a 500 px layout cropped to 390, so it cannot show this). Lines are 1 px (boxes, kept at 1 px at any scale) or 2 px (wires). */
+.moldura-svg{background:var(--superficie);overflow-x:auto}
+.moldura-svg svg{display:block;width:720px;min-width:720px;height:auto}
 svg.dg text{fill:var(--tinta);font-family:var(--font-texto)}
 svg.dg .dg-t{font-size:13px}
-svg.dg .dg-n{font-size:12px}
+svg.dg .dg-n{font-size:13px}
 svg.dg .dg-m{font-family:var(--font-mono)}
 svg.dg .dg-b{font-weight:600}
 svg.dg .dg-c2{fill:var(--tinta-2)}

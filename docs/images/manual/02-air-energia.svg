@@ -8,7 +8,8 @@
 <text class="dg-t" x="160" y="100" text-anchor="end"><tspan class="dg-m">GP16</tspan> · pino 21</text>
 <text class="dg-n dg-c2" x="160" y="116" text-anchor="end">saída</text>
 <text class="dg-t" x="160" y="260" text-anchor="end"><tspan class="dg-m">GP17</tspan> · pino 22</text>
-<text class="dg-n dg-c2" x="160" y="276" text-anchor="end">entrada, com pull-down</text>
+<text class="dg-n dg-c2" x="160" y="276" text-anchor="end">entrada,</text>
+<text class="dg-n dg-c2" x="160" y="292" text-anchor="end">com pull-down</text>
 <rect class="dg-caixa" x="256.5" y="56.5" width="191" height="79" rx="6"/>
 <text class="dg-t dg-b" x="268" y="76">chave do lado positivo</text>
 <text class="dg-n dg-c2" x="268" y="92">MOSFET de canal P com</text>
@@ -25,7 +26,8 @@
 <polyline class="dg-fio" points="448,96 544,96" marker-end="url(#02-air-energia-ponta)"/>
 <text class="dg-n dg-c2" x="460" y="88">3,3 V</text>
 <polyline class="dg-fio" points="352,24 352,56" marker-end="url(#02-air-energia-ponta)"/>
-<text class="dg-n dg-c2" x="364" y="40">entrada: 3V3 (pino 36), ou a alimentação do regulador</text>
+<text class="dg-n dg-c2" x="364" y="28">entrada: 3V3 (pino 36),</text>
+<text class="dg-n dg-c2" x="364" y="44">ou a alimentação do regulador</text>
 <text class="dg-t" x="256" y="176"><tspan class="dg-m">GP16</tspan> alto = acordado: a chave liga os sensores</text>
 <text class="dg-t" x="256" y="192"><tspan class="dg-m">GP16</tspan> baixo = dormindo: os sensores ficam sem energia</text>
 <rect class="dg-caixa-2" x="544.5" y="240.5" width="151" height="31" rx="6"/>

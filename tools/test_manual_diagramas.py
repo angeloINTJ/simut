@@ -17,8 +17,10 @@ diagrams read their numbers from (never into the tree) and requires exactly the 
                    (the alpha's parallel mode, the charger's polarity) gone: exit 2 naming the file
   pattern gone     every pattern the tool looked for, mangled in a scratch copy, exits 2 with the file and the pattern in the message (one control per pattern)
   determinism      two draws, and two --write into two folders, give the same bytes
-  build_manual     the SVG goes into the page in line: inside <div class="moldura moldura-diagrama">, with aria-label, without the XML prologue; two SVG with one id (or
-                   one id that a heading has) make its --check complain, two with different ids do not (run with pandoc through the whole build when pandoc is there)
+  build_manual     the SVG goes into the page in line: inside <div class="moldura moldura-svg">, with aria-label, without the XML prologue; two SVG with one id (or
+                   one id that a heading has) make its --check complain, two with different ids do not (run with pandoc through the whole build when pandoc is there);
+                   the CSS shows the drawing at its width and no smaller, gives every text the one size the tool draws (TAM), and leaves the frame of a PNG diagram as it
+                   was (each rule of the three held by a CSS changed in a copy)
   command line     0 clean, 1 with a finding, 2 when it cannot draw (an empty source folder); --list prints one row per diagram; --write writes the files and --check
                    passes on them; --preview writes <slug>.claro.html and <slug>.escuro.html with the manual's CSS and the figure's frame
 
@@ -97,6 +99,27 @@ def confere(cond, msg, ok=None):
     elif ok:
         print('ok  ', ok)
     return bool(cond)
+
+
+def css_do_svg(css):
+    """The faults of the manual's CSS for the diagrams in line: the SVG at its drawing's width and never narrower (width and min-width of LARGURA, no max-width), one size of text
+    (TAM) in every rule of svg.dg, and no rule for .moldura-diagrama, which is also the frame of a PNG diagram (the frame of the SVG is .moldura-svg)."""
+    problemas = []
+    regra = re.search(r'\.moldura-svg svg\{([^}]*)\}', css)
+    if not regra:
+        problemas.append('no rule for .moldura-svg svg')
+    else:
+        for prop in (f'width:{m.LARGURA}px', f'min-width:{m.LARGURA}px'):
+            if not re.search(rf'(?:^|;){re.escape(prop)}(?:;|$)', regra.group(1)):
+                problemas.append(f'.moldura-svg svg lacks {prop}')
+        if 'max-width' in regra.group(1):
+            problemas.append('.moldura-svg svg has a max-width, which would shrink it')
+    tamanhos = set(re.findall(r'svg\.dg [^{}]*\{[^}]*?font-size:(\d+)px', css))
+    if tamanhos != {str(m.TAM)}:
+        problemas.append(f"the sizes of the diagrams' text are {sorted(tamanhos)}, not {m.TAM}")
+    if '.moldura-diagrama' in css:
+        problemas.append('a rule for .moldura-diagrama, which is also the frame of a PNG diagram')
+    return problemas
 
 
 def cli(*args, ambiente=None):
@@ -401,6 +424,23 @@ def main():
                 confere(False, f'the builder let through {descr}')
             except ValueError:
                 confere(True, None, f'the builder refuses {descr}')
+        # a text is wholly inside a box or wholly outside it: the edge of a box through a glyph is refused, whichever is drawn first, unless a filled box drawn later holds the text
+        def cena(faca):
+            g = m.Svg('99-teste', 200)
+            g.caixa(100, 40, 80, 40)
+            return faca(g)
+        for descr, fn, recusa in (('a text wholly inside a box', lambda g: g.texto(108, 64, 'dentro'), False),
+                                  ('a text wholly outside a box', lambda g: g.texto(16, 64, 'fora'), False),
+                                  ('a text across the edge of a box', lambda g: g.texto(148, 64, 'atravessa a borda'), True),
+                                  ('a box drawn over part of a text', lambda g: (g.texto(60, 120, 'um texto comprido'), g.caixa(100, 100, 80, 40)), True),
+                                  ('a text on a filled box that stands over the edge of another', lambda g: (g.caixa(116, 24, 48, 20), g.texto(140, 40, 'USB', 'dg-n', 'middle')), False),
+                                  ('a text on a box with no fill over the edge of another', lambda g: (g.caixa(116, 24, 48, 20, 'dg-caixa-apagada'), g.texto(140, 40, 'USB', 'dg-n', 'middle')), True)):
+            try:
+                cena(fn)
+                feito = False
+            except ValueError as e:
+                feito = 'crosses the edge' in str(e)
+            confere(feito == recusa, f'{descr}: refused={feito}, expected {recusa}', f'the builder {"refuses" if recusa else "draws"} {descr}')
         linhas = m.quebrar('um dois tres quatro cinco', 80)
         confere(len(linhas) >= 2 and ' '.join(linhas) == 'um dois tres quatro cinco' and all(m.largura_texto(l) <= 80 for l in linhas),
                 f'quebrar gave {linhas}', f'quebrar breaks a line that does not fit at a space and keeps every line inside its width: {linhas}')
@@ -666,8 +706,8 @@ def main():
                                                                                                          '    -DSIMUT_CLI_FULL=0\n    -DSIMUT_MDNS=0\n    -DSIMUT_BLUETOOTH=1', 1)], 'HD44780_MODE_PARALLEL', '02-pinos-alpha.svg'),
             ('AIR_CHARGER_ACTIVE_HIGH 1 -> 0 (the figure draws a divider off 5 V)', [(CONFIG, '#define AIR_CHARGER_ACTIVE_HIGH 1', '#define AIR_CHARGER_ACTIVE_HIGH 0', 1)], 'AIR_CHARGER_ACTIVE_HIGH', '02-air-energia.svg'),
             ('the Air no longer builds with -DSIMUT_AIR=1', [(PERFIS, '    -DSIMUT_AIR=1\n', '', 1)], 'SIMUT_AIR', '02-pinos-air.svg'),
-            ('the discovery topic\'s component sensor -> binary_sensor: the topic no longer fits between the device\'s line and the broker\'s',
-             [(HA_DISCOVERY, '"%s/sensor/%s/%s/config"', '"%s/binary_sensor/%s/%s/config"', 1)], 'px wide from x=88', '23-fluxo.svg'),
+            ('the discovery topic\'s component sensor -> a name of 29 characters: the topic, in two lines, no longer fits between the device\'s line and the broker\'s',
+             [(HA_DISCOVERY, '"%s/sensor/%s/%s/config"', '"%s/binary_sensor_with_a_long_name/%s/%s/config"', 1)], 'px wide from x=92', '23-fluxo.svg'),
             ('the route no longer checks the lock before the password', [(WEB_METRICS, 'if (respondIfLockedOut(ls, 429)) return -1;', 'if (false) return -1;', 1)], 'respondIfLockedOut', '24-coleta.svg'),
             ('a wrong password on /metrics no longer feeds the lockout', [(WEB_METRICS, 'if (ls >= 0) applyExponentialPenalty(ls);', 'if (ls >= 0) (void)ls;', 1)], 'same penalty', '24-coleta.svg'),
             ('a wrong password on the login page no longer raises the penalty', [(WEB_AUTH, '\t\t\tuint32_t penaltyMs = applyExponentialPenalty(ls);\n\t\t\tLOG_CODE(LOG_WARN, "SEC", SEC_LOGIN_FAIL, 0, String(TRL("Login Failed: ")) + u);',
@@ -863,9 +903,24 @@ def main():
                 bm.IMG = antes
 
         html_fig, figuras = pagina('a', 'b', 'c')
-        um = re.search(r'<figure id="fig-99-a" class="fig fig-diagrama"><div class="moldura moldura-diagrama"><svg [^>]*aria-label="Legenda a\."[^>]*>.*?</svg></div><figcaption>', html_fig, re.S)
+        um = re.search(r'<figure id="fig-99-a" class="fig fig-diagrama"><div class="moldura moldura-svg"><svg [^>]*aria-label="Legenda a\."[^>]*>.*?</svg></div><figcaption>', html_fig, re.S)
         confere(um is not None and '<img' not in html_fig and '<?xml' not in html_fig and [f['svg_ids'] for f in figuras] == [[], ['outro-b'], ['outro-b']],
-                f'render_figures( ) gave {html_fig[:300]}', 'render_figures( ): the SVG sits in <div class="moldura moldura-diagrama"> inside the <figure>, with aria-label, no <img>, no prologue')
+                f'render_figures( ) gave {html_fig[:300]}', 'render_figures( ): the SVG sits in <div class="moldura moldura-svg"> inside the <figure>, with aria-label, no <img>, no prologue')
+        # the CSS of the diagrams: the drawing's width and no smaller, one size of text, the PNG diagram's frame left alone; each rule held by the CSS changed in a copy
+        confere(css_do_svg(bm.CSS) == [], f'the manual\'s CSS: {css_do_svg(bm.CSS)}', 'the manual\'s CSS shows the SVG at its width (LARGURA) and no smaller, gives all the text of the diagrams one size (TAM) and has no rule for the PNG diagram\'s frame')
+        for descr, antes, depois in (('min-width 560 px, the first rule', 'min-width:%dpx' % m.LARGURA, 'min-width:560px'), ('a width of 640 px', ';width:%dpx;' % m.LARGURA, ';width:640px;'),
+                                     ('a max-width of 100 %', 'min-width:%dpx;' % m.LARGURA, 'min-width:%dpx;max-width:100%%;' % m.LARGURA), ('the notes at 12 px', 'svg.dg .dg-n{font-size:%dpx}' % m.TAM, 'svg.dg .dg-n{font-size:12px}'),
+                                     ('a rule for the PNG diagram\'s frame', '.moldura-svg{', '.moldura-diagrama{background:var(--superficie)}\n.moldura-svg{')):
+            mudado = bm.CSS.replace(antes, depois, 1)
+            confere(mudado != bm.CSS and css_do_svg(mudado) != [], f'the check let through {descr}', f'the CSS check refuses {descr}: {css_do_svg(mudado)[0] if css_do_svg(mudado) else ""}')
+        (figs / 'p.png').write_bytes(b'\x89PNG\r\n\x1a\n')
+        antes_img = bm.IMG
+        bm.IMG = str(figs)
+        try:
+            png = bm.render_figures('<div id="fig-99-p" class="figura" data-tipo="diagrama" data-arquivo="p.png" data-captura="como">\n<p>Legenda p.</p>\n</div>', '99', 'Teste', [])
+        finally:
+            bm.IMG = antes_img
+        confere('<div class="moldura moldura-diagrama"><img ' in png and 'moldura-svg' not in png, f'a PNG diagram gave {png[:200]}', 'a diagram that is a PNG keeps its frame, moldura-diagrama: the SVG\'s frame is another class')
         erros = bm.svg_id_errors(figuras, html_fig)
         confere(len(erros) == 1 and 'outro-b' in erros[0], f'two SVG with one id gave {erros}', 'svg_id_errors( ): two SVG with the same id: exactly 1 error, naming the id')
         html_ok, figuras_ok = pagina('a', 'b', 'd')
@@ -890,7 +945,7 @@ def main():
                     'build_manual.py --check on a copy with the SVG: exit 0, nothing to say')
             r = build()
             pagina = (raiz / 'docs' / 'MANUAL.pt-BR.html').read_text(encoding='utf-8') if r.returncode == 0 else ''
-            quadro = re.search(rf'<figure id="{re.escape(m.FIGURAS[0].bloco)}" class="fig fig-diagrama"><div class="moldura moldura-diagrama"><svg [^>]*aria-label="[^"]+"', pagina)
+            quadro = re.search(rf'<figure id="{re.escape(m.FIGURAS[0].bloco)}" class="fig fig-diagrama"><div class="moldura moldura-svg"><svg [^>]*aria-label="[^"]+"', pagina)
             confere(quadro is not None and '<?xml' not in pagina and f'data:image/svg+xml' not in pagina, f'the page built from the copy: {r.stderr.strip()[-200:]} {pagina[:100]}',
                     'build_manual.py on a copy: the page has the <svg> in the <figure> with aria-label, no prologue, no data: URI')
             # a second figure with the same SVG, in the copy's chapter 2, and the same id put into both
@@ -934,7 +989,7 @@ def main():
             for tema in ('claro', 'escuro'):
                 p = (previa / f'{m.slug_de(f.arquivo)}.{tema}.html').read_text(encoding='utf-8')
                 for cond, o_que in ((f'<html lang="pt-BR" data-theme="{tema}">' in p, 'the fixed theme'), ('.dg-caixa{' in p or '.dg-caixa,' in p, 'the manual\'s CSS'),
-                                    ('<div class="moldura moldura-diagrama"><svg ' in p, 'the frame'), ('<figcaption><b>Figura 1.</b> ' in p, 'the caption'),
+                                    ('<div class="moldura moldura-svg"><svg ' in p, 'the frame'), ('<figcaption><b>Figura 1.</b> ' in p, 'the caption'),
                                     (p.count('<svg ') == 1 and '__FONT__' not in p, 'one SVG')):
                     if not cond:
                         boa.append(f'{f.arquivo} {tema}: lacks {o_que}')
