@@ -1,0 +1,62 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 336" role="img" class="dg">
+<rect class="dg-caixa-perigo" x="380.5" y="56.5" width="83" height="127" rx="0"/>
+<text class="dg-n" x="420" y="48" text-anchor="middle">coletor fora do ar</text>
+<text class="dg-t dg-b" x="16" y="76">console</text>
+<text class="dg-n dg-c2" x="16" y="92">todos os eventos,</text>
+<text class="dg-n dg-c2" x="16" y="108">um a cada 10 min</text>
+<text class="dg-t dg-b" x="16" y="140">flash</text>
+<text class="dg-n dg-c2" x="16" y="156">as transições e</text>
+<text class="dg-n dg-c2" x="16" y="172">um por hora</text>
+<text class="dg-t dg-b" x="16" y="212">contagem</text>
+<text class="dg-n dg-c2" x="16" y="228">uma vez por hora</text>
+<circle class="dg-no" cx="200" cy="80" r="4"/>
+<polyline class="dg-fio-fino" points="200,88 200,132"/>
+<circle class="dg-no-ok" cx="200" cy="144" r="8"/>
+<text class="dg-n" x="192" y="124" text-anchor="end">boot: 1º envio</text>
+<circle class="dg-no" cx="228" cy="80" r="4"/>
+<circle class="dg-no" cx="256" cy="80" r="4"/>
+<circle class="dg-no" cx="284" cy="80" r="4"/>
+<circle class="dg-no" cx="312" cy="80" r="4"/>
+<circle class="dg-no" cx="340" cy="80" r="4"/>
+<circle class="dg-no" cx="368" cy="80" r="4"/>
+<polyline class="dg-fio-fino" points="368,88 368,132"/>
+<circle class="dg-no-ok" cx="368" cy="144" r="8"/>
+<text class="dg-n" x="360" y="124" text-anchor="end">uma por hora</text>
+<circle class="dg-no-perigo" cx="396" cy="80" r="4"/>
+<polyline class="dg-fio-fino" points="396,88 396,132"/>
+<circle class="dg-no-perigo" cx="396" cy="144" r="8"/>
+<text class="dg-n" x="388" y="172">1ª falha</text>
+<circle class="dg-no-perigo" cx="424" cy="80" r="4"/>
+<circle class="dg-no-perigo" cx="452" cy="80" r="4"/>
+<circle class="dg-no" cx="480" cy="80" r="4"/>
+<polyline class="dg-fio-fino" points="480,88 480,132"/>
+<circle class="dg-no-ok" cx="480" cy="144" r="8"/>
+<text class="dg-n" x="472" y="172">1ª volta</text>
+<circle class="dg-no" cx="508" cy="80" r="4"/>
+<circle class="dg-no" cx="536" cy="80" r="4"/>
+<circle class="dg-no" cx="564" cy="80" r="4"/>
+<circle class="dg-no" cx="592" cy="80" r="4"/>
+<circle class="dg-no" cx="620" cy="80" r="4"/>
+<circle class="dg-no" cx="648" cy="80" r="4"/>
+<polyline class="dg-fio-fino" points="648,88 648,132"/>
+<circle class="dg-no-ok" cx="648" cy="144" r="8"/>
+<text class="dg-n" x="640" y="124" text-anchor="end">uma por hora</text>
+<circle class="dg-no" cx="676" cy="80" r="4"/>
+<circle class="dg-no" cx="396" cy="216" r="4"/>
+<text class="dg-n" x="396" y="244" text-anchor="middle">Registros de rotina</text>
+<text class="dg-n" x="396" y="260" text-anchor="middle">suprimidos (5),</text>
+<text class="dg-n" x="396" y="276" text-anchor="middle">ctx = 5</text>
+<circle class="dg-no" cx="592" cy="216" r="4"/>
+<text class="dg-n" x="592" y="244" text-anchor="middle">Registros de rotina</text>
+<text class="dg-n" x="592" y="260" text-anchor="middle">suprimidos (5),</text>
+<text class="dg-n" x="592" y="276" text-anchor="middle">ctx = 6</text>
+<polyline class="dg-fio" points="200,288 704,288"/>
+<polyline class="dg-fio" points="200,288 200,296"/>
+<text class="dg-n" x="200" y="316" text-anchor="middle">boot</text>
+<polyline class="dg-fio" points="368,288 368,296"/>
+<text class="dg-n" x="368" y="316" text-anchor="middle">1 h</text>
+<polyline class="dg-fio" points="536,288 536,296"/>
+<text class="dg-n" x="536" y="316" text-anchor="middle">2 h</text>
+<polyline class="dg-fio" points="704,288 704,296"/>
+<text class="dg-n" x="704" y="316" text-anchor="middle">3 h</text>
+</svg>

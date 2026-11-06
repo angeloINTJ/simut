@@ -12,7 +12,7 @@ Este capítulo leva um aparelho recém-gravado do primeiro boot até o uso: a se
 6. [release]{.img} Troque o PIN de fábrica do painel ([O PIN do painel](#cap-04-pin)).
 7. Confira a lista final ([Pronto para usar](#cap-04-pronto)).
 
-::: {.figura #fig-04-fluxo tipo="diagrama" arquivo="04-fluxo.png" captura="fluxograma do primeiro boot: 'liga com o console USB aberto' → 'anota a senha do admin' → na release, 'o painel pergunta a data e a hora: SALVAR ou PULAR'; depois dois ramos: release e alpha 'ap no console (na release, também o item 12 do menu) → AP simut_SETUP → 192.168.4.1 → troca de senha → Rede → Salvar e reiniciar'; Air 'console: enable, configure terminal, system ssid, system pass, reload confirm'; os ramos se juntam em 'aparelho na rede' → 'pacote de idioma e reinício' → 'fuso e hora' → 'primeiro sensor' → 'PIN do painel (release)' → 'pronto para usar'"}
+::: {.figura #fig-04-fluxo tipo="diagrama" arquivo="04-fluxo.svg" captura="desenhado pelo código (tools/manual_diagramas.py): fluxograma do primeiro boot, da senha do admin ao aparelho pronto, com os dois caminhos para pôr o aparelho na rede; o nome e o endereço do ponto de acesso, o número do item do menu (a posição de MENU_SETUP_AP em MENU_ORDER) e as palavras dos comandos vêm de src/StorageManager.cpp, src/net/NetworkManager_Cyw43.cpp, src/WebAddress.h, src/display/SettingsMenu.h, src/CommandParser.cpp e src/AppManager_Commands.cpp; refazer com python3 tools/manual_diagramas.py --write"}
 O primeiro boot em um só desenho: a senha, a hora, a rede, a web, o idioma, os sensores e o PIN.
 :::
 

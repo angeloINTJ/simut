@@ -1,0 +1,79 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 452" role="img" class="dg">
+<text class="dg-t dg-b" x="16" y="36">sensores</text>
+<text class="dg-n dg-m" x="16" y="52">GP0 a GP15</text>
+<rect class="dg-caixa" x="16.5" y="64.5" width="135" height="31" rx="6"/>
+<text class="dg-t" x="28" y="84">DS18B20</text>
+<rect class="dg-caixa" x="16.5" y="104.5" width="135" height="31" rx="6"/>
+<text class="dg-t" x="28" y="124">DHT22</text>
+<rect class="dg-caixa" x="16.5" y="144.5" width="135" height="47" rx="6"/>
+<text class="dg-t" x="28" y="164">BME280 /</text>
+<text class="dg-t" x="28" y="180">BMP280</text>
+<rect class="dg-caixa-2" x="176.5" y="16.5" width="327" height="263" rx="12"/>
+<text class="dg-t dg-b" x="192" y="36">RP2040</text>
+<rect class="dg-caixa" x="192.5" y="48.5" width="295" height="119" rx="6"/>
+<text class="dg-t dg-b" x="204" y="68">Core 0</text>
+<rect class="dg-caixa-2" x="200.5" y="76.5" width="87" height="23" rx="6"/>
+<text class="dg-n" x="244" y="92" text-anchor="middle">sensores</text>
+<rect class="dg-caixa-2" x="296.5" y="76.5" width="87" height="23" rx="6"/>
+<text class="dg-n" x="340" y="92" text-anchor="middle">alarmes</text>
+<rect class="dg-caixa-2" x="392.5" y="76.5" width="87" height="23" rx="6"/>
+<text class="dg-n" x="436" y="92" text-anchor="middle">histórico</text>
+<rect class="dg-caixa-2" x="200.5" y="104.5" width="87" height="23" rx="6"/>
+<text class="dg-n" x="244" y="120" text-anchor="middle">rede</text>
+<rect class="dg-caixa-2" x="296.5" y="104.5" width="87" height="23" rx="6"/>
+<text class="dg-n" x="340" y="120" text-anchor="middle">web</text>
+<rect class="dg-caixa-2" x="392.5" y="104.5" width="87" height="23" rx="6"/>
+<text class="dg-n" x="436" y="120" text-anchor="middle">console</text>
+<rect class="dg-caixa-2" x="200.5" y="132.5" width="87" height="23" rx="6"/>
+<text class="dg-n" x="244" y="148" text-anchor="middle">telemetria</text>
+<rect class="dg-caixa" x="192.5" y="184.5" width="295" height="79" rx="6"/>
+<text class="dg-t dg-b" x="204" y="204">Core 1</text>
+<text class="dg-n" x="204" y="220"><tspan class="dg-b">release</tspan>: painel TFT e toque</text>
+<text class="dg-n" x="204" y="236"><tspan class="dg-b">alpha</tspan>: LCD</text>
+<text class="dg-n" x="204" y="252"><tspan class="dg-b">Air</tspan>: sem uso</text>
+<polyline class="dg-fio" points="152,80 164,80"/>
+<polyline class="dg-fio" points="152,120 164,120"/>
+<polyline class="dg-fio" points="152,168 164,168"/>
+<polyline class="dg-fio" points="164,80 164,168"/>
+<polyline class="dg-fio" points="164,108 192,108"/>
+<rect class="dg-caixa" x="536.5" y="16.5" width="167" height="47" rx="6"/>
+<text class="dg-t" x="548" y="36">navegador</text>
+<text class="dg-n dg-c2" x="548" y="52">interface web</text>
+<rect class="dg-caixa" x="536.5" y="72.5" width="167" height="63" rx="6"/>
+<text class="dg-t" x="548" y="92">servidor de</text>
+<text class="dg-t" x="548" y="108">telemetria</text>
+<text class="dg-n dg-c2" x="548" y="124">HTTP ou MQTT</text>
+<rect class="dg-caixa" x="536.5" y="144.5" width="167" height="31" rx="6"/>
+<text class="dg-t" x="548" y="164">linha de alarmes</text>
+<rect class="dg-caixa" x="536.5" y="184.5" width="167" height="31" rx="6"/>
+<text class="dg-t" x="548" y="204">Home Assistant</text>
+<rect class="dg-caixa" x="536.5" y="224.5" width="167" height="31" rx="6"/>
+<text class="dg-t" x="548" y="244">Prometheus</text>
+<rect class="dg-caixa" x="536.5" y="264.5" width="167" height="31" rx="6"/>
+<text class="dg-t" x="548" y="284">syslog</text>
+<rect class="dg-caixa" x="536.5" y="312.5" width="167" height="63" rx="6"/>
+<text class="dg-t" x="548" y="332">console</text>
+<text class="dg-n dg-c2" x="548" y="348">cabo USB</text>
+<text class="dg-n dg-c2" x="548" y="364">Bluetooth: alpha e Air</text>
+<polyline class="dg-fio" points="488,108 520,108"/>
+<polyline class="dg-fio" points="520,40 520,344"/>
+<polyline class="dg-fio" points="520,40 536,40"/>
+<polyline class="dg-fio" points="520,104 536,104"/>
+<polyline class="dg-fio" points="520,160 536,160"/>
+<polyline class="dg-fio" points="520,200 536,200"/>
+<polyline class="dg-fio" points="520,240 536,240"/>
+<polyline class="dg-fio" points="520,280 536,280"/>
+<polyline class="dg-fio" points="520,344 536,344"/>
+<text class="dg-t dg-b" x="16" y="328">flash de 2 MB</text>
+<rect class="dg-caixa" x="16.5" y="340.5" width="239" height="95" rx="6"/>
+<text class="dg-t dg-b" x="28" y="360">programa</text>
+<text class="dg-n" x="28" y="376">1.020 KiB</text>
+<text class="dg-n dg-c2" x="28" y="392">o firmware, com a interface web</text>
+<text class="dg-n dg-c2" x="28" y="408">inteira embutida</text>
+<rect class="dg-caixa" x="264.5" y="340.5" width="239" height="95" rx="6"/>
+<text class="dg-t dg-b" x="276" y="360">LittleFS</text>
+<text class="dg-n" x="276" y="376">1.024 KiB</text>
+<text class="dg-n dg-m" x="276" y="392">/config /history</text>
+<text class="dg-n dg-m" x="276" y="408">/lang /themes</text>
+<text class="dg-n" x="276" y="424">log de eventos <tspan class="dg-m">/system.blog</tspan></text>
+</svg>

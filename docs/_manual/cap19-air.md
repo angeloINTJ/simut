@@ -46,8 +46,8 @@ Os dois caminhos gravam na flash que o ciclo está armado, e o `air status` pass
 
 Pelo Bluetooth, `air stop` não funciona em M1: durante um despertar, o Air só atende o console USB. Pelo Bluetooth, use o carregador para trazer o Air a M0.
 
-::: {.figura #fig-19-modos tipo="diagrama" arquivo="19-modos.png" captura="máquina de estados com dois estados, M0 (acordado: web, console, Bluetooth, rádio) e M1 (ciclo: dormir, despertar, ler, gravar, dormir). Setas de M0 para M1: 'air hibernate' e 'ociosidade (air idle)'. Setas de M1 para M0: 'air stop pelo USB (desarma)', 'carregador no despertar (continua armado)', 'boot limpo (M0 pelo idle inteiro, depois volta)', 'watchdog (10 s de graça, depois volta)', '3 watchdogs seguidos (retido em M0, evento 411)'. Dentro de M1, o laço 'dormir → despertar → ler → gravar → [rádio se pendentes ≥ lote mínimo] → dormir'"}
-Legenda: como o Air entra e sai do ciclo de hibernação.
+::: {.figura #fig-19-modos tipo="diagrama" arquivo="19-modos.svg" captura="desenhado pelo código (tools/manual_diagramas.py): os dois modos do Air e como ele passa de um ao outro: M0, acordado (interface web e API, console USB, Bluetooth, rádio ligado), e M1, o ciclo (dormir, despertar, ler os sensores, gravar no histórico e, se os pendentes chegam ao lote mínimo, rádio e envio); para M1 por air hibernate e pela ociosidade (air idle, 300 s sem atividade e sem o carregador); de M1 para M0 por air stop (desarma o ciclo), pelo carregador ligado num despertar (o ciclo continua armado), por um boot limpo (M0 pelo tempo de ociosidade inteiro, depois o ciclo volta), por um reinício do vigia (M0 por 10 s, depois o ciclo volta) e por três reinícios seguidos (M0 pelo tempo de ociosidade inteiro e o evento 411, Ciclo Air retido em M0); as palavras dos comandos vêm de src/CommandParser.cpp, os tempos de src/simut_config.h, o evento de tools/logcodes.tsv, e o que o desenho afirma das duas entradas, do air stop, do carregador, das três saídas, da interface web, do Bluetooth, do rádio e da ordem das fases são trechos de src/AppManager_Air.cpp, src/AppManager_Boot.cpp, src/AppManager_Commands.cpp, src/AppManager_Loop.cpp e src/AppManager.h que o código tem de manter; refazer com python3 tools/manual_diagramas.py --write"}
+Como o Air entra e sai do ciclo de hibernação.
 :::
 
 ## O ciclo de hibernação {#cap-19-ciclo}
@@ -63,8 +63,8 @@ Em M1, cada despertar é um boot completo do processador. O Air dorme pelo alarm
 
 O Air dorme o **Intervalo Histórico** menos o tempo que ficou acordado, para que o período de despertar a despertar seja o intervalo configurado. O sono mínimo é de 5 s. Se a espera da telemetria depois de uma falha for maior, ele dorme pela espera.
 
-::: {.figura #fig-19-despertar tipo="diagrama" arquivo="19-despertar.png" captura="linha do tempo de dois despertares num intervalo de 60 s: faixa GP16 alta durante cada despertar; despertar de leitura com boot, aquecimento 0,4 s, amostragem (a maior parte, com a conversão do DS18B20), decisão com 'grava o histórico', e sono até completar 60 s; despertar de telemetria com a amostragem e o Wi-Fi em paralelo, decisão, conexão e envio, faixa 'rádio ligado' só nele; marcas 9,3 s (leitura) e 12,7 s (telemetria)"}
-Legenda: as fases de um despertar. O rádio só liga nos despertares de telemetria.
+::: {.figura #fig-19-despertar tipo="diagrama" arquivo="19-despertar.svg" captura="desenhado pelo código (tools/manual_diagramas.py): dois despertares do Air, cada um em escala, num intervalo de 60 s: o de leitura (boot, aquecimento de 0,4 s, amostragem e a decisão que grava o histórico, a 9,31 s do boot) e o de telemetria, que repete as larguras até a decisão e acrescenta a conexão e o envio, até cerca de 12,7 s; GP16 alto durante todo o despertar, a faixa do rádio ligado só no de telemetria e o sono entre eles fora de escala; o aquecimento vem de src/AppManager_Air.cpp; a ordem das fases, o rádio que a leitura nunca liga, o Wi-Fi em paralelo na amostragem, a decisão que grava o histórico antes de escolher e o fim do GP16 e do rádio no sono são trechos de src/AppManager.h, src/AppManager_Boot.cpp e src/AppManager_Air.cpp que o código tem de manter; o boot de 2,47 s e os 9,31 s até a decisão são os medidos na bancada em 08/09/2026, que a análise de energia e o capítulo 19 trazem, e os cerca de 12,7 s do despertar de telemetria são os do capítulo 19: a análise de energia leu 12,8 s; refazer com python3 tools/manual_diagramas.py --write"}
+As fases de um despertar. O rádio só liga nos despertares de telemetria.
 :::
 
 ### O limite de 24 h {#cap-19-24h}
@@ -168,7 +168,7 @@ Medido em bancada em 08/09/2026, na v2.4.1-beta, com o **Intervalo Histórico** 
 
 | Medição | Resultado |
 |---|---|
-| Despertar de leitura, do boot até a decisão | 9,31 s, dos quais 6,83 s são a conversão do sensor |
+| Despertar de leitura, do boot até a decisão | 9,31 s, dos quais 6,83 s são o aquecimento do sensor (0,4 s) e a amostragem |
 | Despertar de telemetria | cerca de 12,7 s |
 | Dormindo, por ciclo | cerca de 51 s |
 | Período real | 60,5 a 60,6 s, para 60 s configurados |

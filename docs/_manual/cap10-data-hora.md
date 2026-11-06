@@ -203,7 +203,7 @@ Detalhes:
 
 Com o NTP ligado, a telemetria só começa depois do primeiro acerto, porque o aparelho só termina de entrar na rede depois dele ([Sem servidor NTP alcançável](#cap-10-sem-ntp)).
 
-::: {.figura #fig-10-correcao tipo="diagrama" arquivo="10-correcao.png" captura="linha do tempo: aparelho desligado por 2 h; boot com relógio provisório a partir do último registro, 2 h atrasado; medições carimbadas com a hora provisória; acerto por NTP com correção de +7200 s; os blocos gravados desde o boot deslocados 2 h para a frente; eventos 524, 13, 408, 409 e 410 marcados na linha"}
+::: {.figura #fig-10-correcao tipo="diagrama" arquivo="10-correcao.svg" captura="desenhado pelo código (tools/manual_diagramas.py): o que o primeiro acerto do relógio faz com as medições gravadas sob o relógio provisório: o aparelho desligado por 2 h, o boot com o relógio provisório, os blocos carimbados 2 h atrasados, o acerto e o deslocamento de +7200 s, com os cinco eventos marcados na linha; o número e o nome de cada evento vêm de tools/logcodes.tsv, a diferença mínima para corrigir de src/NetworkManager.cpp, e o que o desenho afirma da correção é um trecho desse arquivo e de src/AppManager_Core.cpp que o código tem de manter; as 2 h e os 3 blocos são o exemplo da figura; refazer com python3 tools/manual_diagramas.py --write"}
 O que o primeiro acerto por NTP faz com as medições gravadas sob o relógio provisório.
 :::
 

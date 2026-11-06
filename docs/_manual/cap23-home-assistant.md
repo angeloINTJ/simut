@@ -13,8 +13,8 @@ O aparelho não conversa com o Home Assistant diretamente. Os dois se encontram 
 
 A descoberta não é um canal novo: ela usa a mesma conexão, o mesmo servidor, a mesma conta e o mesmo TLS da telemetria. O recurso existe nas três montagens: release, alpha e Air. No Air, veja as ressalvas em [No SIMUT Air](#cap-23-air).
 
-::: {.figura #fig-23-fluxo tipo="diagrama" arquivo="23-fluxo.png" captura="Três caixas da esquerda para a direita: 'SIMUT (simut_0a1b2c)', 'Broker MQTT (broker.exemplo.com.br:1883)' e 'Home Assistant'. Setas do SIMUT para o broker, numeradas: 1 'ao conectar: homeassistant/sensor/simut_0a1b2c/<objeto>/config (retida, uma por medição)'; 2 'simut/status {status: online} (retida)'; 3 'simut/data {ts, tSTM0001, ...} a cada envio'. Seta tracejada do broker para o próprio broker: 'se o aparelho some: simut/status {status: offline} (última vontade)'. Setas do broker para o Home Assistant: 'assina homeassistant/# e cria dispositivo e entidades'; 'lê os valores em simut/data'; 'lê a disponibilidade em simut/status'. Nota no rodapé: 'o Home Assistant não manda nada ao aparelho'."}
-Legenda: o caminho das mensagens. O aparelho só publica; o Home Assistant só assina. Tudo passa pelo broker.
+::: {.figura #fig-23-fluxo tipo="diagrama" arquivo="23-fluxo.svg" captura="desenhado pelo código (tools/manual_diagramas.py): o caminho das mensagens entre o aparelho, o broker e o Home Assistant: a descoberta e o estado retidos, os valores a cada envio, a última vontade que o broker publica se o aparelho some e o que o Home Assistant lê de cada uma; o prefixo e a forma do tópico de descoberta vêm de src/HaDiscovery.h, o tópico de dados de src/StorageManager.cpp, o de estado, a última vontade e as chaves do registro de src/TelemetryManager.cpp; o nó, o broker e o identificador do sensor são os exemplos do capítulo; refazer com python3 tools/manual_diagramas.py --write"}
+O caminho das mensagens. O aparelho só publica; o Home Assistant só assina. Tudo passa pelo broker.
 :::
 
 ## O que aparece no Home Assistant {#cap-23-o-que-aparece}
@@ -121,11 +121,11 @@ Pela API, a mesma opção vai na seção `sys` de `POST /api/commit_all` ([capí
 ```
 
 ::: {.figura #fig-23-telemetria-ha tipo="web" arquivo="23-telemetria-ha.png" captura="rota /telemetry; largura 1280; sessão admin; Transporte MQTT(S); IP Servidor broker.exemplo.com.br; Porta 1883; Usar MQTTS (TLS) desligado; Tópico simut/data; Client ID vazio; Usuário simut; Reter ligado; Home Assistant Discovery ligado, com a dica visível; Lote mínimo 1; Formato JSON; recorte do bloco MQTT até o Lote mínimo"}
-Legenda: a opção **Home Assistant Discovery** no bloco do MQTT. Note a dica embaixo dela: a descoberta exige o formato JSON e só acontece no próximo envio.
+A opção **Home Assistant Discovery** no bloco do MQTT. Note a dica embaixo dela: a descoberta exige o formato JSON e só acontece no próximo envio.
 :::
 
 ::: {.figura #fig-23-evento-548 tipo="web" arquivo="23-evento-548.png" captura="rota /history; largura 1280; sessão admin; seção Eventos do Sistema carregada, com INF marcado e o filtro 548; uma linha do evento 548 Discovery HA atualizado com contexto 4, logo abaixo de 35 MQTT conectado"}
-Legenda: o evento 548 confirma a publicação. O contexto 4 é o número de entidades publicadas.
+O evento 548 confirma a publicação. O contexto 4 é o número de entidades publicadas.
 :::
 
 ## No Home Assistant, passo a passo {#cap-23-passo-a-passo}

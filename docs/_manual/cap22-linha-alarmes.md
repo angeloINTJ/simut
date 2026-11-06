@@ -35,8 +35,8 @@ A linha de alarmes vem desligada de fábrica.
 
 A linha usa o transporte, o servidor, a porta, a chave de acesso e o TLS da telemetria de medições. Só o formato e o caminho são próprios dela.
 
-::: {.figura #fig-22-fluxo tipo="diagrama" arquivo="22-fluxo.png" captura="Diagrama em duas raias, HTTP e MQTT. À esquerda, a fila na RAM do aparelho com registros seq 1, 2 e 3. Raia HTTP: seta 'POST com a fila inteira' até o coletor; volta '2xx' e os três registros saem da fila; volta alternativa 'outro código ou nada em 4 s' e a fila fica, com 'novo envio em 15 s'. Raia MQTT: seta 'publish em <tópico>/alarm' até o broker e daí ao coletor; o coletor grava e publica a confirmação com os seq 1, 2 e 3 em '<tópico>/alarm/ack'; o broker entrega ao aparelho, que tira os três da fila. Uma nota mostra que, sem a confirmação, a fila inteira é publicada de novo a cada 15 s."}
-Legenda: no HTTP, a resposta 2xx confirma o lote. No MQTT, a publicação não confirma nada: só a mensagem de confirmação do coletor tira os registros da fila.
+::: {.figura #fig-22-fluxo tipo="diagrama" arquivo="22-fluxo.svg" captura="desenhado pelo código (tools/manual_diagramas.py): a fila de alarmes na RAM e as duas raias, HTTP e MQTT, com a confirmação que tira os registros da fila; o reenvio, a espera da resposta e as pontas dos dois tópicos vêm de src/TelemetryManager.h, src/SystemDefs_Network.h e src/TelemetryManager.cpp; refazer com python3 tools/manual_diagramas.py --write"}
+No HTTP, a resposta 2xx confirma o lote. No MQTT, a publicação não confirma nada: só a mensagem de confirmação do coletor tira os registros da fila.
 :::
 
 ## Os códigos {#cap-22-codigos}
@@ -290,7 +290,7 @@ Os campos ficam no bloco **Payload de Alarmes — 2ª Linha de Telemetria** (*Al
 - A linha precisa de um **IP Servidor** preenchido na telemetria; sem ele, nada sai.
 
 ::: {.figura #fig-22-bloco-alarmes tipo="web" arquivo="22-bloco-alarmes.png" captura="rota /telemetry; largura 1280; sessão admin; rolar até o bloco Payload de Alarmes — 2ª Linha de Telemetria; Habilitar linha de telemetria de alarmes ligado; Formato JSON; Tamanho da fila (RAM) 32; Caminho HTTP vazio; texto Pendentes: 0 visível"}
-Legenda: o bloco da linha de alarmes, no fim da página **Telemetria**. Note o número de **Pendentes** no texto do bloco e o **Caminho HTTP** vazio, que usa o **Endpoint** da telemetria seguido de `/alarm`.
+O bloco da linha de alarmes, no fim da página **Telemetria**. Note o número de **Pendentes** no texto do bloco e o **Caminho HTTP** vazio, que usa o **Endpoint** da telemetria seguido de `/alarm`.
 :::
 
 ## Códigos do log de eventos {#cap-22-eventos}

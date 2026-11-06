@@ -662,7 +662,7 @@ sem display, serial e BT são a única interface local.
   intervalo. Só compensa quando o boot foi mesmo um wake (`_airWokeFromSleep`).
 - **Ciclo medido pela sonda, config de 120 s: 120,23 s** (resíduo +0,11 s,
   explicado pelo trabalho entre `millis( )` e o `load`). Wake até DECIDE:
-  **9,31 s** (08/09), dos quais 6,83 s são a conversão do DS18B20.
+  **9,31 s** (08/09), dos quais 6,83 s são o aquecimento do sensor (0,4 s) e a amostragem (a conversão do DS18B20).
 - **CYW43: não chame `cyw43_arch_deinit( )` antes de dormir** — trava no 2º
   ciclo e deixa o chip num estado que só power-cycle recupera. O power-down é
   por hardware (`WiFi.disconnect(true)` + `WiFi.end( )` + GPIO23 LOW) e o boot

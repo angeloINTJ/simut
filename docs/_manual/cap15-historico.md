@@ -54,8 +54,8 @@ O bloco também é selado antes de completar 60 registros quando o dia muda, por
 
 Com o intervalo de fábrica, um bloco cobre 1 h. Com intervalos maiores, cobre mais: 60 registros de 10 min são 10 h. A página do histórico busca o bloco aberto à parte, então o gráfico e o CSV chegam sempre ao registro mais recente ([De onde vêm os dados](#cap-15-dados)).
 
-::: {.figura #fig-15-caminho tipo="diagrama" arquivo="15-caminho.png" captura="fluxo da esquerda para a direita: sensores → 'registro a cada Intervalo Histórico' → caixa 'bloco aberto (RAM), até 60 registros'; seta tracejada 'cópia a cada registro' para '/history/.wip'; seta cheia 'selar (60 registros, virada do dia, correção do NTP)' para '/history/AAAAMMDD.h5', desenhado como uma pilha de blocos, cada um com 'CRC' e 'mín/máx'; ao lado, uma fila de arquivos diários com o mais antigo marcado 'apagado acima de 86 %'"}
-Legenda: o registro nasce na RAM, é copiado para o `.wip` na hora e vai para o arquivo do dia quando o bloco sela.
+::: {.figura #fig-15-caminho tipo="diagrama" arquivo="15-caminho.svg" captura="desenhado pelo código (tools/manual_diagramas.py): o caminho de um registro: o bloco aberto na RAM, a cópia em .wip, a selagem no arquivo do dia e a fila de arquivos diários, com o limite de ocupação que apaga o mais antigo; os registros por bloco vêm de src/HistoryV5.h, o limite de src/StorageManager.cpp e os nomes de src/StorageManager.h e src/HistoryV5.h; refazer com python3 tools/manual_diagramas.py --write"}
+O registro nasce na RAM, é copiado para o `.wip` na hora e vai para o arquivo do dia quando o bloco sela.
 :::
 
 ### Falta de energia e reinício {#cap-15-energia}
