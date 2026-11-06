@@ -152,7 +152,7 @@ A janela **Senha temporária** lista cada conta criada ou resetada nessa gravaç
 
 Entregue a senha à pessoa. Na primeira entrada, ela é levada à troca de senha obrigatória ([capítulo 13](#cap-13-troca-obrigatoria)).
 
-::: {.figura #fig-08-senha-temporaria tipo="web" arquivo="08-senha-temporaria.png" captura="rota /users; largura 1280; sessão admin; logo depois de Salvar e reiniciar com uma conta nova chamada operador1; janela Senha temporária aberta; senha fictícia"}
+::: {.figura #fig-08-senha-temporaria tipo="web" arquivo="08-senha-temporaria.png" captura="rota /users; largura 1280; sessão admin; logo depois de Aplicar agora com uma conta nova chamada operador1; janela Senha temporária aberta; a senha trocada na página por uma fictícia no mesmo formato"}
 A janela Senha temporária, com a senha de uso único da conta criada.
 :::
 

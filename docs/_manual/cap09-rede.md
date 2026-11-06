@@ -189,7 +189,7 @@ Na dormência, a espera antes de cada busca passa a ser de 10 min. O aparelho cu
 
 Durante a escada, o aparelho continua medindo, gravando o histórico e atendendo o painel. A telemetria pendente espera a rede voltar ([capítulo 21](#cap-21)). A escada não abre o AP de configuração: o aparelho tenta a rede configurada pelo tempo que for preciso, e o AP só abre quando alguém pede ([Quando o AP abre](#cap-09-ap-quando)). Da v2.7.1 à v2.8.0, a escada também abria o AP sozinha.
 
-::: {.figura #fig-09-escada tipo="diagrama" arquivo="09-escada.png" captura="linha do tempo da escada de reconexão: queda; cinco ciclos de busca, busca e tentativa de 20 s com esperas de 5, 10, 20, 40 e 80 s; três dormências de 10 min antes de cada busca; ao fim, o recomeço da escada, que se repete até a rede voltar; nenhum AP de configuração na linha"}
+::: {.figura #fig-09-escada tipo="diagrama" arquivo="09-escada.svg" captura="desenhado pelo código (tools/manual_diagramas.py): a escada de reconexão numa linha: a queda, cinco ciclos de espera e tentativa com a espera dobrando, as três esperas de dormência e o recomeço, até a rede voltar, sem abrir o AP de configuração; a primeira espera, o teto, os ciclos, a dormência, o prazo da busca e da tentativa vêm de src/SystemDefs_Network.h, src/NetworkManager.h e src/net/NetworkManager_Cyw43.cpp, e o que o desenho afirma da escada (dobra, dormência depois dos ciclos, recomeço, zera numa conexão, não pede o AP) é um trecho desses arquivos e de src/NetworkManager.cpp que o código tem de manter; refazer com python3 tools/manual_diagramas.py --write"}
 A escada de reconexão: esperas que dobram, três dormências de 10 min e o recomeço, até a rede voltar.
 :::
 

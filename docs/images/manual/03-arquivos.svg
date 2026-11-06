@@ -1,0 +1,58 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 392" role="img" class="dg">
+<defs>
+<marker id="03-arquivos-ponta-acento" viewBox="0 0 8 8" refX="8" refY="4" markerWidth="8" markerHeight="8" markerUnits="userSpaceOnUse" orient="auto"><path class="dg-ponta-acento" d="M0 0L8 4L0 8z"/></marker>
+</defs>
+<rect class="dg-caixa-2" x="16.5" y="16.5" width="87" height="23" rx="6"/>
+<text class="dg-t" x="60" y="32" text-anchor="middle">release</text>
+<rect class="dg-caixa-2" x="112.5" y="16.5" width="87" height="23" rx="6"/>
+<text class="dg-t" x="156" y="32" text-anchor="middle">alpha</text>
+<rect class="dg-caixa-2" x="208.5" y="16.5" width="87" height="23" rx="6"/>
+<text class="dg-t" x="252" y="32" text-anchor="middle">air</text>
+<rect class="dg-caixa-2" x="304.5" y="16.5" width="87" height="23" rx="6"/>
+<text class="dg-t" x="348" y="32" text-anchor="middle">releasetwo</text>
+<rect class="dg-caixa" x="16.5" y="48.5" width="87" height="47" rx="6"/>
+<text class="dg-n dg-m" x="60" y="76" text-anchor="middle">.uf2</text>
+<rect class="dg-caixa" x="112.5" y="48.5" width="87" height="47" rx="6"/>
+<text class="dg-n dg-m" x="156" y="76" text-anchor="middle">.uf2</text>
+<rect class="dg-caixa" x="208.5" y="48.5" width="87" height="47" rx="6"/>
+<text class="dg-n dg-m" x="252" y="76" text-anchor="middle">.uf2</text>
+<rect class="dg-caixa" x="304.5" y="48.5" width="87" height="47" rx="6"/>
+<text class="dg-n dg-m" x="348" y="76" text-anchor="middle">.uf2</text>
+<rect class="dg-caixa" x="464.5" y="48.5" width="239" height="47" rx="6"/>
+<text class="dg-t" x="476" y="68">cabo USB, com o BOOTSEL</text>
+<text class="dg-n dg-c2" x="476" y="84">aparelho novo ou recuperação</text>
+<polyline class="dg-fio-acento" points="392,72 464,72" marker-end="url(#03-arquivos-ponta-acento)"/>
+<rect class="dg-caixa" x="16.5" y="104.5" width="87" height="47" rx="6"/>
+<text class="dg-n dg-m" x="60" y="132" text-anchor="middle">.bin</text>
+<rect class="dg-caixa" x="112.5" y="104.5" width="87" height="47" rx="6"/>
+<text class="dg-n dg-m" x="156" y="132" text-anchor="middle">.bin</text>
+<rect class="dg-caixa" x="208.5" y="104.5" width="87" height="47" rx="6"/>
+<text class="dg-n dg-m" x="252" y="132" text-anchor="middle">.bin</text>
+<rect class="dg-caixa" x="304.5" y="104.5" width="87" height="47" rx="6"/>
+<text class="dg-n dg-m" x="348" y="132" text-anchor="middle">.bin</text>
+<rect class="dg-caixa" x="464.5" y="104.5" width="239" height="47" rx="6"/>
+<text class="dg-t" x="476" y="124">página Arquivos</text>
+<text class="dg-n dg-c2" x="476" y="140">atualização pela rede</text>
+<polyline class="dg-fio-acento" points="392,128 464,128" marker-end="url(#03-arquivos-ponta-acento)"/>
+<rect class="dg-caixa" x="464.5" y="168.5" width="239" height="47" rx="6"/>
+<text class="dg-t" x="476" y="188">página Arquivos</text>
+<text class="dg-n dg-c2" x="476" y="204">pasta /lang, o pacote de idioma</text>
+<rect class="dg-caixa" x="16.5" y="176.5" width="183" height="31" rx="6"/>
+<text class="dg-n dg-m" x="108" y="196" text-anchor="middle">language_es-ES.lng</text>
+<rect class="dg-caixa" x="208.5" y="176.5" width="183" height="31" rx="6"/>
+<text class="dg-n dg-m" x="300" y="196" text-anchor="middle">language_pt-BR.lng</text>
+<polyline class="dg-fio-acento" points="392,192 464,192" marker-end="url(#03-arquivos-ponta-acento)"/>
+<rect class="dg-caixa" x="464.5" y="232.5" width="239" height="47" rx="6"/>
+<text class="dg-t" x="476" y="252">gestor de frota</text>
+<text class="dg-n dg-c2" x="476" y="268">soma SHA-256 de cada imagem</text>
+<rect class="dg-caixa" x="208.5" y="240.5" width="183" height="31" rx="6"/>
+<text class="dg-n dg-m" x="300" y="260" text-anchor="middle">manifest.json</text>
+<polyline class="dg-fio-acento" points="392,256 464,256" marker-end="url(#03-arquivos-ponta-acento)"/>
+<rect class="dg-caixa" x="464.5" y="296.5" width="239" height="47" rx="6"/>
+<text class="dg-t" x="476" y="316">conferência do download</text>
+<text class="dg-n dg-c2" x="476" y="332">sha256sum -c SHA256SUMS</text>
+<rect class="dg-caixa" x="208.5" y="304.5" width="183" height="31" rx="6"/>
+<text class="dg-n dg-m" x="300" y="324" text-anchor="middle">SHA256SUMS</text>
+<polyline class="dg-fio-acento" points="392,320 464,320" marker-end="url(#03-arquivos-ponta-acento)"/>
+<text class="dg-n dg-c2" x="16" y="376">Cada imagem tem o nome <tspan class="dg-m">simut_v&lt;versão&gt;_&lt;imagem&gt;.uf2</tspan> e o mesmo com <tspan class="dg-m">.bin</tspan>.</text>
+</svg>

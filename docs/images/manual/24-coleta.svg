@@ -1,0 +1,72 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 516" role="img" class="dg">
+<defs>
+<marker id="24-coleta-ponta-acento" viewBox="0 0 8 8" refX="8" refY="4" markerWidth="8" markerHeight="8" markerUnits="userSpaceOnUse" orient="auto"><path class="dg-ponta-acento" d="M0 0L8 4L0 8z"/></marker>
+<marker id="24-coleta-ponta-ok" viewBox="0 0 8 8" refX="8" refY="4" markerWidth="8" markerHeight="8" markerUnits="userSpaceOnUse" orient="auto"><path class="dg-ponta-ok" d="M0 0L8 4L0 8z"/></marker>
+<marker id="24-coleta-ponta-perigo" viewBox="0 0 8 8" refX="8" refY="4" markerWidth="8" markerHeight="8" markerUnits="userSpaceOnUse" orient="auto"><path class="dg-ponta-perigo" d="M0 0L8 4L0 8z"/></marker>
+</defs>
+<rect class="dg-caixa" x="16.5" y="32.5" width="151" height="47" rx="6"/>
+<text class="dg-t dg-b" x="28" y="52">Prometheus</text>
+<text class="dg-n dg-c2" x="28" y="68">a cada 60 s</text>
+<polyline class="dg-fio-fino" points="92,80 92,328"/>
+<rect class="dg-caixa-2" x="440.5" y="16.5" width="263" height="311" rx="12"/>
+<text class="dg-t" x="456" y="36"><tspan class="dg-b">SIMUT</tspan> <tspan class="dg-m">192.0.2.10</tspan></text>
+<polyline class="dg-fio-acento" points="168,56 572,56 572,96" marker-end="url(#24-coleta-ponta-acento)"/>
+<text class="dg-n" x="184" y="28"><tspan class="dg-m">GET /metrics</tspan></text>
+<text class="dg-n" x="184" y="44"><tspan class="dg-m">Authorization: Basic metricas:…</tspan></text>
+<rect class="dg-caixa" x="456.5" y="96.5" width="231" height="31" rx="6"/>
+<text class="dg-t" x="468" y="116">endereço bloqueado?</text>
+<rect class="dg-caixa" x="456.5" y="152.5" width="231" height="47" rx="6"/>
+<text class="dg-t" x="468" y="172">confere a senha</text>
+<text class="dg-n dg-c2" x="468" y="188">5.000 rodadas, cerca de 0,7 s</text>
+<rect class="dg-caixa" x="456.5" y="224.5" width="231" height="31" rx="6"/>
+<text class="dg-t" x="468" y="244">a conta tem Painel?</text>
+<rect class="dg-caixa" x="456.5" y="280.5" width="231" height="31" rx="6"/>
+<text class="dg-t" x="468" y="300">monta o texto das métricas</text>
+<polyline class="dg-fio-acento" points="572,128 572,152" marker-end="url(#24-coleta-ponta-acento)"/>
+<text class="dg-n dg-c2" x="584" y="144">não</text>
+<polyline class="dg-fio-acento" points="572,200 572,224" marker-end="url(#24-coleta-ponta-acento)"/>
+<text class="dg-n dg-c2" x="584" y="216">senha certa</text>
+<polyline class="dg-fio-acento" points="572,256 572,280" marker-end="url(#24-coleta-ponta-acento)"/>
+<text class="dg-n dg-c2" x="584" y="272">sim</text>
+<polyline class="dg-fio-perigo" points="456,112 92,112" marker-end="url(#24-coleta-ponta-perigo)"/>
+<text class="dg-t dg-perigo" x="108" y="104"><tspan class="dg-b">429</tspan> endereço bloqueado</text>
+<polyline class="dg-fio-perigo" points="456,176 92,176" marker-end="url(#24-coleta-ponta-perigo)"/>
+<text class="dg-t dg-perigo" x="108" y="168"><tspan class="dg-b">401</tspan> senha errada</text>
+<polyline class="dg-fio-perigo" points="456,240 92,240" marker-end="url(#24-coleta-ponta-perigo)"/>
+<text class="dg-t dg-perigo" x="108" y="232"><tspan class="dg-b">403</tspan> conta sem Painel</text>
+<polyline class="dg-fio-ok" points="456,296 92,296" marker-end="url(#24-coleta-ponta-ok)"/>
+<text class="dg-t dg-ok" x="108" y="288"><tspan class="dg-b">200</tspan> texto do Prometheus</text>
+<text class="dg-t dg-b" x="16" y="364">Bloqueio do endereço, a cada senha errada</text>
+<polyline class="dg-fio-fino" points="16,464 368,464"/>
+<rect class="dg-caixa-2" x="16.5" y="456.5" width="31" height="7" rx="0"/>
+<text class="dg-n" x="32" y="448" text-anchor="middle">2 s</text>
+<text class="dg-n dg-c2" x="32" y="480" text-anchor="middle">1º</text>
+<rect class="dg-caixa-2" x="56.5" y="448.5" width="31" height="15" rx="0"/>
+<text class="dg-n" x="72" y="440" text-anchor="middle">4 s</text>
+<text class="dg-n dg-c2" x="72" y="480" text-anchor="middle">2º</text>
+<rect class="dg-caixa-2" x="96.5" y="440.5" width="31" height="23" rx="0"/>
+<text class="dg-n" x="112" y="432" text-anchor="middle">8 s</text>
+<text class="dg-n dg-c2" x="112" y="480" text-anchor="middle">3º</text>
+<rect class="dg-caixa-2" x="136.5" y="432.5" width="31" height="31" rx="0"/>
+<text class="dg-n" x="152" y="424" text-anchor="middle">16 s</text>
+<text class="dg-n dg-c2" x="152" y="480" text-anchor="middle">4º</text>
+<rect class="dg-caixa-2" x="176.5" y="424.5" width="31" height="39" rx="0"/>
+<text class="dg-n" x="192" y="416" text-anchor="middle">32 s</text>
+<text class="dg-n dg-c2" x="192" y="480" text-anchor="middle">5º</text>
+<rect class="dg-caixa-2" x="216.5" y="416.5" width="31" height="47" rx="0"/>
+<text class="dg-n" x="232" y="408" text-anchor="middle">64 s</text>
+<text class="dg-n dg-c2" x="232" y="480" text-anchor="middle">6º</text>
+<rect class="dg-caixa-2" x="256.5" y="408.5" width="31" height="55" rx="0"/>
+<text class="dg-n" x="272" y="400" text-anchor="middle">128 s</text>
+<text class="dg-n dg-c2" x="272" y="480" text-anchor="middle">7º</text>
+<rect class="dg-caixa-2" x="296.5" y="400.5" width="31" height="63" rx="0"/>
+<text class="dg-n" x="312" y="392" text-anchor="middle">256 s</text>
+<text class="dg-n dg-c2" x="312" y="480" text-anchor="middle">8º</text>
+<rect class="dg-caixa-2" x="336.5" y="396.5" width="31" height="67" rx="0"/>
+<text class="dg-n" x="352" y="388" text-anchor="middle">300 s</text>
+<text class="dg-n dg-c2" x="352" y="480" text-anchor="middle">9º</text>
+<text class="dg-n dg-c2" x="352" y="496" text-anchor="middle">em diante</text>
+<text class="dg-n" x="392" y="412">Mesmo bloqueio da página de entrada.</text>
+<text class="dg-n" x="392" y="428">Cada senha errada sobe um degrau:</text>
+<text class="dg-n" x="392" y="444">a espera dobra, até 300 s.</text>
+</svg>

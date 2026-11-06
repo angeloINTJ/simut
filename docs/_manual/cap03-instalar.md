@@ -29,7 +29,7 @@ O `.uf2` e o `.bin` de uma mesma imagem têm o mesmo firmware: o `.uf2` é o `.b
 
 Os pacotes de idioma não vão dentro do firmware. Eles ficam no sistema de arquivos do aparelho e entram por outro caminho ([O pacote de idioma](#cap-03-idioma)). Os 11 temas do painel (arquivos `.thm`) não vêm na página da versão: estão na pasta `data/themes` do código-fonte, e são opcionais ([capítulo 11](#cap-11-temas); no Pico 2 W, veja o [capítulo 11A](#cap-11a-temas)).
 
-::: {.figura #fig-03-arquivos tipo="diagrama" arquivo="03-arquivos.png" captura="os doze arquivos de uma versão e para onde vai cada um: .uf2 → cabo USB com BOOTSEL (aparelho novo ou recuperação); .bin → página Arquivos, atualização pela rede; language_pt-BR.lng → página Arquivos, pasta /lang; manifest.json → gestor de frota; SHA256SUMS → conferência do download; quatro colunas coloridas por imagem (release, alpha, air, releasetwo)"}
+::: {.figura #fig-03-arquivos tipo="diagrama" arquivo="03-arquivos.svg" captura="desenhado pelo código (tools/manual_diagramas.py): os arquivos de uma versão (quatro imagens, em colunas neutras, dois pacotes de idioma, o manifesto e as somas) e o caminho de cada um até o aparelho, com o acento só nos caminhos; as imagens vêm de ENVS em tools/release_manifest.py, os pacotes de data/lang e os nomes do manifesto e das somas do passo Checksums de .github/workflows/release-ota.yml; refazer com python3 tools/manual_diagramas.py --write"}
 Os arquivos de uma versão e o caminho de cada um até o aparelho.
 :::
 

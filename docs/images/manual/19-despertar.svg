@@ -1,0 +1,49 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 328" role="img" class="dg">
+<text class="dg-t dg-b" x="16" y="28">despertar de leitura</text>
+<polyline class="dg-fio-fino" points="16,60 16,52 240,52 240,60"/>
+<text class="dg-n" x="128" y="44" text-anchor="middle">do boot até a decisão: 9,31 s</text>
+<rect class="dg-caixa-2" x="16.5" y="64.5" width="223" height="15" rx="0"/>
+<text class="dg-n" x="24" y="76"><tspan class="dg-m">GP16</tspan> alto</text>
+<text class="dg-n dg-c2" x="24" y="108">rádio desligado</text>
+<rect class="dg-caixa" x="16.5" y="132.5" width="59" height="39" rx="0"/>
+<rect class="dg-caixa" x="76.5" y="132.5" width="7" height="39" rx="0"/>
+<rect class="dg-caixa" x="84.5" y="132.5" width="155" height="39" rx="0"/>
+<text class="dg-n" x="44" y="156" text-anchor="middle">boot</text>
+<text class="dg-n" x="160" y="148" text-anchor="middle">amostragem</text>
+<text class="dg-n dg-c2" x="160" y="164" text-anchor="middle">conversão do sensor</text>
+<circle class="dg-no" cx="240" cy="152" r="8"/>
+<polyline class="dg-fio-fino" points="80,172 80,184"/>
+<text class="dg-n" x="80" y="196">aquecimento 0,4 s</text>
+<polyline class="dg-fio-fino" points="240,160 240,204"/>
+<text class="dg-n" x="240" y="216" text-anchor="end">decisão: grava o histórico</text>
+<rect class="dg-caixa-apagada" x="248.5" y="132.5" width="151" height="39" rx="0"/>
+<text class="dg-n" x="324" y="148" text-anchor="middle">sono, até completar</text>
+<text class="dg-n" x="324" y="164" text-anchor="middle">o intervalo de 60 s</text>
+<text class="dg-n dg-c2" x="324" y="196" text-anchor="middle">fora de escala</text>
+<text class="dg-t dg-b" x="400" y="28">despertar de telemetria</text>
+<polyline class="dg-fio-fino" points="400,60 400,52 704,52 704,60"/>
+<text class="dg-n" x="552" y="44" text-anchor="middle">cerca de 12,7 s</text>
+<rect class="dg-caixa-2" x="400.5" y="64.5" width="303" height="15" rx="0"/>
+<text class="dg-n" x="408" y="76"><tspan class="dg-m">GP16</tspan> alto</text>
+<rect class="dg-caixa-acento" x="460.5" y="84.5" width="243" height="39" rx="0"/>
+<text class="dg-n dg-b dg-sobre-acento" x="468" y="100">rádio ligado</text>
+<text class="dg-n dg-sobre-acento" x="468" y="116">Wi-Fi conecta na amostragem</text>
+<rect class="dg-caixa" x="400.5" y="132.5" width="59" height="39" rx="0"/>
+<rect class="dg-caixa" x="460.5" y="132.5" width="7" height="39" rx="0"/>
+<rect class="dg-caixa" x="468.5" y="132.5" width="155" height="39" rx="0"/>
+<text class="dg-n" x="428" y="156" text-anchor="middle">boot</text>
+<text class="dg-n" x="544" y="156" text-anchor="middle">amostragem</text>
+<rect class="dg-caixa" x="624.5" y="132.5" width="79" height="39" rx="0"/>
+<text class="dg-n" x="664" y="148" text-anchor="middle">conexão</text>
+<text class="dg-n" x="664" y="164" text-anchor="middle">e envio</text>
+<circle class="dg-no" cx="624" cy="152" r="8"/>
+<polyline class="dg-fio-fino" points="464,172 464,184"/>
+<text class="dg-n" x="464" y="196">aquecimento 0,4 s</text>
+<polyline class="dg-fio-fino" points="624,160 624,204"/>
+<text class="dg-n" x="624" y="216" text-anchor="end">decisão: grava o histórico</text>
+<text class="dg-n dg-c2" x="16" y="244">Em escala. Têm tempo conhecido: os totais, o aquecimento e o boot;</text>
+<text class="dg-n dg-c2" x="16" y="260">a amostragem e o envio são o que falta.</text>
+<text class="dg-n dg-c2" x="16" y="276">O despertar de telemetria repete as larguras do de leitura até a decisão.</text>
+<text class="dg-n dg-c2" x="16" y="292">O rádio liga durante o boot, só no despertar de telemetria; a faixa o mostra</text>
+<text class="dg-n dg-c2" x="16" y="308">ligando no fim do boot, e o instante exato não foi medido.</text>
+</svg>

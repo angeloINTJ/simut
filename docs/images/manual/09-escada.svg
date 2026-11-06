@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 284" role="img" class="dg">
+<defs>
+<marker id="09-escada-ponta" viewBox="0 0 8 8" refX="8" refY="4" markerWidth="8" markerHeight="8" markerUnits="userSpaceOnUse" orient="auto"><path class="dg-ponta" d="M0 0L8 4L0 8z"/></marker>
+</defs>
+<rect class="dg-caixa-acento" x="16.5" y="24.5" width="15" height="15" rx="0"/>
+<text class="dg-n" x="40" y="36">busca (até 15 s) e tentativa (até 20 s)</text>
+<rect class="dg-caixa-2" x="312.5" y="24.5" width="15" height="15" rx="0"/>
+<text class="dg-n" x="336" y="36">espera</text>
+<rect class="dg-caixa-apagada" x="404.5" y="24.5" width="15" height="15" rx="0"/>
+<text class="dg-n" x="428" y="36">espera de 10 min, fora de escala</text>
+<text class="dg-n" x="16" y="116">queda</text>
+<polyline class="dg-fio" points="52,112 64,112" marker-end="url(#09-escada-ponta)"/>
+<rect class="dg-caixa-2" x="64.5" y="96.5" width="7" height="31" rx="0"/>
+<text class="dg-n" x="68" y="88" text-anchor="middle">5 s</text>
+<rect class="dg-caixa-acento" x="72.5" y="96.5" width="31" height="31" rx="0"/>
+<rect class="dg-caixa-2" x="104.5" y="96.5" width="15" height="31" rx="0"/>
+<text class="dg-n" x="112" y="88" text-anchor="middle">10 s</text>
+<rect class="dg-caixa-acento" x="120.5" y="96.5" width="31" height="31" rx="0"/>
+<rect class="dg-caixa-2" x="152.5" y="96.5" width="31" height="31" rx="0"/>
+<text class="dg-n" x="168" y="88" text-anchor="middle">20 s</text>
+<rect class="dg-caixa-acento" x="184.5" y="96.5" width="31" height="31" rx="0"/>
+<rect class="dg-caixa-2" x="216.5" y="96.5" width="63" height="31" rx="0"/>
+<text class="dg-n" x="248" y="88" text-anchor="middle">40 s</text>
+<rect class="dg-caixa-acento" x="280.5" y="96.5" width="31" height="31" rx="0"/>
+<rect class="dg-caixa-2" x="312.5" y="96.5" width="127" height="31" rx="0"/>
+<text class="dg-n" x="376" y="88" text-anchor="middle">80 s</text>
+<rect class="dg-caixa-acento" x="440.5" y="96.5" width="31" height="31" rx="0"/>
+<rect class="dg-caixa-apagada" x="472.5" y="96.5" width="39" height="31" rx="0"/>
+<text class="dg-n" x="492" y="88" text-anchor="middle">10 min</text>
+<rect class="dg-caixa-acento" x="512.5" y="96.5" width="31" height="31" rx="0"/>
+<rect class="dg-caixa-apagada" x="544.5" y="96.5" width="39" height="31" rx="0"/>
+<text class="dg-n" x="564" y="88" text-anchor="middle">10 min</text>
+<rect class="dg-caixa-acento" x="584.5" y="96.5" width="31" height="31" rx="0"/>
+<rect class="dg-caixa-apagada" x="616.5" y="96.5" width="39" height="31" rx="0"/>
+<text class="dg-n" x="636" y="88" text-anchor="middle">10 min</text>
+<rect class="dg-caixa-acento" x="656.5" y="96.5" width="31" height="31" rx="0"/>
+<polyline class="dg-fio-fino" points="68,136 68,144 468,144 468,136"/>
+<text class="dg-n" x="268" y="164" text-anchor="middle">a espera dobra a cada falha</text>
+<text class="dg-n dg-c2" x="268" y="180" text-anchor="middle">teto de 120 s, nunca atingido</text>
+<polyline class="dg-fio-fino" points="476,136 476,144 684,144 684,136"/>
+<text class="dg-n" x="580" y="164" text-anchor="middle">dormência: 3 esperas de 10 min</text>
+<text class="dg-n dg-c2" x="580" y="180" text-anchor="middle">só depois dos ciclos rápidos</text>
+<polyline class="dg-fio" points="688,112 704,112 704,216 68,216 68,128" marker-end="url(#09-escada-ponta)"/>
+<text class="dg-n" x="84" y="208">recomeça na espera de 5 s, e se repete até a rede voltar</text>
+<text class="dg-n dg-c2" x="16" y="248">A escada não abre o AP de configuração: ele só abre quando alguém pede.</text>
+<text class="dg-n dg-c2" x="16" y="264">Uma conexão bem-sucedida, a qualquer momento, zera a escada.</text>
+</svg>

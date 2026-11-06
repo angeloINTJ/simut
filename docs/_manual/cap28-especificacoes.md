@@ -25,8 +25,8 @@ Este capítulo reúne em tabelas os números do SIMUT: faixas, valores de fábri
 | Wi-Fi | Só 2,4 GHz. Uma rede só de 5 GHz não aparece na busca | [cap. 9](#cap-09-wifi) |
 | Segurança do Wi-Fi do AP de configuração | WPA2 | [cap. 9](#cap-09-ap) |
 
-::: {.figura #fig-28-flash tipo="diagrama" arquivo="28-flash.png" captura="barra horizontal dos 2 MB da flash do Pico W, em escala: 1.020 KiB do programa (com a marca do teto de 1.016 KiB da atualização web), 1.024 KiB do sistema de arquivos LittleFS e 4 KiB dos dados da atualização no fim; anotar que a imagem nova é recebida na área do sistema de arquivos"}
-Legenda: a flash de 2 MB. O teto da atualização web fica 4 KiB abaixo do fim do espaço do programa.
+::: {.figura #fig-28-flash tipo="diagrama" arquivo="28-flash.svg" captura="desenhado pelo código (tools/manual_diagramas.py): a flash de 2 MB do Pico W numa barra em escala, da esquerda para a direita: os 1.020 KiB do programa (com a marca do teto de 1.016 KiB da atualização web, 4 KiB abaixo do fim do programa), os 1.024 KiB do sistema de arquivos LittleFS, onde a imagem nova é recebida, e os 4 KiB dos dados da atualização no fim; o teto e os dados estão ampliados para aparecer; os tamanhos vêm de src/ota/ota_layout.h (conferidos com board_build.filesystem_size de platformio.ini) e que o espaço do programa, a área de preparo (que começa onde ele acaba e tem o tamanho do sistema de arquivos) e os dados da atualização, que terminam a flash, se seguem, e que a maior imagem da atualização web é o teto, são trechos desse arquivo que o código tem de manter; refazer com python3 tools/manual_diagramas.py --write"}
+A flash de 2 MB. O teto da atualização web fica 4 KiB abaixo do fim do espaço do programa.
 :::
 
 ::: nota
@@ -391,7 +391,7 @@ O filtro vale só para a flash: o console com `debug on` e o syslog recebem todo
 | Rádio | Liga quando os registros pendentes chegam ao **Lote mínimo**; com o **Lote mínimo** em 0, nunca liga no ciclo | [cap. 19](#cap-19-telemetria) |
 | Depois de um envio que falha | 5 despertares sem rádio | [cap. 19](#cap-19-telemetria) |
 | Rede que não aparece | Duas tentativas por despertar | [cap. 19](#cap-19-telemetria) |
-| Despertar de leitura | 9,31 s, dos quais 6,83 s são a conversão do DS18B20 (v2.4.1-beta, 08/09/2026) | [cap. 19](#cap-19-tempos) |
+| Despertar de leitura | 9,31 s, dos quais 6,83 s são o aquecimento do sensor (0,4 s) e a amostragem (v2.4.1-beta, 08/09/2026) | [cap. 19](#cap-19-tempos) |
 | Despertar de telemetria | Cerca de 12,7 s (v2.4.1-beta, 08/09/2026) | [cap. 19](#cap-19-tempos) |
 | Período real | 60,5 a 60,6 s para 60 s configurados (v2.4.1-beta, 08/09/2026) | [cap. 19](#cap-19-tempos) |
 | Consumo | Cerca de 8,2 mA de média e 17 dias numa 18650 de 3.400 mAh. É uma conta sobre os tempos, não uma medição de corrente | [cap. 19](#cap-19-tempos) |

@@ -1,0 +1,58 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 424" role="img" class="dg">
+<defs>
+<marker id="25-caminho-ponta" viewBox="0 0 8 8" refX="8" refY="4" markerWidth="8" markerHeight="8" markerUnits="userSpaceOnUse" orient="auto"><path class="dg-ponta" d="M0 0L8 4L0 8z"/></marker>
+<marker id="25-caminho-ponta-acento" viewBox="0 0 8 8" refX="8" refY="4" markerWidth="8" markerHeight="8" markerUnits="userSpaceOnUse" orient="auto"><path class="dg-ponta-acento" d="M0 0L8 4L0 8z"/></marker>
+</defs>
+<rect class="dg-caixa" x="160.5" y="16.5" width="255" height="47" rx="6"/>
+<text class="dg-t" x="172" y="36">evento</text>
+<text class="dg-n dg-c2" x="172" y="52">em qualquer núcleo</text>
+<rect class="dg-caixa" x="432.5" y="16.5" width="271" height="47" rx="6"/>
+<text class="dg-t" x="444" y="36">log de eventos na flash</text>
+<text class="dg-n dg-c2" x="444" y="52">filtro de rotina, só código e contexto</text>
+<polyline class="dg-fio" points="416,40 432,40" marker-end="url(#25-caminho-ponta)"/>
+<rect class="dg-caixa" x="160.5" y="88.5" width="255" height="31" rx="6"/>
+<text class="dg-t" x="172" y="108">nível ≥ Nível Mínimo?</text>
+<polyline class="dg-fio-acento" points="288,64 288,88" marker-end="url(#25-caminho-ponta-acento)"/>
+<rect class="dg-caixa" x="160.5" y="144.5" width="255" height="47" rx="6"/>
+<text class="dg-t" x="172" y="164">fila de 8 linhas na RAM</text>
+<text class="dg-n dg-c2" x="172" y="180">a mais antiga sai quando enche</text>
+<polyline class="dg-fio-acento" points="288,120 288,144" marker-end="url(#25-caminho-ponta-acento)"/>
+<rect class="dg-caixa" x="160.5" y="216.5" width="255" height="63" rx="6"/>
+<text class="dg-t" x="172" y="236">laço principal, núcleo 0</text>
+<text class="dg-n dg-c2" x="172" y="252">até 8 linhas por passada, só com</text>
+<text class="dg-n dg-c2" x="172" y="268">Wi-Fi conectado e fora do AP</text>
+<polyline class="dg-fio-acento" points="288,192 288,216" marker-end="url(#25-caminho-ponta-acento)"/>
+<rect class="dg-caixa" x="160.5" y="304.5" width="255" height="31" rx="6"/>
+<text class="dg-t" x="172" y="324">UDP para <tspan class="dg-m">192.0.2.10:514</tspan></text>
+<polyline class="dg-fio-acento" points="288,280 288,304" marker-end="url(#25-caminho-ponta-acento)"/>
+<rect class="dg-caixa" x="160.5" y="360.5" width="255" height="47" rx="6"/>
+<text class="dg-t" x="172" y="380">coletor</text>
+<text class="dg-n dg-c2" x="172" y="396">rsyslog, syslog-ng</text>
+<polyline class="dg-fio-acento" points="288,336 288,360" marker-end="url(#25-caminho-ponta-acento)"/>
+<polyline class="dg-fio-perigo" points="416,104 436,104"/>
+<polyline class="dg-fio-perigo" points="432,100 440,108"/>
+<polyline class="dg-fio-perigo" points="440,100 432,108"/>
+<text class="dg-n dg-perigo" x="452" y="100">antes do encaminhamento</text>
+<text class="dg-n dg-perigo" x="452" y="116">subir, no boot</text>
+<polyline class="dg-fio-perigo" points="416,160 436,160"/>
+<polyline class="dg-fio-perigo" points="432,156 440,164"/>
+<polyline class="dg-fio-perigo" points="440,156 432,164"/>
+<text class="dg-n dg-perigo" x="452" y="164">fila cheia</text>
+<polyline class="dg-fio-perigo" points="416,184 436,184"/>
+<polyline class="dg-fio-perigo" points="432,180 440,188"/>
+<polyline class="dg-fio-perigo" points="440,180 432,188"/>
+<text class="dg-n dg-perigo" x="452" y="188">travamento ou falta de energia</text>
+<polyline class="dg-fio-perigo" points="416,248 436,248"/>
+<polyline class="dg-fio-perigo" points="432,244 440,252"/>
+<polyline class="dg-fio-perigo" points="440,244 432,252"/>
+<text class="dg-n dg-perigo" x="452" y="252">envio falhou</text>
+<polyline class="dg-fio-perigo" points="288,348 436,348"/>
+<polyline class="dg-fio-perigo" points="432,344 440,352"/>
+<polyline class="dg-fio-perigo" points="440,344 432,352"/>
+<text class="dg-n dg-perigo" x="452" y="352">datagrama perdido na rede</text>
+<polyline class="dg-fio-tracejado" points="160,168 144,168 144,320 160,320" marker-end="url(#25-caminho-ponta)"/>
+<text class="dg-n" x="16" y="232">reinício pedido</text>
+<text class="dg-n" x="16" y="248">(quase todos):</text>
+<text class="dg-n" x="16" y="264">esvazia a fila</text>
+<text class="dg-n" x="16" y="280">antes de reiniciar</text>
+</svg>
