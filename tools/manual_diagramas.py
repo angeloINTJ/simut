@@ -68,6 +68,8 @@ NET_DEFS = 'src/SystemDefs_Network.h'
 SYSLOG_H = 'src/SyslogManager.h'
 SYSLOG_CPP = 'src/SyslogManager.cpp'
 LOOP = 'src/AppManager_Loop.cpp'
+NETWORK = 'src/NetworkManager.cpp'
+RECORDS = 'src/SystemDefs_Records.h'
 LOG_MANAGER = 'src/LogManager.cpp'
 NET_LINK = 'src/net/NetLink.h'
 
@@ -120,6 +122,11 @@ FIGURAS = (
     Figura('fig-15-caminho', '15-caminho.svg', 'cap15-historico.md', 'desenho_caminho_historico',
            'o caminho de um registro: o bloco aberto na RAM, a cópia em .wip, a selagem no arquivo do dia e a fila de arquivos diários, com o limite de ocupação que apaga o mais antigo; '
            'os registros por bloco vêm de src/HistoryV5.h, o limite de src/StorageManager.cpp e os nomes de src/StorageManager.h e src/HistoryV5.h'),
+    Figura('fig-20-integracao', '20-integracao.svg', 'cap20-integracao-visao-geral.md', 'desenho_integracao',
+           'o aparelho e o que ele troca com os outros sistemas, nos dois sentidos: o que ele abre (telemetria, linha de alarmes, descoberta do Home Assistant, syslog), o que o servidor abre na porta da '
+           'interface web (a API REST, o /metrics) e o anúncio mDNS, que não abre conexão; o protocolo e a porta do syslog vêm de src/SyslogManager.h e src/SystemDefs_Records.h, o nome do serviço de '
+           'src/NetworkManager.cpp, as imagens com o anúncio de SIMUT_MDNS em src/simut_config.h e nos perfis, a rota do /metrics de src/WebManager_Core.cpp, e as afirmações repetidas das figuras de '
+           'cada mecanismo (alarmes, Home Assistant, Prometheus) apoiam-se nas mesmas leituras e premissas delas'),
     Figura('fig-21-cursor', '21-cursor.svg', 'cap21-telemetria.md', 'desenho_cursor',
            'a fila de registros do histórico com o cursor entre os confirmados e os pendentes, o lote, o coletor, a confirmação 2xx que move o cursor e a falha que o deixa parado; '
            'a faixa de códigos que confirma vem de src/TelemetryManager.cpp e a espera depois de uma falha de BACKOFF_MIN_MS e BACKOFF_MAX_MS em src/TelemetryManager.h'),
@@ -271,6 +278,9 @@ IP_EXEMPLO, CONTA_EXEMPLO, INTERVALO_PROMETHEUS, PERMISSAO_PAINEL = '192.0.2.10'
 # The examples of the syslog figure, those chapter 25 writes (cap25-syslog.md: the collector's address in the configuration's example, the name of the level's field, the two collectors it
 # sets up). tools/test_manual_diagramas.py checks that the chapter still says them.
 IP_COLETOR_EXEMPLO, NIVEL_MINIMO, COLETORES_SYSLOG = '192.0.2.10', 'Nível Mínimo', ('rsyslog', 'syslog-ng')
+# The names the integration figure gives its peers, chapter 20's own words (the table of what the device offers: the management server and Prometheus; the table of ports: the local announcement; the
+# collector of syslog). tools/test_manual_diagramas.py checks that the chapter still says them.
+PAR_GESTAO, PAR_PROMETHEUS, PAR_REDE_LOCAL = 'servidor de gestão', 'Prometheus', 'rede local'
 
 IMAGEM_DO_PERFIL = {'release': 'pico_w_release', 'alpha': 'pico_w_alpha', 'air': 'pico_w_air'}
 
@@ -546,6 +556,26 @@ class Numeros:
             f.exigir(rel, padrao, f'the figure of the syslog path draws that {porque}')
         return {'fila': int(f.achar(SYSLOG_H, r'static constexpr int SLOTS = (\d+);').group(1)),
                 'porta': int(f.achar('src/SystemDefs_Records.h', r'constexpr uint16_t SYSLOG_DEFAULT_PORT = (\d+);').group(1))}
+
+
+    def integracao(self):
+        """What the integration figure draws that the figures of each mechanism do not: that the telemetry has two transports, HTTP and MQTT (a premise: a third would need a third word in the
+        figure); the syslog's RFC and protocol (SyslogManager.h) and its default port; the name of the service the mDNS announcement registers (NetworkManager.cpp) and the images that
+        have the announcement (SIMUT_MDNS, in simut_config.h and the profiles); the method and the route of the metrics. It also asks for the readings of the alarm line, of Home Assistant and of
+        Prometheus, so the claims it repeats from those figures (the alarm line's confirmation, the retained discovery, the route) stand on the same premises."""
+        f = self.f
+        f.exigir(RECORDS, r'enum TelemetryTransport \{\s+TEL_TRANSPORT_HTTP = 0,\s+TEL_TRANSPORT_MQTT = 1\s+\};', 'the telemetry has two transports, HTTP and MQTT, which is what the integration figure draws')
+        rfc, protocolo = f.achar(SYSLOG_H, r'@brief (RFC \d+) / (UDP) syslog forwarder').groups()
+        porta = int(f.achar(RECORDS, r'constexpr uint16_t SYSLOG_DEFAULT_PORT = (\d+);').group(1))
+        servico = f.achar(NETWORK, r'MDNS\.addService\(nullptr, "(\w+)", "(\w+)", _advPort\)')
+        com_mdns = [imagem for imagem in IMAGEM_DO_PERFIL if self.macro('SIMUT_MDNS', imagem) == 1]
+        if not com_mdns:
+            raise Falta(f'{CONFIG}: no image has SIMUT_MDNS on, and the integration figure draws the announcement of the service as one the device makes')
+        self.alarmes()
+        self.homeassistant()
+        metricas = self.prometheus()
+        return {'rfc': rfc, 'protocolo': protocolo, 'porta_syslog': porta, 'mdns': f'_{servico.group(1)}._{servico.group(2)}', 'imagens_mdns': com_mdns,
+                'metodo': metricas['metodo'], 'rota': metricas['rota']}
 
 
 def pino_de(gpio):
@@ -1362,6 +1392,50 @@ def desenho_syslog(num, slug):
     y_fila, y_udp, x_b = fila.y + fila.h // 2, udp.y + udp.h // 2, x_c - 16
     s.seta([(x_c, y_fila), (x_b, y_fila), (x_b, y_udp), (x_c, y_udp)], 'dg-fio-tracejado', 'dg-ponta')
     rotulo(s, 16, (y_fila + y_udp) // 8 * 4 - 12, ['reinício pedido', '(quase todos):', 'esvazia a fila', 'antes de reiniciar'], x_b - 8)
+    return s.render()
+
+
+def desenho_integracao(num, slug):
+    ig = num.integracao()
+    s = Svg(slug)
+    x_s, l_s, x_r, l_r = 16, 112, 504, 200               # the device's box, and the peers' boxes; the labels sit between, above their arrows
+    x_t = x_s + l_s + 16
+    nome = {'air': 'Air'}
+    imagens = [nome.get(i, i) for i in ig['imagens_mdns']]
+    so_nas = f'só na imagem {imagens[0]}' if len(imagens) == 1 else f'só nas imagens {", ".join(imagens[:-1])} e {imagens[-1]}'
+    # the groups, top to bottom: the device opens the connection; the server opens it, at the web interface's port; the announcement, which opens none
+    ultimo = 408
+    s.caixa(x_s, 16, l_s, ultimo - 16, 'dg-comp-acento', 12, 2)
+    s.texto(x_s + 16, 40, 'SIMUT', 'dg-t dg-b')
+    cheia = ('dg-fio', 'dg-ponta')
+
+    def grupo(y, titulo):
+        if y > 32:
+            s.linha([(x_t, y - 24), (704, y - 24)], 'dg-fio-fino')
+        s.texto(x_t, y, titulo, 'dg-t dg-b')
+
+    def linha_de(y, runs, par=None, sentido=1, estilo=cheia):
+        """One arrow at height y from the device to a peer (sentido 1) or from the peer to the device (-1), its label above it, and the peer's box when `par` names one (the collector's
+        box is taller, for its two arrows, and is drawn apart)."""
+        rotulo(s, x_t, y - 8, [runs], x_r - 4)
+        pontos = [(x_s + l_s, y), (x_r, y)] if sentido == 1 else [(x_r, y), (x_s + l_s, y)]
+        s.seta(pontos, *estilo)
+        if par:
+            bloco(s, x_r, y - 16, l_r, [(par, 'dg-t')])
+
+    grupo(32, 'o aparelho abre a conexão')
+    s.caixa(x_r, 40, l_r, 80, 'dg-caixa', 6)
+    s.texto(x_r + 12, 84, 'coletor', 'dg-t')
+    linha_de(64, [('dg-b', 'Telemetria'), ('', ' (HTTP/HTTPS POST ou MQTT/MQTTS)')])
+    linha_de(104, [('dg-b', 'Linha de alarmes'), ('', ' (mesmo transporte, com confirmação)')])
+    linha_de(144, [('dg-b', 'Descoberta Home Assistant'), ('', ' (MQTT, mensagens retidas)')], 'broker MQTT')
+    linha_de(184, [('dg-b', f'Syslog {ig["rfc"]}'), ('', f' ({ig["protocolo"]} {ig["porta_syslog"]})')], 'coletor de syslog')
+    grupo(232, 'o servidor abre a conexão, na porta da interface web')
+    linha_de(264, [('dg-b', 'API REST'), ('', ' com sessão')], PAR_GESTAO, -1)
+    linha_de(304, [('dg-m', f'{ig["metodo"]} {ig["rota"]}')], PAR_PROMETHEUS, -1)
+    grupo(352, 'anúncio local, sem conexão')
+    linha_de(392, [('dg-b', 'Anúncio mDNS '), ('dg-m', ig['mdns'])], PAR_REDE_LOCAL, 1, ('dg-fio-tracejado', 'dg-ponta'))
+    rotulo(s, x_t, 408, [f'multicast, {so_nas}'], x_r - 4, 'dg-n dg-c2')
     return s.render()
 
 

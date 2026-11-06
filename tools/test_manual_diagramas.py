@@ -63,6 +63,8 @@ NET_DEFS = 'src/SystemDefs_Network.h'
 SYSLOG_H = 'src/SyslogManager.h'
 SYSLOG_CPP = 'src/SyslogManager.cpp'
 LOOP = 'src/AppManager_Loop.cpp'
+NETWORK = 'src/NetworkManager.cpp'
+RECORDS = 'src/SystemDefs_Records.h'
 BOOT = 'src/AppManager_Boot.cpp'
 
 
@@ -243,6 +245,11 @@ def main():
         confere(f'"slog_srv":"{m.IP_COLETOR_EXEMPLO}"' in cap25 and f'**{m.NIVEL_MINIMO}**' in cap25 and all(f'{nome}' in cap25 for nome in m.COLETORES_SYSLOG),
                 f'chapter 25 does not say the examples of the figure: {m.IP_COLETOR_EXEMPLO}, {m.NIVEL_MINIMO}, {m.COLETORES_SYSLOG}',
                 'the syslog figure\'s examples (collector address, the level\'s name Nível Mínimo, rsyslog and syslog-ng) are the ones chapter 25 writes')
+        # the integration figure's words for the peers, against chapter 20 (the table of what the device offers, the one of ports)
+        cap20 = (m.CAPITULOS / 'cap20-integracao-visao-geral.md').read_text(encoding='utf-8')
+        confere(all(palavra in cap20 for palavra in (m.PAR_GESTAO, m.PAR_PROMETHEUS, m.PAR_REDE_LOCAL, 'Coletor de syslog')) and 'Anúncio local' in cap20,
+                f'chapter 20 does not say the names of the figure\'s peers: {m.PAR_GESTAO}, {m.PAR_PROMETHEUS}, {m.PAR_REDE_LOCAL}',
+                'the integration figure\'s peers (servidor de gestão, Prometheus, rede local) are the words chapter 20 uses')
 
         # ---- the builder's guards --------------------------------------------------------------------------------------------------------------------------
         s = m.Svg('99-teste', 100)
@@ -416,14 +423,17 @@ def main():
                 ('the measured time of a /metrics read with Basic 699 ms -> 1400 ms, in the comment that records it', [(NET_DEFS, 'a /metrics read with Basic 699 ms', 'a /metrics read with Basic 1400 ms', 1)], {'24-coleta.svg'}),
                 ('the lockout\'s ceiling 300 s -> 280 s', [(NET_DEFS, 'AUTH_LOCKOUT_MAX_MS = 300000;', 'AUTH_LOCKOUT_MAX_MS = 280000;', 1)], {'24-coleta.svg'}),
                 ('the lockout\'s first penalty 2 s -> 4 s (the shift starts from 2000 ms), one rung fewer', [(NET_DEFS, 'uint32_t ms = 1000UL << n;', 'uint32_t ms = 2000UL << n;', 1)], {'24-coleta.svg'}),
-                ('the route /metrics -> /metricas', [(WEB_CORE, '_server->on("/metrics", HTTP_GET', '_server->on("/metricas", HTTP_GET', 1)], {'24-coleta.svg'}),
+                ('the route /metrics -> /metricas', [(WEB_CORE, '_server->on("/metrics", HTTP_GET', '_server->on("/metricas", HTTP_GET', 1)], {'24-coleta.svg', '20-integracao.svg'}),
                 ('the scheme of the credentials Basic -> Token', [(WEB_METRICS, 'if (!h.startsWith("Basic ")) return 0;', 'if (!h.startsWith("Token ")) return 0;', 1)], {'24-coleta.svg'}),
                 ('the locked address\'s answer 429 -> 423', [(WEB_METRICS, 'if (respondIfLockedOut(ls, 429)) return -1;', 'if (respondIfLockedOut(ls, 423)) return -1;', 1)], {'24-coleta.svg'}),
                 ('the wrong password\'s answer 401 -> 407', [(WEB_METRICS, '_server->send(401, "text/plain", "unauthorized\\n");', '_server->send(407, "text/plain", "unauthorized\\n");', 1)], {'24-coleta.svg'}),
                 ('the missing permission\'s answer 403 -> 451', [(WEB_METRICS, '_server->send(403, "text/plain", "forbidden\\n");', '_server->send(451, "text/plain", "forbidden\\n");', 1)], {'24-coleta.svg'}),
                 ('the answer with the text 200 -> 203', [(WEB_METRICS, '_server->send(200, "text/plain; version=0.0.4; charset=utf-8", "");', '_server->send(203, "text/plain; version=0.0.4; charset=utf-8", "");', 1)], {'24-coleta.svg'}),
                 ('the syslog ring\'s depth 8 -> 6 (and the lines a pass sends)', [(SYSLOG_H, 'static constexpr int SLOTS = 8;', 'static constexpr int SLOTS = 6;', 1)], {'25-caminho.svg'}),
-                ('the syslog default port 514 -> 5514', [('src/SystemDefs_Records.h', 'constexpr uint16_t SYSLOG_DEFAULT_PORT = 514;', 'constexpr uint16_t SYSLOG_DEFAULT_PORT = 5514;', 1)], {'25-caminho.svg'}),
+                ('the syslog default port 514 -> 5514', [('src/SystemDefs_Records.h', 'constexpr uint16_t SYSLOG_DEFAULT_PORT = 514;', 'constexpr uint16_t SYSLOG_DEFAULT_PORT = 5514;', 1)], {'25-caminho.svg', '20-integracao.svg'}),
+                ('the mDNS service name simut -> casa', [(NETWORK, 'MDNS.addService(nullptr, "simut", "tcp", _advPort)', 'MDNS.addService(nullptr, "casa", "tcp", _advPort)', 1)], {'20-integracao.svg'}),
+                ('the alpha image gets the mDNS announcement too (it loses -DSIMUT_MDNS=0)', [(PERFIS, '    -DHD44780_MODE_PARALLEL=1\n    -DSIMUT_CLI_FULL=0\n    -DSIMUT_MDNS=0\n    -DSIMUT_BLUETOOTH=1',
+                                                                                                          '    -DHD44780_MODE_PARALLEL=1\n    -DSIMUT_CLI_FULL=0\n    -DSIMUT_BLUETOOTH=1', 1)], {'20-integracao.svg'}),
                 ('the BME280 probe pair (4, 5) -> (6, 7)', [(BME_SENSOR, 'probe(4, 5, BME280_ADDR_PRIMARY)', 'probe(6, 7, BME280_ADDR_PRIMARY)', 1)], {'02-bmx280.svg'}),
                 ('the BME280 addresses 0x76/0x77 -> 0x75/0x78 in the driver, code and comments', [(BME_DRIVER, '0x76', '0x75', None), (BME_DRIVER, '0x77', '0x78', None)], {'02-bmx280.svg'}),
             ]
@@ -488,6 +498,8 @@ def main():
             ('the syslog copy goes through the routine filter', [('src/LogManager.cpp', ' writeCompactToFlash(rec);\n }\n\n /* Syslog forwarding.', ' writeCompactToFlash(rec);\n\n /* Syslog forwarding.', 1)], 'routine filter', '25-caminho.svg'),
             ('the syslog queue is no longer in the RAM', [(SYSLOG_H, 'char _ring[SLOTS][LINE_MAX];', 'static char* _ring;', 1)], 'RAM', '25-caminho.svg'),
             ('the link is no longer the station joined to an access point', [('src/net/NetLink.h', 'return WiFi.status( ) == WL_CONNECTED; }', 'return true; }', 1)], 'joined', '25-caminho.svg'),
+            ('the telemetry gets a third transport', [(RECORDS, ' TEL_TRANSPORT_MQTT = 1\n', ' TEL_TRANSPORT_MQTT = 1,\n TEL_TRANSPORT_COAP = 2\n', 1)], 'two transports', '20-integracao.svg'),
+            ('the syslog forwarder is no longer UDP', [(SYSLOG_H, '@brief RFC 5424 / UDP syslog forwarder', '@brief RFC 5424 / TCP syslog forwarder', 1)], 'UDP', '20-integracao.svg'),
             ('the discovery configs are no longer published retained', [(TELEMETRY, 'ok = _mqttClient.publish(topic, payload, true);', 'ok = _mqttClient.publish(topic, payload, false);', 1)],
              'retained', '23-fluxo.svg'),
             ('the online message is no longer published retained', [(TELEMETRY, 'onlinePayload.c_str( ), true);', 'onlinePayload.c_str( ), false);', 1)], 'retained', '23-fluxo.svg'),
