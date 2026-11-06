@@ -304,9 +304,10 @@ assim:
   pisca alarme e a tela de atualização espera. A lista é a do **último boot**: um boot que não esperou o roteador não tem essa
   linha, e um boot em AP não tem `end`, porque nunca chama `endBoot()`. Um toque, 30 s sem toque,
   qualquer outra tag e `screen boot end` devolvem o painel, e o toque no PULAR do terminal
-  recomposto **não** arma o PULAR do boot (só devolve o painel). E `screen boot end` num boot em
-  AP tira do vidro a caixa com o nome da rede e a chave, que o boot nunca soltava: o rádio segue
-  ligado, e a caixa não volta sozinha.
+  recomposto **não** arma o PULAR do boot (só devolve o painel). E num boot em AP, que nunca
+  termina, o `screen boot <i>` já troca a caixa com o nome da rede e a chave pelo terminal recomposto, e a
+  volta (um toque, 30 s, outra tag, `screen boot end`) termina em `endBoot()` e na tela inicial; o
+  `screen boot end` também a tira, sem replay antes. O rádio segue ligado, e a caixa não volta sozinha.
 - **`/api/screenshot` responde 503 nos 5 s após um toque**, inclusive para
   a sessão web que injetou o toque (medido em 19/09: 503 até ~3 s depois; a
   exceção vale só para o fluxo do espelho, `/api/screen_stream`). Capture

@@ -24,7 +24,8 @@
  *   - a run of setApProgress( ) (the held gesture calls it every 50 ms, some 60 times in its 3 s) is the last value.
  * A call that is neither folds into nothing, even a second `set` of the same key: each shifts the window.
  *
- * HOW MUCH. BOOT_REC_CAP records of sizeof(Rec) = 46 bytes: 1,840 B in .bss of the two test images. The longest boot that
+ * HOW MUCH. BOOT_REC_CAP records of sizeof(Rec) = 46 bytes, 1,840 B, and the counters and flags after them (6 B): 1,846 B of .bss
+ * in each of the two test images (nm, 2026-11-06), and the image's RAM grows 1,848 B by PlatformIO's count. The longest boot that
  * goes straight on (the gesture started and let go, an update just installed, a legacy history purged, a time-sync
  * correction, the router wait ending in a timeout) makes 29 records, counted on 2026-11-06 in AppManager_Boot.cpp
  * (test_bootrec_the_longest_straight_boot_fits_with_room_to_spare), and each flap of the link adds up to four. 40 leaves
@@ -35,7 +36,7 @@
  * command, a web reboot, an update) are not the boot and are not kept.
  *
  * ALL ZERO ON PURPOSE. The recorder is a static, and `closed` and not `open` is the flag so that its initial state is
- * all zero bytes: a `true` default would move its 1,840 B from .bss to .data, and .data is stored in the flash image.
+ * all zero bytes: a `true` default would move its 1,846 B from .bss to .data, and .data is stored in the flash image.
  *
  * THE SINK. play( ) drives whatever has: reset( ) (an empty window: five empty lines, no skip, no bar, booting, as the
  * constructor leaves it), the six calls under their operation names (setRaw, replaceRaw, setKey, replaceKey, progress,

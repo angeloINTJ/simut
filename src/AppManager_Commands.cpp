@@ -1521,7 +1521,9 @@ void AppManager::executeCommand(CliDemand cmd) {
  if (strncmp(n, "ota", 3) != 0) _displayMgr->showOta(OTA_PH_NONE);
 #if SIMUT_BOOT_TAGS
  /* So does a boot terminal that `screen boot` put up (2026-11-06): isBooting stays true under it, and the touch chain answers the terminal and not the
-  * screen another tag opens, so the panel would be dead to touch. Only a terminal a tag put up: a boot into the AP keeps its own, as it always did.
+  * screen another tag opens, so the panel would be dead to touch. Only a terminal a tag put up: another tag leaves a boot into the AP's own box (the
+  * network and its key) alone, as it always did. Once `screen boot <i>` has replaced that box with a recomposed terminal, the ways back (a touch, 30 s,
+  * another tag, `boot end`) end in endBoot( ) and the dashboard, and the box is gone: the radio stays up and the box does not come back by itself.
   * Behind the switch and not an empty inline: with the strcmp( ) left in the Air's handler its firmware.bin was not the base's (the sha256 of the
   * second from-scratch build said so, 8911dc7f against 8a8194b1; the size was the same, the 4 KiB alignment absorbing it). */
  if (strcmp(n, "boot") != 0) _displayMgr->bootReplayEnd( );
