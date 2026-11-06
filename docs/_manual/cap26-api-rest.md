@@ -353,7 +353,7 @@ Parte das rotas distingue "sem sessão" (`401`) de "sessão sem a permissão" (`
 
 | Respondem 401 sem sessão | Respondem 403 também sem sessão |
 |---|---|
-| `/api/status`, `/api/perms`, `/api/config`, `/api/network`, `/api/wifi/scan`, `/api/users`, `/api/themes`, `/api/alarms`, `/api/sec_status`, `/api/action`, `/api/commit_all`, `/api/set_time`, `/api/screen_stream`, `/api/touch`, `/api/keypad`, `/metrics` | Todas as outras rotas protegidas: histórico, log de eventos, arquivos, calibração, sensores, backup, restauração, atualização, TLS, captura de tela, `save_sys`, `reset_touch_cal`, `history_rebind`, `clear_logs`, `force_chpass` |
+| `/api/status`, `/api/perms`, `/api/config`, `/api/network`, `/api/wifi/scan`, `/api/users`, `/api/themes`, `/api/alarms`, `/api/sec_status`, `/api/action`, `/api/commit_all`, `/api/set_time`, `/api/screen_stream`, `/api/touch`, `/api/keypad`, `/api/lcd`, `/metrics` | Todas as outras rotas protegidas: histórico, log de eventos, arquivos, calibração, sensores, backup, restauração, atualização, TLS, captura de tela, `save_sys`, `reset_touch_cal`, `history_rebind`, `clear_logs`, `force_chpass` |
 
 Receita para um cliente:
 
@@ -536,8 +536,9 @@ As três operações de `/api/restore` são uma única rota com o parâmetro `op
 | POST | `/api/touch` | [PERM_SYS_CONFIG]{.perm} | Um toque no painel, ou um toque longo com `ms` |
 | GET | `/api/keypad` | [PERM_SYS_CONFIG]{.perm} | As faces do teclado de PIN na tela |
 | GET | `/api/ui` | [PERM_SYS_CONFIG]{.perm} | Só nas imagens com o painel Ângulo (Pico 2 W): o quadro que está na tela, em JSON, com os alvos de toque |
+| GET | `/api/lcd` | [PERM_SYS_CONFIG]{.perm} | Só nas imagens com o LCD do alpha (alpha e Wire): o que o LCD 16x2 mostra agora, em JSON |
 
-São 62 rotas: 52 exigem uma permissão ou uma sessão, e 10 são públicas por projeto. O repositório confere essa lista a cada mudança, e nenhuma rota fica sem portão ([capítulo 29](#cap-29-abuso)). A conta não inclui `GET /api/ui`: só as imagens com o painel Ângulo a registram, e o repositório a confere à parte, também com portão.
+São 62 rotas: 52 exigem uma permissão ou uma sessão, e 10 são públicas por projeto. O repositório confere essa lista a cada mudança, e nenhuma rota fica sem portão ([capítulo 29](#cap-29-abuso)). A conta não inclui `GET /api/ui` nem `GET /api/lcd`: só as imagens com o painel Ângulo registram a primeira, e só as imagens com o LCD do alpha, a segunda; o repositório confere as duas, também com portão.
 
 ## Receitas {#cap-26-receitas}
 
@@ -1356,6 +1357,35 @@ O Ângulo desenha as teclas em outro lugar, e a geometria do original as erraria
 ```
 
 Um cliente que toca o teclado lê `targets` quando o campo existe, e `grid` quando não existe.
+
+### O LCD do alpha {#cap-26-lcd}
+
+[alpha]{.img}
+
+`GET /api/lcd` existe só nas imagens com o LCD 16x2 do alpha: o alpha e o Wire com LCD, a *feature* web `lcd`. Nas outras imagens a rota não é registrada e responde como qualquer caminho desconhecido ([Convenções](#cap-26-convencoes)). Ela exige **Sistema** [PERM_SYS_CONFIG]{.perm}, a mesma permissão da captura de tela: o vidro da página 3 da rede de configuração mostra a chave do AP, e quem lê o LCD lê a chave. A interface web a usa na caixa *Tela* do dashboard.
+
+O LCD não tem pixels para ler de volta, então o driver guarda uma sombra do que escreveu, e a rota entrega uma cópia dela, de uma vez só, com `Cache-Control: no-store`. A resposta tem a forma `{"linhas":[linha 0,linha 1],"cgram":[oito glifos],"seq":N,"age_ms":M}`:
+
+| Campo | Forma | O que é |
+|---|---|---|
+| `linhas` | duas cadeias de 32 dígitos hexadecimais, em minúsculas | As duas linhas da tela: os 16 códigos de caractere de cada uma, dois dígitos por código. Os códigos de 00 a 07 são os glifos de `cgram`; os demais são os da tabela de caracteres do LCD (a ROM A00 do HD44780U) |
+| `cgram` | oito cadeias de 16 dígitos hexadecimais | Os oito glifos que o programa definiu, cada um com 8 linhas de pontos, dois dígitos por linha |
+| `seq` | número inteiro | A contagem da sombra: muda quando o driver grava um quadro novo, e um `seq` igual ao da leitura anterior é o mesmo quadro |
+| `age_ms` | número inteiro | A idade do quadro, em milissegundos: o instante da resposta menos o instante em que o driver gravou o quadro |
+
+```bash
+curl -s -b jar "$H/api/lcd"
+```
+
+| Resposta | Quando |
+|---|---|
+| `200` | O quadro, como acima |
+| `401` | Sem sessão |
+| `403` | Sessão sem [PERM_SYS_CONFIG]{.perm}; o corpo é `{"error":"Forbidden"}` (conferido numa `pico_w_alpha` em 05/11/2026, com uma conta sem o bit) |
+| `503` | Com `Retry-After: 1`: ainda não houve quadro (`{"error":"No frame on the LCD yet."}`, logo depois do boot) ou a sombra ficou em atualização durante toda a espera da leitura (`{"error":"LCD busy. Retry shortly."}`). Tente de novo |
+| `500` | `{"error":"No LCD on this device."}`, se a imagem tem a rota e o aparelho não tem o LCD, o que não deve acontecer |
+
+A leitura é uma cópia na RAM: não usa o SPI, não pausa o Core 1 e não aloca memória própria. O driver publica um quadro novo a cada cerca de 500 ms. Numa `pico_w_alpha` no Wi-Fi, em 600 s de leituras (05/11/2026), as 2.244 respostas deram 200, com 14,5 ms na mediana, 1.130 quadros distintos e `age_ms` de 250,5 na mediana e 505 no máximo; uma resposta levou 4.498 ms, e a causa não foi medida.
 
 ## Um cliente em Python {#cap-26-python}
 

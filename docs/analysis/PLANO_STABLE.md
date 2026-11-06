@@ -1,8 +1,8 @@
 # De beta a stable — o que precisa ser verdade, e como isso se prova
 
-**Estado:** v2.6.1-beta é a Latest (21/09/2026, `main` `19ca65a`).
-**Este documento é Living.** Cada linha da matriz vira **feito** com a data e o
-número, ou continua aberta. Nenhuma vira **feito** por argumento.
+**Estado:** escrito quando a v2.6.1-beta era a Latest (21/09/2026, `main` `19ca65a`); a Latest de hoje está no `CHANGELOG.md` e nas releases do GitHub, e só a §3.1, a tabela da folga do OTA, é mantida em dia (o resto é história).
+**Living só na §3.1.** Quando o documento era vivo inteiro, cada linha da matriz virava **feito** com a data e o
+número, ou continuava aberta; nenhuma virava **feito** por argumento.
 
 ---
 

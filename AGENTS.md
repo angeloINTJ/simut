@@ -29,30 +29,22 @@ byte a byte à imagem do Wire com painel com que chegou (web pelo cabo, em
 00:47 a 03:32), quando o mantenedor trocou as placas: o Pico 2 W saiu do USB e o
 Pico W ficou em 3-3.1, na imagem com que chegou (a flash devolvida byte a byte),
 com a mão em 3-3.2 e o carregador em alta impedância (o registro da sessão 2 do
-portão, ao fim dela, 31/10/2026 03:32). O alvo Pico 2 W, fora do USB, está em
-`192.168.3.33`, com a web na porta 8080, pelo Wi-Fi.
+portão, ao fim dela, 31/10/2026 03:32). No portão da v2.14.0 (05/11/2026) as duas placas passaram pelo USB, uma de cada vez: o Pico W de 17:44 a 19:58 (primeiro com o módulo 16x2, para a alpha, e depois com o TFT, que o mantenedor trocou) e o Pico 2 W de 20:12 (quando ele trocou as placas) a 21:33 (o registro das duas sessões). O Pico W terminou na imagem do Wire com o TFT com que a bancada o tinha (`LCD_W_a.bin`, a flash devolvida byte a byte) e estava fora do USB quando a sessão do Pico 2 W começou (20:12); o alvo Pico 2 W, na USB desde então, está em `192.168.3.33`, com a web na porta 8080, pelo Wi-Fi.
 
-**Em 31/10/2026 o Pico 2 W roda a candidata da v2.13.0 que o CI assinou na
-`main` (`ae87f6d6`, slot B), por escolha do mantenedor, e não a imagem Ângulo de
-desenvolvimento do ramo `feat/ui-drivers` com que o portão começou.** O `GET
-/api/ui` sem sessão dá 401 nela (a candidata desenha o Ângulo) e 302 numa imagem
-com o painel original, como a v2.12.0. O portão da v2.13.0 gravou o `.uf2` de
-fábrica da v2.12.0 e a candidata por cima e não devolveu a imagem Ângulo de
-29/10/2026, então o dump de chegada daquela imagem não descreve mais a flash do
-alvo. Quem gravar o alvo de novo guarda a flash inteira antes, em duas leituras
+**Em 05/11/2026 o Pico 2 W roda a candidata da v2.14.0 que o CI assinou na `main` (`59c72d29`, slot B), por escolha do mantenedor ("Fica na candidata"), e não a imagem com que chegou.** O `GET /api/ui` sem sessão dá 401 nela (a candidata desenha o Ângulo) e 404 numa imagem com o painel original desta versão (302 na v2.13.0 e antes: pelo registro do #318, o redirecionamento de "não encontrado" que ele removeu; o portão leu o código, não o `Location`). O portão da v2.14.0 gravou o `.uf2` de fábrica da v2.13.0 e a candidata por cima e não devolveu a imagem de chegada, então o dump de chegada dela (`2aef2203`, duas leituras iguais) não descreve mais a flash do alvo. Quem gravar o alvo de novo guarda a flash inteira antes, em duas leituras
 iguais, e a devolve no fim (o item sobre a flash inteira, em *O Pico 2 W*, mais
 abaixo).
 
 **Identifique as portas pelo serial, nunca pela ordem de enumeração** (lidos do
 udev em 22/10/2026; o alvo em 3-3.1 e a mão em 3-3.2, conferidos de novo em
 29/10/2026; ao fim do portão da v2.13.0, em 31/10/2026, o registro da bancada
-tem o Pico W em 3-3.1 e a mão em 3-3.2):
+tem o Pico W em 3-3.1 e a mão em 3-3.2; no portão da v2.14.0, em 05/11/2026, o registro tem o Pico W (17:47) e depois o Pico 2 W (20:12), cada um na sua vez, em 3-11, e a mão em 3-3.2):
 
 | Placa | USB | Porta | Serial (udev) |
 |---|---|---|---|
-| Alvo SIMUT (Pico 2 W), fora do USB desde 31/10/2026 | `2e8a:f00f`, `ID_MODEL=Pico_2W` | 3-3.1 até 30/10/2026 | `ID_SERIAL_SHORT=6A73539D612923CA` |
+| Alvo SIMUT (Pico 2 W), no USB desde 05/11/2026 (20:12) | `2e8a:f00f`, `ID_MODEL=Pico_2W` | 3-3.1 até 30/10/2026; 3-11 em 05/11/2026 | `ID_SERIAL_SHORT=6A73539D612923CA` |
 | PicoHand (mão), num Pico comum | `2e8a:000a`, `ID_MODEL=Pico` | 3-3.2 | `ID_SERIAL_SHORT=E660C062131E3E27` |
-| O Pico W do Wire, no USB desde 31/10/2026 | `2e8a:000a`, `ID_MODEL=Pico` com a imagem do Wire (`2e8a:f00a`, `ID_MODEL=Pico_W` com um firmware SIMUT) | 3-3.1 | `ID_SERIAL_SHORT=E6642815E34C1824` |
+| O Pico W do Wire, fora do USB desde 05/11/2026 (20:12) | `2e8a:000a`, `ID_MODEL=Pico` com a imagem do Wire (`2e8a:f00a`, `ID_MODEL=Pico_W` com um firmware SIMUT) | 3-3.1 em 31/10/2026; 3-11 em 05/11/2026 | `ID_SERIAL_SHORT=E6642815E34C1824` |
 
 Compare o `ID_MODEL` pela linha inteira: `Pico` é o começo de `Pico_2W`, e uma
 comparação por prefixo chama o alvo de mão (o manual da mão, §2). O Pico W com a
@@ -92,7 +84,7 @@ números daquele soak não dizem nada sobre o fio. No portão da v2.13.0 (30/10 
 31/10/2026) o fio ficou no RUN nas duas placas (o terra comum consta só do
 registro da sessão 1): o soak de 30 min do Pico 2 W (118 leituras) e o do Pico W
 (120 amostras) terminaram sem reinício, e no Pico 2 W a mão deu o RESET do passo
-do envio cortado, de que a placa voltou no mesmo slot. Os dois dias de 04 e
+do envio cortado, de que a placa voltou no mesmo slot. No portão da v2.14.0 (05/11/2026) o fio ficou no RUN de novo nas duas placas: o soak de 30 min do Pico W (120 amostras) e o do Pico 2 W (120 leituras) terminaram sem reinício, e no Pico 2 W a mão deu o RESET do passo do envio cortado (C1cut), de que a placa voltou no mesmo slot (o registro das duas sessões). Os dois dias de 04 e
 05/10, o
 diagnóstico que pegou o pino RUN (`HAD_RUN`) e os números do portão estão nas
 seções *A bancada* do `CHANGELOG.md` (v2.11.0, v2.11.1 e v2.12.0). Se os
@@ -581,7 +573,7 @@ Antes de publicar, no rig, com os números no PR:
      a placa tem de ficar no B), copie, e o slot lido depois tem de ser o A. Em
      30/10/2026 (portão da v2.13.0) foi essa a ordem: a atualização da candidata
      sobre ela mesma duas vezes (de B para A e de A para B), o controle (a placa
-     ficou no B) e a cópia (a placa subiu no A).
+     ficou no B) e a cópia (a placa subiu no A). Em 05/11/2026 (portão da v2.14.0) foi a mesma ordem: a candidata sobre ela mesma duas vezes (de B para A e de A para B), o controle (a placa ficou no B) e a cópia (a placa subiu no A).
 
    O passo 3 não se aplica do mesmo jeito: no Pico 2 W a imagem vai para o slot
    inativo, e o LittleFS fica intocado.

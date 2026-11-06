@@ -8,10 +8,10 @@ Todas as mudanças notáveis do firmware SIMUT.
 
 **O painel do alpha e do SIMUT Wire com um LCD 16x2 pode mostrar o LCD: uma caixa, *Tela* (*Display Capture* em inglês), desenha o vidro ponto a ponto, uma vez no Capturar e até quatro vezes por segundo no Ao vivo, a partir do `GET /api/lcd` (#320). Por trás dela está o print virtual (#319), o LCD do alpha desenhado no computador a partir do código do próprio firmware, que faz as 17 figuras de LCD do manual e que a página repete pixel a pixel. Os caracteres são da Hitachi (Tabela 4 do datasheet do HD44780U): o `pico_w_alpha` publicado passa a trazer a ROM A00, reproduzida sem a aprovação escrita que a Advertência 6 pede, por decisão do mantenedor de 04/11/2026. A versão traz ainda treze correções pequenas, achadas lendo o código e pelas notas da bancada (#318), e três mudanças que fecham itens da lista *Conhecido* da v2.13.0: o Salvar dos limites de alarme do painel (F3, #307), a prévia do alinhamento da tela que sobrevivia à saída da tela (#308) e o `GET /api/keypad` no Ângulo (F4, #311). O resto é uma mudança de lugar de nomes entre dois cabeçalhos, que não muda nenhuma imagem (#312), testes, ferramentas, a ação de atestado e documentos.**
 
-A `CONFIG_VERSION` continua em 26 e o nível de segurança em 1. `keys/` e `src/ota/ota_layout.h` são os arquivos da v2.13.0 (`git diff v2.13.0 HEAD -- keys src/ota/ota_layout.h` está vazio, 05/11/2026), então a v2.13.0 verifica a assinatura desta release e o caminho de volta está aberto pelos arquivos; o portão ainda não rodou esse vai e volta numa placa (*A bancada*). Os treze pull requests mesclados desde a v2.13.0 estão cada um na seção a que pertencem (#307, #308, #311 e #312 primeiro, depois #318, #319 e #320) ou em *Por dentro* (#309, #310, #313, #315, #316 e #317).
+A `CONFIG_VERSION` continua em 26 e o nível de segurança em 1. `keys/` e `src/ota/ota_layout.h` são os arquivos da v2.13.0 (`git diff v2.13.0 HEAD -- keys src/ota/ota_layout.h` está vazio, 05/11/2026), então a v2.13.0 verifica a assinatura desta release e o caminho de volta está aberto pelos arquivos; o portão rodou esse vai e volta nas duas placas (*A bancada*). Os treze pull requests mesclados desde a v2.13.0 estão cada um na seção a que pertencem (#307, #308, #311 e #312 primeiro, depois #318, #319 e #320) ou em *Por dentro* (#309, #310, #313, #315, #316 e #317).
 
 **O Salvar do editor de limites de alarme do painel passa a salvar os limites que estavam na tela no toque, e não o que o editor guarda quando o Core 0 chega ao evento. Isto fecha o F3 da lista *Conhecido* da v2.13.0. Uma prévia do alinhamento da tela que não foi salva não sobrevive mais à saída da tela, no painel original e no Ângulo: por onde quer que a tela seja deixada, menos durante uma atualização do firmware, o Core 1 devolve o deslocamento gravado
-e redesenha, e a entrada seguinte parte dele. As duas correções foram encontradas lendo o código, e as duas foram conferidas na bancada em 31/10/2026, no Pico W (o painel original) e no Pico 2 W (o Ângulo). Uma terceira mudança, conferida no Pico 2 W em 31/10/2026, fecha o F4: no Ângulo, o `GET /api/keypad` deixa de descrever o teclado do painel original. Ele manda as faces, o estado e a política, e nomeia a rota que lista as teclas do Ângulo; as duas imagens do Ângulo ficam 208 e 216 B menores e as outras nove são, byte a byte, o que eram. Uma quarta mudança, a de treze nomes entre dois cabeçalhos do teclado do painel original, não muda nenhuma imagem: as onze têm o mesmo sha256 da `main`. Uma última mudança desenha o LCD 16x2 do alpha no computador, a partir do código do próprio firmware: as 17 figuras de LCD do manual são feitas assim, e uma conferência no CI as desenha de novo. Em 04/11/2026 o mantenedor viu o módulo de um Pico W (o build de cabo) mostrar o que o computador havia desenhado para o mesmo estado; o build de rádio não foi visto num módulo. As duas imagens com esse LCD crescem 24 B (`pico_w_alpha`) e 32 B (`pico_wire`) de `used`; as outras nove são, byte a byte, o que eram.**
+e redesenha, e a entrada seguinte parte dele. As duas correções foram encontradas lendo o código, e as duas foram conferidas na bancada em 31/10/2026, no Pico W (o painel original) e no Pico 2 W (o Ângulo). Uma terceira mudança, conferida no Pico 2 W em 31/10/2026, fecha o F4: no Ângulo, o `GET /api/keypad` deixa de descrever o teclado do painel original. Ele manda as faces, o estado e a política, e nomeia a rota que lista as teclas do Ângulo; as duas imagens do Ângulo ficam 208 e 216 B menores e as outras nove são, byte a byte, o que eram. Uma quarta mudança, a de treze nomes entre dois cabeçalhos do teclado do painel original, não muda nenhuma imagem: as onze têm o mesmo sha256 da `main`. Uma última mudança desenha o LCD 16x2 do alpha no computador, a partir do código do próprio firmware: as 17 figuras de LCD do manual são feitas assim, e uma conferência no CI as desenha de novo. Em 04/11/2026 o mantenedor viu o módulo de um Pico W (o build de cabo) mostrar o que o computador havia desenhado para o mesmo estado; o build de rádio não foi comparado com o desenho do computador, e no portão (05/11/2026) o mantenedor comparou a visualização ao vivo da `pico_w_alpha` publicada com o módulo dela (*A bancada*). As duas imagens com esse LCD crescem 24 B (`pico_w_alpha`) e 32 B (`pico_wire`) de `used`; as outras nove são, byte a byte, o que eram.**
 
 **Treze correções pequenas, achadas lendo o código e pelas notas da bancada desde 13/10/2026. A bancada de 04/11/2026 as rodou no Pico 2 W e no Pico W (como release, como Air e como SIMUT Wire), cada uma contra a v2.13.0 ou a imagem da `main`: onze falharam antes e passaram depois na placa, a linha da tela Licença foi conferida nos bytes da imagem e não no vidro, e a tela de boot durante o gesto do AP de configuração não pôde ser conferida, porque essa tela não é desenhada em nenhuma das duas imagens. Na página web, as marcas das regras de senha mostravam `¹3` e `¹5` no lugar do visto e do xis, e o dashboard escrevia `ºC` em vez de `°C`. No painel original, um toque no botão de gráfico do cartão de baixo podia desligar o mín/máx, a tela Licença terminava numa frase de efeito que não é a licença, a tela de boot apagava a tela inteira a cada passo do gesto de segurar para abrir o AP de configuração, e o terminal de boot desenhava todo acento de uma linha traduzida como `?`. No Ângulo, o anel de boot codificava um sufixo UTF-8 pela segunda vez, e o "Estação_SETUP" do AP de configuração aparecia como "EstaÃ§Ã£o_SETUP". O endereço do AP de configuração deixava a porta web de fora em quatro lugares, e um caminho desconhecido numa porta diferente redirecionava para a porta 80. No console, `system history_interval abc` falava do lote mínimo. No alpha, o nome e o código de um pacote de idioma chegavam à página do jeito que estavam no arquivo. No Air, o `air stop` num despertar de telemetria deixava o servidor web desligado, e o `ap` durante o ciclo de hibernação abria um ponto de acesso que não servia nada e agora é recusado. Cada correção é uma seção abaixo, com o que estava errado, o que mudou e como foi provado; os tamanhos ficam no fim.**
 
@@ -182,7 +182,7 @@ A folga sob o teto da atualização pelo ar só se move nas imagens do Ângulo: 
 - **O que estava errado.** O tratador de "não encontrado" de uma imagem com rádio manda a requisição que não nomeava este aparelho para o `/network` do portal cativo. Ele comparava o cabeçalho `Host` com o IP nu, e o navegador põe a porta nesse cabeçalho sempre que ela não é a do protocolo, então, em qualquer porta que não a 80, o endereço do próprio aparelho nunca casava; o redirecionamento então perdia a porta. Na bancada (14/10/2026, release 2.11.1 em `:8080`) o `GET /nao-existe` respondeu `302` com `Location: http://192.168.3.24/network`, um endereço que recusava a conexão, e a mesma requisição com `Host: 192.168.3.24` respondeu o 404 que o manual promete.
 - **O que mudou.** O host é comparado sem a porta (`webHostLen( )`, que deixa inteiro um literal IPv6 entre colchetes) e o `Location` nomeia a porta e o protocolo pelo `webAddress( )`, a partir da mesma porta que as linhas do AP usam. Com a porta padrão o redirecionamento lê como antes. Um nome `.local` com porta também é reconhecido agora.
 - **A prova.** O `native_network` vai de 53 a 54: o `test_a_host_header_is_compared_without_its_port` não compila no commit pai, e duas mutações (sem tirar a porta, sem a guarda dos colchetes) o fazem falhar, cada uma. O tratador em si não compila no host, então a comparação e o `Location` dele ficam para a bancada. As imagens com fio, que não compilam a metade do portal cativo, ficam byte a byte iguais.
-- **Na bancada (04/11/2026).** Em `:8080`, no Pico 2 W e no Pico W: `GET /nao-existe` com o endereço e a porta do próprio aparelho no `Host` respondeu `302` para `http://<endereço>/network` na v2.13.0 e na imagem da `main`, e `404` na do ramo; com um `Host` de fora, o redirecionamento não nomeava porta antes e nomeia `:8080` depois.
+- **Na bancada (04/11/2026).** Em `:8080`, no Pico 2 W e no Pico W: `GET /nao-existe` com o endereço e a porta do próprio aparelho no `Host` respondeu `302` para `http://<endereço>/network` na v2.13.0 e na imagem da `main`, e `404` na do ramo; com um `Host` de fora, o redirecionamento não nomeava porta antes e nomeia `:8080` depois. No portão (05/11/2026) a mesma correção apareceu por outra rota: o `GET /api/ui` sem sessão no painel original compilado em `59c72d29` respondeu 404, onde o original da v2.13.0 respondia 302 (*A bancada*).
 
 ### `system history_interval` com uma palavra
 
@@ -265,7 +265,7 @@ O `firmware.bin` como compilado varia o mesmo tanto que o `used` em todas as ima
   O `.bin` do alpha anda um degrau de 4 KB porque o enchimento do linker na frente do banco do Bluetooth absorve o resto. Os passos 1 a 3 (a sombra e a rota) são +1.088 B usados no alpha e +1.296 B no Wire; a caixa, a tabela e as correções da revisão são +4.096 B e +3.384 B. A imagem de OTA (o `.bin` e os 241 B da assinatura) tem 994.717 B no alpha, 45.667 B abaixo do teto, e 609.489 B no Wire, 430.895 B abaixo dele. Os orçamentos e a tabela da §3.1 do `PLANO_STABLE.md` dizem o mesmo.
 - **Na bancada (04/11/2026).** Um Pico W com um módulo 16x2 rodou o `pico_wire` da `d92b08a2`: a rota e a sombra, não a caixa (`firmware.bin` `51e6f51d`, 605.864 B). Às 22h37 um pedido sem sessão levou 401 e o do admin levou 200. Sessenta segundos a 4 Hz: 240 de 240 respostas 200, 12,9 ms a mediana e 14,2 ms a pior, um quadro novo a cada 500 ms (o `seq` andou de 2 em 2), `age_ms` no máximo 501, o heap plano. De 22h40 às 23h00, vinte minutos a 4 Hz: 4.797 de 4.797 respostas 200 e nenhum 503; 12,9 ms a mediana, 13,7 ms no percentil 95 e 288,3 ms a pior (um valor fora da curva, de causa não medida); 2.388 quadros diferentes; `age_ms` 250 a mediana e 505 o pior; `heap_free` entre 103.888 e 103.968 B e o maior bloco de pelo menos 93.105 B; o tempo ligado foi de 199 s a 1.390 s, sem reinício. Esses números fixam o período da página (250 ms, cerca de 5% de uma resposta de 13 ms) e o limite de desatualizado (2.000 ms, quatro renovações).
 - **Na bancada (05/11/2026).** A mesma placa rodou o `pico_wire` da `03d05e47`, a caixa com esta tabela (`firmware.bin` `ddb493bd`, 609.248 B), desde 00h12. Um script leu o que o aparelho serve, 19 conferências: 401 sem sessão e 200 com sessão, com `Cache-Control: no-store`; o dashboard traz a caixa do LCD e nada da do painel de toque; a `/license` não cita mais a fonte aberta; e o bloco de fonte que o aparelho serve é a `ROM_A00` dígito a dígito (1.344 dígitos, calculados do `rom_hd44780.py` e não lidos do `WebUI.h`; o bloco da imagem anterior difere dela em 92 de 96 glifos, o controle negativo da conferência). O mantenedor comparou a visão ao vivo no navegador dele com o módulo e a chamou de representação perfeita do display (00h21). Das 00h22 às 00h32, dez minutos a 4 Hz: 2.399 de 2.399 respostas 200 e nenhum 503; 12,6 ms a mediana, 13,4 ms no percentil 95 e 99,8 ms a pior; 1.191 quadros diferentes, um a cada 500 ms; `age_ms` 250 a mediana e 504 o pior; `heap_free` entre 103.856 e 103.888 B e o maior bloco de pelo menos 93.076 B; o tempo ligado foi de 594 s a 1.184 s, sem reinício.
-- **Não rodado numa placa.** O 403, e a `pico_w_alpha`: a bancada rodou só a imagem de cabo. A caixa também foi conferida no Chrome 156 sem janela contra um servidor local no lugar do aparelho (60 conferências com 1280 e 390 px de largura, a 1x e 3x: o canvas guarda exatamente a imagem de 639 x 137 que o `lcd.py` desenha com a tabela padrão, a caixa está acima dos cartões de estado, sem rolagem horizontal, Capturar, Ao vivo, Parar, ocupado e 403, e um `MutationObserver` vê a região viva intacta enquanto a idade é reescrita) e no mundo falso acima. Em 04/11/2026 o mantenedor viu na placa uma imagem anterior, cujos glifos eram de uma fonte aberta e não os do LCD de verdade, e pediu a tabela do LCD de verdade.
+- **No portão (05/11/2026), na `pico_w_alpha` publicada.** As conferências da página da caixa (19 de 19), o 403 (5 de 5) e um soak de 600 s da rota, 2.244 pedidos, todos 200, com uma resposta de 4.498 ms (*A bancada*); o mantenedor comparou a visão ao vivo com o 16x2: "Bate com o vidro". Antes do portão a bancada tinha rodado só o build de cabo. A caixa também foi conferida no Chrome 156 sem janela contra um servidor local no lugar do aparelho (60 conferências com 1280 e 390 px de largura, a 1x e 3x: o canvas guarda exatamente a imagem de 639 x 137 que o `lcd.py` desenha com a tabela padrão, a caixa está acima dos cartões de estado, sem rolagem horizontal, Capturar, Ao vivo, Parar, ocupado e 403, e um `MutationObserver` vê a região viva intacta enquanto a idade é reescrita) e no mundo falso acima. Em 04/11/2026 o mantenedor viu na placa uma imagem anterior, cujos glifos eram de uma fonte aberta e não os do LCD de verdade, e pediu a tabela do LCD de verdade.
 
 ### Por dentro
 
@@ -313,12 +313,138 @@ Folga sob o teto de 1.040.384 B do envio pelo ar: release 3.291 B (4.051 na v2.1
 
 ### A bancada
 
-O portão da release (`AGENTS.md` §2) ainda não rodou na candidata desta release. Esta seção é preenchida pela mudança de documentação do portão, a partir da candidata que o CI assina na `main`. Até lá, cada número acima nomeia o build e a data em que foi medido. O que rodou numa placa antes, em imagens de desenvolvimento (o Pico 2 W e o Pico W da bancada; cada registro fica fora do repositório, salvo onde uma seção acima traz os números):
+O portão da release (`AGENTS.md` §2) rodou na candidata que o CI assinou na `main` `59c72d29` (`release-ota.yml`,
+execução 42009702197, com a aprovação do mantenedor para o `sign`), nas duas placas, em 05/11/2026: o Pico W das 17h44
+às 19h58, o Pico 2 W das 20h12 às 21h33. O `ci_check.py` terminou em ALL GOOD: a parte de cada imagem é a do build
+local, as assinaturas conferem (`v` 0) no nível de segurança 1, a atualização do Pico 2 W vem marcada para teste, uma
+cópia com um byte trocado dá `v` 9, e a imagem assinada pela chave da bancada dá `v` 12. As ferramentas da própria
+bancada precisaram de consertos no dia, e o firmware de nenhum (entre eles o tipo do arquivo do dump e a conferência
+do BOOTSEL, a lista de famílias da conferência da licença e o campo de formulário do teste do 403, no Pico W, e a
+regra do `/api/ui` do painel original, no Pico 2 W, abaixo): cada uma falhou primeiro por um defeito da ferramenta,
+foi consertada, e o passo rodou de novo.
+
+**No Pico W,** a placa da bancada, com a web na porta 8080 e o fio do RESET da PicoHand no pino RUN. Começou com o
+módulo 16x2, rodando o `pico_wire` da `03d05e47`, e a flash dela foi despejada primeiro (duas leituras iguais,
+`ee6ead30`); o mantenedor trocou o módulo pelo TFT com o toque entre 18h21 e 18h25, com uma imagem release gravada e
+relida na placa e não iniciada. O receptor de telemetria foi o PC da bancada.
+- **O alpha, no 16x2** (17h55 às 18h02): a v2.13.0 publicada gravada por USB, depois a `pico_w_alpha` da candidata
+  pelo ar: os 530 valores de configuração iguais (0 diferem), iguais depois que o `.bkp` voltou, o `system.bin`
+  idêntico (6.806 B), o slot igual à parte da imagem (994.476 B) salvo o setor de 4 KiB do banco de flash do BTstack
+  (`0xef000`), e a candidata sobre ela mesma com os 530 iguais. O serial registra `Config changed: image CRC mismatch
+  over 994816 B, want 295a9591` depois de cada aplicação, a linha conhecida (ver *Conhecido*).
+- **A visão ao vivo na `pico_w_alpha` publicada** (18h05 às 18h17), a alpha no Wi-Fi: as conferências da caixa sobre o
+  que o aparelho serve passaram todas, 19 de 19 (o dashboard traz a caixa e não o espelho do painel de toque; o bloco
+  de fonte que ele serve é a `ROM_A00` dígito a dígito, 1.344 de 1.344; o `GET /api/lcd` com sessão responde 200 com
+  `Cache-Control: no-store` e o JSON acima, duas linhas de 32 dígitos hex, oito glifos de 16, `seq` e `age_ms`); o 403
+  passou, 5 de 5 (uma conta sem `PERM_SYS_CONFIG` recebeu 403 com `{"error":"Forbidden"}`, e a conta foi apagada e a
+  lista de usuários ficou igual à lida primeiro). Depois, um soak da rota, 600 s: 2.244 pedidos, todos 200 (0 de 503);
+  14,5 ms a mediana, 20,6 ms no percentil 95 e **uma resposta de 4.498 ms**, a pior, com a causa não medida (o Wire no
+  cabo, em 05/11/2026 das 00h22 às 00h32, teve 99,8 ms de pior); 1.130 quadros distintos; `age_ms` 250,5 a mediana e
+  505 o pior; `heap_free` de 78.996 a 79.076 B; o uptime subiu sem reinício. O mantenedor comparou a visão ao vivo com
+  o módulo (18h20): "Bate com o vidro".
+- **O início (S1)** (18h25 às 18h31), com o TFT: a semente (a imagem release da v2.12.0 com a configuração da bancada)
+  gravada de volta e relida, depois atualizada pelo ar para a v2.13.0 publicada: os 539 valores de configuração iguais
+  (0 diferem), o slot igual à imagem, o `system.bin` idêntico, e o `.bkp` de volta com 74 de 77 arquivos idênticos (o
+  histórico e o log mudam).
+- **A atualização a partir da v2.13.0,** na release (18h31 às 19h19): os 539 valores iguais (0 diferem) depois da
+  atualização e depois do `.bkp`, e o slot igual à parte da imagem; **a suíte web na candidata,** como a conta admin
+  da bancada: 67 aprovados, 0 falhas, 1 pulado; a candidata sobre ela mesma, conferindo a assinatura (`image verified,
+  1037093 B` no serial), os 539 iguais; **recusadas** com 422, a configuração igual depois do RESET da mão: uma imagem
+  sem assinatura (`v` 8), a imagem assinada do Air (7), a do Pico 2 W (6) e a candidata com um byte trocado (9); **um
+  envio cortado em 400 kB, depois um reset,** e o mesmo com o sistema de arquivos cheio entre o corte e o reset: os
+  539 iguais; **para baixo e para cima pelo ar:** a candidata para a v2.13.0 e de volta para a candidata, os 539
+  iguais a cada vez, e o primeiro envio de cada uma das três rodadas visto no receptor (18h51m20s, 19h01m51s e
+  19h12m21s).
+- **O Air** (530 valores): a v2.13.0 gravada por USB, depois a candidata pelo ar com os 530 iguais, o `.bkp` de volta
+  com os 530 iguais, o slot igual à imagem salvo o setor de 4 KiB do banco de flash do BTstack (`0xf9000`), e a
+  candidata sobre ela mesma com os 530 iguais.
+- **A parte C na release** (19h20 às 19h27): a candidata sobre a S1 de novo, os 539 iguais e a suíte web com 67
+  aprovados, 0 falhas, 1 pulado; o painel em `sys.clk_peri` 133 MHz e `tft_hz` 66,50 MHz; o mantenedor olhou o vidro
+  (19h27): "Vidro limpo, toque responde", e uma captura dele traz os dois slots desligados como cartões "Empty /
+  Inactive". Os controles negativos falharam primeiro, como devem (nenhum pacote ativo, uma linha de tema). Com os
+  onze arquivos `.thm` de fábrica e os dois pacotes enviados, o `/api/themes` listou nove linhas, o `simut_def` e
+  oito, e o pacote tinha chaves `thm_` para 8 dos 9 códigos, nenhuma para o `simut_def` (ver *Conhecido*; o mesmo que
+  no portão da v2.13.0).
+- **O teto dos arquivos de idioma:** a candidata carregou o pacote es-ES de 55.145 B (dentro dos 65.536 B dela), e o
+  `/license` respondeu 200 com 16.400 B. Os passos que mostram uma recusa não rodaram: o teto da v2.13.0, lido do
+  código-fonte dela na tag, é 65.536 B e os pacotes desta release (53.113 B e 55.145 B) estão abaixo dele, então a
+  v2.13.0 os carrega; isso é argumento do código-fonte, não de uma rodada no Pico W.
+- **30 minutos** (19h27 às 19h57) na candidata, com o fio do RESET no RUN: 120 amostras, nenhuma falha de HTTP, nenhum
+  reinício, 2.14.0 o tempo todo, heap livre de 54.700 a 54.828 B (54.932 a 55.068 B no portão da v2.13.0),
+  `heap_lb_min` 28.564 B, os três sensores com valor em todas as amostras. A última linha da telemetria foi "1 sent
+  [200]" e o receptor recebeu 7 pedidos (70 registros, 7 handshakes TLS ok, 0 falhas).
+- **A volta:** o `LCD_W_a.bin`, a imagem do Wire com o TFT que a placa tinha, gravado de volta e relido, byte a byte
+  (19h58). A placa termina nele.
+
+**No Pico 2 W,** a placa da bancada com três sensores, o fio do RESET da PicoHand no pino RUN, das 20h12 às 21h33.
+Chegou no Ângulo (`/api/ui` 401; a flash dela despejada primeiro, duas leituras iguais, `2aef2203`) e, por escolha do
+mantenedor ("Fica na candidata"), terminou na candidata. O `.uf2` de fábrica da v2.13.0 publicada (2.077.696 B) foi
+copiado para a unidade BOOTSEL dela (a web de pé 14 s depois da cópia, `/api/ui` 401) e o pacote em português da
+v2.13.0 (53.035 B) foi posto sozinho em `/lang`.
+- **A atualização, pelo ar:** a partir da v2.13.0 (`releasetwo`, slot A, 527 valores de configuração) a candidata foi
+  enviada em 17,6 s, a placa voltou 39,3 s depois, do slot B em teste, e foi confirmada aos 50,2 s. Todos os 527
+  valores iguais (0 diferem), e `/api/ui` 401.
+- **Recusadas,** a placa deixada como estava, sem reinício: a candidata com um byte trocado (422, `v` 9) e uma imagem
+  assinada pela chave da bancada (422, `v` 12).
+- **A candidata sobre ela mesma,** duas vezes: do slot B para o A em 55,2 s e do A para o B em 57,6 s, os 527 valores
+  iguais nas duas e `/api/ui` 401.
+- **O `.uf2` de fábrica da candidata,** copiado para a unidade BOOTSEL: subiu na 2.14.0 pelo slot A, fora de teste, os
+  527 valores iguais. Foi rodado na ordem que o desvio de 29/10/2026 ensinou: a placa estava no slot B; o BOOTSEL sem
+  gravar nada e um reboot a deixaram no B (2.14.0, fora de teste, `/api/ui` 401); a cópia (2.078.720 B, 20h22m30s às
+  20h22m43s) a levou então para o A.
+- **30 minutos** (20h23 às 20h53) sem reinício: 120 leituras, nenhum erro, os três sensores com valor em todas as
+  amostras, heap livre de 287.940 a 287.972 B (288.092 B logo depois do boot da v2.13.0, na mesma configuração). **A
+  suíte web na candidata,** como a conta admin da bancada: 67 aprovados, 0 falhas, 1 pulado.
+- **O C5, a retenção entre as duas imagens do Pico 2 W,** os 15 passos todos (C0 a C5, 20h54 às 21h14), cada um com 16
+  a 18 conferências, os 527 valores de configuração lidos em todo passo e nenhum diferente da referência. Os passos,
+  em ordem: a v2.13.0 pelo `.uf2` de fábrica (C0); a candidata pelo ar (C1a), o pacote dela de 53.113 B carregado
+  (C1b: 559 chaves, 18 de 18 chaves de tema da página resolvidas); um envio cortado e o RESET da mão, depois do qual a
+  placa ficou no mesmo slot (C1cut); o número de tema salvo 7 (C1x); para baixo até a v2.13.0 pelo ar, do B para o A,
+  com o número 7 mantido e o pacote de 53 KB carregado (C2); o número de tema 2 salvo de novo na v2.13.0 (C2x); para cima de novo, do A para o B (C3); as duas recusas
+  (G2: 422, `v` 9 e `v` 12, sem reinício); a candidata sobre ela mesma duas vezes (G3, G3b); o `.uf2` de fábrica da
+  candidata copiado do slot B (Gdrag, do B para o A, e G4); o painel original do mesmo commit (`pico2_w_original`,
+  compilado em `59c72d29`) pelo `.uf2` de fábrica dele (C4); e a candidata assinada pelo CI de volta pelo ar a partir
+  dessa imagem (C5, do A para o B), `/api/ui` 401. Nenhum quadro de fábrica no console nos dois blocos em que foi
+  capturado (85 linhas e 14), e 16 capturas do vidro, julgadas pela sessão por bloco contra a regra do F4
+  (`docs/analysis/UI_DRIVERS.md` seção 2.16): o Ângulo escuro com o destaque padrão, o destaque azul depois do número
+  7, a tela de recusa no G2 e, no painel original, o tema personalizado "contraste" (o número 2), como na v2.13.0.
+- **O painel original responde `GET /api/ui` sem sessão com 404, onde o original da v2.13.0 respondia 302** (C4, 21h08
+  às 21h11). A regra da bancada só aceitava 302, então o C4 falhou uma vez, só nessa conferência, e passou na segunda
+  rodada, com a regra agora em 302 até a 2.13.0 e 404 desde a 2.14.0; as outras 15 conferências do C4 passaram
+  (2.14.0, slot A, fora de teste, número de tema 2 mantido, os 527 valores, três linhas de tema, 559 chaves). O 302
+  era o redirecionamento de "não encontrado" que o #318 remove (*Um caminho desconhecido numa porta diferente*): o
+  `/api/ui` não é rota do painel original, então ali é um caminho desconhecido, e o 404 é essa correção vista de outra
+  rota (pelo registro do próprio #318, o mesmo 302 que virou 404 em `:8080`; o portão leu o código, não o `Location` do
+  redirecionamento antigo).
+- **A parte C no Pico 2 W** (21h14 às 21h31), na candidata: o SPI do painel em `sys.clk_peri` 150 MHz e `tft_hz` 37,50
+  MHz; o `/api/themes` listou as 18 escolhas do Ângulo e 18 de 18 chaves de tema da página resolveram; a caminhada do
+  toque passou 15 e falhou 0; a mediana da caminhada de pintura foi de uns 42 ms por tela, com o heap estável; a
+  caminhada de idiomas passou 66 e falhou 0 (pt-BR, es-ES e inglês, com quatro reinícios: os três idiomas e a volta); os nomes de tema na web
+  passaram 132 e falharam 0; **a caminhada completa do Ângulo passou 10 e falhou 0 na única rodada dela** (no portão
+  da v2.13.0 passou na terceira, e as duas primeiras pararam numa captura cortada); e a guarda segurou depois de cada
+  uma das cinco caminhadas (configuração e alarmes iguais ao retrato tirado antes, `cmp` com saída 0 nas cinco).
+- **A saída:** a palavra do mantenedor às 21h32, "Fica na candidata": a placa fica na candidata (slot B, o Ângulo,
+  pt-BR). A guarda no fim: configuração e alarmes iguais ao retrato da chegada, 993 registros novos, nenhum de
+  gravação nem de alarme, heap livre de 288.036 B, `heap_lb` 258.697 B.
+
+Não repetido no portão, e argumentado pelas rodadas anteriores e pelos bytes das imagens: as conferências do #307, do
+#308 e do #311 no Pico 2 W (31/10/2026) e das treze correções do #318 (04/11/2026), que rodaram em imagens de
+desenvolvimento, com a única rota que o C4 viu (acima); o barramento de 66,50 MHz do painel no alpha e no Air (lido só
+na imagem release do Pico W); e os nomes de evento do alpha (#286), lidos pela última vez numa placa no portão da
+v2.13.0 (31/10/2026).
+
+Antes do portão, em imagens de desenvolvimento (o Pico 2 W e o Pico W da bancada; cada registro fica fora do
+repositório, salvo onde uma seção acima traz os números):
 - 31/10/2026: o Salvar dos limites de alarme e o alinhamento da tela, no Pico W (o painel original) e no Pico 2 W (o Ângulo), na v2.13.0 e na `main` em `96f503aa` (#307, #308; o #309 e o #310 os registram); o `GET /api/keypad` no Pico 2 W, na candidata da v2.13.0 e na `main` em `2bead926` (#311, #313).
 - 04/11/2026: as treze correções pequenas (#318), no Pico 2 W e no Pico W como release, Air e SIMUT Wire, cada uma contra a imagem da v2.13.0 ou da `main`: onze falharam antes e passaram depois, a linha da tela Licença foi conferida nos bytes da imagem, e a tela do gesto do AP de configuração não pôde ser conferida. O print virtual (#319) e a rota da visão ao vivo (#320) num Pico W com módulo 16x2, como `pico_wire`: 4.797 de 4.797 respostas em 20 minutos a 4 Hz.
 - 05/11/2026: a caixa da visão ao vivo no mesmo módulo, como `pico_wire`: 19 conferências do que o aparelho serve, a comparação do mantenedor com o vidro e 2.399 de 2.399 respostas em dez minutos a 4 Hz.
 
-Não rodou numa placa: a conferência de retenção entre a v2.13.0 e esta release, nas duas placas, e o caminho de volta (rodam no portão, na candidata assinada pelo CI); o `pico_w_alpha` publicado com o print virtual e a visão ao vivo (a bancada rodou o build de cabo, `pico_wire`); o 403 do `GET /api/lcd`; o Aplicar da tela de alinhamento e as outras saídas dela (o comando `screen` do console, uma troca de tema, uma atualização com uma prévia no vidro); as telas do build de rádio, e as telas de boot, de rede e do AP de configuração, num módulo; a linha do endereço do AP no painel original e a página do AP do alpha; a tela do gesto do AP de configuração no boot (nunca desenhada, ver *Conhecido*). Visto só no computador: as 17 figuras de LCD do manual, e a caixa da visão ao vivo no Chrome 156 sem janela contra um servidor local de teste (60 conferências com 1280 e 390 px de largura).
+Não rodou numa placa: o Aplicar da tela de alinhamento e as outras saídas dela (o comando `screen` do console, uma
+troca de tema, uma atualização com uma prévia no vidro); as telas do build de rádio, e as telas de boot, de rede e do
+AP de configuração, num módulo; a linha do endereço do AP no painel original e a página do AP do alpha; a tela do
+gesto do AP de configuração no boot (nunca desenhada, ver *Conhecido*). Visto só no computador: as 17 figuras de LCD
+do manual, e a caixa da visão ao vivo no Chrome 156 sem janela contra um servidor local de teste (60 conferências com
+1280 e 390 px de largura).
 
 ### Atualizando
 
@@ -337,11 +463,11 @@ Não rodou numa placa: a conferência de retenção entre a v2.13.0 e esta relea
 - **A partir da v2.13.0, num Pico 2 W:** pelo ar, com o `.bin` desta release: a atualização vai para o outro slot,
   deixa o sistema de arquivos em paz e inicia em teste, como desde a v2.11.0. A placa continua no Ângulo, e o pacote
   em `/lang` fica: esta release muda só as duas chaves acima, que as páginas do Pico 2 W não usam. O número do tema
-  salvo é lido como na v2.13.0. A conferência de retenção entre as duas imagens ainda não rodou numa placa para esta
-  release (*A bancada*).
+  salvo é lido como na v2.13.0. A conferência de retenção entre as duas imagens rodou no Pico 2 W para esta
+  release (C5, 15 passos, 05/11/2026; *A bancada*).
 - **De volta à v2.13.0:** pelo ar com o `.bin` assinado dela (as duas têm o nível de segurança 1 e a série 1), ou por
-  USB. Um pacote desta release em `/lang` está abaixo do teto da v2.13.0, então a v2.13.0 o carrega. O caminho de
-  volta pelo ar ainda não rodou numa placa para esta release (*A bancada*).
+  USB. Um pacote desta release em `/lang` está abaixo do teto da v2.13.0, então a v2.13.0 o carrega (pelo código-fonte dela na tag; no Pico 2 W o caminho de volta deixou o pacote de 53 KB carregado). O caminho de
+  volta pelo ar rodou nas duas placas para esta release (*A bancada*).
 - **A partir de uma versão mais antiga, ou a primeira instalação de um Pico 2 W:** como na v2.11.0, na entrada dela,
   abaixo.
 - **Pacotes de idioma: envie só o do idioma do aparelho.** Com mais de um `language_*.lng` em `/lang`, o aparelho
@@ -398,7 +524,7 @@ Não rodou numa placa: a conferência de retenção entre a v2.13.0 e esta relea
   como uma captura de tela cortada e, uma vez, como a página web carregando sem o dicionário (os nomes dos temas em
   inglês daquela vez; deduzido do `ERR_CONTENT_LENGTH_MISMATCH` do navegador naquela carga, sem contador lido). É mais
   velha que esta release: a v2.12.0 faz o mesmo, e a correção do #247 está na candidata da v2.13.0, então não é a expulsão que ela
-  fechou.
+  fechou. Em 05/11/2026 a caminhada completa do Ângulo, que no portão da v2.13.0 parou duas vezes numa captura cortada, passou nas 10 conferências em sua única rodada na candidata desta release; uma rodada não diz nada sobre a taxa.
 - **`configure terminal` não exige `enable`**, embora a tabela de comandos do console diga que exige o modo
   privilegiado. Não abre nada, mas a tabela e o comportamento discordam.
 - **Com dois sensores de pressão, a linha de medições manda a pressão na chave do primeiro e com o valor do último**,
@@ -417,14 +543,14 @@ Não rodou numa placa: a conferência de retenção entre a v2.13.0 e esta relea
   v2.11.1 os gravou em cada um de três despertares e a candidata da v2.12.0 em cada um de onze (29/10/2026).
 - **A alpha e o Air gravam um erro depois de cada atualização:** `Config changed: image CRC mismatch over 990720 B, want
   4f5041ca` na alpha, `over 1035776 B, want 299abf18` no Air (`AppManager_Boot.cpp`; 29/10/2026, e o mesmo nos dois no
-  portão da v2.11.1, 05/10/2026). O slot é igual à imagem assinada exceto o setor de 4 KiB do banco de flash do BTstack,
+  portão da v2.11.1, 05/10/2026). Nesta release a linha diz `over 994816 B, want 295a9591` na alpha e `over 1035776 B, want f5887ace` no Air (05/11/2026, nas atualizações pelo ar do portão). O slot é igual à imagem assinada exceto o setor de 4 KiB do banco de flash do BTstack,
   que fica dentro da faixa que a conferência soma: a causa provável. A atualização instala e sobe, e a versão e a
   configuração são as novas; a imagem release grava `image verified` no lugar.
 - **Só oito dos onze temas de fábrica carregam, no painel original.** O `MAX_CUSTOM_THEMES` é 8
   (`src/ui/original/Themes.cpp`, desde a v1.0.0) e o diretório é lido em ordem, então com os onze `.thm` enviados o
   `ubuntu`, o `unimed_claro` e o `unimed_escuro`, os últimos nessa ordem, ficam de fora: o `GET /api/themes` lista nove
   linhas, o `simut_def` e oito, nas duas placas (29/10/2026, quando o Pico 2 W ainda rodava o painel original; de novo
-  na candidata da v2.13.0 do Pico W, 31/10/2026). Os pacotes trazem os onze nomes (#298); o R-R14 do
+  na candidata da v2.13.0 do Pico W, 31/10/2026, e na desta release, 05/11/2026). Os pacotes trazem os onze nomes (#298); o R-R14 do
   `docs/analysis/MODELO_DE_RECURSOS.md` tem o limite. O Ângulo não carrega arquivos `.thm`: num Pico 2 W com ele, o `GET
   /api/themes` lista as 18 escolhas dele.
 - **Nenhum pacote de idioma traz um nome para o tema embutido `simut_def`,** então, no painel original, a página web
