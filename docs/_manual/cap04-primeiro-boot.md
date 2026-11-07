@@ -239,7 +239,7 @@ O passo a passo completo, com a busca de sondas e a calibração, está no [cap�
 3. Digite `1234` e toque em **ENTRAR**.
 4. O painel abre a tela **Novo PIN**. Digite o PIN novo e toque em **ENTRAR**.
 
-::: {.figura #fig-04-novo-pin tipo="tft" arquivo="04-novo-pin.png" captura="release com configuração de fábrica; tela inicial → botão de configurações → admin → PIN 1234 → ENTRAR; tela Novo PIN aberta, antes de digitar"}
+::: {.figura #fig-04-novo-pin tipo="tft" arquivo="04-novo-pin.png" captura="menu > Alterar Senha, sessão admin (screen set e o item 5); tela Novo PIN aberta, antes de digitar; a troca obrigatória depois do PIN 1234 de fábrica desenha a mesma tela, e o modo forçado só muda o destino do SAIR"}
 A troca obrigatória do PIN de fábrica: a tela Novo PIN abre direto depois do 1234.
 :::
 

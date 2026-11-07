@@ -11,7 +11,7 @@ A página **Rede** (*Network*, rota `/network`) exige a permissão **Rede** [PER
 
 Como nas outras páginas de configuração, cada alteração fica preparada e só vale depois de gravada pelos botões da barra de topo ([capítulo 5](#cap-05)). Quase tudo nesta página exige reinício: com uma alteração da página **Rede** preparada, conte com **Salvar e reiniciar**.
 
-::: {.figura #fig-09-rede tipo="web" arquivo="09-rede.png" captura="rota /network; largura 1280; sessão admin; imagem release; conectado por DHCP à rede MinhaRede; DNS automático; porta 80; sem certificado HTTPS instalado"}
+::: {.figura #fig-09-rede tipo="web" arquivo="09-rede.png" captura="rota /network; largura 1280; sessão admin; imagem release; conectado por DHCP (o nome da rede da bancada trocado na página por MinhaRede); DNS automático; porta 80; sem certificado HTTPS instalado"}
 A página Rede: à esquerda, o estado da conexão; à direita, o formulário de configuração.
 :::
 
@@ -477,7 +477,7 @@ Um certificado autoassinado não foi emitido por uma autoridade que o navegador 
 
 O navegador lembra a exceção por um tempo, conforme o navegador. Para não ver mais o aviso, importe o `web_cert.pem` como certificado confiável no sistema operacional ou no navegador de cada computador que acessa o aparelho. Isso só funciona se o certificado tiver o IP e o nome no campo `subjectAltName`.
 
-::: {.figura #fig-09-aviso-certificado tipo="web" arquivo="09-aviso-certificado.png" captura="rota https://192.0.2.10/login; largura 1280; navegador Chrome sem a exceção aceita; certificado autoassinado recém-instalado; página de aviso do navegador"}
+::: {.figura #fig-09-aviso-certificado tipo="web" arquivo="09-aviso-certificado.png" captura="rota https://192.168.3.24/login (o IP da bancada; no texto, 192.0.2.10); janela do Chrome de 1280 × 805 no tema escuro, em português, com perfil novo e sem a exceção aceita; certificado autoassinado recém-instalado; página de aviso do navegador"}
 O aviso do navegador no primeiro acesso a um aparelho com certificado autoassinado.
 :::
 

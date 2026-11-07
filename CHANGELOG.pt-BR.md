@@ -6,6 +6,40 @@ Todas as mudanças notáveis do firmware SIMUT.
 
 ## Não lançado
 
+**O manual ganha 86 das 96 figuras que faltavam, e 38 refeitas, da bancada de 06/11/2026: 64 telas do painel TFT original, da `pico_w_test`, e 60 páginas web e caixas do navegador, da `pico_w_release`, as duas compiladas da main em 53261fee; as web, no tema escuro. Dez continuam pendentes. Nenhuma mudança no firmware.**
+
+### Como foram feitas
+
+- **O painel.** `GET /api/screenshot`, duas leituras iguais, ou o `/api/screen_stream` decodificado no computador (as faixas `SR1` de `src/ScreenRle.h`, com as contas do `mirDraw` da página): numa tela parada, o quadro decodificado e o BMP batem pixel a pixel, e o stream responde 0,22 s depois de um toque injetado, enquanto o screenshot recusa por 5 s. Toda captura é conferida pelas cores de texto e de acento do firmware. A chave do AP de configuração está pixelada em `04-painel-ap` e `11-boot-ap`.
+- **A web.** Playwright com o Chrome do sistema, em português, 1280 px de largura (390 px nas figuras de celular), página e navegador no tema escuro; a exceção é a `13-tema-claro`, cujo assunto é o tema claro. As caixas do próprio navegador (as confirmações, o aviso de certificado) foram feitas com o Chrome numa janela de uma tela X virtual, fotografada inteira (1280 × 805).
+- **O que foi gravado na placa.** Uma guarda de rotas abortou toda gravação de que uma figura não precisava. As que ela deixou passar, cada uma para a sua figura: o NTP desligado e religado (`05-data-hora`, `10-acerto-manual`, `06-calibracao-ntp`); o par do HTTPS pelo `tools/install_tls_cert.py`, e a retirada com `system https off confirm` (`09-servidor-web`, `09-aviso-certificado`, `13-aviso-sessao-segura`); a telemetria MQTT com a descoberta do Home Assistant para um broker de bancada (`23-evento-548`); três contas (capítulos 8 e 13); a restauração de um backup que a página acabara de baixar (`17-restaurar-etapa3`); e, por último, a atualização para a v2.14.0 assinada (`17-log-pos-ota`). No fim, a flash voltou à cópia com que a placa chegou, byte a byte.
+- **Histórico sintético.** `tools/gen_synth_history.py`, com os ids de canal da regra do firmware (slot × 8 + canal), para 1–5/11 e para 17–24/09 (um freezer no slot 4). Nada foi apagado do histórico da placa.
+- **Em que imagem.** Uma atualização acidental para a v2.14.0 oficial, durante a sessão, passou duas horas sem ser vista: o `/api/status` diz "2.14.0" nas duas imagens. O diff da interface web da v2.14.0 para a 53261fee mexe nas páginas Histórico, Rede e Alarmes e Sons, na linha da busca de sondas e no `applyLang( )`, que volta a rotular os selects personalizados. Com a main regravada pela USB, e cada página servida conferida byte a byte com o `src/WebUI_GZ.h`, toda figura dessas páginas e toda figura com um select traduzido foi refeita. As 35 figuras cujo trecho da página é igual nas duas imagens ficam como foram feitas na v2.14.0; `17-enviando` e `17-log-pos-ota` são da v2.14.0 assinada de propósito, porque a atualização só instala imagem assinada.
+
+### Legendas e texto
+
+- A `captura=` de 33 figuras diz o que a bancada fez, onde difere do que pedia, e por quê: por exemplo, os valores da bancada no lugar dos de fábrica, cinco dias sintéticos no lugar de vinte, o bloqueio de 4 s da segunda senha errada (os 2 s da primeira acabam antes de uma captura), a `17-enviando` feita com o envio segurado no navegador e cancelado, sem gravar nada.
+- Capítulos 7 e 11: o painel original pisca o alarme de limite em amarelo (`alarmBg` 255,230,0, `Themes.cpp`), não em vermelho; o vermelho é o da Ângulo. Capítulo 7: o painel original mostra os nomes das melodias em inglês; os nomes da tabela são os da Ângulo e da web.
+- Capítulo 23, passo 8: a tabela de eventos não mostra o número do evento, e o filtro procura no texto da linha; "procure o evento 548" virou "digite `TEL` no filtro". A legenda da figura dá o contexto 3, as três entidades da bancada.
+
+### Achado na bancada, sem mudança aqui
+
+- A busca de sondas aceita uma ROM toda em zeros (na bancada, o GP11, onde o INT do ENC28J60 segura a linha em nível baixo) e não listou o DHT22 do GP3, configurado no slot 1 e lendo. A `06-procurar` continua pendente.
+- A linha vermelha `#se_warn` do editor de slot fica escondida pelo `.sx-warn{display:none}`. A `06-editor-aviso` continua pendente.
+- Com o relógio provisório (NTP desligado, depois de um reinício), os campos Data e Hora abrem em 31/12/1969: o `/api/config` manda o `now_epoch` como `time(nullptr)`, e o relógio provisório fica à parte dele.
+- Os campos de data e hora do acerto manual entram nas alterações pendentes como `man_date` e `man_time`. Depois de **Aplicar Agora**, a barra de topo oferece **Salvar e reiniciar**, e um reinício perde o acerto manual com o NTP desligado.
+- Os avisos de etapa da atualização e da restauração ficam 3 s na tela (o padrão do `showToast( )`), enquanto o envio leva cerca de 36 s.
+- Na página Telemetria em português, o quadro de tags e o texto de exemplo "Leave empty to keep" estão em inglês, e o texto da linha de alarmes junta "principal.Pendentes:0".
+
+### Pendentes
+
+- `02-placa`, `03-bootsel`, `18-bootsel` e `19-montagem` (fotos); `11-web-ocupado` e `11-carregando` (o espelho é servido pelo mesmo Core 0 que segura a exportação ou a carga do gráfico, e responde depois que a tela mudou); `13-painel-de-controle-alpha` e `19-painel-controle` (as imagens alpha e Air); `06-editor-aviso` e `06-procurar` (acima).
+
+### Conferências
+
+- `tools/build_manual.py` e depois o passo das classes de linha (o pandoc 3.7 não escreve mais `class="odd"` e `"even"`): na 53261fee, os dois reproduzem o HTML commitado, menos a data de geração. Aqui, 245 figuras, 10 pendentes, e o `--check` passa.
+- Os portões do CI, rodados localmente neste ramo: 81 passos, 0 falhas (`--quick`, sem as suítes nativas, os sanitizadores e o fuzzer, que uma mudança de documentação não alcança).
+
 **Sete lugares onde a página web mostrava um texto no idioma errado, ou errado, achados nas capturas das figuras do manual da v2.14.0 (o Pico 2 W da bancada, em português, 06/11/2026): a caixa de exportação da página Histórico, o estado do enlace da página Rede, os nomes das melodias de Alarmes e Sons, o "GP255" da busca de sondas para um BME280 ou BMP280 e, de novo na página Histórico, o seletor Origem, os selos Máx e Mín acima do gráfico e a sobreposição e as linhas de progresso das cargas dela. Cada um tem uma conferência que falhava no código de antes da correção e passa depois dela. Nenhum foi conferido numa placa ainda; a conferência de cada um está abaixo.**
 
 ### A caixa de exportação da página Histórico

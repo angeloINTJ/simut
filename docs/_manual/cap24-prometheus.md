@@ -56,7 +56,7 @@ Crie uma conta só para o Prometheus, com a permissão **Painel** e nenhuma outr
 4. Saia da interface web.
 5. Grave a senha num arquivo legível só pelo Prometheus, por exemplo `/etc/prometheus/simut_senha`.
 
-::: {.figura #fig-24-conta-metricas tipo="web" arquivo="24-conta-metricas.png" captura="rota /users; largura 1280; sessão admin; formulário Adicionar com Nome metricas, só a caixa Painel marcada, PIN vazio; a conta aparece na tabela com Pendente: Novo, ainda não gravada"}
+::: {.figura #fig-24-conta-metricas tipo="web" arquivo="24-conta-metricas.png" captura="rota /users; largura 1280; sessão admin; conta preparada pelo formulário Adicionar (Nome metricas, só a caixa Painel marcada, PIN vazio), que se esvazia ao tocar em Criar; a conta aparece na tabela com Pendente: Novo, ainda não gravada"}
 A conta do Prometheus, com a permissão Painel e nenhuma outra.
 :::
 

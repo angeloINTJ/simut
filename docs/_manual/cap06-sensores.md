@@ -19,7 +19,7 @@ Tudo o que você muda nestas seções fica preparado na aba do navegador até vo
 
 ## A seção Hardware {#cap-06-hardware}
 
-::: {.figura #fig-06-hardware tipo="web" arquivo="06-hardware.png" captura="rota /config; largura 1280; sessão admin; imagem release; valores de fábrica; recorte da seção Hardware"}
+::: {.figura #fig-06-hardware tipo="web" arquivo="06-hardware.png" captura="rota /config; largura 1280; sessão admin; imagem release; valores da bancada, não os de fábrica (Amostra 1000 ms; de fábrica, 2000); recorte da seção Hardware"}
 A seção Hardware com os valores de fábrica: resolução de 12 bits, amostra de 2000 ms, histórico a cada 1 min e a política de PIN.
 :::
 

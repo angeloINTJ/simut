@@ -28,7 +28,7 @@ Cada botão só aparece para a conta que pode usá-lo:
 
 O administrador completo é a conta com todas as permissões ([capítulo 8](#cap-08-admin)).
 
-::: {.figura #fig-17-arquivos tipo="web" arquivo="17-arquivos.png" captura="rota /files; largura 1280; sessão admin; pasta raiz; pastas history, lang, themes e web; arquivos calib.csv, README.txt (com cadeado), system.blog e system.old.blog"}
+::: {.figura #fig-17-arquivos tipo="web" arquivo="17-arquivos.png" captura="rota /files; largura 1280; sessão admin; pasta raiz; pastas config, history, lang, themes e web; arquivos calib.csv, README.txt (com cadeado), system.blog e system.old.blog"}
 A página Arquivos na raiz, vista pelo administrador: os seis botões, as pastas e os arquivos. O cadeado marca o README.txt, que não pode ser apagado.
 :::
 
@@ -163,7 +163,7 @@ Se o aparelho não volta em 90 s, a página mostra **Dispositivo offline após 9
 A confirmação da restauração, depois da validação: o número de arquivos, o tamanho e o aviso do que será sobrescrito.
 :::
 
-::: {.figura #fig-17-restaurar-etapa3 tipo="web" arquivo="17-restaurar-etapa3.png" captura="rota /files; largura 1280; sessão admin; aviso Etapa 3/3: Reiniciando dispositivo (~25 s)... visível"}
+::: {.figura #fig-17-restaurar-etapa3 tipo="web" arquivo="17-restaurar-etapa3.png" captura="rota /files; largura 1280; sessão admin; aviso Etapa 3/3: Reiniciando dispositivo (~25 s)... visível (ele fica 3 s na tela); restauração do backup que a própria página acabara de baixar"}
 A última etapa da restauração: a página espera o aparelho voltar e abre a entrada.
 :::
 
@@ -303,11 +303,11 @@ Total: ~80 s. Não desligue o dispositivo durante o processo.
 O aviso que abre a atualização: o que sobrevive e o que se perde.
 :::
 
-::: {.figura #fig-17-iniciar tipo="web" arquivo="17-iniciar.png" captura="rota /files; largura 1280; sessão admin; backup simut_pre-ota já baixado pelo navegador (barra de downloads visível); segunda janela de confirmação aberta"}
+::: {.figura #fig-17-iniciar tipo="web" arquivo="17-iniciar.png" captura="rota /files; largura 1280; sessão admin; backup simut_pre-ota já baixado pelo navegador (balão de downloads do Chrome visível); segunda janela de confirmação aberta"}
 A segunda confirmação, depois de o backup chegar ao computador. Cancelar aqui não muda nada no aparelho.
 :::
 
-::: {.figura #fig-17-enviando tipo="web" arquivo="17-enviando.png" captura="rota /files; largura 1280; sessão admin; aviso Etapa 2/4: Enviando firmware (~30 s)... visível durante o envio"}
+::: {.figura #fig-17-enviando tipo="web" arquivo="17-enviando.png" captura="rota /files; largura 1280; sessão admin; aviso Etapa 2/4: Enviando firmware (~30 s)... visível (ele fica 3 s na tela, no começo do envio, que na bancada levou 36 s); foto com o envio segurado no navegador e cancelado depois, sem gravar"}
 O envio da imagem. Até a v2.8.x o painel do aparelho ficava parado até o reinício; agora ele mostra a etapa ([capítulo 11](#cap-11-atualizacao)).
 :::
 
@@ -382,7 +382,7 @@ O log de eventos começa vazio depois da atualização, e os primeiros registros
 | **Config alterada** (303), módulo `OTA`, nível `INF` | A imagem gravada foi conferida e está íntegra |
 | **Config alterada** (303), módulo `OTA`, nível `ERR` | O CRC da imagem gravada não confere. Grave a imagem de novo pelo USB ([capítulo 18](#cap-18)) |
 
-::: {.figura #fig-17-log-pos-ota tipo="web" arquivo="17-log-pos-ota.png" captura="rota /history; largura 1280; sessão admin; logo depois de uma atualização; seção Eventos do Sistema carregada com INF, WRN e ERR marcados; os dois registros Config alterada do módulo OTA, WRN e INF, no fim da lista"}
+::: {.figura #fig-17-log-pos-ota tipo="web" arquivo="17-log-pos-ota.png" captura="rota /history; largura 1280; sessão admin; logo depois de uma atualização; seção Eventos do Sistema carregada com INF, WRN e ERR marcados; os dois registros Config alterada do módulo OTA, WRN e INF, no fim da lista, com a caixa do log rolada até o fim; entre a atualização e a foto, só o pacote pt-BR reposto pela página Arquivos e um reinício (a atualização apaga /lang, e sem ele a página fica em inglês)"}
 O log de eventos logo depois de uma atualização: o boot pós-aplicação (WRN) e a conferência da imagem (INF).
 :::
 

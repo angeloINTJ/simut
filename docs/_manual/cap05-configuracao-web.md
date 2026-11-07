@@ -214,7 +214,7 @@ As cinco primeiras preparam alterações para os botões da barra de topo. A pá
 
 Se a página não consegue ler a configuração do aparelho, ela mostra uma faixa vermelha: **Não foi possível carregar as configurações atuais. Os campos estão desabilitados para evitar salvar valores em branco sobre a sua configuração.** Os campos ficam desabilitados, de propósito. Toque em **Tentar novamente** (*Retry*). A página já tenta três vezes antes de mostrar a faixa.
 
-::: {.figura #fig-05-configuracoes tipo="web" arquivo="05-configuracoes.png" captura="rota /config; largura 1280; sessão admin; imagem release; valores de fábrica; nenhuma alteração preparada; página no topo mostrando Identidade, Data e Hora e o início de Hardware"}
+::: {.figura #fig-05-configuracoes tipo="web" arquivo="05-configuracoes.png" captura="rota /config; largura 1280; sessão admin; imagem release; valores da bancada, não os de fábrica (Amostra 1000 ms; de fábrica, 2000); nenhuma alteração preparada; página no topo mostrando Identidade, Data e Hora e o início de Hardware"}
 A página Configurações aberta, com as seções Identidade e Data e Hora.
 :::
 
@@ -286,7 +286,7 @@ A dica abaixo de **Intervalo Histórico (min)** diz: **1 a 1440 min (24h). Padr�
 
 [release]{.img} Os três campos do PIN formam a política de PIN do painel e só aparecem na imagem release, que é a única com painel de toque. Eles se validam juntos: o teto do tamanho mínimo muda com o teclado, e a dica abaixo do campo mostra a faixa permitida, como `4 – 8`. Pela web, salvar uma política nova reinicia o aparelho, porque ela pertence à classe `users`. Pelo painel (Configurações, linha 11), a mesma mudança vale na próxima tela de PIN, sem reinício. Uma política mais exigente marca as contas com PIN para escolher um PIN novo. O significado de cada teclado está no [capítulo 8](#cap-08).
 
-::: {.figura #fig-05-hardware tipo="web" arquivo="05-hardware.png" captura="rota /config; largura 1280; sessão admin; imagem release; valores de fábrica; seção Hardware inteira, com a linha da política de PIN e a dica 4 – 8"}
+::: {.figura #fig-05-hardware tipo="web" arquivo="05-hardware.png" captura="rota /config; largura 1280; sessão admin; imagem release; valores da bancada, não os de fábrica (Amostra 1000 ms; de fábrica, 2000); seção Hardware inteira, com a linha da política de PIN e a dica 4 – 8"}
 A seção Hardware na imagem release, com a política de PIN do painel.
 :::
 

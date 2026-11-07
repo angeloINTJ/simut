@@ -106,7 +106,7 @@ Para ligar:
 5. Ligue **Home Assistant Discovery**.
 6. Toque em **Salvar e reiniciar** na barra de topo e confirme.
 7. Espere o primeiro envio de telemetria depois do reinício.
-8. Na página **Histórico e Logs**, carregue os **Eventos do Sistema** e procure o evento 548, **Discovery HA atualizado**. O contexto é o número de mensagens publicadas.
+8. Na página **Histórico e Logs**, carregue os **Eventos do Sistema** e digite `TEL` em **Filtrar...**: aparecem só os eventos da telemetria. Procure **Discovery HA atualizado**, o evento 548, logo acima de **MQTT conectado**. A tabela não mostra o número do evento, e o filtro procura no texto da linha. O contexto é o número de mensagens publicadas.
 
 ::: nota
 **Por que o aparelho reinicia.** O cliente MQTT lê a configuração uma vez, ao ligar, e a descoberta é conferida a cada conexão com o broker. O aparelho grava a opção e reinicia para que a próxima conexão já saia com ela. **Aplicar agora** também grava e reinicia, e **Testar** ignora esta opção, porque o ensaio não a enxerga ([capítulo 5](#cap-05-grupos)). Use **Salvar e reiniciar**.
@@ -124,8 +124,8 @@ Pela API, a mesma opção vai na seção `sys` de `POST /api/commit_all` ([capí
 A opção **Home Assistant Discovery** no bloco do MQTT. Note a dica embaixo dela: a descoberta exige o formato JSON e só acontece no próximo envio.
 :::
 
-::: {.figura #fig-23-evento-548 tipo="web" arquivo="23-evento-548.png" captura="rota /history; largura 1280; sessão admin; seção Eventos do Sistema carregada, com INF marcado e o filtro 548; uma linha do evento 548 Discovery HA atualizado com contexto 4, logo abaixo de 35 MQTT conectado"}
-O evento 548 confirma a publicação. O contexto 4 é o número de entidades publicadas.
+::: {.figura #fig-23-evento-548 tipo="web" arquivo="23-evento-548.png" captura="rota /history; largura 1280; sessão admin; seção Eventos do Sistema carregada, com INF marcado e TEL no filtro (a tabela não mostra o número do evento, e o filtro 548 não acha nada); a linha do evento 548 Discovery HA atualizado com contexto 3, as três entidades da bancada, logo acima de 35 MQTT conectado (a tabela mostra o mais novo primeiro)"}
+O evento 548 confirma a publicação. O contexto é o número de entidades publicadas: 3 na figura, as duas temperaturas e a pressão.
 :::
 
 ## No Home Assistant, passo a passo {#cap-23-passo-a-passo}

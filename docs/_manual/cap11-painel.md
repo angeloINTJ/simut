@@ -25,7 +25,7 @@ A tela inicial tem quatro faixas, de cima para baixo:
 | Cartão de baixo | 75 px | O sensor selecionado na barra de botões |
 | Barra de botões | 41 px | Um botão por sensor, **CFG** e, se preciso, o botão de página |
 
-::: {.figura #fig-11-principal tipo="tft" arquivo="11-principal.png" captura="screen dash; 3 sensores ativos: DS18B20 no slot 0 (fixado no cartão de cima), DHT22 no slot 1 (selecionado) e BMP280 no slot 2; Wi-Fi conectado com sinal forte; 12 registros pendentes; relógio acertado; nenhum alarme"}
+::: {.figura #fig-11-principal tipo="tft" arquivo="11-principal.png" captura="screen dash; 3 sensores ativos: DS18B20 no slot 0 (fixado no cartão de cima), DHT22 no slot 1 (selecionado) e BMP280 no slot 2; Wi-Fi conectado com sinal forte; alguns registros pendentes (o envio zera a contagem quando ela chega ao lote mínimo, 10 na bancada); relógio acertado; nenhum alarme"}
 A tela inicial: a barra de cima, os dois cartões e a barra de botões com S1, S2 e CFG.
 :::
 
@@ -69,7 +69,7 @@ A telemetria está no [capítulo 21](#cap-21).
 A contagem de pendentes em vermelho: o último envio falhou.
 :::
 
-::: {.figura #fig-11-aviso-web tipo="tft" arquivo="11-aviso-web.png" captura="screen dash; até 5 s depois de entrar na interface web com a conta admin; recorte da barra de cima com Web: admin no lugar do relógio"}
+::: {.figura #fig-11-aviso-web tipo="tft" arquivo="11-aviso-web.png" captura="screen dash; até 5 s depois de entrar na interface web com uma conta (aqui operador1); recorte da barra de cima com Web: e o nome da conta no lugar do relógio"}
 O aviso de entrada pela web, no lugar da data e da hora.
 :::
 
@@ -115,7 +115,7 @@ Depois do gesto de 3 s, o cartão de cima ignora toques por 600 ms, enquanto o d
 O cartão de cima em seleção: cinza, espelhando o sensor do cartão de baixo.
 :::
 
-**Cartões em alarme.** Um sensor em alarme pisca: em vermelho para limite e em âmbar para falha, com a borda alternando. Tocar no cartão que pisca abre a tela de alarme em vez do mínimo e máximo ([A tela de alarme](#cap-11-alarme)). Durante o silêncio de 120 s, os cartões param de piscar e o toque volta ao normal. Com dois ou mais sensores em alarme, o cartão de baixo passa de um para outro a cada 3 s, sem contar o sensor fixado no cartão de cima; essa rotação percorre os slots de 0 a 9. As figuras estão no [capítulo 7](#cap-07-disparo).
+**Cartões em alarme.** Um sensor em alarme pisca: em amarelo para limite e em âmbar para falha, com a borda alternando. Tocar no cartão que pisca abre a tela de alarme em vez do mínimo e máximo ([A tela de alarme](#cap-11-alarme)). Durante o silêncio de 120 s, os cartões param de piscar e o toque volta ao normal. Com dois ou mais sensores em alarme, o cartão de baixo passa de um para outro a cada 3 s, sem contar o sensor fixado no cartão de cima; essa rotação percorre os slots de 0 a 9. As figuras estão no [capítulo 7](#cap-07-disparo).
 
 ### A barra de botões {#cap-11-rodape}
 
@@ -131,7 +131,7 @@ Um sensor ativo ganha um botão, menos o fixado no cartão de cima. **CFG** vem 
 
 Nos alarmes, o botão do sensor pisca junto com o cartão. Se um sensor em alarme está noutra página, o botão de página pisca em vermelho; durante o silêncio, ele fica parado, com a borda vermelha.
 
-::: {.figura #fig-11-paginas tipo="tft" arquivo="11-paginas.png" captura="screen dash; 7 slots ativos (os 5 sensores da bancada e 2 slots DS18B20 num pino vazio, com o alarme desligado), nenhum fixado fora da primeira página; barra de botões na primeira página, com S e o botão 1/2"}
+::: {.figura #fig-11-paginas tipo="tft" arquivo="11-paginas.png" captura="screen dash; 7 slots ativos (os 5 sensores da bancada e 2 slots DS18B20 em pinos vazios, GP12 e GP13, com o alarme desligado; a CLI recusa dois slots no mesmo pino), nenhum fixado fora da primeira página; barra de botões na primeira página, com S e o botão 1/2"}
 A barra de botões com páginas: quatro botões e o botão de página à direita.
 :::
 
@@ -180,7 +180,7 @@ Ao abrir, o painel mostra **Carregando...** (*Loading...*) enquanto lê o histó
 A tela Carregando..., ao abrir um gráfico.
 :::
 
-::: {.figura #fig-11-grafico tipo="tft" arquivo="11-grafico.png" captura="screen dash -> tap(160,150) -> tap(290,150) -> tap(286,215) -> tap(286,215) -> tap(286,215); DHT22 selecionado no cartão de baixo; o gráfico abre em 1H e os três toques na lupa de menos levam a 24H; histórico de pelo menos um dia"}
+::: {.figura #fig-11-grafico tipo="tft" arquivo="11-grafico.png" captura="screen dash -> tap(160,150) -> tap(290,150) -> tap(160,215) e o toque num dia do calendário; DHT22 selecionado no cartão de baixo; o dia escolhido abre em 24H; um dia inteiro de histórico (na bancada, sintético: 4/11/2026)"}
 O gráfico de 24H de um DHT22: faixa de mínimo e máximo, linha de temperatura, curva de umidade e marcadores.
 :::
 
@@ -242,15 +242,15 @@ Cada página tem um título com a grandeza e a unidade, como **Temperatura** (°
 
 As páginas são temperatura, umidade (DHT22 e BME280) e pressão (BME280 e BMP280). Pontos no título mostram em qual página você está. Um toque no centro passa para a próxima página; na última, volta ao gráfico. A umidade aparece em inteiros.
 
-::: {.figura #fig-11-detalhe-temp tipo="tft" arquivo="11-detalhe-temp.png" captura="screen gra -> tap(160,120); gráfico do BMP280 aberto antes, em 24H"}
+::: {.figura #fig-11-detalhe-temp tipo="tft" arquivo="11-detalhe-temp.png" captura="screen gra -> tap(160,120); gráfico do BMP280 aberto antes, em 24H, num dia sem o seguinte gravado, porque a janela de 24H inclui a amostra da meia-noite seguinte (na bancada, sintético: 5/11/2026)"}
 O detalhe numérico, página de temperatura: máximo, mínimo, média e desvio.
 :::
 
-::: {.figura #fig-11-detalhe-umid tipo="tft" arquivo="11-detalhe-umid.png" captura="screen gra -> tap(160,120) -> tap(160,120); gráfico do DHT22 aberto antes, em 24H; a segunda página do DHT22 é a umidade"}
+::: {.figura #fig-11-detalhe-umid tipo="tft" arquivo="11-detalhe-umid.png" captura="screen gra -> tap(160,120) -> tap(160,120); gráfico do DHT22 aberto antes, em 24H; a segunda página do DHT22 é a umidade (na bancada, histórico sintético: 4/11/2026)"}
 A página de umidade do detalhe.
 :::
 
-::: {.figura #fig-11-detalhe-pressao tipo="tft" arquivo="11-detalhe-pressao.png" captura="screen gra -> tap(160,120) -> tap(160,120); gráfico do BMP280 aberto antes, em 24H; a segunda página do BMP280 é a pressão"}
+::: {.figura #fig-11-detalhe-pressao tipo="tft" arquivo="11-detalhe-pressao.png" captura="screen gra -> tap(160,120) -> tap(160,120); gráfico do BMP280 aberto antes, em 24H, num dia sem o seguinte gravado; a segunda página do BMP280 é a pressão (na bancada, histórico sintético: 5/11/2026)"}
 A página de pressão do detalhe.
 :::
 
@@ -268,7 +268,7 @@ Toque num dia com histórico para abrir o gráfico daquele dia, em 24H, da meia-
 
 O calendário está sempre em português, seja qual for o idioma do painel.
 
-::: {.figura #fig-11-calendario tipo="tft" arquivo="11-calendario.png" captura="screen gra -> tap(160,215); mês corrente com histórico em pelo menos dez dias"}
+::: {.figura #fig-11-calendario tipo="tft" arquivo="11-calendario.png" captura="screen gra -> tap(160,215); mês corrente com histórico em vários dias antes de hoje (na bancada, histórico sintético de 1 a 5/11/2026)"}
 O calendário: os dias com histórico têm um ponto, e o dia de hoje fica destacado.
 :::
 
@@ -374,7 +374,7 @@ Status do Sistema, página 2: rede e hora.
 Status do Sistema, página 3: sensores.
 :::
 
-::: {.figura #fig-11-status-4 tipo="tft" arquivo="11-status-4.png" captura="screen sts -> tap(35,215); a seta para cima dá a volta até a página 4; telemetria MQTT ligada, com registros pendentes"}
+::: {.figura #fig-11-status-4 tipo="tft" arquivo="11-status-4.png" captura="screen sts -> tap(35,215); a seta para cima dá a volta até a página 4; telemetria HTTP ligada, com registros pendentes"}
 Status do Sistema, página 4: telemetria.
 :::
 

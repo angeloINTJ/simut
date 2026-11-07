@@ -62,15 +62,15 @@ De fábrica, os alarmes de todo slot vêm ligados. Religar os alarmes de um sens
 Quando um alarme dispara, o aparelho:
 
 - toca a cigarra, com a melodia e o volume de alarme ([Sons](#cap-07-sons));
-- no painel, pisca o cartão do sensor: em vermelho para limite, em âmbar para falha;
+- no painel, pisca o cartão do sensor: para limite, em amarelo no painel original e em vermelho na Ângulo; para falha, em âmbar;
 - no painel, leva o sensor em alarme para o cartão de baixo, a menos que ele já esteja fixado no cartão de cima;
 - registra no log de eventos o código 470, **Alarme disparado**;
 - se a linha de alarmes estiver ligada, envia o registro ao servidor ([capítulo 22](#cap-22)).
 
 Quando nenhum sensor está mais em alarme, a cigarra para, os cartões param de piscar e o log registra o código 471, **Alarme zerado**.
 
-::: {.figura #fig-07-painel-limite tipo="tft" arquivo="07-painel-limite.png" captura="screen dash; 2 sensores ativos; o sensor do cartão de baixo acima do máximo de temperatura, alarme não silenciado; captura na fase vermelha da piscada"}
-Um alarme de limite no painel: o cartão do sensor pisca em vermelho.
+::: {.figura #fig-07-painel-limite tipo="tft" arquivo="07-painel-limite.png" captura="screen dash; 2 sensores ativos; o sensor do cartão de baixo acima do máximo de temperatura, alarme não silenciado; captura na fase amarela da piscada"}
+Um alarme de limite no painel original: o cartão do sensor pisca em amarelo.
 :::
 
 ::: {.figura #fig-07-painel-falha tipo="tft" arquivo="07-painel-falha.png" captura="screen dash; 2 sensores ativos, os dois DS18B20 (GP0 e GP1); o do GP1, no cartão de baixo, solto da protoboard há mais de 3 leituras; captura na fase âmbar da piscada"}
@@ -87,7 +87,7 @@ Um alarme de falha no painel: o cartão pisca em âmbar e mostra Erro no lugar d
 | **Desativar** (*Deactivate*) | Desliga o alarme daquele sensor ([Desativar](#cap-07-desativar)) | PIN de uma conta com a permissão **Bloqueio (painel)** |
 | **Min/Max** | Volta à tela inicial com o cartão do sensor mostrando o mínimo e o máximo do dia | Nada |
 
-::: {.figura #fig-07-tela-alarme tipo="tft" arquivo="07-tela-alarme.png" captura="tela MODE_ALARM_ACTION; a partir da screen dash com um sensor chamado Freezer acima do limite, toque no cartão que pisca; a ferramenta de mapa de telas não alcança esta tela sozinha"}
+::: {.figura #fig-07-tela-alarme tipo="tft" arquivo="07-tela-alarme.png" captura="tela MODE_ALARM_ACTION; a partir da screen dash com o sensor do cartão de baixo acima do limite, toque no cartão que pisca; a ferramenta de mapa de telas não alcança esta tela sozinha"}
 A tela de alarme de um sensor, com Silenciar 120s, Desativar e Min/Max.
 :::
 
@@ -262,7 +262,7 @@ As setas do rodapé mudam a barra selecionada, e **SAIR** volta ao menu do senso
 
 **SALVAR** exige a permissão **Limites (painel)** [PERM_ALARM_LIMITS]{.perm}. O aparelho grava, passa a usar os limites novos na hora, registra no log o código 442, **Limites de alarme salvos via UI**, e envia um registro `alarm_lim` por grandeza alterada, com os limites novos e o nome da conta.
 
-::: {.figura #fig-07-editor-limites tipo="tft" arquivo="07-editor-limites.png" captura="screen alm -> tap(160,57) -> tap(160,57) -> tap(160,57); sessão admin; sensor DHT22; barra Temp Max selecionada"}
+::: {.figura #fig-07-editor-limites tipo="tft" arquivo="07-editor-limites.png" captura="screen alm -> tap(160,97) -> tap(160,97) -> tap(160,59) -> tap(105,215); sessão admin; sensor DHT22 na segunda linha da lista (o primeiro toque seleciona, o segundo abre); barra Temperatura MAX selecionada pela seta para baixo"}
 O editor de limites de um DHT22: temperatura e umidade, mínimo e máximo.
 :::
 
@@ -342,7 +342,7 @@ Com o som de alarme desligado, ou com **Mudo Global**, um alarme continua dispar
 | **Acesso Web** | Um toque liga ou desliga os sons de entrada pela web |
 | **Mudo Global** | Ligar pede confirmação; desligar é direto |
 
-Na escolha de melodia, o painel lista as seis melodias numeradas e toca cada uma ao ser selecionada. **SALVAR** liga o som com a melodia escolhida e desliga o **Mudo Global**; **SAIR** volta sem mudar.
+Na escolha de melodia, o painel lista as seis melodias numeradas e toca cada uma ao ser selecionada. O painel original mostra os nomes em inglês, como **Dual Beep** e **Siren**; a Ângulo e a interface web mostram os nomes da tabela. **SALVAR** liga o som com a melodia escolhida e desliga o **Mudo Global**; **SAIR** volta sem mudar.
 
 Ao ligar **Mudo Global**, o painel toca o som de atenção e pergunta: **Todos os sons serão desabilitados. Tem certeza?** **Confirmar** liga o mudo e desliga todos os sons; **SAIR** volta sem mudar.
 

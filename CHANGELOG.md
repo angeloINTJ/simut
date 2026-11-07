@@ -6,6 +6,40 @@ All notable changes to SIMUT firmware.
 
 ## Unreleased
 
+**The manual gets 86 of its 96 pending figures, and 38 taken again, from the bench on 2026-11-06: 64 screens of the original TFT panel, from `pico_w_test`, and 60 web pages and browser boxes, from `pico_w_release`, both built from main at 53261fee; the web ones in the dark theme. Ten stay pending. No firmware change.**
+
+### How they were taken
+
+- **The panel.** `GET /api/screenshot`, two equal reads, or `/api/screen_stream` decoded on the host (the `SR1` strips of `src/ScreenRle.h`, the arithmetic of the page's `mirDraw`): on a still screen the decoded frame and the BMP agree pixel for pixel, and the stream answers 0.22 s after an injected touch while the screenshot refuses for 5 s. Every capture is checked for the firmware's text and accent colours. The setup AP's key is pixelated in `04-painel-ap` and `11-boot-ap`.
+- **The web.** Playwright with the system's Chrome, in Portuguese, 1280 px wide (390 px for the phone figures), page and browser in the dark theme; `13-tema-claro` is the exception, since the light theme is its subject. The browser's own boxes (the confirmations, the certificate warning) were taken with Chrome in a window on a virtual X display, the whole window grabbed (1280 × 805).
+- **What was written to the board.** A route guard aborted every write a figure did not need. The ones it let through, each for its figure: NTP off and on again (`05-data-hora`, `10-acerto-manual`, `06-calibracao-ntp`); the HTTPS pair through `tools/install_tls_cert.py`, and its removal with `system https off confirm` (`09-servidor-web`, `09-aviso-certificado`, `13-aviso-sessao-segura`); MQTT telemetry with Home Assistant discovery to a bench broker (`23-evento-548`); three accounts (chapters 8 and 13); a restore of a backup the page had just downloaded (`17-restaurar-etapa3`); and, last, the update to the signed v2.14.0 (`17-log-pos-ota`). At the end the flash went back to the dump it arrived with, byte for byte.
+- **Synthetic history.** `tools/gen_synth_history.py`, with the channel ids of the firmware's rule (slot × 8 + channel), for 1–5/11 and for 17–24/09 (a freezer on slot 4). Nothing was deleted from the board's history.
+- **On which image.** An accidental update to the official v2.14.0, during the session, went unnoticed for two hours: `/api/status` says "2.14.0" on both images. The web UI's diff from v2.14.0 to 53261fee touches the History, Network and Alarms & Sounds pages, the probe scan's line and `applyLang( )`'s relabelling of custom selects. With main written back over USB, and each page it served checked byte for byte against `src/WebUI_GZ.h`, every figure of those pages and every one with a translated select was taken again. The 35 figures whose part of the page is the same on both images stay as taken on v2.14.0; `17-enviando` and `17-log-pos-ota` are of the signed v2.14.0 by design, since the update installs only signed images.
+
+### Captions and text
+
+- The `captura=` of 33 figures says what the bench took, where it differs from what it asked, and why: for example the bench's values instead of the factory's, five synthetic days instead of twenty, the second wrong password's 4 s lockout (the first one's 2 s run out before a capture), `17-enviando` taken with the upload held in the browser and cancelled, so nothing was written.
+- Chapters 7 and 11: the original panel flashes a limit alarm in yellow (`alarmBg` 255,230,0, `Themes.cpp`), not red; red is the Ângulo's. Chapter 7: the original panel names the melodies in English; the names in the table are the Ângulo's and the web's.
+- Chapter 23, step 8: the event table does not show an event's number, and its filter searches a row's text, so "look for event 548" became "type `TEL` in the filter". The figure's caption gives context 3, the bench's three entities.
+
+### Found on the bench, not changed here
+
+- The probe scan accepts a ROM of all zeros (on the bench, GP11, where the ENC28J60's INT holds the line low), and it did not list the DHT22 on GP3, configured in slot 1 and reading. `06-procurar` stays pending.
+- The slot editor's red line `#se_warn` is hidden by `.sx-warn{display:none}`. `06-editor-aviso` stays pending.
+- With the provisional clock (NTP off, after a reboot) the Date and Time fields open at 31/12/1969: `/api/config` sends `now_epoch` as `time(nullptr)`, and the provisional clock is kept apart from it.
+- The manual date and time fields stage `man_date` and `man_time` in the pending changes. After **Aplicar Agora** the top bar offers **Salvar e reiniciar**, and a restart loses the manual time when NTP is off.
+- The step notices of the update and of the restore stay on screen for 3 s (the default of `showToast( )`), while the upload takes about 36 s.
+- On the Portuguese Telemetry page, the tag panel and the placeholder "Leave empty to keep" are in English, and the alarm line's text runs "principal.Pendentes:0" together.
+
+### Pending
+
+- `02-placa`, `03-bootsel`, `18-bootsel` and `19-montagem` (photos); `11-web-ocupado` and `11-carregando` (the mirror is served by the same Core 0 that holds the export or the chart's load, so it answers after the screen has changed); `13-painel-de-controle-alpha` and `19-painel-controle` (the alpha and Air images); `06-editor-aviso` and `06-procurar` (above).
+
+### Checks
+
+- `tools/build_manual.py`, then the row-class step (pandoc 3.7 no longer writes `class="odd"` and `"even"`): on 53261fee the two reproduce the committed HTML but for its generation date. Here they give 245 figures, 10 pending, and `--check` passes.
+- The CI's gates, run locally on this branch: 81 steps, 0 failed (`--quick`, without the native suites, the sanitizers and the fuzzer, which a documentation change does not reach).
+
 **Seven places where the web page showed a text in the wrong language, or wrongly, found on the capture of the manual's figures of the v2.14.0 (the bench's Pico 2 W, in Portuguese, 2026-11-06): the export box of the history page, the link state of the Network page, the melody names of Alarms & Sounds, the probe scan's "GP255" for a BME280 or BMP280, and, on the history page again, the Origem selector, the Max and Min badges above the chart, and the overlay and progress lines of its loads. Each has a check that failed on the code before the fix and passes after it. None has been run on a board yet; the check for each is below.**
 
 ### The export box of the history page
