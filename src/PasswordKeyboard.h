@@ -11,7 +11,7 @@
  *          card cancels it. Character set is identical to the pre-2.1.9
  *          three-layer keyboard: a-z, A-Z, 0-9, space and 28 symbols.
  *
- * @project SIMUT — Integrated Universal Monitoring and Telemetry System
+ * @project SIMUT — Sistema Integrado de Monitoramento Universal e Telemetria
  * @author Ângelo Moisés Alves
  * @license MIT License
  */

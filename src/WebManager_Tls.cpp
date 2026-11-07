@@ -28,7 +28,7 @@
  * compiled out, a route that installs its certificate is 2 kB of flash that
  * can only mislead.
  *
- * @project SIMUT — Integrated Universal Monitoring and Telemetry System
+ * @project SIMUT — Sistema Integrado de Monitoramento Universal e Telemetria
  * @author Ângelo Moisés Alves
  * @license MIT License
  */

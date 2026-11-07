@@ -13,7 +13,7 @@
  * two blocks in the wrong order, an encrypted key, a chain — are exactly the
  * ones that are awkward to produce against a device and trivial to write down.
  *
- * @project SIMUT — Integrated Universal Monitoring and Telemetry System
+ * @project SIMUT — Sistema Integrado de Monitoramento Universal e Telemetria
  * @author Ângelo Moisés Alves
  * @license MIT License
  */

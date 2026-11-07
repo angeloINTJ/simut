@@ -43,7 +43,7 @@
  * Pure and header-only so `pio test -e native` can exercise the decision
  * without a WebServer. See test/test_validators/test_main.cpp.
  *
- * @project SIMUT — Integrated Universal Monitoring and Telemetry System
+ * @project SIMUT — Sistema Integrado de Monitoramento Universal e Telemetria
  * @author  Ângelo Moisés Alves
  * @license MIT License
  */

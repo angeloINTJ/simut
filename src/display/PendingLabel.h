@@ -10,7 +10,7 @@
  * renderers, so the two cannot drift, and header-only so a host test reaches
  * it (test_validators).
  *
- * @project SIMUT — Integrated Universal Monitoring and Telemetry System
+ * @project SIMUT — Sistema Integrado de Monitoramento Universal e Telemetria
  * @license MIT License
  */
 

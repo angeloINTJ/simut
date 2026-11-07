@@ -705,7 +705,6 @@ time <AAAA-MM-DD> <HH:MM:SS>
 5b8e0593 Añadir
 5bf7fdc9 X
 5cc3ba38 4 tarjetas
-5ce055c7 Monitor de temperatura y humedad
 5cec6caf Un valor ha superado el límite.
 609f3444 Toque los dígitos del PIN.
 60c591e1 Solo lectura
@@ -822,6 +821,7 @@ b07506d9 6 h
 b1dd9521 Grave
 b46141ac Triunfo
 b647a2d5 Demasiados intentos. Espere
+b928c806 Monitoreo universal y telemetría
 bac7c481 El cambio de las alarmas es inmediato.
 bb20b196 lee registros por la web.
 bb4ba06a ¿Eliminar la cuenta

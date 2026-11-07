@@ -13,7 +13,7 @@
  * it — while handleUploadData( ) refuses every upload that resolves there, so
  * the pair needs a route of its own. See docs/AUTHORIZATION.md and issue #133.
  *
- * @project SIMUT — Integrated Universal Monitoring and Telemetry System
+ * @project SIMUT — Sistema Integrado de Monitoramento Universal e Telemetria
  * @author Ângelo Moisés Alves
  * @license MIT License
  */

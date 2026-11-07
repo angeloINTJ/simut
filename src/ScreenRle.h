@@ -4,7 +4,7 @@
  * @details Header-only and free of Arduino dependencies so the native suite
  * (test/test_validators) compiles the same encoder the firmware ships.
  *
- * @project SIMUT — Integrated Universal Monitoring and Telemetry System
+ * @project SIMUT — Sistema Integrado de Monitoramento Universal e Telemetria
  * @author Ângelo Moisés Alves
  * @license MIT License
  */

@@ -10,7 +10,7 @@
  * Sensor types are conditionally compiled via SIMUT_SENSOR_* flags
  * (see sensors/SensorConfig.h). Disable unused types to reclaim flash.
  *
- * @project SIMUT — Integrated Universal Monitoring and Telemetry System
+ * @project SIMUT — Sistema Integrado de Monitoramento Universal e Telemetria
  * @target Raspberry Pi Pico W (RP2040) — Arduino Framework
  * @author Ângelo Moisés Alves
  * @license MIT License

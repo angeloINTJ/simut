@@ -25,7 +25,7 @@
  * Header-only e sem dependências de hardware além de SystemDefs_Records.h
  * (constantes), para ser testável no env native (test_alarm_queue).
  *
- * @project SIMUT — Integrated Universal Monitoring and Telemetry System
+ * @project SIMUT — Sistema Integrado de Monitoramento Universal e Telemetria
  * @target Raspberry Pi Pico W (RP2040) — Arduino Framework
  * @author Ângelo Moisés Alves
  * @license MIT License

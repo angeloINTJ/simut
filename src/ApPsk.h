@@ -27,7 +27,7 @@
  * one, so the host test can check the properties that matter (alphabet,
  * length, termination, determinism) without BearSSL.
  *
- * @project SIMUT — Integrated Universal Monitoring and Telemetry System
+ * @project SIMUT — Sistema Integrado de Monitoramento Universal e Telemetria
  * @author  Ângelo Moisés Alves
  * @license MIT License
  */

@@ -28,7 +28,7 @@
  * the panic format plus its arguments. A truncated panic line is a better
  * trade than 6.8 kB, and the panic itself still halts the core.
  *
- * @project SIMUT — Integrated Universal Monitoring and Telemetry System
+ * @project SIMUT — Sistema Integrado de Monitoramento Universal e Telemetria
  * @author Ângelo Moisés Alves
  * @license MIT License
  */

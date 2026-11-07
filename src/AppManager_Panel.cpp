@@ -17,7 +17,7 @@
  * slot-bound actions, the user slot alone for the account-bound ones. The
  * binary record has no room for a name; the serial line prints it.
  *
- * @project SIMUT — Integrated Universal Monitoring and Telemetry System
+ * @project SIMUT — Sistema Integrado de Monitoramento Universal e Telemetria
  * @author Ângelo Moisés Alves
  * @license MIT License
  */

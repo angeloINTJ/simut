@@ -49,7 +49,7 @@
  * Header-only e sem dependência de hardware, como AlarmPayload.h e Syslog5424.h:
  * o código que roda no ferro é o que os testes nativos exercitam.
  *
- * @project SIMUT — Integrated Universal Monitoring and Telemetry System
+ * @project SIMUT — Sistema Integrado de Monitoramento Universal e Telemetria
  * @target Raspberry Pi Pico W (RP2040) — Arduino Framework
  * @author Ângelo Moisés Alves
  * @license MIT License

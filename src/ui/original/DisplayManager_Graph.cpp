@@ -6,7 +6,7 @@
  * bar (name/date), detailed numeric screen, loading screen
  * + period buttons (1H/6H/12H/24H/7D), formatGraphTime helper.
  *
- * @project SIMUT — Integrated Universal Monitoring and Telemetry System
+ * @project SIMUT — Sistema Integrado de Monitoramento Universal e Telemetria
  * @author Ângelo Moisés Alves
  * @license MIT License
  */

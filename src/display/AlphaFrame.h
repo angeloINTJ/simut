@@ -34,7 +34,7 @@
  * called where their code used to sit: a call whose AlphaFrameIn has a constant screen folds the switch away and
  * leaves that screen's code.
  *
- * @project SIMUT — Integrated Universal Monitoring and Telemetry System
+ * @project SIMUT — Sistema Integrado de Monitoramento Universal e Telemetria
  * @license MIT License
  */
 #pragma once

@@ -15,7 +15,7 @@
  * there only when the result holds a bus, and are the pair the probe drove, so
  * the page prints what the firmware says and keeps no copy of it.
  *
- * @project SIMUT — Integrated Universal Monitoring and Telemetry System
+ * @project SIMUT — Sistema Integrado de Monitoramento Universal e Telemetria
  * @author Ângelo Moisés Alves
  * @license MIT License
  */

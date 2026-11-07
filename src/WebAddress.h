@@ -17,7 +17,7 @@
  * copies in three units made the change cost the release 536 B, and this way
  * it costs 328 B (measured 2026-10-14).
  *
- * @project SIMUT — Integrated Universal Monitoring and Telemetry System
+ * @project SIMUT — Sistema Integrado de Monitoramento Universal e Telemetria
  * @author  Ângelo Moisés Alves
  * @license MIT License
  */

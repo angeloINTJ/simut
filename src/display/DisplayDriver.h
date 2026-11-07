@@ -6,7 +6,7 @@
  *   Default: ILI9341 320x240 TFT + XPT2046 touch
  *   Future:  HD44780 16x2 alphanumeric (SIMUT_DISPLAY_ALPHA)
  *
- * @project SIMUT — Integrated Universal Monitoring and Telemetry System
+ * @project SIMUT — Sistema Integrado de Monitoramento Universal e Telemetria
  * @license MIT License
  */
 

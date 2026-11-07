@@ -6,7 +6,7 @@
  * (test_validators): it decides which stored records are never offered again,
  * and a mistake here does not fail anything — it loses measurements in silence.
  *
- * @project SIMUT — Integrated Universal Monitoring and Telemetry System
+ * @project SIMUT — Sistema Integrado de Monitoramento Universal e Telemetria
  * @license MIT License
  */
 

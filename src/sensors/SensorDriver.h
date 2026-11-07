@@ -17,7 +17,7 @@
  * cross-core flag all stay in one place (the manager), and every driver shares
  * them instead of reimplementing them.
  *
- * @project SIMUT — Integrated Universal Monitoring and Telemetry System
+ * @project SIMUT — Sistema Integrado de Monitoramento Universal e Telemetria
  * @target Raspberry Pi Pico W (RP2040) — Arduino Framework
  * @author Ângelo Moisés Alves
  * @license MIT License

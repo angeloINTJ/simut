@@ -706,7 +706,6 @@ time <AAAA-MM-DD> <HH:MM:SS>
 5b8e0593 Nova conta
 5bf7fdc9 Q
 5cc3ba38 4 cartões
-5ce055c7 Monitor de temperatura e umidade
 5cec6caf Um valor passou do limite.
 609f3444 Toque nos dígitos do PIN.
 60c591e1 Só leitura
@@ -823,6 +822,7 @@ b07506d9 6 h
 b1dd9521 Grave
 b46141ac Triunfo
 b647a2d5 Muitas tentativas. Aguarde
+b928c806 Monitoramento universal e telemetria
 bac7c481 Ligar ou desligar alarmes vale na hora.
 bb20b196 lê registros pela web.
 bb4ba06a Excluir a conta

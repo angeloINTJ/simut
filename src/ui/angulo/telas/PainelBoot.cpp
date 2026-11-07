@@ -72,7 +72,10 @@ void desenharBoot( Pintor &p, const VmBoot &vm ) {
   const Tema &T = p.t( );
   const LayoutBoot l = layoutBoot( vm );
   textoCentrado( p, "SIMUT", CENTRO, Y_MARCA, H_MARCA, Fonte::DISP24, T.tinta, 'c' );
-  textoCentrado( p, UA_TXT( "Temperature and humidity monitor" ), CENTRO, Y_SUBTITULO, H_SUBTITULO, tipo::apoio, T.tinta2, 'c' );
+  // The subtitle names what the system is, not the two quantities its first
+  // drivers read: SIMUT is a universal monitor, and the boot screen said
+  // "Temperature and humidity monitor" until 2026-11-07.
+  textoCentrado( p, UA_TXT( "Universal monitoring and telemetry" ), CENTRO, Y_SUBTITULO, H_SUBTITULO, tipo::apoio, T.tinta2, 'c' );
 
   if ( vm.apProgressPct >= 0 ) {
     const int pct = vm.apProgressPct > 100 ? 100 : vm.apProgressPct;

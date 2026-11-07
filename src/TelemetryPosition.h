@@ -45,7 +45,7 @@
  * Header-only and dependency-free, so the host can play a small flash through
  * it: see test/test_validators/test_main.cpp.
  *
- * @project SIMUT — Integrated Universal Monitoring and Telemetry System
+ * @project SIMUT — Sistema Integrado de Monitoramento Universal e Telemetria
  * @license MIT License
  */
 

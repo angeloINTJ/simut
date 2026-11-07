@@ -10,7 +10,7 @@
  * Sensor drivers are conditionally compiled via SIMUT_SENSOR_* flags.
  * See SensorConfig.h for the per-type feature switches.
  *
- * @project SIMUT — Integrated Universal Monitoring and Telemetry System
+ * @project SIMUT — Sistema Integrado de Monitoramento Universal e Telemetria
  * @target Raspberry Pi Pico W (RP2040) — Arduino Framework
  * @author Ângelo Moisés Alves
  * @license MIT License

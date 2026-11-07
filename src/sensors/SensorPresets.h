@@ -11,7 +11,7 @@
  * Covers the most common units in DIY automation, environmental monitoring,
  * agriculture, laboratory, industrial sensing, and energy metering.
  *
- * @project SIMUT — Integrated Universal Monitoring and Telemetry System
+ * @project SIMUT — Sistema Integrado de Monitoramento Universal e Telemetria
  * @target  Raspberry Pi Pico W (RP2040) — Arduino Framework
  * @license MIT License
  */

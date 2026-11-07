@@ -4,7 +4,7 @@
  * @details Wraps TftWithOffset (Adafruit_ILI9341 with alignment offset).
  * Provides GFX drawing surface, off-screen canvas, and screen dimensions.
  *
- * @project SIMUT — Integrated Universal Monitoring and Telemetry System
+ * @project SIMUT — Sistema Integrado de Monitoramento Universal e Telemetria
  * @license MIT License
  */
 #pragma once

@@ -16,7 +16,7 @@
  *
  * Exit 0 when every check holds, 1 when one does not. Prints one line per card.
  *
- * @project SIMUT — Integrated Universal Monitoring and Telemetry System
+ * @project SIMUT — Sistema Integrado de Monitoramento Universal e Telemetria
  * @license MIT License
  */
 #include <cstdint>

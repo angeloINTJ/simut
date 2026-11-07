@@ -10,7 +10,7 @@
  *   1. Edit src/simut_config.h
  *   2. Or override via platformio.ini build_flags (e.g. -DSIMUT_DISPLAY_TFT=0)
  *
- * @project SIMUT — Integrated Universal Monitoring and Telemetry System
+ * @project SIMUT — Sistema Integrado de Monitoramento Universal e Telemetria
  * @license MIT License
  */
 #pragma once

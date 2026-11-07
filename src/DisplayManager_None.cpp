@@ -12,7 +12,7 @@
  * (getTopSlotIdx / getTopPanelFixedIdx / setTopSlotFixedIdx) still take it,
  * and AppManager_HistoryAlarm.cpp calls them in every build.
  *
- * @project SIMUT — Integrated Universal Monitoring and Telemetry System
+ * @project SIMUT — Sistema Integrado de Monitoramento Universal e Telemetria
  * @target Raspberry Pi Pico W (RP2040) — Arduino Framework
  * @license MIT License
  */

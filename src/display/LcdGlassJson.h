@@ -20,7 +20,7 @@
  *     counted from the same literals (kFixed), so the bound check cannot drift from the writer; the test holds the count to the
  *     text it writes.
  *
- * @project SIMUT — Integrated Universal Monitoring and Telemetry System
+ * @project SIMUT — Sistema Integrado de Monitoramento Universal e Telemetria
  * @license MIT License
  */
 #pragma once
