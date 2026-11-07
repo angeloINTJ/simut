@@ -105,8 +105,8 @@ O bloqueio vale para o endereço do computador, não para a conta. A contagem de
 
 Tentar de novo durante a contagem não adianta: o aparelho recusa sem conferir a senha e informa o tempo que falta.
 
-::: {.figura #fig-13-entrada-bloqueio tipo="web" arquivo="13-entrada-bloqueio.png" captura="rota /login; largura 390; sem sessão; uma senha errada acabou de ser enviada; a mensagem Bloqueado por 2s. Tentativas excessivas. está na tela e o botão Entrar está desativado"}
-O bloqueio depois de uma senha errada. O botão Entrar volta sozinho quando a contagem termina.
+::: {.figura #fig-13-entrada-bloqueio tipo="web" arquivo="13-entrada-bloqueio.png" captura="rota /login; largura 390; sem sessão; duas senhas erradas seguidas (o bloqueio de 2 s da primeira acaba antes da foto); a mensagem Bloqueado por 4s. Tentativas excessivas. está na tela e o botão Entrar está desativado"}
+O bloqueio depois da segunda senha errada seguida. O botão Entrar volta sozinho quando a contagem termina.
 :::
 
 ::: atencao

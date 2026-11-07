@@ -119,7 +119,7 @@ A página tem duas partes:
 **Sem a permissão Leitura, o gráfico só mostra o bloco aberto.** A página não consegue listar os arquivos do dia, e o gráfico e o CSV ficam só com os registros que ainda estão na RAM, no máximo 60. O calendário marca os dias, mas eles aparecem sem dados. Dê à conta **Histórico** e **Leitura** juntas.
 :::
 
-::: {.figura #fig-15-pagina tipo="web" arquivo="15-pagina.png" captura="rota /history; largura 1280; sessão admin; imagem release; 3 sensores ativos (DS18B20, DHT22, BMP280); período 24h; um sensor selecionado; 20 dias de histórico sintético (tools/gen_synth_history.py); seção de eventos ainda não carregada"}
+::: {.figura #fig-15-pagina tipo="web" arquivo="15-pagina.png" captura="rota /history; largura 1280; sessão admin; imagem release; 3 sensores ativos (DS18B20, DHT22, BMP280); período 24h; um sensor selecionado; 5 dias de histórico sintético (tools/gen_synth_history.py, 1 a 5/11) e o dia corrente; seção de eventos ainda não carregada"}
 A página Histórico e Logs: à esquerda, o seletor de sensores e o calendário; à direita, os mínimos e máximos, o gráfico e os controles de período; embaixo, os eventos do sistema.
 :::
 
@@ -163,7 +163,7 @@ O **Calendário** (*Monthly Calendar*) mostra um mês. As setas ao lado do nome 
 - Toque num dia destacado para ver aquele dia inteiro, da 0h às 24h, em 24h.
 - Um dia destacado pode ter só parte das horas: o destaque diz que o arquivo existe, não que o dia está completo.
 
-::: {.figura #fig-15-calendario tipo="web" arquivo="15-calendario.png" captura="rota /history; largura 1280; sessão admin; histórico sintético (tools/gen_synth_history.py) em pelo menos 20 dias do mês da captura; um dia com dados selecionado; recorte do calendário"}
+::: {.figura #fig-15-calendario tipo="web" arquivo="15-calendario.png" captura="rota /history; largura 1280; sessão admin; agosto de 2026, com o histórico da semente da bancada nos dias 1 a 29 (em novembro só havia 6 dias com dados); recorte do calendário"}
 O calendário com os dias que têm dados destacados. O dia tocado fica selecionado, e o gráfico mostra as 24 horas dele.
 :::
 
@@ -194,7 +194,7 @@ O gráfico desenha no máximo um ponto por pixel de largura. Para isso, divide a
 
 Assim, um pico de um minuto num gráfico de um mês continua visível na faixa. O registro mais recente é sempre desenhado com a própria hora.
 
-::: {.figura #fig-15-baldes tipo="web" arquivo="15-baldes.png" captura="rota /history; largura 1280; sessão admin; um sensor DS18B20 com histórico sintético de geladeira (tools/gen_synth_history.py); período 7d; faixa mínimo-máximo visível em torno da linha média, com os ciclos de degelo; tooltip mostrando o valor e a faixa entre colchetes"}
+::: {.figura #fig-15-baldes tipo="web" arquivo="15-baldes.png" captura="rota /history; largura 1280; sessão admin; um sensor DS18B20 com histórico sintético de freezer (tools/gen_synth_history.py: −18 °C com degelos, 17 a 24/09, no slot 4, FREEZER); período 7d; faixa mínimo-máximo visível em torno da linha média, com os ciclos de degelo; tooltip mostrando o valor e a faixa entre colchetes"}
 Uma semana em baldes: a linha é a média de cada balde, e a faixa sombreada vai do mínimo ao máximo. O pico do degelo aparece mesmo resumido.
 :::
 
@@ -216,7 +216,7 @@ Mensagens no lugar do gráfico:
 | **Erro.** | A página não conseguiu ler o estado do aparelho antes de começar. Recarregue a página |
 | **Conexão perdida.** | A carga falhou no meio. Confira a rede e toque de novo no período |
 
-::: {.figura #fig-15-carregando tipo="web" arquivo="15-carregando.png" captura="rota /history; largura 1280; sessão admin; período MAX com 60 dias de histórico sintético no aparelho; carga em andamento na metade, barra mostrando Arquivos: 31/60 e os KB recebidos, botão Cancelar visível"}
+::: {.figura #fig-15-carregando tipo="web" arquivo="15-carregando.png" captura="rota /history; largura 1280; sessão admin; período MAX com os 65 arquivos de histórico do aparelho (semente e sintéticos); carga presa na metade, barra mostrando Arquivos: 33/65 e os KB recebidos, botão Cancelar visível"}
 A carga de um período longo: a barra conta os arquivos baixados, e Cancelar deixa na tela a parte mais recente.
 :::
 
@@ -260,7 +260,7 @@ Se você tocar em **⤓ CSV** antes de carregar o gráfico, a página avisa **Ca
 
 Enquanto a exportação roda, os controles do gráfico ficam travados. A exportação aproveita os arquivos que o gráfico já baixou e só vai ao aparelho pelo que falta, pelo arquivo do dia corrente e pelo bloco aberto.
 
-::: {.figura #fig-15-exportando tipo="web" arquivo="15-exportando.png" captura="rota /history; largura 1280; sessão admin; exportação em andamento de um período 1M, caixa Exportando... com 45 %, tempo estimado, contagens OK e com falha, e o botão Cancelar"}
+::: {.figura #fig-15-exportando tipo="web" arquivo="15-exportando.png" captura="rota /history; largura 1280; sessão admin; exportação em andamento de um período 1M, caixa Exportando... perto da metade (42 %), tempo estimado, contagens OK e com falha, e o botão Cancelar"}
 A caixa da exportação em andamento. Cancelar salva o CSV com o que já chegou, com _partial no nome.
 :::
 

@@ -96,7 +96,7 @@ A página **Usuários** (*Users*, rota `/users`) exige a permissão **Usuários*
 
 Toda mudança nesta página fica preparada na aba e só vale quando você grava. **Aplicar agora** grava e aplica sem reiniciar; **Salvar e reiniciar** grava e reinicia. **Testar** não aparece quando há contas preparadas: uma conta não se testa. Depois de gravar, a página se recarrega sozinha. Até a v2.9.0, toda gravação de contas reiniciava o aparelho.
 
-::: {.figura #fig-08-usuarios tipo="web" arquivo="08-usuarios.png" captura="rota /users; largura 1280; sessão admin; imagem release; contas admin (com PIN), viewer e duas contas de operador, uma delas com PIN; nenhuma alteração pendente"}
+::: {.figura #fig-08-usuarios tipo="web" arquivo="08-usuarios.png" captura="rota /users; largura 1280; sessão admin; imagem release; contas admin, operador1 e manutencao (as três com PIN), viewer e wtest (a conta de teste da bancada); nenhuma alteração pendente"}
 A página Usuários: a tabela de contas e, abaixo, o formulário Adicionar.
 :::
 
@@ -152,7 +152,7 @@ A janela **Senha temporária** lista cada conta criada ou resetada nessa gravaç
 
 Entregue a senha à pessoa. Na primeira entrada, ela é levada à troca de senha obrigatória ([capítulo 13](#cap-13-troca-obrigatoria)).
 
-::: {.figura #fig-08-senha-temporaria tipo="web" arquivo="08-senha-temporaria.png" captura="rota /users; largura 1280; sessão admin; logo depois de Aplicar agora com uma conta nova chamada operador1; janela Senha temporária aberta; a senha trocada na página por uma fictícia no mesmo formato"}
+::: {.figura #fig-08-senha-temporaria tipo="web" arquivo="08-senha-temporaria.png" captura="rota /users; largura 1280; sessão admin; logo depois de Aplicar agora com uma conta nova (aqui operador2: a operador1 já existia na bancada); janela Senha temporária aberta; a senha trocada na página por uma fictícia no mesmo formato (K7RX4MPA)"}
 A janela Senha temporária, com a senha de uso único da conta criada.
 :::
 
