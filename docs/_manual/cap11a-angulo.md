@@ -657,7 +657,7 @@ Uma atualização interrompida: o envio parou antes do fim.
 
 ### As telas de boot {#cap-11a-boot}
 
-O Ângulo desenha o boot numa tela só: a marca `SIMUT`, **Monitor de temperatura e umidade** (*Temperature and humidity monitor*), as últimas linhas do registro de boot, com a etapa atual em letra maior, e, embaixo, a versão e o endereço MAC. As linhas, a ordem, o tempo de cada etapa e o gesto do ponto de acesso são do núcleo 0 e iguais nos dois painéis ([As telas de boot](#cap-11-boot)); o Ângulo só os desenha.
+O Ângulo desenha o boot numa tela só: a marca `SIMUT`, **Monitoramento universal e telemetria** (*Universal monitoring and telemetry*; até 07/11/2026 dizia "Monitor de temperatura e umidade"), as últimas linhas do registro de boot, com a etapa atual em letra maior, e, embaixo, a versão e o endereço MAC. As linhas, a ordem, o tempo de cada etapa e o gesto do ponto de acesso são do núcleo 0 e iguais nos dois painéis ([As telas de boot](#cap-11-boot)); o Ângulo só os desenha.
 
 Enquanto o aparelho sobe, só um botão responde ao toque: **Pular a espera** (*Skip the wait*), que aparece quando o núcleo 0 oferece e faz o boot seguir. A volta por inatividade não vale no boot.
 

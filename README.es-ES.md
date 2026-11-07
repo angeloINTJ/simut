@@ -43,7 +43,7 @@ Los tres comparten el mismo núcleo:
 - MQTT Discovery de Home Assistant, ruta `/metrics` para Prometheus y syslog remoto (RFC 5424);
 - actualización por el aire y consola serie.
 
-**Universal es el rumbo, no una función.** Un slot no tiene magnitud fija: un tipo de sensor es un driver en `src/sensors/` más una fila en la tabla de canales, y el panel, el histórico, las alarmas, la calibración y la telemetría leen los metadatos del driver en vez de tratar una pieza como caso especial ([cómo añadir un sensor](docs/adding-a-new-sensor.md), en inglés). Hoy se incluyen tres drivers, y la tabla ya tiene una fila para luminosidad que ninguno de ellos llena. El rumbo del proyecto es más drivers, aportados uno a uno, y slots que accionan — relés, válvulas, señales — además de leer. Ninguna imagen acciona una salida todavía: una alarma es un sonido, una pantalla y un mensaje a tu servidor.
+**Universal es el rumbo, no una función.** Un slot no tiene magnitud fija: un tipo de sensor es un driver en `src/sensors/` y una entrada en la tabla de tipos, una magnitud nueva es una fila en la tabla de canales (cuatro de las ocho que admite están en uso), y el panel, el histórico, las alarmas, la calibración y la telemetría leen los metadatos del driver en vez de tratar una pieza como caso especial ([cómo añadir un sensor](docs/adding-a-new-sensor.md), en inglés). Hoy se incluyen tres drivers, y la tabla ya tiene una fila para luminosidad que ninguno de ellos llena. El rumbo del proyecto es más drivers, aportados uno a uno, y slots que accionan — relés, válvulas, señales — además de leer. Ninguna imagen acciona una salida todavía: una alarma es un sonido, una pantalla y un mensaje a tu servidor.
 
 ## Estado del proyecto
 
@@ -106,7 +106,7 @@ Los tres comparten el mismo núcleo:
 │  │    (alpha: HD44780 16×2 LCD · Air: no display)      │ │
 │  │  ◆ GP0–GP15 → 16 universal sensor slots:            │ │
 │  │      DS18B20 (1-Wire) · DHT22 · BMP280/BME280 (I2C) │ │
-│  │      (a new type: a driver + a channel-table row)   │ │
+│  │      (a new type is a driver; a new quantity, a row)│ │
 │  │  ◆ USB CDC → serial console (+ Bluetooth: alpha/Air)│ │
 │  │  ◆ WiFi (CYW43439) → HTTP(S) server + telemetry     │ │
 │  │    (Wire: ENC28J60 Ethernet over SPI, no radio)     │ │
@@ -138,7 +138,7 @@ Los tres comparten el mismo núcleo:
 | MCU | Raspberry Pi Pico W (RP2040) o Pico 2 W (RP2350), ambas de doble núcleo. El SIMUT Wire, una Pico sin radio con un módulo Ethernet ENC28J60 en su lugar (`pico_wire`, `pico_wiretft`), lo compila el CI y corre en el banco; no se publica |
 | Pantalla | `release`: TFT ILI9341 320×240 (SPI, con DMA), en el aspecto Ángulo en la Pico 2 W (la v2.12.0 y las anteriores dibujaban el panel original) y en el aspecto original en la Pico W · `alpha`: LCD de caracteres HD44780 16×2 (4 bits) · `air`: ninguna |
 | Táctil | Pantalla táctil resistiva XPT2046 (`release`) |
-| Sensores | **16 slots universales en GP0–GP15** — cualquier mezcla de DS18B20 (1-Wire), DHT22 y BMP280/BME280. El BMx280 es I²C y ocupa dos pines; dos de ellos pueden compartir un par (0x76/0x77). Un tipo nuevo de sensor es un driver más una fila en la tabla de canales ([cómo añadir un sensor](docs/adding-a-new-sensor.md)) |
+| Sensores | **16 slots universales en GP0–GP15** — cualquier mezcla de DS18B20 (1-Wire), DHT22 y BMP280/BME280. El BMx280 es I²C y ocupa dos pines; dos de ellos pueden compartir un par (0x76/0x77). Un tipo nuevo de sensor es un driver; una magnitud nueva, una fila en la tabla de canales ([cómo añadir un sensor](docs/adding-a-new-sensor.md)) |
 | Zumbador | Piezo pasivo (por PIO) — no existe en el Air |
 | Almacenamiento | Flash interna de 2 MB (slot de firmware de 1 MB + LittleFS de 1 MB) |
 
@@ -356,7 +356,7 @@ El comportamiento se comprueba en un banco: una Pico 2 W con el panel TFT y el t
 |----------|-------------|
 | [Manual de usuario (EN)](docs/MANUAL.md) | Montaje, pantalla/web/consola, OTA, referencia de la API, resolución de problemas — mantenido al día |
 | [Manual do usuário (pt-BR)](docs/MANUAL.pt-BR.md) | El mismo manual, en portugués |
-| [Manual completo (pt-BR)](docs/MANUAL.pt-BR.html) | El manual del producto en portugués, actualizado para la v2.14.0: instalación, configuración, uso diario e integración con servidores, con 245 figuras tomadas en el banco; las 10 que aún faltan (06/11/2026) están marcadas en su lugar |
+| [Manual completo (pt-BR)](docs/MANUAL.pt-BR.html) | El manual del producto en portugués, actualizado para la v2.14.0: instalación, configuración, uso diario e integración con servidores, con 245 figuras, entre pantallas y diagramas; las 10 que aún faltan (06/11/2026) están marcadas en su lugar |
 | [Guía de cableado](docs/WIRING.md) | Pinout completo y diagramas de conexión |
 | [Actualización por el aire](docs/OTA_USAGE.md) | Actualizar desde la página web, y lo que sobrevive |
 | [Guía de recuperación](docs/RECOVERY.md) | Recuperación de brick — BOOTSEL, picotool, reset 1200 bps |

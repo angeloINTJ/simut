@@ -6,7 +6,7 @@ Tudo o que o firmware faz, em detalhe. O [README](../README.pt-BR.md) tem o resu
 
 ## Sensoriamento e alarmes
 - **16 slots universais de sensor** — GP0–GP15. Cada slot aceita DS18B20, DHT22 ou BMP280/BME280; o BMx280 é reclassificado sozinho pelo ID do chip. Tipo e pinos são definidos em tempo de execução, sem recompilar.
-- **Temperatura, umidade e pressão** como canais de primeira classe, numa tabela de canais (`src/sensors/SensorChannelTable.h`) que recebe uma grandeza nova como uma linha nova e já tem uma para luminosidade que nenhum driver embarcado preenche. Um tipo novo de sensor é um driver ([como acrescentar um sensor](adding-a-new-sensor.md), em inglês). Nenhum slot aciona uma saída ainda.
+- **Temperatura, umidade e pressão** como canais de primeira classe, numa tabela de canais (`src/sensors/SensorChannelTable.h`) que recebe uma grandeza nova como uma linha nova (quatro das oito que ela comporta estão em uso) e já tem uma para luminosidade que nenhum driver embarcado preenche. Um tipo novo de sensor é um driver ([como acrescentar um sensor](adding-a-new-sensor.md), em inglês). Nenhum slot aciona uma saída ainda.
 - **Calibração** — offsets por sensor e curvas de até 5 pontos por canal, lineares ou suaves.
 - **Validação dos sensores:**
   - verificação da ROM do DS18B20, com a sonda trocada em quarentena até a certa voltar;

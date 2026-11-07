@@ -43,7 +43,7 @@ They share one core:
 - Home Assistant MQTT Discovery, a Prometheus `/metrics` endpoint and remote syslog (RFC 5424);
 - over-the-air updates and a serial console.
 
-**Universal is the direction, not a feature.** A slot has no fixed quantity: a sensor type is a driver under `src/sensors/` plus a row in the channel table, and the dashboard, the history, the alarms, the calibration and the telemetry read the driver's metadata instead of special-casing a part ([adding a sensor](docs/adding-a-new-sensor.md)). Three drivers ship today, and the table already has a row for luminosity that none of them fills. The project's direction is more drivers, contributed one at a time, and slots that actuate — relays, valves, signals — as well as read. No image drives an output yet: an alarm is a sound, a screen and a message to your server.
+**Universal is the direction, not a feature.** A slot has no fixed quantity: a sensor type is a driver under `src/sensors/` and an entry in the type table, a new quantity is a row in the channel table (four of the eight it has room for are used), and the dashboard, the history, the alarms, the calibration and the telemetry read the driver's metadata instead of special-casing a part ([adding a sensor](docs/adding-a-new-sensor.md)). Three drivers ship today, and the table already has a row for luminosity that none of them fills. The project's direction is more drivers, contributed one at a time, and slots that actuate — relays, valves, signals — as well as read. No image drives an output yet: an alarm is a sound, a screen and a message to your server.
 
 ## Project status
 
@@ -106,7 +106,7 @@ They share one core:
 │  │    (alpha: HD44780 16×2 LCD · Air: no display)      │ │
 │  │  ◆ GP0–GP15 → 16 universal sensor slots:            │ │
 │  │      DS18B20 (1-Wire) · DHT22 · BMP280/BME280 (I2C) │ │
-│  │      (a new type: a driver + a channel-table row)   │ │
+│  │      (a new type is a driver; a new quantity, a row)│ │
 │  │  ◆ USB CDC → serial console (+ Bluetooth: alpha/Air)│ │
 │  │  ◆ WiFi (CYW43439) → HTTP(S) server + telemetry     │ │
 │  │    (Wire: ENC28J60 Ethernet over SPI, no radio)     │ │
@@ -138,7 +138,7 @@ They share one core:
 | MCU | Raspberry Pi Pico W (RP2040) or Pico 2 W (RP2350), both dual-core. The SIMUT Wire, a plain Pico with an ENC28J60 Ethernet module in place of the radio (`pico_wire`, `pico_wiretft`), is built by CI and runs on the bench; it is not published |
 | Display | `release`: ILI9341 320×240 TFT (SPI, DMA-driven), in the Ângulo look on the Pico 2 W (v2.12.0 and earlier drew the original panel there) and the original look on the Pico W · `alpha`: HD44780 16×2 character LCD (4-bit) · `air`: none |
 | Touch | XPT2046 resistive touchscreen (`release`) |
-| Sensors | **16 universal slots on GP0–GP15** — any mix of DS18B20 (1-Wire), DHT22 and BMP280/BME280. A BMx280 is I²C and takes two pins; two of them can share a pair (0x76/0x77). A new sensor type is a driver plus a row in the channel table ([adding a sensor](docs/adding-a-new-sensor.md)) |
+| Sensors | **16 universal slots on GP0–GP15** — any mix of DS18B20 (1-Wire), DHT22 and BMP280/BME280. A BMx280 is I²C and takes two pins; two of them can share a pair (0x76/0x77). A new sensor type is a driver; a new quantity, a row in the channel table ([adding a sensor](docs/adding-a-new-sensor.md)) |
 | Buzzer | Passive piezo (PIO-driven) — not on the Air |
 | Storage | 2 MB internal flash (1 MB firmware slot + 1 MB LittleFS) |
 
@@ -354,7 +354,7 @@ Behaviour is checked on a bench: a Pico 2 W with the TFT panel and touch, and a 
 |----------|-------------|
 | [User manual](docs/MANUAL.md) | Hardware setup, display/web/console guide, OTA, API reference, troubleshooting — kept current |
 | [Manual do usuário (pt-BR)](docs/MANUAL.pt-BR.md) | The same manual, in Portuguese |
-| [Complete manual (pt-BR)](docs/MANUAL.pt-BR.html) | The full product manual in Portuguese, updated for v2.14.0: installation, configuration, daily use and server integration, with 245 figures taken on the bench; the 10 still pending (2026-11-06) are marked where they belong |
+| [Complete manual (pt-BR)](docs/MANUAL.pt-BR.html) | The full product manual in Portuguese, updated for v2.14.0: installation, configuration, daily use and server integration, with 245 figures, screens and diagrams; the 10 still pending (2026-11-06) are marked where they belong |
 | [Wiring guide](docs/WIRING.md) | Complete pinout and connection diagrams |
 | [Over-the-air updates](docs/OTA_USAGE.md) | Updating from the web page, and what survives it |
 | [Recovery guide](docs/RECOVERY.md) | Brick recovery — BOOTSEL, picotool, 1200 bps reset |

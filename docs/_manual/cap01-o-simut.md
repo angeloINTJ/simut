@@ -4,7 +4,7 @@ Este capítulo diz o que o SIMUT faz, para quem ele serve e o que ele não é, m
 
 ## O que o SIMUT faz {#cap-01-o-que}
 
-O SIMUT, Sistema Integrado de Monitoramento Universal e Telemetria, é um firmware para o Raspberry Pi Pico W e o Pico 2 W que transforma a placa num aparelho de monitoramento e telemetria: hoje de temperatura, umidade e pressão, e de qualquer grandeza para a qual se escreva um driver. Um aparelho SIMUT:
+O SIMUT, Sistema Integrado de Monitoramento Universal e Telemetria, é um firmware para o Raspberry Pi Pico W e o Pico 2 W que transforma a placa num aparelho de monitoramento e telemetria: hoje de temperatura, umidade e pressão, e de outras grandezas até o limite da tabela de canais, que tem quatro linhas das oito que comporta, cada grandeza com o seu driver. Um aparelho SIMUT:
 
 - **lê até 16 sensores** dos tipos DS18B20, DHT22, BME280 e BMP280, ligados aos pinos GP0 a GP15 ([capítulo 2](#cap-02), [capítulo 6](#cap-06));
 - **grava o histórico no próprio aparelho**, um registro por intervalo, a partir de 1 min. Com 11 grandezas e um registro por minuto, cabem cerca de 116 dias (medido em 31/07/2026; [capítulo 15](#cap-15));

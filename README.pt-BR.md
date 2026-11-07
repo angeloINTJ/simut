@@ -41,7 +41,7 @@ Os três compartilham o mesmo núcleo:
 - MQTT Discovery do Home Assistant, rota `/metrics` para Prometheus e syslog remoto (RFC 5424);
 - atualização pelo ar e console serial.
 
-**Universal é a direção, não um recurso.** Um slot não tem grandeza fixa: um tipo de sensor é um driver em `src/sensors/` mais uma linha na tabela de canais, e o painel, o histórico, os alarmes, a calibração e a telemetria leem os metadados do driver em vez de tratar uma peça como caso especial ([como acrescentar um sensor](docs/adding-a-new-sensor.md), em inglês). Três drivers embarcam hoje, e a tabela já tem uma linha para luminosidade que nenhum deles preenche. A direção do projeto é mais drivers, contribuídos um a um, e slots que acionam — relés, válvulas, sinais — além de ler. Nenhuma imagem aciona uma saída ainda: um alarme é um som, uma tela e uma mensagem ao seu servidor.
+**Universal é a direção, não um recurso.** Um slot não tem grandeza fixa: um tipo de sensor é um driver em `src/sensors/` e uma entrada na tabela de tipos, uma grandeza nova é uma linha na tabela de canais (quatro das oito que ela comporta estão em uso), e o painel, o histórico, os alarmes, a calibração e a telemetria leem os metadados do driver em vez de tratar uma peça como caso especial ([como acrescentar um sensor](docs/adding-a-new-sensor.md), em inglês). Três drivers embarcam hoje, e a tabela já tem uma linha para luminosidade que nenhum deles preenche. A direção do projeto é mais drivers, contribuídos um a um, e slots que acionam — relés, válvulas, sinais — além de ler. Nenhuma imagem aciona uma saída ainda: um alarme é um som, uma tela e uma mensagem ao seu servidor.
 
 ## Estado do projeto
 
@@ -104,7 +104,7 @@ Os três compartilham o mesmo núcleo:
 │  │    (alpha: HD44780 16×2 LCD · Air: no display)      │ │
 │  │  ◆ GP0–GP15 → 16 universal sensor slots:            │ │
 │  │      DS18B20 (1-Wire) · DHT22 · BMP280/BME280 (I2C) │ │
-│  │      (a new type: a driver + a channel-table row)   │ │
+│  │      (a new type is a driver; a new quantity, a row)│ │
 │  │  ◆ USB CDC → serial console (+ Bluetooth: alpha/Air)│ │
 │  │  ◆ WiFi (CYW43439) → HTTP(S) server + telemetry     │ │
 │  │    (Wire: ENC28J60 Ethernet over SPI, no radio)     │ │
@@ -136,7 +136,7 @@ Os três compartilham o mesmo núcleo:
 | MCU | Raspberry Pi Pico W (RP2040) ou Pico 2 W (RP2350), os dois dual-core. O SIMUT Wire, um Pico sem rádio com um módulo Ethernet ENC28J60 no lugar dele (`pico_wire`, `pico_wiretft`), é compilado pelo CI e roda na bancada; não é publicado |
 | Display | `release`: TFT ILI9341 320×240 (SPI, com DMA), no visual Ângulo no Pico 2 W (a v2.12.0 e as anteriores desenhavam o painel original nele) e no visual original no Pico W · `alpha`: LCD de caracteres HD44780 16×2 (4 bits) · `air`: nenhum |
 | Touch | Touchscreen resistivo XPT2046 (`release`) |
-| Sensores | **16 slots universais em GP0–GP15** — qualquer mistura de DS18B20 (1-Wire), DHT22 e BMP280/BME280. O BMx280 é I²C e ocupa dois pinos; dois deles podem dividir um par (0x76/0x77). Um tipo novo de sensor é um driver mais uma linha na tabela de canais ([como acrescentar um sensor](docs/adding-a-new-sensor.md)) |
+| Sensores | **16 slots universais em GP0–GP15** — qualquer mistura de DS18B20 (1-Wire), DHT22 e BMP280/BME280. O BMx280 é I²C e ocupa dois pinos; dois deles podem dividir um par (0x76/0x77). Um tipo novo de sensor é um driver; uma grandeza nova, uma linha na tabela de canais ([como acrescentar um sensor](docs/adding-a-new-sensor.md)) |
 | Buzzer | Piezo passivo (via PIO) — não existe no Air |
 | Armazenamento | Flash interna de 2 MB (slot de firmware de 1 MB + LittleFS de 1 MB) |
 
@@ -352,7 +352,7 @@ O comportamento é conferido numa bancada: um Pico 2 W com o painel TFT e o touc
 |----------|-------------|
 | [Manual do usuário](docs/MANUAL.pt-BR.md) | Montagem, display/web/console, OTA, referência da API, solução de problemas — mantido atualizado |
 | [User Manual (EN)](docs/MANUAL.md) | O mesmo manual, em inglês |
-| [Manual completo](docs/MANUAL.pt-BR.html) | O manual do produto, atualizado para a v2.14.0: instalação, configuração, uso no dia a dia e integração com servidores, com 245 figuras tiradas na bancada; as 10 que ainda faltam (06/11/2026) estão marcadas no lugar delas |
+| [Manual completo](docs/MANUAL.pt-BR.html) | O manual do produto, atualizado para a v2.14.0: instalação, configuração, uso no dia a dia e integração com servidores, com 245 figuras, entre telas e diagramas; as 10 que ainda faltam (06/11/2026) estão marcadas no lugar delas |
 | [Guia de fiação](docs/WIRING.md) | Pinagem completa e diagramas de ligação |
 | [Atualização pelo ar](docs/OTA_USAGE.md) | Atualizar pela página web, e o que sobrevive |
 | [Guia de recuperação](docs/RECOVERY.md) | Recuperação de brick — BOOTSEL, picotool, reset 1200 bps |

@@ -3,7 +3,6 @@
  * @brief Routing table and state machine for the edge-triggered log filter.
  *
  * @project SIMUT — Sistema Integrado de Monitoramento Universal e Telemetria
- *          SIMUT — Integrated Universal Monitoring and Telemetry System
  * @author Ângelo Moisés Alves
  * @license MIT License
  */
