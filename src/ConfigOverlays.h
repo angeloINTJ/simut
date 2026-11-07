@@ -23,7 +23,7 @@
  * StorageManager setters are these, on the live configuration, so the bytes
  * are written by one implementation. test/test_alarm_queue pins them.
  *
- * @project SIMUT — Integrated Universal Monitoring and Telemetry System
+ * @project SIMUT — Sistema Integrado de Monitoramento Universal e Telemetria
  * @license MIT License
  */
 

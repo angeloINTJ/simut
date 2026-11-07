@@ -20,7 +20,7 @@
  *  - month, hour and minute wrap; the year stops at the range `conf time`
  *    accepts (SIMUT_CLOCK_YEAR_MIN..MAX in SimutTime.h).
  *
- * @project SIMUT — Integrated Universal Monitoring and Telemetry System
+ * @project SIMUT — Sistema Integrado de Monitoramento Universal e Telemetria
  * @license MIT License
  */
 

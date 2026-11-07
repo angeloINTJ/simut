@@ -4,7 +4,7 @@ Este capítulo diz o que o SIMUT faz, para quem ele serve e o que ele não é, m
 
 ## O que o SIMUT faz {#cap-01-o-que}
 
-O SIMUT é um firmware para o Raspberry Pi Pico W que transforma a placa num monitor de temperatura, umidade e pressão. Um aparelho SIMUT:
+O SIMUT, Sistema Integrado de Monitoramento Universal e Telemetria, é um firmware para o Raspberry Pi Pico W e o Pico 2 W que transforma a placa num aparelho de monitoramento e telemetria: hoje de temperatura, umidade e pressão, e de outras grandezas até o limite da tabela de canais, que tem quatro linhas das oito que comporta, cada grandeza com o seu driver. Um aparelho SIMUT:
 
 - **lê até 16 sensores** dos tipos DS18B20, DHT22, BME280 e BMP280, ligados aos pinos GP0 a GP15 ([capítulo 2](#cap-02), [capítulo 6](#cap-06));
 - **grava o histórico no próprio aparelho**, um registro por intervalo, a partir de 1 min. Com 11 grandezas e um registro por minuto, cabem cerca de 116 dias (medido em 31/07/2026; [capítulo 15](#cap-15));
@@ -31,7 +31,7 @@ Um mesmo profissional pode acumular mais de uma dessas funções. O [roteiro de 
 ## O que o SIMUT não é {#cap-01-nao-e}
 
 - **Não é um instrumento metrológico certificado.** Antes de usá-lo onde a norma exige instrumento certificado, compare-o com uma referência sua. A calibração por sensor está no [capítulo 6](#cap-06-calibracao).
-- **Não aciona equipamentos.** O aparelho não tem saídas para relés ou atuadores. Um alarme sai como som, como aviso na tela e como mensagem ao seu servidor.
+- **Ainda não aciona equipamentos.** Hoje o aparelho não tem saídas para relés ou atuadores: um alarme sai como som, como aviso na tela e como mensagem ao seu servidor. A direção do projeto é que os slots também acionem, e quando isso existir estará neste manual.
 - **Não depende de nuvem.** A interface web sai do próprio aparelho e funciona numa rede local sem internet. As medições só saem para um servidor que você configurar: de fábrica, a telemetria e a linha de alarmes estão desligadas. O que o aparelho procura na rede de fábrica é a hora certa, por NTP ([capítulo 10](#cap-10-ntp)).
 
 ## Os três aparelhos {#cap-01-aparelhos}

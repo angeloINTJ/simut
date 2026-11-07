@@ -7,7 +7,7 @@
  * names via DisplayManager_Fonts.h without re-including the font
  * headers (which would duplicate the bitmaps in flash).
  *
- * @project SIMUT — Integrated Universal Monitoring and Telemetry System
+ * @project SIMUT — Sistema Integrado de Monitoramento Universal e Telemetria
  * @author Ângelo Moisés Alves
  * @license MIT License
  */

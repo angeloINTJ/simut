@@ -46,8 +46,10 @@ inline.
 
 ## 1. What SIMUT is
 
-A datalogger for temperature, humidity and pressure that runs entirely on one
-Raspberry Pi Pico W. It reads up to sixteen sensors, draws them on a touch
+SIMUT, Sistema Integrado de Monitoramento Universal e Telemetria, is a
+monitoring and telemetry system that runs entirely on one Raspberry Pi Pico W
+or Pico 2 W. It reads up to sixteen sensors on universal slots (temperature,
+humidity and pressure today; a sensor type is a driver), draws them on a touch
 display, serves its own web interface on your LAN, keeps an audit trail, and
 can update its own firmware over the air.
 

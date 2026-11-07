@@ -25,7 +25,7 @@
  * one caller on the device; the web login, `/metrics` with Basic and the forced
  * password change all go through it.
  *
- * @project SIMUT — Integrated Universal Monitoring and Telemetry System
+ * @project SIMUT — Sistema Integrado de Monitoramento Universal e Telemetria
  * @author  Ângelo Moisés Alves
  * @license MIT License
  */

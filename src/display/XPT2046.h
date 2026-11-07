@@ -4,7 +4,7 @@
  * @details Wraps the XPT2046_Touchscreen library. Provides touch point
  * reading and raw touch state detection.
  *
- * @project SIMUT — Integrated Universal Monitoring and Telemetry System
+ * @project SIMUT — Sistema Integrado de Monitoramento Universal e Telemetria
  * @license MIT License
  */
 #pragma once

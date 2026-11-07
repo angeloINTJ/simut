@@ -23,7 +23,7 @@
  * Parsing avoids strtof/atof for the same reason ParseFloat.h exists — they
  * drag ~8 KB of newlib into a flash budget measured in hundreds of bytes.
  *
- * @project SIMUT — Integrated Universal Monitoring and Telemetry System
+ * @project SIMUT — Sistema Integrado de Monitoramento Universal e Telemetria
  * @author  Ângelo Moisés Alves
  * @license MIT License
  */

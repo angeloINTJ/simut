@@ -8,9 +8,9 @@
 
 # SIMUT — Sistema Integrado de Monitoramento Universal e Telemetria
 
-> Integrated Universal Monitoring and Telemetry System
+> In English, *Integrated Universal Monitoring and Telemetry System*. The name is Portuguese, and so is the acronym: it is not translated.
 
-> Offline-first temperature, humidity and pressure monitoring for the Raspberry Pi Pico W
+> Offline-first monitoring and telemetry for the Raspberry Pi Pico W and Pico 2 W, on sixteen universal sensor slots
 
 [English](README.md) | [Português](README.pt-BR.md) | [Español](README.es-ES.md)
 
@@ -29,7 +29,7 @@
 
 ## Overview
 
-SIMUT is IoT firmware for the **Raspberry Pi Pico W** that monitors temperature, humidity and pressure on up to 16 sensors, and keeps working with or without a network. One source tree builds three published devices:
+SIMUT is monitoring and telemetry firmware for the **Raspberry Pi Pico W** and the **Pico 2 W**. It reads up to 16 sensors on universal slots — temperature, humidity and pressure today, through its DS18B20, DHT22 and BMP280/BME280 drivers — records them on the device, raises alarms, and keeps working with or without a network. One source tree builds three published devices:
 
 - a **touch-panel monitor** (320×240 TFT);
 - a **character-LCD monitor** (16×2, the *alpha*);
@@ -42,6 +42,8 @@ They share one core:
 - telemetry over HTTP(S) or MQTT(S), with a separate line for alarms;
 - Home Assistant MQTT Discovery, a Prometheus `/metrics` endpoint and remote syslog (RFC 5424);
 - over-the-air updates and a serial console.
+
+**Universal is the direction, not a feature.** A slot has no fixed quantity: a sensor type is a driver under `src/sensors/` and an entry in the type table, a new quantity is a row in the channel table (four of the eight it has room for are used), and the dashboard, the history, the alarms, the calibration and the telemetry read the driver's metadata instead of special-casing a part ([adding a sensor](docs/adding-a-new-sensor.md)). Three drivers ship today, and the table already has a row for luminosity that none of them fills. The project's direction is more drivers, contributed one at a time, and slots that actuate — relays, valves, signals — as well as read. No image drives an output yet: an alarm is a sound, a screen and a message to your server.
 
 ## Project status
 
@@ -76,7 +78,7 @@ They share one core:
 | Prometheus metrics | None | Built-in | `/metrics` endpoint |
 | Remote audit log | None | Add-on | Syslog (RFC 5424 / UDP) |
 
-**SIMUT is for you if:** you need a standalone, secure, auditable temperature monitoring system that works with or without internet — typical in laboratories, pharmacies, blood banks, vaccine storage, and food cold chains.
+**SIMUT is for you if:** you need a standalone, secure, auditable monitoring system that works with or without internet — today typical in laboratories, pharmacies, blood banks, vaccine storage and food cold chains, and wherever a sensor with a driver needs a screen, a history and an alarm.
 
 **ESPHome/Tasmota may be better if:** you don't need a local display and prefer YAML configuration over a built-in web UI. (If what kept you there was Home Assistant: SIMUT speaks MQTT Discovery.)
 
@@ -84,7 +86,7 @@ They share one core:
 
 ```
 ┌──────────────────────────────────────────────────────────┐
-│                    Raspberry Pi Pico W                   │
+│       Raspberry Pi Pico W · Pico 2 W · Pico (Wire)       │
 │  ┌──────────────────────┐  ┌────────────────────────────┐│
 │  │      Core 0          │  │        Core 1              ││
 │  │  (Main Loop)         │  │  (Display Loop)            ││
@@ -104,8 +106,10 @@ They share one core:
 │  │    (alpha: HD44780 16×2 LCD · Air: no display)      │ │
 │  │  ◆ GP0–GP15 → 16 universal sensor slots:            │ │
 │  │      DS18B20 (1-Wire) · DHT22 · BMP280/BME280 (I2C) │ │
+│  │      (a new type is a driver; a new quantity, a row)│ │
 │  │  ◆ USB CDC → serial console (+ Bluetooth: alpha/Air)│ │
 │  │  ◆ WiFi (CYW43439) → HTTP(S) server + telemetry     │ │
+│  │    (Wire: ENC28J60 Ethernet over SPI, no radio)     │ │
 │  └─────────────────────────────────────────────────────┘ │
 └──────────────────────────────────────────────────────────┘
          │                   │                   │
@@ -131,10 +135,10 @@ They share one core:
 
 | Component | Specification |
 |-----------|---------------|
-| MCU | Raspberry Pi Pico W (RP2040, dual-core) |
+| MCU | Raspberry Pi Pico W (RP2040) or Pico 2 W (RP2350), both dual-core. The SIMUT Wire, a plain Pico with an ENC28J60 Ethernet module in place of the radio (`pico_wire`, `pico_wiretft`), is built by CI and runs on the bench; it is not published |
 | Display | `release`: ILI9341 320×240 TFT (SPI, DMA-driven), in the Ângulo look on the Pico 2 W (v2.12.0 and earlier drew the original panel there) and the original look on the Pico W · `alpha`: HD44780 16×2 character LCD (4-bit) · `air`: none |
 | Touch | XPT2046 resistive touchscreen (`release`) |
-| Sensors | **16 universal slots on GP0–GP15** — any mix of DS18B20 (1-Wire), DHT22 and BMP280/BME280. A BMx280 is I²C and takes two pins; two of them can share a pair (0x76/0x77) |
+| Sensors | **16 universal slots on GP0–GP15** — any mix of DS18B20 (1-Wire), DHT22 and BMP280/BME280. A BMx280 is I²C and takes two pins; two of them can share a pair (0x76/0x77). A new sensor type is a driver; a new quantity, a row in the channel table ([adding a sensor](docs/adding-a-new-sensor.md)) |
 | Buzzer | Passive piezo (PIO-driven) — not on the Air |
 | Storage | 2 MB internal flash (1 MB firmware slot + 1 MB LittleFS) |
 
@@ -144,9 +148,9 @@ See the **[wiring guide](docs/WIRING.md)** for the complete pinout and connectio
 
 ## Features
 
-- **Sensing and alarms** — 16 universal sensor slots (DS18B20, DHT22, BMP280/BME280) assigned at runtime, calibration curves, per-channel limits, a fault alarm and maintenance windows.
+- **Sensing and alarms** — 16 universal sensor slots assigned at runtime, three drivers today (DS18B20, DHT22, BMP280/BME280) in a channel table open to more, calibration curves, per-channel limits, a fault alarm and maintenance windows.
 - **Touch panel** (`release`) — dashboard, history graphs and calendar, and identity at the glass: an account, then its PIN. The Pico 2 W release draws it in the Ângulo look; the Pico W release keeps the original panel. v2.12.0 and earlier drew the original panel on the Pico 2 W.
-- **Character LCD** (`alpha`) — every slot in turn, the setup access point and a Bluetooth console.
+- **Character LCD** (`alpha`) — every slot in turn, the setup access point and a Bluetooth console; since v2.14.0 the web dashboard draws the glass itself, captured once or live (`GET /api/lcd`).
 - **Web interface** — 11 pages, a live panel mirror, history graphs and CSV export in the browser.
 - **HTTP API** — 63 routes. Each one is either gated by a permission or public by design, and CI checks it. The images with the Ângulo panel add `GET /api/ui`, gated.
 - **Telemetry** — HTTP, HTTPS, MQTT and MQTTS, batched by quantity, and a second, acknowledged line for alarms; Home Assistant, Prometheus and syslog.
@@ -215,7 +219,7 @@ simut/
 │   ├── DisplayManager*     # TFT panel and alpha LCD (Core 1), touch, themes
 │   ├── WebManager*         # Web server, HTTP API, sessions, OTA, TLS
 │   ├── StorageManager*     # LittleFS, config, accounts, history files
-│   ├── SensorManager*      # DS18B20 / DHT22 / BMx280 drivers
+│   ├── SensorManager*      # The sensor host: driver registry, read loop, error hysteresis
 │   ├── NetworkManager*     # Wi-Fi, reconnect ladder, setup AP, mDNS, NTP
 │   ├── TelemetryManager*   # HTTP(S)/MQTT(S) telemetry and the alarm line
 │   ├── CommandManager*     # Serial and Bluetooth console
@@ -223,12 +227,14 @@ simut/
 │   ├── HistoryV5.*         # V5 history codec
 │   ├── air/                # SIMUT Air configuration
 │   ├── display/            # Keypads, fonts and labels shared by the displays
-│   ├── sensors/            # Channel table, calibration curves
+│   ├── net/                # The network as a driver: CYW43 Wi-Fi, ENC28J60 (the Wire)
+│   ├── sensors/            # Sensor drivers (DS18B20, DHT22, BMx280), channel table, calibration curves
 │   ├── ota/                # Update staging, validation and applier
+│   ├── ui/                 # The panel's UI drivers: original and Ângulo
 │   └── SystemDefs*.h       # System constants and limits
 ├── data/                   # LittleFS assets (language packs, themes, favicon)
 ├── PCB_test/               # KiCad PCB design + Gerber/DRL fabrication files
-├── test/                   # Native unit tests (Unity), ten suites
+├── test/                   # Native unit tests (Unity), eleven suites
 ├── tools/                  # Build gates, bench suites, PicoHand, release scripts, theme editor
 ├── docs/                   # Documentation + GitHub Pages site
 ├── WebUI.h                 # Web UI source (gzipped into src/WebUI_GZ.h at build)
@@ -249,7 +255,11 @@ simut/
 | `pico_w_test_https` | `pico_w_test` plus the HTTPS server, for TLS validation; three of its pages are served from LittleFS to fit | — |
 | `pico_w_asserts` | Release + concurrency assertions | — |
 | `pico2_w_release` | The release for the Pico 2 W (RP2350): it boots from slot A or B of a partition table and updates over the air into the other, on trial ([OTA_AB_RP2350.md](docs/analysis/OTA_AB_RP2350.md)). Its `.uf2` is a factory image, with the partition table. It draws the touch panel in the Ângulo look (v2.12.0 and earlier drew the original panel) | `…_releasetwo` |
-| eight `native*` envs | Host-side unit tests — see [Testing](#testing) | — |
+| `pico2_w_original` | The Pico 2 W with the original panel, the look it carried up to v2.12.0; built by CI, not published, not a required check | — |
+| `pico_wire` | The SIMUT Wire: a plain Pico with no radio, an ENC28J60 Ethernet module (`src/net/`) and the 16×2 LCD; on the bench since 2026-10-12, built by CI, not published | — |
+| `pico_wiretft` | The Wire with the TFT panel and touch in place of the LCD, in the original look | — |
+| `pico_wiretft_angulo` | `pico_wiretft` drawn by the Ângulo UI driver (`src/ui/angulo/`) | — |
+| eleven `native*` envs | Host-side unit tests — see [Testing](#testing) | — |
 
 > **Security note for `pico_w_alpha` and `pico_w_air`:** both compile the
 > Bluetooth SPP console in (`SIMUT_BLUETOOTH=1`), so on those two images it is
@@ -344,7 +354,7 @@ Behaviour is checked on a bench: a Pico 2 W with the TFT panel and touch, and a 
 |----------|-------------|
 | [User manual](docs/MANUAL.md) | Hardware setup, display/web/console guide, OTA, API reference, troubleshooting — kept current |
 | [Manual do usuário (pt-BR)](docs/MANUAL.pt-BR.md) | The same manual, in Portuguese |
-| [Complete manual (pt-BR)](docs/MANUAL.pt-BR.html) | The full product manual in Portuguese, updated for v2.14.0: installation, configuration, daily use and server integration. Screenshots are being recaptured; each missing one is marked where it belongs |
+| [Complete manual (pt-BR)](docs/MANUAL.pt-BR.html) | The full product manual in Portuguese, updated for v2.14.0: installation, configuration, daily use and server integration, with 245 figures, screens and diagrams; the 10 still pending (2026-11-06) are marked where they belong |
 | [Wiring guide](docs/WIRING.md) | Complete pinout and connection diagrams |
 | [Over-the-air updates](docs/OTA_USAGE.md) | Updating from the web page, and what survives it |
 | [Recovery guide](docs/RECOVERY.md) | Brick recovery — BOOTSEL, picotool, 1200 bps reset |
@@ -359,7 +369,7 @@ Behaviour is checked on a bench: a Pico 2 W with the TFT panel and touch, and a 
 ## How SIMUT is developed
 
 Most changes are written by an AI coding agent (Claude Code) in sessions the maintainer directs: from 1 September to 2 October 2026, 275 of the 371 commits on `main` carried a `Co-Authored-By: Claude` line. The instructions those sessions follow are [CLAUDE.md](CLAUDE.md) and [AGENTS.md](AGENTS.md) (in Portuguese). The rules are the same for every change, whoever typed it:
-- it reaches `main` only through a pull request, after nine required checks pass: the ten host test suites, also under AddressSanitizer and UBSan, 60 s of fuzzing, static analysis, and six firmware images built from a cold cache;
+- it reaches `main` only through a pull request, after nine required checks pass: the eleven host test suites, also under AddressSanitizer and UBSan, 60 s of fuzzing, static analysis, and six of the eleven firmware images built from a cold cache;
 - the tests come first: a fix carries a reproduction that fails before it and passes after, and a refactor shows that the behaviour did not change;
 - a claim about bytes, speed or a fix carries its measurement, and what was not checked on hardware says so;
 - product decisions, and the decision to merge, are the maintainer's.

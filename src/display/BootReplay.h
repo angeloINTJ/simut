@@ -47,7 +47,7 @@
  * Pure and header-only: `pio test -e native` covers it (test_validators/boot_replay.cpp), and `pio test -e native_cli`
  * the words after `screen boot` that reach it through the parser.
  *
- * @project SIMUT — Integrated Universal Monitoring and Telemetry System
+ * @project SIMUT — Sistema Integrado de Monitoramento Universal e Telemetria
  * @author Ângelo Moisés Alves
  * @license MIT License
  */

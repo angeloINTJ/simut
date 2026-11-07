@@ -10,7 +10,7 @@
  * DisplayManager_CalibrationCore.cpp. This unit is the original UI's alone
  * ([ui.original].units of tools/features.toml): the Ângulo images do not compile it.
  *
- * @project SIMUT — Integrated Universal Monitoring and Telemetry System
+ * @project SIMUT — Sistema Integrado de Monitoramento Universal e Telemetria
  * @author Ângelo Moisés Alves
  * @license MIT License
  */

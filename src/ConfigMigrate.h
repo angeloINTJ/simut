@@ -36,7 +36,7 @@
  * version's segments go, and extend the test. The static_asserts below fail
  * the build until the current struct agrees with what this file claims.
  *
- * @project SIMUT — Integrated Universal Monitoring and Telemetry System
+ * @project SIMUT — Sistema Integrado de Monitoramento Universal e Telemetria
  * @target Raspberry Pi Pico W (RP2040) — Arduino Framework
  * @author Ângelo Moisés Alves
  * @license MIT License

@@ -19,7 +19,7 @@
  * (accounts / 256) per attempt — 12.5% at 32 accounts. A plain keypad makes
  * that accounts / 10^N, and the lockout below does the rest.
  *
- * @project SIMUT — Integrated Universal Monitoring and Telemetry System
+ * @project SIMUT — Sistema Integrado de Monitoramento Universal e Telemetria
  * @author Ângelo Moisés Alves
  * @license MIT License
  */

@@ -52,7 +52,7 @@ mapa — ver flash_fill( ) — e deixa passar uma queda de FLASH_TOL bytes, o qu
 mudanca de verdade no codigo. A --matrix mede o `used` inteiro, porque ali o custo e o
 que a imagem ocupa, e o enchimento ocupa o slot (e tools/feature_costs.json guarda isso).
 
-@project SIMUT — Integrated Universal Monitoring and Telemetry System
+@project SIMUT — Sistema Integrado de Monitoramento Universal e Telemetria
 @license MIT License
 """
 import argparse

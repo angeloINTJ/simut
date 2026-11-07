@@ -28,7 +28,7 @@
  * (there is no DST to honour — it is normalised to 0, which is what a fixed
  * offset means).
  *
- * @project SIMUT — Integrated Universal Monitoring and Telemetry System
+ * @project SIMUT — Sistema Integrado de Monitoramento Universal e Telemetria
  * @author Ângelo Moisés Alves
  * @license MIT License
  */

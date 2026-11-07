@@ -8,7 +8,7 @@
  * of what every network needs; the link, the radio's or the cable's, is a
  * unit of src/net/ that follows the contract in the private section.
  *
- * @project SIMUT — Integrated Universal Monitoring and Telemetry System
+ * @project SIMUT — Sistema Integrado de Monitoramento Universal e Telemetria
  * @target Raspberry Pi Pico W (RP2040) — Arduino Framework
  * @author Ângelo Moisés Alves
  * @license MIT License

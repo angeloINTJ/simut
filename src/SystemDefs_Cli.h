@@ -7,7 +7,6 @@
  * SystemDefs.h (facade).
  *
  * @project SIMUT — Sistema Integrado de Monitoramento Universal e Telemetria
- *          SIMUT — Integrated Universal Monitoring and Telemetry System
  * @author Ângelo Moisés Alves
  * @license MIT License
  */

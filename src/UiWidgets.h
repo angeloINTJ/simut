@@ -17,7 +17,7 @@
  * DisplayManager_Fonts.h. No heap allocation anywhere — these run inside the
  * Core 1 render path (T1.2).
  *
- * @project SIMUT — Integrated Universal Monitoring and Telemetry System
+ * @project SIMUT — Sistema Integrado de Monitoramento Universal e Telemetria
  * @license MIT License
  */
 

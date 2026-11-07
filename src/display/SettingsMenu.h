@@ -21,7 +21,7 @@
  *
  * Pure and header-only: `pio test -e native` covers it (test_validators).
  *
- * @project SIMUT — Integrated Universal Monitoring and Telemetry System
+ * @project SIMUT — Sistema Integrado de Monitoramento Universal e Telemetria
  * @author Ângelo Moisés Alves
  * @license MIT License
  */

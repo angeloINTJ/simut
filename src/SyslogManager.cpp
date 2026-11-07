@@ -1,7 +1,7 @@
 /**
  * @file SyslogManager.cpp
  * @brief Implementation of the RFC 5424 / UDP syslog forwarder.
- * @project SIMUT — Integrated Universal Monitoring and Telemetry System
+ * @project SIMUT — Sistema Integrado de Monitoramento Universal e Telemetria
  * @license MIT License
  */
 

@@ -5,7 +5,7 @@
  * widgets would be duplicated into every DisplayManager_*.cpp that
  * uses them. Everything here is theme-driven and heap-free.
  *
- * @project SIMUT — Integrated Universal Monitoring and Telemetry System
+ * @project SIMUT — Sistema Integrado de Monitoramento Universal e Telemetria
  * @license MIT License
  */
 

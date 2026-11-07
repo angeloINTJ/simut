@@ -3,7 +3,7 @@
  * @brief Calendar screen: drawCalendarScreen; the state setters (showCalendar, setCalendarDays, setGraphNavOffset) are in DisplayManager_CalendarCore.cpp.
  * @details Sub-file of DisplayManager.cpp.
  *
- * @project SIMUT — Integrated Universal Monitoring and Telemetry System
+ * @project SIMUT — Sistema Integrado de Monitoramento Universal e Telemetria
  * @author Ângelo Moisés Alves
  * @license MIT License
  */

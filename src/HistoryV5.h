@@ -21,7 +21,7 @@
  * Golden rule: changing ANY layout below requires bumping H5_VERSION. The
  * static_asserts turn a layout slip into a build error.
  *
- * @project SIMUT — Integrated Universal Monitoring and Telemetry System
+ * @project SIMUT — Sistema Integrado de Monitoramento Universal e Telemetria
  * @target  Raspberry Pi Pico W (RP2040) — Arduino Framework
  * @author  Ângelo Moisés Alves
  * @license MIT License

@@ -49,10 +49,12 @@ vez de se calar.
 
 ## 1. O que é o SIMUT
 
-Um datalogger de temperatura, umidade e pressão que roda inteiramente em um
-único Raspberry Pi Pico W. Ele lê até dezesseis sensores, desenha-os em um
-display touch, serve a própria interface web na sua LAN, mantém uma trilha de
-auditoria e atualiza o próprio firmware pelo ar.
+O SIMUT, Sistema Integrado de Monitoramento Universal e Telemetria, é um
+sistema de monitoramento e telemetria que roda inteiramente em um único
+Raspberry Pi Pico W ou Pico 2 W. Ele lê até dezesseis sensores em slots
+universais (hoje temperatura, umidade e pressão; um tipo de sensor é um
+driver), desenha-os em um display touch, serve a própria interface web na sua
+LAN, mantém uma trilha de auditoria e atualiza o próprio firmware pelo ar.
 
 Não há componente em nuvem nem conta. A telemetria para um endpoint externo
 existe, mas vem desligada, e o dispositivo é plenamente utilizável sem que

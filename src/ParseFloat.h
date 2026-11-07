@@ -5,7 +5,7 @@
  * This inline parser handles the subset of formats used by SIMUT
  * (decimal floats with up to 2 decimal places) with zero libc dependency.
  *
- * @project SIMUT — Integrated Universal Monitoring and Telemetry System
+ * @project SIMUT — Sistema Integrado de Monitoramento Universal e Telemetria
  * @license MIT License
  */
 

@@ -19,7 +19,7 @@
  * shown two ways, which is why the unit lives in a preset and the packing
  * lives in the channel row.
  *
- * @project SIMUT — Integrated Universal Monitoring and Telemetry System
+ * @project SIMUT — Sistema Integrado de Monitoramento Universal e Telemetria
  * @author  Ângelo Moisés Alves
  * @license MIT License
  */

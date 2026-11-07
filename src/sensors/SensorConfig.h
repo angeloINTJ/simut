@@ -10,7 +10,7 @@
  *   1. Edit src/simut_config.h
  *   2. Or override via platformio.ini build_flags (e.g. -DSIMUT_SENSOR_BME280=1)
  *
- * @project SIMUT — Integrated Universal Monitoring and Telemetry System
+ * @project SIMUT — Sistema Integrado de Monitoramento Universal e Telemetria
  * @target  Raspberry Pi Pico W (RP2040) — Arduino Framework
  * @author  Ângelo Moisés Alves
  * @license MIT License

@@ -7,7 +7,7 @@
  * stays hidden (langRowsListed, display/LangChoice.h); a pack that is only
  * listed, not loaded, shows too, and choosing it waits for the next boot.
  *
- * @project SIMUT — Integrated Universal Monitoring and Telemetry System
+ * @project SIMUT — Sistema Integrado de Monitoramento Universal e Telemetria
  * @author Ângelo Moisés Alves
  * @license MIT License
  */

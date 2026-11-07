@@ -21,7 +21,7 @@
  * files keep the widths they were written with — but new and old records of the
  * same channel would then disagree, so treat it as a format change.
  *
- * @project SIMUT — Integrated Universal Monitoring and Telemetry System
+ * @project SIMUT — Sistema Integrado de Monitoramento Universal e Telemetria
  * @author  Ângelo Moisés Alves
  * @license MIT License
  */

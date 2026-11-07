@@ -6,7 +6,7 @@
  * hardware_sleep, so the sleep helpers are vendored here. Only the RP2040
  * deep-sleep (SLEEP) path is needed for SIMUT Air.
  *
- * @project SIMUT — Integrated Universal Monitoring and Telemetry System
+ * @project SIMUT — Sistema Integrado de Monitoramento Universal e Telemetria
  * @target Raspberry Pi Pico W (RP2040) — Arduino Framework
  * @license MIT License
  */

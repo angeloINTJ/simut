@@ -46,7 +46,7 @@
  * the malloc. It keeps @NAME, @CODE and the path in _activeLang, nothing on
  * the heap, and writes no log record. Panel builds only.
  *
- * @project SIMUT — Integrated Universal Monitoring and Telemetry System
+ * @project SIMUT — Sistema Integrado de Monitoramento Universal e Telemetria
  * @author Ângelo Moisés Alves
  * @license MIT License
  */

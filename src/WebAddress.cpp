@@ -1,7 +1,7 @@
 /**
  * @file WebAddress.cpp
  * @brief The forms of the web server's address (see WebAddress.h).
- * @project SIMUT — Integrated Universal Monitoring and Telemetry System
+ * @project SIMUT — Sistema Integrado de Monitoramento Universal e Telemetria
  * @author Ângelo Moisés Alves
  * @license MIT License
  */

@@ -15,7 +15,6 @@
  * audit-logged: at one line per scrape interval they would bury the log.
  *
  * @project SIMUT — Sistema Integrado de Monitoramento Universal e Telemetria
- *          SIMUT — Integrated Universal Monitoring and Telemetry System
  * @target Raspberry Pi Pico W (RP2040) — Arduino Framework
  * @author Ângelo Moisés Alves
  * @license MIT License

@@ -13,7 +13,6 @@
  * the discovery message is a promise about keys that formatter emits.
  *
  * @project SIMUT — Sistema Integrado de Monitoramento Universal e Telemetria
- *          SIMUT — Integrated Universal Monitoring and Telemetry System
  * @target Raspberry Pi Pico W (RP2040) — Arduino Framework
  * @author Ângelo Moisés Alves
  * @license MIT License

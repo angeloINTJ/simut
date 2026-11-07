@@ -7,7 +7,7 @@
  * ui/original/UiTouchChain.h, the Ângulo's is one call, uiTouch( x, y ), each included inside handleTouch( )
  * by ui/UiDriverTouch.h (S10b, C3). acceptTouch/Hold/Slide are debounce + repeat-on-hold gates.
  *
- * @project SIMUT — Integrated Universal Monitoring and Telemetry System
+ * @project SIMUT — Sistema Integrado de Monitoramento Universal e Telemetria
  * @author Ângelo Moisés Alves
  * @license MIT License
  */

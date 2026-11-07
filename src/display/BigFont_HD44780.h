@@ -11,7 +11,7 @@
  *
  * Inspirado na função "numerao" do Calibrador_quente_frio1_7_1.ino.
  *
- * @project SIMUT — Integrated Universal Monitoring and Telemetry System
+ * @project SIMUT — Sistema Integrado de Monitoramento Universal e Telemetria
  * @license MIT
  */
 #pragma once

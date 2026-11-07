@@ -5,7 +5,7 @@
  * Mirrors `tools/history_v5.py` symbol for symbol. When the two disagree the
  * native property test fails, which is the point of having both.
  *
- * @project SIMUT — Integrated Universal Monitoring and Telemetry System
+ * @project SIMUT — Sistema Integrado de Monitoramento Universal e Telemetria
  * @author  Ângelo Moisés Alves
  * @license MIT License
  */

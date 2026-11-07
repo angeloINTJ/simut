@@ -7,7 +7,7 @@
  * the alarm (the action screen, the card background, the flash repaint)
  * are in DisplayManager_AlarmUi.cpp since S10c D5.
  *
- * @project SIMUT — Integrated Universal Monitoring and Telemetry System
+ * @project SIMUT — Sistema Integrado de Monitoramento Universal e Telemetria
  * @author Ângelo Moisés Alves
  * @license MIT License
  */

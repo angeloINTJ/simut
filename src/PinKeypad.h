@@ -49,7 +49,7 @@
  *          million and 39 minutes. So the length ceiling is a function of the
  *          keypad, not a constant, and isValidPinPolicy( ) enforces it.
  *
- * @project SIMUT — Integrated Universal Monitoring and Telemetry System
+ * @project SIMUT — Sistema Integrado de Monitoramento Universal e Telemetria
  * @author Ângelo Moisés Alves
  * @license MIT License
  */

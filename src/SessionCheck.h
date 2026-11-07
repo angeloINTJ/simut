@@ -27,7 +27,7 @@
  *
  * Header-only, so the host can test it: see test/test_validators/test_main.cpp.
  *
- * @project SIMUT — Integrated Universal Monitoring and Telemetry System
+ * @project SIMUT — Sistema Integrado de Monitoramento Universal e Telemetria
  * @author  Ângelo Moisés Alves
  * @license MIT License
  */
