@@ -1174,6 +1174,8 @@ class Svg:
     estimated box of every text and refuses one that overlaps another, leaves the canvas or sits off the grid, and one that crosses the edge of a box (a text is wholly inside a
     box or wholly outside it: a box's line through a glyph is what the reviewer of 2026-11-06 saw at 2,5x in 16-transicao)."""
 
+    largura = LARGURA     # the canvas width; tools/readme_diagram.py draws the README's diagram at its own (a subclass), the manual's are all 720
+
     def __init__(self, slug, altura=None):
         """`altura` is the canvas height, or None to let the drawing say: the height is then its lowest point and 16 px (a flow is laid out from the top, and its height is
         what its boxes add up to)."""
@@ -1227,7 +1229,7 @@ class Svg:
         caixa = (x0, y - tam + 2, x0 + w, y + 4)
         rotulo = ''.join(s for _, s in runs)
         self._abaixo(caixa[3])
-        if caixa[0] < 4 or caixa[2] > LARGURA - 4 or caixa[1] < 0 or (self._altura is not None and caixa[3] > self._altura):
+        if caixa[0] < 4 or caixa[2] > self.largura - 4 or caixa[1] < 0 or (self._altura is not None and caixa[3] > self._altura):
             raise ValueError(f'{self.slug}: the text {rotulo!r} (about {w} px wide, from x={n(x0)}) leaves the canvas')
         for outra, rot in self.textos:
             if min(caixa[2], outra[2]) - max(caixa[0], outra[0]) > 1 and min(caixa[3], outra[3]) - max(caixa[1], outra[1]) > 1:
@@ -1260,7 +1262,7 @@ class Svg:
         self.corpo.append(f'<circle class="{cls}" cx="{x}" cy="{y}" r="{raio}"/>')
 
     def render(self):
-        partes = [f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {LARGURA} {self.altura}" role="img" class="dg">']
+        partes = [f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {self.largura} {self.altura}" role="img" class="dg">']
         if self.pontas:
             partes.append('<defs>')
             for ponta in sorted(self.pontas):
