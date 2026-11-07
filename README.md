@@ -84,42 +84,13 @@ They share one core:
 
 ## Architecture
 
-```
-┌──────────────────────────────────────────────────────────┐
-│       Raspberry Pi Pico W · Pico 2 W · Pico (Wire)       │
-│  ┌──────────────────────┐  ┌────────────────────────────┐│
-│  │      Core 0          │  │        Core 1              ││
-│  │  (Main Loop)         │  │  (Display Loop)            ││
-│  │                      │  │                            ││
-│  │  ◆ AppManager ───────┼──┼─ state/snapshots ──────┐   ││
-│  │  ◆ SensorManager     │  │  ◆ DisplayManager ◄────┘   ││
-│  │  ◆ WebManager        │  │  ◆ TouchPriority           ││
-│  │  ◆ TelemetryManager  │  │  ◆ DMA canvas renderer     ││
-│  │  ◆ CommandManager    │  │  ◆ Themes                  ││
-│  │  ◆ StorageManager    │  │  ◆ i18n (EN/PT/ES packs)   ││
-│  │  ◆ NetworkManager    │  │                            ││
-│  └──────────┬───────────┘  └────────────────────────────┘│
-│             │                                            │
-│  ┌──────────┴──────────────────────────────────────────┐ │
-│  │  Hardware Interfaces                                │ │
-│  │  ◆ SPI → ILI9341 TFT 320×240 + XPT2046 Touch        │ │
-│  │    (alpha: HD44780 16×2 LCD · Air: no display)      │ │
-│  │  ◆ GP0–GP15 → 16 universal sensor slots:            │ │
-│  │      DS18B20 (1-Wire) · DHT22 · BMP280/BME280 (I2C) │ │
-│  │      (a new type is a driver; a new quantity, a row)│ │
-│  │  ◆ USB CDC → serial console (+ Bluetooth: alpha/Air)│ │
-│  │  ◆ WiFi (CYW43439) → HTTP(S) server + telemetry     │ │
-│  │    (Wire: ENC28J60 Ethernet over SPI, no radio)     │ │
-│  └─────────────────────────────────────────────────────┘ │
-└──────────────────────────────────────────────────────────┘
-         │                   │                   │
-    ┌────┴────┐          ┌───┴────┐         ┌────┴───────┐
-    │ Sensors │          │ Web UI │         │  Telemetry │
-    │ DS18B20 │          │ Browser│         │ HTTP(S) /  │
-    │  DHT22  │          │ (RBAC) │         │  MQTT(S)   │
-    │ BMx280  │          └────────┘         └────────────┘
-    └─────────┘
-```
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/architecture-dark.svg">
+  <source media="(prefers-color-scheme: light)" srcset="docs/images/architecture.svg">
+  <img src="docs/images/architecture.svg" alt="SIMUT's architecture: Core 0 runs every manager but the display's, the watchdog and the flash writes; Core 1 runs only the display; the state crosses to Core 1 as a snapshot, and the panel's events come back to Core 0 through a ring" width="832">
+</picture>
+
+Core 0 runs everything but the display, in one cooperative loop, and is the only core that writes the flash; Core 1 runs only the display, the touch panel or the LCD. The rules between the two are in [docs/CONCURRENCY.md](docs/CONCURRENCY.md). The figure is drawn from the source by `tools/readme_diagram.py`, and CI checks that it still matches the code.
 
 ## Screenshots
 

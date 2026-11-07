@@ -82,42 +82,13 @@ Os três compartilham o mesmo núcleo:
 
 ## Arquitetura
 
-```
-┌──────────────────────────────────────────────────────────┐
-│       Raspberry Pi Pico W · Pico 2 W · Pico (Wire)       │
-│  ┌──────────────────────┐  ┌────────────────────────────┐│
-│  │      Core 0          │  │        Core 1              ││
-│  │  (Main Loop)         │  │  (Display Loop)            ││
-│  │                      │  │                            ││
-│  │  ◆ AppManager ───────┼──┼─ state/snapshots ──────┐   ││
-│  │  ◆ SensorManager     │  │  ◆ DisplayManager ◄────┘   ││
-│  │  ◆ WebManager        │  │  ◆ TouchPriority           ││
-│  │  ◆ TelemetryManager  │  │  ◆ DMA canvas renderer     ││
-│  │  ◆ CommandManager    │  │  ◆ Themes                  ││
-│  │  ◆ StorageManager    │  │  ◆ i18n (EN/PT/ES packs)   ││
-│  │  ◆ NetworkManager    │  │                            ││
-│  └──────────┬───────────┘  └────────────────────────────┘│
-│             │                                            │
-│  ┌──────────┴──────────────────────────────────────────┐ │
-│  │  Hardware Interfaces                                │ │
-│  │  ◆ SPI → ILI9341 TFT 320×240 + XPT2046 Touch        │ │
-│  │    (alpha: HD44780 16×2 LCD · Air: no display)      │ │
-│  │  ◆ GP0–GP15 → 16 universal sensor slots:            │ │
-│  │      DS18B20 (1-Wire) · DHT22 · BMP280/BME280 (I2C) │ │
-│  │      (a new type is a driver; a new quantity, a row)│ │
-│  │  ◆ USB CDC → serial console (+ Bluetooth: alpha/Air)│ │
-│  │  ◆ WiFi (CYW43439) → HTTP(S) server + telemetry     │ │
-│  │    (Wire: ENC28J60 Ethernet over SPI, no radio)     │ │
-│  └─────────────────────────────────────────────────────┘ │
-└──────────────────────────────────────────────────────────┘
-         │                   │                   │
-    ┌────┴────┐          ┌───┴────┐         ┌────┴───────┐
-    │ Sensors │          │ Web UI │         │  Telemetry │
-    │ DS18B20 │          │ Browser│         │ HTTP(S) /  │
-    │  DHT22  │          │ (RBAC) │         │  MQTT(S)   │
-    │ BMx280  │          └────────┘         └────────────┘
-    └─────────┘
-```
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/architecture-dark.pt-BR.svg">
+  <source media="(prefers-color-scheme: light)" srcset="docs/images/architecture.pt-BR.svg">
+  <img src="docs/images/architecture.pt-BR.svg" alt="Arquitetura do SIMUT: o Core 0 roda todos os managers menos o do display, o watchdog e as escritas no flash; o Core 1 roda só o display; o estado passa ao Core 1 como um retrato, e os eventos do painel voltam ao Core 0 por um anel" width="832">
+</picture>
+
+O Core 0 roda tudo menos o display, num laço cooperativo, e é o único núcleo que escreve no flash; o Core 1 roda só o display, o painel de toque ou o LCD. As regras entre os dois estão no [docs/CONCURRENCY.md](docs/CONCURRENCY.md). A figura é desenhada a partir do código por `tools/readme_diagram.py`, e o CI confere que ela ainda bate com ele.
 
 ## Telas
 

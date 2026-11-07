@@ -1,0 +1,123 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="832" height="728" viewBox="0 0 832 728" role="img" class="dg">
+<title>SIMUT architecture</title>
+<style>svg.dg text{fill:#ebe7df;font-family:system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif}svg.dg .dg-t{font-size:13px}svg.dg .dg-n{font-size:13px}svg.dg .dg-m{font-family:ui-monospace, "SF Mono", "Cascadia Mono", Menlo, Consolas, monospace}svg.dg .dg-b{font-weight:600}svg.dg .dg-c2{fill:#a39c90}svg.dg .dg-caixa,svg.dg .dg-caixa-2{stroke-width:1;vector-effect:non-scaling-stroke}svg.dg .dg-caixa{fill:#201e1b;stroke:#78716a}svg.dg .dg-caixa-2{fill:#2a2723;stroke:#78716a}svg.dg .dg-fio{fill:none;stroke-linejoin:round}svg.dg .dg-fio{stroke:#a39c90;stroke-width:2}svg.dg .dg-ponta{fill:#a39c90}svg.dg .dg-quadro{fill:#201e1b;stroke:#383430;stroke-width:1}</style>
+<rect class="dg-quadro" x=".5" y=".5" width="831" height="727" rx="12"/>
+<defs>
+<marker id="arquitetura-ponta" viewBox="0 0 8 8" refX="8" refY="4" markerWidth="8" markerHeight="8" markerUnits="userSpaceOnUse" orient="auto"><path class="dg-ponta" d="M0 0L8 4L0 8z"/></marker>
+</defs>
+<rect class="dg-caixa-2" x="216.5" y="16.5" width="415" height="695" rx="12"/>
+<rect class="dg-caixa" x="232.5" y="64.5" width="383" height="295" rx="6"/>
+<rect class="dg-caixa" x="232.5" y="432.5" width="383" height="167" rx="6"/>
+<text class="dg-t dg-b" x="232" y="36">Pico W · Pico 2 W · Pico (Wire)</text>
+<text class="dg-n dg-c2" x="232" y="52">RP2040 or RP2350: two cores</text>
+<text class="dg-t dg-b" x="244" y="84">Core 0</text>
+<text class="dg-n dg-c2" x="244" y="100">Everything but the display, in one loop: <tspan class="dg-m">loop( )</tspan></text>
+<text class="dg-n dg-c2" x="244" y="116">feeds the watchdog and runs <tspan class="dg-m">AppManager::loop( )</tspan>.</text>
+<text class="dg-n dg-c2" x="244" y="132">The only core that writes the flash; for 5 s after a</text>
+<text class="dg-n dg-c2" x="244" y="148">touch it holds the log's and the history's writes back</text>
+<text class="dg-n dg-c2" x="244" y="164">(<tspan class="dg-m">TouchPriority</tspan>).</text>
+<text class="dg-n dg-m" x="244" y="188">SensorManager</text>
+<text class="dg-n dg-c2" x="380" y="188">reads the slots</text>
+<text class="dg-n dg-m" x="244" y="204">StorageManager</text>
+<text class="dg-n dg-c2" x="380" y="204">configuration, history</text>
+<text class="dg-n dg-m" x="244" y="220">LogManager</text>
+<text class="dg-n dg-c2" x="380" y="220">event log; watches Core 1</text>
+<text class="dg-n dg-m" x="244" y="236">NetworkManager</text>
+<text class="dg-n dg-c2" x="380" y="236">Wi-Fi or Ethernet, NTP</text>
+<text class="dg-n dg-m" x="244" y="252">WebManager</text>
+<text class="dg-n dg-c2" x="380" y="252">web UI, REST API</text>
+<text class="dg-n dg-m" x="244" y="268">TelemetryManager</text>
+<text class="dg-n dg-c2" x="380" y="268">telemetry, alarm line</text>
+<text class="dg-n dg-m" x="244" y="284">SyslogManager</text>
+<text class="dg-n dg-c2" x="380" y="284">remote audit log</text>
+<text class="dg-n dg-m" x="244" y="300">CommandManager</text>
+<text class="dg-n dg-c2" x="380" y="300">the console</text>
+<text class="dg-n dg-m" x="244" y="316">BluetoothManager</text>
+<text class="dg-n dg-c2" x="380" y="316">the console over Bluetooth</text>
+<text class="dg-n dg-m" x="244" y="332">SoundManager</text>
+<text class="dg-n dg-c2" x="380" y="332">the buzzer</text>
+<text class="dg-n dg-m" x="244" y="348">MetricsManager</text>
+<text class="dg-n dg-c2" x="380" y="348">operational counters</text>
+<polyline class="dg-fio" points="244,360 244,432" marker-end="url(#arquitetura-ponta)"/>
+<text class="dg-n dg-c2" x="256" y="380">the state: a</text>
+<text class="dg-n dg-c2" x="256" y="396">snapshot</text>
+<text class="dg-n dg-c2" x="256" y="412">under a mutex</text>
+<polyline class="dg-fio" points="372,432 372,360" marker-end="url(#arquitetura-ponta)"/>
+<text class="dg-n dg-c2" x="384" y="380">the panel's events: a ring of 16</text>
+<text class="dg-n dg-c2" x="384" y="396">without a lock, which Core 0</text>
+<text class="dg-n dg-c2" x="384" y="412">drains</text>
+<text class="dg-t dg-b" x="244" y="452">Core 1</text>
+<text class="dg-n dg-c2" x="244" y="468">Only <tspan class="dg-m">DisplayManager::loopCore1( )</tspan>: reads the</text>
+<text class="dg-n dg-c2" x="244" y="484">touch and draws the screen. It never touches the</text>
+<text class="dg-n dg-c2" x="244" y="500">flash: a flash write pauses it.</text>
+<text class="dg-n" x="244" y="524"><tspan class="dg-b">release</tspan>: the panel, original look</text>
+<text class="dg-n" x="244" y="540"><tspan class="dg-b">releasetwo</tspan>: the panel, Ângulo look</text>
+<text class="dg-n" x="244" y="556"><tspan class="dg-b">alpha</tspan>: the 16×2 LCD</text>
+<text class="dg-n" x="244" y="572"><tspan class="dg-b">Wire</tspan>: the LCD or the panel</text>
+<text class="dg-n" x="244" y="588"><tspan class="dg-b">Air</tspan>: not started</text>
+<rect class="dg-caixa" x="232.5" y="616.5" width="383" height="79" rx="6"/>
+<text class="dg-t" x="244" y="636"><tspan class="dg-b">flash</tspan></text>
+<text class="dg-n" x="244" y="652">the firmware, and LittleFS:</text>
+<text class="dg-n" x="244" y="668"><tspan class="dg-m">/config /history /lang /themes</tspan></text>
+<text class="dg-n" x="244" y="684">and the event log <tspan class="dg-m">/system.blog</tspan></text>
+<polyline class="dg-fio" points="616,340 624,340 624,656 616,656"/>
+<rect class="dg-caixa" x="16.5" y="64.5" width="175" height="111" rx="6"/>
+<text class="dg-t" x="28" y="84"><tspan class="dg-b">sensors</tspan></text>
+<text class="dg-n dg-c2" x="28" y="100">16 slots, <tspan class="dg-m">GP0</tspan> to <tspan class="dg-m">GP15</tspan></text>
+<text class="dg-n dg-c2" x="28" y="116">11 on the Wire</text>
+<text class="dg-n dg-c2" x="28" y="132">DS18B20 · 1-Wire</text>
+<text class="dg-n dg-c2" x="28" y="148">DHT22 · single wire</text>
+<text class="dg-n dg-c2" x="28" y="164">BME280, BMP280 · I2C</text>
+<rect class="dg-caixa" x="16.5" y="184.5" width="175" height="79" rx="6"/>
+<text class="dg-t" x="28" y="204"><tspan class="dg-b">console</tspan></text>
+<text class="dg-n dg-c2" x="28" y="220">USB</text>
+<text class="dg-n dg-c2" x="28" y="236">Bluetooth Classic:</text>
+<text class="dg-n dg-c2" x="28" y="252">alpha, Air</text>
+<rect class="dg-caixa" x="16.5" y="272.5" width="175" height="63" rx="6"/>
+<text class="dg-t" x="28" y="292"><tspan class="dg-b">buzzer</tspan></text>
+<text class="dg-n dg-c2" x="28" y="308"><tspan class="dg-m">GP22</tspan>, driven by PIO</text>
+<text class="dg-n dg-c2" x="28" y="324">all but the Air</text>
+<polyline class="dg-fio" points="192,120 232,120" marker-end="url(#arquitetura-ponta)"/>
+<polyline class="dg-fio" points="192,224 232,224"/>
+<polyline class="dg-fio" points="232,304 192,304" marker-end="url(#arquitetura-ponta)"/>
+<rect class="dg-caixa" x="16.5" y="432.5" width="175" height="63" rx="6"/>
+<text class="dg-t" x="28" y="452"><tspan class="dg-b">panel</tspan></text>
+<text class="dg-n dg-c2" x="28" y="468">ILI9341 TFT, 320×240</text>
+<text class="dg-n dg-c2" x="28" y="484">XPT2046 touch, SPI0</text>
+<rect class="dg-caixa" x="16.5" y="504.5" width="175" height="47" rx="6"/>
+<text class="dg-t" x="28" y="524"><tspan class="dg-b">LCD 16×2</tspan></text>
+<text class="dg-n dg-c2" x="28" y="540">HD44780, parallel</text>
+<polyline class="dg-fio" points="192,464 232,464"/>
+<polyline class="dg-fio" points="232,528 192,528" marker-end="url(#arquitetura-ponta)"/>
+<text class="dg-t dg-b" x="656" y="36">network</text>
+<text class="dg-n dg-c2" x="656" y="52">Wi-Fi: CYW43439</text>
+<text class="dg-n dg-c2" x="656" y="68">Ethernet: ENC28J60,</text>
+<text class="dg-n dg-c2" x="656" y="84">on the Wire</text>
+<rect class="dg-caixa" x="656.5" y="100.5" width="159" height="47" rx="6"/>
+<text class="dg-t" x="668" y="120">browser</text>
+<text class="dg-n dg-c2" x="668" y="136">web UI, REST API</text>
+<rect class="dg-caixa" x="656.5" y="156.5" width="159" height="63" rx="6"/>
+<text class="dg-t" x="668" y="176">telemetry server</text>
+<text class="dg-n dg-c2" x="668" y="192">HTTP(S) or MQTT(S)</text>
+<text class="dg-n dg-c2" x="668" y="208">and the alarm line</text>
+<rect class="dg-caixa" x="656.5" y="228.5" width="159" height="47" rx="6"/>
+<text class="dg-t" x="668" y="248">Home Assistant</text>
+<text class="dg-n dg-c2" x="668" y="264">MQTT Discovery</text>
+<rect class="dg-caixa" x="656.5" y="284.5" width="159" height="47" rx="6"/>
+<text class="dg-t" x="668" y="304">Prometheus</text>
+<text class="dg-n dg-c2" x="668" y="320"><tspan class="dg-m">GET /metrics</tspan></text>
+<rect class="dg-caixa" x="656.5" y="340.5" width="159" height="47" rx="6"/>
+<text class="dg-t" x="668" y="360">syslog</text>
+<text class="dg-n dg-c2" x="668" y="376">RFC 5424, UDP</text>
+<rect class="dg-caixa" x="656.5" y="396.5" width="159" height="47" rx="6"/>
+<text class="dg-t" x="668" y="416">NTP</text>
+<text class="dg-n dg-c2" x="668" y="432">the clock</text>
+<polyline class="dg-fio" points="616,80 644,80"/>
+<polyline class="dg-fio" points="644,80 644,420"/>
+<polyline class="dg-fio" points="644,124 656,124"/>
+<polyline class="dg-fio" points="644,188 656,188"/>
+<polyline class="dg-fio" points="644,252 656,252"/>
+<polyline class="dg-fio" points="644,308 656,308"/>
+<polyline class="dg-fio" points="644,364 656,364"/>
+<polyline class="dg-fio" points="644,420 656,420"/>
+</svg>

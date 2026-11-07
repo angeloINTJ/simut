@@ -451,6 +451,18 @@ jobs:
         run: python3 tools/manual_diagramas.py --check
       - name: Manual diagrams drawn by code, the controls of the check (test_manual_diagramas.py)
         run: python3 tools/test_manual_diagramas.py
+      # The READMEs' architecture figure drawn by code (2026-11-07, #58). docs/images/architecture*.svg, three languages by two themes, are drawn by tools/readme_diagram.py from
+      # the sources they describe, with the builder and the readers of manual_diagramas.py: every src/*Manager.h with a role pinned to its @brief, the two cores and what crosses
+      # between them (CONCURRENCY.md, DisplayManager), the boards and panels of the profiles, the sensors' buses, the network's peers. --check draws the six again, compares the TEXT
+      # with the committed files and reads the three READMEs' architecture sections; a change to the code the figure reads fails here until it is drawn again (--write).
+      # test_readme_diagram.py holds the controls of that check, each on a scratch copy and never on the tree: one character, a file gone and each README fault give exactly
+      # their finding; a number changed in a copy of the sources changes the drawings that show it; each of the 127 patterns the tool reads, mangled, and each of the 45 files,
+      # deleted, exit 2 naming it; the line breaker keeps code whole. 342 controls in 5.4 s here on 2026-11-07 (Python 3.14; the same under 3.11, 5.7 s); taking out the README
+      # reader, the comparison of the images or the premises makes 44, 18 and 11 of them fail. Standard library only.
+      - name: README architecture figure drawn by code (readme_diagram.py --check)
+        run: python3 tools/readme_diagram.py --check
+      - name: README architecture figure, the controls of the check (test_readme_diagram.py)
+        run: python3 tools/test_readme_diagram.py
 
       # The fences of the alpha glass's seqlock (src/display/LcdGlass.h, docs/CONCURRENCY.md; 2026-11-04). A fence is a no-op on the host, so a
       # single-threaded test cannot see one: the review of step 1 took each of the four out in turn and all 408 native cases still passed. This

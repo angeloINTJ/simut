@@ -981,6 +981,7 @@ A fonte da verdade é `design/tokens.cor.json` + `design/tokens.comum.json` no
 | `tools/build_manual.py` | o manual; tokens copiados no CSS dele, a face embutida em base64 | recopiar os valores ali e regerar |
 | `WebUI.h` (`LANG_JS` e `LOGIN_PAGE`) | a UI do aparelho: uma cópia no `/lang.js` das páginas com sessão, outra no login, que também serve o `/force_chpass` | mudar as duas |
 | `tools/gen_logo.py` | toda a marca, **lendo as cores de `docs/assets/angulo.css`** | rodar de novo |
+| `tools/readme_diagram.py` | a figura de arquitetura dos READMEs, `docs/images/architecture*.svg` (três idiomas, dois temas): as cores de `docs/assets/angulo.css` e as regras `dg-*` do CSS do manual, escritas no `<style>` de cada arquivo, porque um SVG atrás de `<img>` não vê o CSS da página | rodar `--write` de novo; o `--check` do job `gates` acusa a figura desatualizada |
 
 ### A marca
 
