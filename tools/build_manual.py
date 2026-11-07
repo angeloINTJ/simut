@@ -35,14 +35,20 @@ itself (inline_svg( )), so that it follows the manual's theme button and its
 tokens, which an image cannot see. The diagrams of tools/manual_diagramas.py are
 those: they name classes (dg-*, styled in CSS below) and never a colour.
 
+Any other <arquivo> is a PNG, and its <img> carries the PNG's width and height
+(png_size( )): the page holds the figure's box before the image decodes, so a
+link to a chapter lands on the chapter (render_figures( ) says what happens
+without them). A file that is not a PNG stops the build.
+
 USAGE
 -----
     python3 tools/build_manual.py            # writes docs/MANUAL.pt-BR.html
     python3 tools/build_manual.py --check    # fails on a [[VERIFICAR marker, a
                                              # repeated figure id, an id of an inline
-                                             # SVG that stands twice in the page, a
-                                             # broken internal link or markup that
-                                             # leaked as text
+                                             # SVG that stands twice in the page, an
+                                             # <img> without its PNG's width and
+                                             # height, a broken internal link or
+                                             # markup that leaked as text
 
 Requires pandoc (tested with 3.x). Not part of the firmware build or of CI.
 
@@ -147,13 +153,24 @@ def data_uri(path: str, mime: str) -> str:
 PHONE_RE = re.compile(r"\blargura 390\b")
 
 
-def png_width(path: str) -> int:
-    """The width in a PNG's IHDR (bytes 16-19, big-endian), without an image library."""
+PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
+
+
+def png_head_size(head: bytes):
+    """(width, height) from the first 24 bytes of a PNG: the signature, then the IHDR chunk, whose width and height are bytes 16-23, big-endian. None when the
+    bytes are not that. No image library: the build needs only pandoc."""
+    if len(head) < 24 or head[:8] != PNG_SIGNATURE or head[12:16] != b"IHDR":
+        return None
+    return int.from_bytes(head[16:20], "big"), int.from_bytes(head[20:24], "big")
+
+
+def png_size(path: str):
+    """png_head_size( ) of the file at `path`; a file that is not a PNG stops the build, naming it."""
     with open(path, "rb") as f:
-        head = f.read(24)
-    if head[:8] != b"\x89PNG\r\n\x1a\n":
+        size = png_head_size(f.read(24))
+    if size is None:
         raise SystemExit(f"build_manual: {path} is not a PNG")
-    return int.from_bytes(head[16:20], "big")
+    return size
 
 
 def mime_of(name: str) -> str:
@@ -200,6 +217,29 @@ def svg_id_errors(figures: list, page: str) -> list:
     return errors
 
 
+IMG_RE = re.compile(r"<img\s[^>]*>")
+
+
+def img_size_errors(page: str) -> list:
+    """One message for each <img> of `page` that does not carry its PNG's width and height (render_figures( ) says why they are there), naming the figure
+    it stands in. The size is read from the data: URI itself: the first 32 characters of its base64 are the PNG's first 24 bytes."""
+    errors = []
+    for m in IMG_RE.finditer(page):
+        tag = m.group(0)
+        k = page.rfind('<figure id="', 0, m.start())
+        where = page[k + 12:page.index('"', k + 12)] if k >= 0 else f"the <img> at character {m.start()}"
+        src = re.search(r'\ssrc="data:image/png;base64,([A-Za-z0-9+/]{32})', tag)
+        size = png_head_size(base64.b64decode(src.group(1))) if src else None
+        width, height = re.search(r'\swidth="(\d+)"', tag), re.search(r'\sheight="(\d+)"', tag)
+        if size is None:
+            errors.append(f"{where}: the <img> is not a PNG in a data: URI")
+        elif not (width and height):
+            errors.append(f"{where}: the <img> lacks width or height (its PNG is {size[0]}x{size[1]})")
+        elif (int(width.group(1)), int(height.group(1))) != size:
+            errors.append(f"{where}: the <img> says {width.group(1)}x{height.group(1)}, its PNG is {size[0]}x{size[1]}")
+    return errors
+
+
 FIG_RE = re.compile(r'<div id="(fig-[^"]+)" class="figura"([^>]*)>(.*?)</div>', re.S)
 ATTR_RE = re.compile(r'data-([a-z]+)="([^"]*)"')
 
@@ -222,10 +262,18 @@ def render_figures(frag: str, chapter_label: str, chapter_title: str, figures: l
             svg, figures[-1]["svg_ids"] = inline_svg(path, re.sub(r"<[^>]+>", "", caption))
             inner = f'<div class="moldura moldura-svg">{svg}</div>'
         elif have:
-            img = f'<img src="{data_uri(path, mime_of(name))}" alt="{html.escape(re.sub(r"<[^>]+>", "", caption))}" loading="lazy">'
+            # The <img> carries the PNG's width and height, so that the page holds the figure's box before the image decodes. Without them a lazy image
+            # is 0 px tall until it decodes, and a link to a chapter lands short of it: the smooth scroll aims at where the chapter is when the link is
+            # tapped, the figures it passes on the way decode and grow, the chapter moves down the page, and the scroll ends where it aimed. Measured in
+            # Chrome through Playwright on 2026-11-07, a fresh page for each of the Sumário's 35 entries: as a Pixel 7, 31 of them stopped more than 1 px
+            # short, chapter 13 by 23,672 px on the published page, each by what its chapter had moved down; at 1280 x 800 the same 31, chapter 18 by
+            # 50,574 px. With the sizes, and no width in % on a figure in .moldura (the CSS says why), all 35 within 1 px on both.
+            width, height = png_size(path)
+            img = (f'<img src="{data_uri(path, mime_of(name))}" alt="{html.escape(re.sub(r"<[^>]+>", "", caption))}" '
+                   f'width="{width}" height="{height}" loading="lazy">')
             if kind == "web":
                 phone = PHONE_RE.search(how) and name.endswith(".png")
-                frame = (f'<div class="moldura-web moldura-celular" style="max-width:{png_width(path) // 2 + 2}px">'
+                frame = (f'<div class="moldura-web moldura-celular" style="max-width:{width // 2 + 2}px">'
                          if phone else '<div class="moldura-web">')
                 inner = f'{frame}<div class="barra"><span></span><span></span><span></span></div>{img}</div>'
             else:
@@ -530,7 +578,11 @@ svg.dg .dg-ponta-acento{fill:var(--acento)}
 .volta{font:400 13px/18px var(--font-texto);margin-top:var(--espaco-5)}
 .colofao{border-top:1px solid var(--linha);margin-top:var(--espaco-7);padding-top:var(--espaco-5);font:400 13px/18px var(--font-texto);color:var(--tinta-2)}
 .colofao p{max-width:none}
-@media (max-width:600px){.capa h1,.parte h2{font-size:28px;line-height:32px}.moldura-tft img{width:100%}.moldura-lcd img{width:100%;image-rendering:auto}}
+/* No width in % for an <img> in .moldura: the frame is inline-block, as wide as what it holds, so until the image decodes a width of 100 % is 100 % of an
+   empty frame, 0 px, and the figure takes no room. On a phone the panel's and the LCD's figures had that rule, and the page grew under each link of the
+   Sumário while the scroll ran (measured in Chrome as a Pixel 7 on 2026-11-07, the comment in render_figures( )). They keep their width in px on a phone
+   too, and max-width:100% fits them to the column: once decoded, each one is the size the old rule gave it, at 360, 412 and 600 px (2026-11-07). */
+@media (max-width:600px){.capa h1,.parte h2{font-size:28px;line-height:32px}.moldura-lcd img{image-rendering:auto}}
 @media print{#tema{display:none}.parte{break-before:page}.capitulo{break-inside:auto}pre,.tw,.fig{break-inside:avoid}}
 """
 
@@ -634,6 +686,8 @@ def main():
 """
     # The id of an inline SVG (an arrowhead's marker, say) is global to the page.
     errors += svg_id_errors(figures, page)
+    # And every <img> the size of its PNG (render_figures( )).
+    errors += img_size_errors(page)
     # Every internal link must land somewhere, and no pandoc markup may leak
     # through as text: both fail silently in a browser, so they fail here.
     ids = set(re.findall(r'\sid="([^"]+)"', page))

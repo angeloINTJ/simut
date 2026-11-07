@@ -6,6 +6,12 @@ All notable changes to SIMUT firmware.
 
 ## Unreleased
 
+**The manual's Sumário lands on the chapter it names.** Tapping or clicking an entry of the table of contents of `docs/MANUAL.pt-BR.html` stopped short of its chapter, often by thousands of pixels. The 207 screenshots went into the page without a width and a height, so each one was 0 px tall until it decoded: the smooth scroll aimed at where the chapter was, the figures it passed on the way decoded and grew, and the chapter moved down the page while the scroll ended where it had aimed. On a phone the panel's 117 figures and the LCD's 17 stayed 0 px tall even with the size, because the rule for screens under 600 px gave them a width of 100 % of a frame that is as wide as what it holds. `tools/build_manual.py` now writes each PNG's width and height on its `<img>`, and that rule keeps those figures at their width in px, fitted to the column by the `max-width` they already had.
+
+- Measured in Chrome through Playwright, a fresh page for each of the 35 entries, read when the scroll had rested for 1.5 s: before, 31 entries ended more than 1 px short, as a Pixel 7 by up to 23,672 px (chapter 13, on the published page) and at 1280 × 800 by up to 50,574 px (chapter 18), each by what its chapter had moved down; after, all 35 within 1 px on both. Chapters 1 to 4, with no screenshot above them, were already right.
+- Once every image has decoded the page is the one it was: at 360, 412, 600, 601, 800 and 1280 px, the same height and the same size for every image and its frame, except the one diagram that is still a PNG, `12-wifi-niveis`, 0.02 px wider now at the four narrow widths (353.98 to 354 px at 412).
+- `build_manual.py --check` fails on an `<img>` without its PNG's width and height, and `tools/test_manual_diagramas.py` (job `gates`) holds the committed page and the CSS to it: 20 new controls, and each fault put into a copy gives exactly one finding. Not checked on a physical phone.
+
 **The manual gets 86 of its 96 pending figures, and 38 taken again, from the bench on 2026-11-06: 64 screens of the original TFT panel, from `pico_w_test`, and 60 web pages and browser boxes, from `pico_w_release`, both built from main at 53261fee; the web ones in the dark theme. Ten stay pending. No firmware change.**
 
 ### How they were taken

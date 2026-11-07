@@ -6,6 +6,12 @@ Todas as mudanças notáveis do firmware SIMUT.
 
 ## Não lançado
 
+**O Sumário do manual leva ao capítulo que nomeia.** Tocar ou clicar numa entrada do sumário do `docs/MANUAL.pt-BR.html` parava antes do capítulo, muitas vezes milhares de pixels antes. As 207 capturas entravam na página sem largura e altura, e cada uma tinha 0 px de altura até ser decodificada: a rolagem suave mirava onde o capítulo estava, as figuras do caminho decodificavam e cresciam, e o capítulo descia na página enquanto a rolagem terminava onde tinha mirado. No celular, as 117 figuras do painel e as 17 do LCD continuavam com 0 px de altura mesmo com o tamanho, porque a regra das telas de menos de 600 px dava a elas largura de 100 % de uma moldura que tem a largura do que contém. O `tools/build_manual.py` agora escreve a largura e a altura de cada PNG na sua `<img>`, e essa regra mantém essas figuras na largura em px, ajustadas à coluna pelo `max-width` que já tinham.
+
+- Medido no Chrome pelo Playwright, uma página nova para cada uma das 35 entradas, lida quando a rolagem ficava 1,5 s parada: antes, 31 entradas paravam mais de 1 px antes do capítulo, como um Pixel 7 até 23.672 px antes (capítulo 13, na página publicada) e em 1280 × 800 até 50.574 px (capítulo 18), cada uma o quanto o seu capítulo tinha descido; depois, as 35 a menos de 1 px nas duas. Os capítulos 1 a 4, sem captura acima deles, já acertavam.
+- Com todas as imagens decodificadas, a página é a de antes: em 360, 412, 600, 601, 800 e 1280 px, a mesma altura e o mesmo tamanho para cada imagem e sua moldura, menos o único diagrama que ainda é PNG, o `12-wifi-niveis`, agora 0,02 px mais largo nas quatro larguras estreitas (de 353,98 para 354 px em 412).
+- O `build_manual.py --check` falha numa `<img>` sem a largura e a altura do seu PNG, e o `tools/test_manual_diagramas.py` (job `gates`) prende a página do repositório e o CSS a isso: 20 controles novos, e cada defeito posto numa cópia dá exatamente um achado. Não conferido num celular de verdade.
+
 **O manual ganha 86 das 96 figuras que faltavam, e 38 refeitas, da bancada de 06/11/2026: 64 telas do painel TFT original, da `pico_w_test`, e 60 páginas web e caixas do navegador, da `pico_w_release`, as duas compiladas da main em 53261fee; as web, no tema escuro. Dez continuam pendentes. Nenhuma mudança no firmware.**
 
 ### Como foram feitas

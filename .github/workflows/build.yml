@@ -442,10 +442,11 @@ jobs:
       # compares the TEXT with the committed files and the chapters' figure blocks (arquivo= and captura=), so a change to the code that a diagram reads fails here until the diagrams are drawn
       # again (manual_diagramas.py --write). test_manual_diagramas.py holds the controls of that check, each of which has to bite: every source a diagram reads changed in a scratch copy
       # must change exactly its diagrams, every premise broken must refuse to draw and say which, every pattern mangled must exit 2 naming it, and the log policy's mirror must answer like
-      # LogPolicy.cpp compiled with the runner's g++ (the figure's scenario and 300 random runs). Standard library and g++ only. 0.2 and 28 s here on 2026-11-06 (g++ 15, Python 3.14; the
-      # same results under Python 3.11 in isolated mode, 0.2 and 31 s). The job installs no pandoc: where the runner has none, the test skips its 3 controls that run build_manual.py through
-      # pandoc and says so on its last line (861 controls, 1 skipped, here on 2026-11-06 with pandoc hidden from the test; 864 with it). The controls before them read render_figures( ) and
-      # svg_id_errors( ) directly, so the SVG in line and the rule of the ids are held either way; only the whole build through pandoc is held on the bench alone.
+      # LogPolicy.cpp compiled with the runner's g++ (the figure's scenario and 300 random runs). Standard library and g++ only. 0.1 and 34 s here on 2026-11-07 (g++ 15, Python 3.14; the
+      # same results under Python 3.11 in isolated mode, 0.1 and 35 s). The job installs no pandoc: where the runner has none, the test skips its 6 controls that run build_manual.py through
+      # pandoc and says so on its last line (878 controls, 1 skipped, 18 s, here on 2026-11-07 with pandoc hidden from the test; 884 with it). The controls before them read render_figures( ),
+      # svg_id_errors( ) and img_size_errors( ) directly, so the SVG in line, the rule of the ids and the size of each PNG are held either way (without the size, a link of the manual's
+      # Sumário landed thousands of pixels short of its chapter, 2026-11-07); only the whole build through pandoc is held on the bench alone.
       - name: Manual diagrams drawn by code (manual_diagramas.py --check)
         run: python3 tools/manual_diagramas.py --check
       - name: Manual diagrams drawn by code, the controls of the check (test_manual_diagramas.py)

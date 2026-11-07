@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-"""test_manual_diagramas.py -- holds tools/manual_diagramas.py --check, and the SVG in line of tools/build_manual.py, to their word (2026-11-06).
+"""test_manual_diagramas.py -- holds tools/manual_diagramas.py --check, and the SVG in line and the PNG's size of tools/build_manual.py, to their word
+(2026-11-06; the size, 2026-11-07).
 
 --check is only worth running if it can fail. Each control below puts ONE fault into a scratch copy of the SVG files, of the chapters or of the source files the
 diagrams read their numbers from (never into the tree) and requires exactly the findings that fault is about; the first one requires none, on the files as committed.
@@ -21,6 +22,12 @@ diagrams read their numbers from (never into the tree) and requires exactly the 
                    one id that a heading has) make its --check complain, two with different ids do not (run with pandoc through the whole build when pandoc is there);
                    the CSS shows the drawing at its width and no smaller, gives every text the one size the tool draws (TAM), and leaves the frame of a PNG diagram as it
                    was (each rule of the three held by a CSS changed in a copy)
+  png size         every PNG goes into the page with its width and height, or a link of the Sumario lands short of its chapter: png_size( ) reads them from the
+                   IHDR and stops the build on a file that is not a PNG (only the signature, a JPEG, a first chunk that is not IHDR); render_figures( ) puts them
+                   on the <img> in each frame (web, phone, tft, photo); img_size_errors( ) finds nothing on the committed page, and exactly one finding, naming
+                   the figure, in a copy where one <img> lost both, lost its height, is a pixel off or is not a PNG; the CSS gives no <img> in the inline-block
+                   frame (.moldura) a width in %, which would be 0 px until the image decodes (three such rules, each in a copy of the CSS: exactly one fault);
+                   through pandoc, the page built with one PNG carries its size, and the build made to drop it fails --check with exactly one line
   command line     0 clean, 1 with a finding, 2 when it cannot draw (an empty source folder); --list prints one row per diagram; --write writes the files and --check
                    passes on them; --preview writes <slug>.claro.html and <slug>.escuro.html with the manual's CSS and the figure's frame
 
@@ -32,10 +39,12 @@ import os
 import pathlib
 import re
 import shutil
+import struct
 import subprocess
 import sys
 import tempfile
 import xml.etree.ElementTree as ET
+import zlib
 
 sys.dont_write_bytecode = True
 HERE = pathlib.Path(__file__).resolve().parent
@@ -139,6 +148,28 @@ def trocar(caminho, antigo, novo, vezes=1):
     assert vezes is None or t.count(antigo) == vezes, f'{caminho.name}: {antigo!r} stands {t.count(antigo)} times, not {vezes}'
     assert antigo in t, f'{caminho.name}: {antigo!r} is not there'
     caminho.write_text(t.replace(antigo, novo), encoding='utf-8')
+
+
+def css_das_molduras(css):
+    """The faults of the manual's CSS for a figure's <img> in .moldura: that frame is inline-block, as wide as what it holds, so a width in % on the <img> is a % of
+    an empty frame until the image decodes, 0 px, and the page grows under a link of the Sumario (on a phone the panel's and the LCD's figures had one until
+    2026-11-07). .moldura-web and .moldura-celular are blocks: their <img> is 100 % of the column, which is known before any image decodes."""
+    faltas = []
+    for seletores, corpo in re.findall(r'([^{}]+)\{([^{}]*)\}', re.sub(r'/\*.*?\*/', '', css, flags=re.S)):
+        for sel in (x.strip() for x in seletores.split(',')):
+            if (re.search(r'\bimg\b', sel) and re.search(r'\.moldura(?![\w-])|\.moldura-(?!web\b|celular\b)[\w-]+', sel)
+                    and re.search(r'(?<![\w-])width:\s*[\d.]+%', corpo)):
+                faltas.append(f'{sel}{{{corpo}}}: a width in % on an <img> in the inline-block frame')
+    return faltas
+
+
+def png_minimo(largura, altura):
+    """A valid grey PNG of largura x altura, made with zlib: the signature, IHDR, one IDAT and IEND, each chunk with its CRC."""
+    def bloco(tipo, dados):
+        return struct.pack('>I', len(dados)) + tipo + dados + struct.pack('>I', zlib.crc32(tipo + dados) & 0xffffffff)
+    linhas = b''.join(b'\x00' + b'\x80' * largura for _ in range(altura))
+    return (b'\x89PNG\r\n\x1a\n' + bloco(b'IHDR', struct.pack('>IIBBBBB', largura, altura, 8, 0, 0, 0, 0))
+            + bloco(b'IDAT', zlib.compress(linhas)) + bloco(b'IEND', b''))
 
 
 def copiar_fonte(fonte, destino):
@@ -913,7 +944,7 @@ def main():
                                      ('a rule for the PNG diagram\'s frame', '.moldura-svg{', '.moldura-diagrama{background:var(--superficie)}\n.moldura-svg{')):
             mudado = bm.CSS.replace(antes, depois, 1)
             confere(mudado != bm.CSS and css_do_svg(mudado) != [], f'the check let through {descr}', f'the CSS check refuses {descr}: {css_do_svg(mudado)[0] if css_do_svg(mudado) else ""}')
-        (figs / 'p.png').write_bytes(b'\x89PNG\r\n\x1a\n')
+        (figs / 'p.png').write_bytes(png_minimo(40, 30))
         antes_img = bm.IMG
         bm.IMG = str(figs)
         try:
@@ -929,6 +960,50 @@ def main():
         confere(len(erros) == 1 and 'outro-d' in erros[0], f'an id the page already has gave {erros}', 'svg_id_errors( ): an SVG id that a heading of the page also has: exactly 1 error')
         html_png = bm.render_figures('<div id="fig-99-x" class="figura" data-tipo="tft" data-arquivo="nao-existe.png" data-captura="como">\n<p>x</p>\n</div>', '99', 'Teste', [])
         confere('pendente' in html_png and '<svg' not in html_png, 'a missing file did not stay a pending box', 'a figure whose file is missing is still the pending box (the .png path is untouched)')
+
+        # ---- build_manual.py: every PNG with its width and height (2026-11-07) ------------------------------------------------------------------------------
+        # Without them a lazy <img> is 0 px tall until it decodes, and a link of the Sumario lands short of its chapter (the comment in render_figures( )).
+        confere(bm.png_size(str(figs / 'p.png')) == (40, 30), f'png_size( ) of a 40x30 PNG gave {bm.png_size(str(figs / "p.png"))}', 'png_size( ): (40, 30) from the IHDR of a 40x30 PNG')
+        for descr, dados in (('only the signature', b'\x89PNG\r\n\x1a\n'), ('a JPEG', b'\xff\xd8\xff\xe0' + bytes(28)),
+                             ('a PNG whose first chunk is not IHDR', png_minimo(40, 30)[:12] + b'IDAT' + png_minimo(40, 30)[16:])):
+            (figs / 'ruim.png').write_bytes(dados)
+            try:
+                recusa = f'took it as {bm.png_size(str(figs / "ruim.png"))}'
+            except SystemExit as e:
+                recusa = str(e)
+            confere('ruim.png' in recusa and 'not a PNG' in recusa, f'png_size( ) on {descr}: {recusa}', f'png_size( ) stops the build on {descr}, naming the file')
+        bm.IMG = str(figs)
+        try:
+            for tipo, captura, quadro in (('web', 'como', '<div class="moldura-web"><div class="barra">'), ('web', 'celular, largura 390', '<div class="moldura-web moldura-celular" style="max-width:22px">'),
+                                          ('tft', 'como', '<div class="moldura moldura-tft">'), ('foto', 'como', '<div class="moldura moldura-foto">')):
+                saida = bm.render_figures(f'<div id="fig-99-p" class="figura" data-tipo="{tipo}" data-arquivo="p.png" data-captura="{captura}">\n<p>Legenda p.</p>\n</div>', '99', 'Teste', [])
+                confere(quadro in saida and re.search(r'<img src="data:image/png;base64,[A-Za-z0-9+/=]+" alt="Legenda p\." width="40" height="30" loading="lazy">', saida) is not None,
+                        f'a PNG of tipo {tipo} ({captura}) gave {saida[:120]}...{saida[-200:]}', f'render_figures( ), tipo {tipo} ({captura}): the <img> says width="40" height="30", the PNG\'s, in its frame')
+        finally:
+            bm.IMG = antes_img
+        pagina_commit = (ROOT / 'docs' / 'MANUAL.pt-BR.html').read_text(encoding='utf-8')
+        n_img = len(bm.IMG_RE.findall(pagina_commit))
+        confere(n_img > 0 and bm.img_size_errors(pagina_commit) == [], f'the committed manual: {n_img} <img>, {bm.img_size_errors(pagina_commit)[:3]}',
+                f'img_size_errors( ) on the committed docs/MANUAL.pt-BR.html: none of its {n_img} <img> lacks its PNG\'s width and height')
+        primeira = bm.IMG_RE.search(pagina_commit)
+        tag = primeira.group(0)
+        fig_id = re.findall(r'<figure id="([^"]+)"', pagina_commit[max(0, primeira.start() - 4000):primeira.start()])[-1]
+        larg, alt = re.search(r'\swidth="(\d+)" height="(\d+)"', tag).groups()
+        for descr, novo, termo in (('width and height gone', re.sub(r' width="\d+" height="\d+"', '', tag), 'lacks width or height'),
+                                   ('the height gone', re.sub(r' height="\d+"', '', tag), 'lacks width or height'),
+                                   ('the height one pixel off', tag.replace(f'height="{alt}"', f'height="{int(alt) + 1}"'), f'says {larg}x{int(alt) + 1}'),
+                                   ('a JPEG in the data: URI', tag.replace('data:image/png;base64,', 'data:image/jpeg;base64,'), 'not a PNG')):
+            erros = bm.img_size_errors(pagina_commit[:primeira.start()] + novo + pagina_commit[primeira.end():])
+            confere(len(erros) == 1 and erros[0].startswith(fig_id + ':') and termo in erros[0], f'{descr}: img_size_errors( ) gave {erros[:3]}',
+                    f'img_size_errors( ), {descr} in one <img> of a copy of the committed page: exactly 1 finding, naming {fig_id}')
+        # the width and height reserve the box only where the <img>'s width is known before it decodes: not a % of the inline-block frame
+        confere(css_das_molduras(bm.CSS) == [] and '.moldura-web img{display:block;width:100%' in bm.CSS, f'the manual\'s CSS: {css_das_molduras(bm.CSS)}',
+                'the manual\'s CSS gives no <img> in .moldura a width in % (and .moldura-web, a block, keeps its 100 %)')
+        for descr, antes, depois in (('the phone rule of the LCD before 2026-11-07', '.moldura-lcd img{image-rendering:auto}', '.moldura-lcd img{width:100%;image-rendering:auto}'),
+                                     ('the phone rule of the panel before 2026-11-07', '.moldura-lcd img{image-rendering:auto}', '.moldura-tft img{width:100%}.moldura-lcd img{image-rendering:auto}'),
+                                     ('a width of 50 % on every figure in .moldura', '.moldura img{display:block;', '.moldura img{display:block;width:50%;')):
+            mudado = bm.CSS.replace(antes, depois, 1)
+            confere(mudado != bm.CSS and len(css_das_molduras(mudado)) == 1, f'{descr}: {css_das_molduras(mudado)}', f'the CSS check refuses {descr}: exactly 1 fault')
 
         if shutil.which('pandoc'):
             raiz = tmp / 'arvore'
@@ -948,8 +1023,24 @@ def main():
             quadro = re.search(rf'<figure id="{re.escape(m.FIGURAS[0].bloco)}" class="fig fig-diagrama"><div class="moldura moldura-svg"><svg [^>]*aria-label="[^"]+"', pagina)
             confere(quadro is not None and '<?xml' not in pagina and f'data:image/svg+xml' not in pagina, f'the page built from the copy: {r.stderr.strip()[-200:]} {pagina[:100]}',
                     'build_manual.py on a copy: the page has the <svg> in the <figure> with aria-label, no prologue, no data: URI')
-            # a second figure with the same SVG, in the copy's chapter 2, and the same id put into both
+            # a PNG figure in the copy (until here it had the SVG only): the page gives its <img> the PNG's size, and --check holds main( )'s page to it
             pasta_img = raiz / 'docs' / 'images' / 'manual'
+            fid, arquivo_png = next((f, a) for c in sorted((raiz / 'docs' / '_manual').glob('cap*.md'))
+                                    for f, a in re.findall(r'\{\.figura #(fig-[\w-]+) [^}]*?arquivo="([^"]+\.png)"', c.read_text(encoding='utf-8')) if (m.IMAGENS / a).exists())
+            shutil.copyfile(m.IMAGENS / arquivo_png, pasta_img / arquivo_png)
+            larg, alt = bm.png_size(str(pasta_img / arquivo_png))
+            r = build()
+            pagina = (raiz / 'docs' / 'MANUAL.pt-BR.html').read_text(encoding='utf-8') if r.returncode == 0 else ''
+            confere(re.search(rf'<figure id="{fid}" [^>]*>(?:(?!</figure>).)*<img [^>]* width="{larg}" height="{alt}" loading="lazy">', pagina, re.S) is not None,
+                    f'the page built with {arquivo_png}: {r.stderr.strip()[-200:]}', f'build_manual.py on a copy with {arquivo_png}: its <img> says width="{larg}" height="{alt}"')
+            r = build('--check')
+            confere(r.returncode == 0 and r.stdout.strip() == '', f'build_manual.py --check with {arquivo_png} exited {r.returncode}: {r.stdout.strip()[-300:]}', f'build_manual.py --check on the copy with {arquivo_png}: exit 0')
+            trocar(raiz / 'tools' / 'build_manual.py', """f'width="{width}" height="{height}" loading="lazy">'""", """f'loading="lazy">'""")
+            r = build('--check')
+            confere(r.returncode == 1 and r.stdout.count('lacks width or height') == 1 and r.stdout.startswith(fid + ':'),
+                    f'the build made to drop the size: --check exited {r.returncode}: {r.stdout.strip()[-300:]}', 'build_manual.py --check, the build made to drop the size: exit 1, exactly one line, naming the figure')
+            shutil.copyfile(m.ROOT / 'tools' / 'build_manual.py', raiz / 'tools' / 'build_manual.py')
+            # a second figure with the same SVG, in the copy's chapter 2, and the same id put into both
             shutil.copyfile(pasta_img / nomes[0], pasta_img / '99-copia.svg')
             with open(raiz / 'docs' / '_manual' / 'cap02-hardware.md', 'a', encoding='utf-8') as fh:
                 fh.write('\n::: {.figura #fig-99-copia tipo="diagrama" arquivo="99-copia.svg" captura="uma cópia"}\nUma cópia do primeiro diagrama.\n:::\n')
@@ -960,7 +1051,7 @@ def main():
                     'build_manual.py --check: two SVG with one id: exit 1, exactly one line about it')
         else:
             PULADOS.append('build_manual.py through pandoc')
-            print('skip build_manual.py run through pandoc: pandoc is not installed (the controls above read render_figures( ) and svg_id_errors( ) directly)')
+            print('skip build_manual.py run through pandoc: pandoc is not installed (the controls above read render_figures( ), svg_id_errors( ) and img_size_errors( ) directly)')
 
         # ---- the command line ------------------------------------------------------------------------------------------------------------------------------
         r = cli('--list')
