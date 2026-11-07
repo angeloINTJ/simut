@@ -346,7 +346,7 @@
  * ========================================================================= */
 
 #ifndef SIMUT_BLUETOOTH
-#define SIMUT_BLUETOOTH 0       // Bluetooth BLE CLI (disabled)
+#define SIMUT_BLUETOOTH 0       // Bluetooth Classic CLI over SPP, not BLE (disabled)
 #endif
 
 #ifndef SIMUT_MDNS
