@@ -7,10 +7,11 @@ operational security procedures of the SIMUT firmware. It must be kept
 in sync with the code — **any security changes to the project require
 a review of this file**.
 
-Context: SIMUT is firmware for the Raspberry Pi Pico W (RP2040) that
-manages temperature/humidity sensors, exposes a dashboard and management
-interface via HTTP, has a USB serial CLI, and sends telemetry to a
-remote server. There is also a Bluetooth SPP CLI: it is compiled out of
+Context: SIMUT is firmware for the Raspberry Pi Pico W (RP2040) and the
+Pico 2 W (RP2350) that reads sensors on sixteen universal slots (drivers
+for temperature, humidity and pressure today), exposes a dashboard and
+management interface via HTTP, has a USB serial CLI, and sends telemetry
+to a remote server. There is also a Bluetooth SPP CLI: it is compiled out of
 the `pico_w_release` image, but **it is compiled into the published
 `pico_w_alpha` and `pico_w_air` images**, so on those two it is live
 attack surface — see §2 and §8. It is designed to operate on a trusted

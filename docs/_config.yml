@@ -1,5 +1,5 @@
 title: SIMUT — Sistema Integrado de Monitoramento Universal e Telemetria
-description: Integrated Universal Monitoring and Telemetry System — offline-first temperature, humidity and pressure monitoring with TFT dashboard, web interface, and OTA updates
+description: Sistema Integrado de Monitoramento Universal e Telemetria — offline-first monitoring and telemetry firmware for the Raspberry Pi Pico W and Pico 2 W, with universal sensor slots, a TFT dashboard, a web interface and signed over-the-air updates
 
 # Theme settings
 theme: jekyll-theme-cayman

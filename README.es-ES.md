@@ -8,9 +8,9 @@
 
 # SIMUT — Sistema Integrado de Monitoramento Universal e Telemetria
 
-> Sistema Integrado de Monitoreo Universal y Telemetría
+> En español, *Sistema Integrado de Monitoreo Universal y Telemetría*. El nombre es portugués, y también la sigla: no se traduce.
 
-> Monitoreo de temperatura, humedad y presión para la Raspberry Pi Pico W, con o sin red
+> Monitoreo y telemetría, con o sin red, para la Raspberry Pi Pico W y la Pico 2 W, en dieciséis slots universales de sensor
 
 [English](README.md) | [Português](README.pt-BR.md) | [Español](README.es-ES.md)
 
@@ -29,7 +29,7 @@
 
 ## Descripción general
 
-SIMUT es un firmware IoT para la **Raspberry Pi Pico W** que monitorea temperatura, humedad y presión en hasta 16 sensores, y sigue funcionando con o sin red. Un único código fuente genera tres dispositivos publicados:
+SIMUT es un firmware de monitoreo y telemetría para la **Raspberry Pi Pico W** y la **Pico 2 W**. Lee hasta 16 sensores en slots universales — hoy temperatura, humedad y presión, con sus drivers de DS18B20, DHT22 y BMP280/BME280 —, los graba en el dispositivo, dispara alarmas y sigue funcionando con o sin red. Un único código fuente genera tres dispositivos publicados:
 
 - un **monitor con panel táctil** (TFT 320×240);
 - un **monitor con LCD de caracteres** (16×2, el *alpha*);
@@ -42,6 +42,8 @@ Los tres comparten el mismo núcleo:
 - telemetría por HTTP(S) o MQTT(S), con una línea aparte para las alarmas;
 - MQTT Discovery de Home Assistant, ruta `/metrics` para Prometheus y syslog remoto (RFC 5424);
 - actualización por el aire y consola serie.
+
+**Universal es el rumbo, no una función.** Un slot no tiene magnitud fija: un tipo de sensor es un driver en `src/sensors/` más una fila en la tabla de canales, y el panel, el histórico, las alarmas, la calibración y la telemetría leen los metadatos del driver en vez de tratar una pieza como caso especial ([cómo añadir un sensor](docs/adding-a-new-sensor.md), en inglés). Hoy se incluyen tres drivers, y la tabla ya tiene una fila para luminosidad que ninguno de ellos llena. El rumbo del proyecto es más drivers, aportados uno a uno, y slots que accionan — relés, válvulas, señales — además de leer. Ninguna imagen acciona una salida todavía: una alarma es un sonido, una pantalla y un mensaje a tu servidor.
 
 ## Estado del proyecto
 
@@ -76,7 +78,7 @@ Los tres comparten el mismo núcleo:
 | Métricas Prometheus | Ninguna | Integrado | Ruta `/metrics` |
 | Registro de auditoría remoto | Ninguno | Complemento | Syslog (RFC 5424 / UDP) |
 
-**SIMUT es para ti si:** necesitas un sistema de monitoreo de temperatura autónomo, seguro y auditable que funcione con o sin internet — típico de laboratorios, farmacias, bancos de sangre, almacenamiento de vacunas y cadenas de frío alimentarias.
+**SIMUT es para ti si:** necesitas un sistema de monitoreo autónomo, seguro y auditable que funcione con o sin internet — hoy típico de laboratorios, farmacias, bancos de sangre, almacenamiento de vacunas y cadenas de frío alimentarias, y de donde un sensor con driver necesite una pantalla, un histórico y una alarma.
 
 **ESPHome/Tasmota pueden ser mejores si:** no necesitas pantalla local y prefieres configuración YAML a una interfaz web integrada. (Si lo que te retenía allí era Home Assistant: SIMUT habla MQTT Discovery.)
 
@@ -84,7 +86,7 @@ Los tres comparten el mismo núcleo:
 
 ```
 ┌──────────────────────────────────────────────────────────┐
-│                    Raspberry Pi Pico W                   │
+│       Raspberry Pi Pico W · Pico 2 W · Pico (Wire)       │
 │  ┌──────────────────────┐  ┌────────────────────────────┐│
 │  │      Core 0          │  │        Core 1              ││
 │  │  (Main Loop)         │  │  (Display Loop)            ││
@@ -104,8 +106,10 @@ Los tres comparten el mismo núcleo:
 │  │    (alpha: HD44780 16×2 LCD · Air: no display)      │ │
 │  │  ◆ GP0–GP15 → 16 universal sensor slots:            │ │
 │  │      DS18B20 (1-Wire) · DHT22 · BMP280/BME280 (I2C) │ │
+│  │      (a new type: a driver + a channel-table row)   │ │
 │  │  ◆ USB CDC → serial console (+ Bluetooth: alpha/Air)│ │
 │  │  ◆ WiFi (CYW43439) → HTTP(S) server + telemetry     │ │
+│  │    (Wire: ENC28J60 Ethernet over SPI, no radio)     │ │
 │  └─────────────────────────────────────────────────────┘ │
 └──────────────────────────────────────────────────────────┘
          │                   │                   │
@@ -131,10 +135,10 @@ Los tres comparten el mismo núcleo:
 
 | Componente | Especificación |
 |-----------|---------------|
-| MCU | Raspberry Pi Pico W (RP2040, doble núcleo) |
+| MCU | Raspberry Pi Pico W (RP2040) o Pico 2 W (RP2350), ambas de doble núcleo. El SIMUT Wire, una Pico sin radio con un módulo Ethernet ENC28J60 en su lugar (`pico_wire`, `pico_wiretft`), lo compila el CI y corre en el banco; no se publica |
 | Pantalla | `release`: TFT ILI9341 320×240 (SPI, con DMA), en el aspecto Ángulo en la Pico 2 W (la v2.12.0 y las anteriores dibujaban el panel original) y en el aspecto original en la Pico W · `alpha`: LCD de caracteres HD44780 16×2 (4 bits) · `air`: ninguna |
 | Táctil | Pantalla táctil resistiva XPT2046 (`release`) |
-| Sensores | **16 slots universales en GP0–GP15** — cualquier mezcla de DS18B20 (1-Wire), DHT22 y BMP280/BME280. El BMx280 es I²C y ocupa dos pines; dos de ellos pueden compartir un par (0x76/0x77) |
+| Sensores | **16 slots universales en GP0–GP15** — cualquier mezcla de DS18B20 (1-Wire), DHT22 y BMP280/BME280. El BMx280 es I²C y ocupa dos pines; dos de ellos pueden compartir un par (0x76/0x77). Un tipo nuevo de sensor es un driver más una fila en la tabla de canales ([cómo añadir un sensor](docs/adding-a-new-sensor.md)) |
 | Zumbador | Piezo pasivo (por PIO) — no existe en el Air |
 | Almacenamiento | Flash interna de 2 MB (slot de firmware de 1 MB + LittleFS de 1 MB) |
 
@@ -144,9 +148,9 @@ Consulta la **[guía de cableado](docs/WIRING.md)** para el pinout completo y lo
 
 ## Características
 
-- **Sensores y alarmas** — 16 slots universales de sensor (DS18B20, DHT22, BMP280/BME280) asignados en tiempo de ejecución, curvas de calibración, límites por canal, alarma de fallo y ventanas de mantenimiento.
+- **Sensores y alarmas** — 16 slots universales de sensor asignados en tiempo de ejecución, tres drivers hoy (DS18B20, DHT22, BMP280/BME280) en una tabla de canales abierta a más, curvas de calibración, límites por canal, alarma de fallo y ventanas de mantenimiento.
 - **Panel táctil** (`release`) — panel principal, gráficos del histórico y calendario, e identidad en el panel: la cuenta y luego su PIN. La release de la Pico 2 W lo dibuja en el aspecto Ángulo; la de la Pico W conserva el panel original. La v2.12.0 y las anteriores dibujaban el panel original en la Pico 2 W.
-- **LCD de caracteres** (`alpha`) — cada slot por turno, el punto de acceso de configuración y una consola Bluetooth.
+- **LCD de caracteres** (`alpha`) — cada slot por turno, el punto de acceso de configuración y una consola Bluetooth; desde la v2.14.0 el panel web dibuja el propio vidrio, capturado una vez o en vivo (`GET /api/lcd`).
 - **Interfaz web** — 11 páginas, el espejo del panel en vivo, gráficos del histórico y exportación CSV en el navegador.
 - **API HTTP** — 63 rutas. Cada una está protegida por un permiso o es pública por diseño, y el CI lo comprueba. Las imágenes con el panel Ángulo añaden `GET /api/ui`, protegida.
 - **Telemetría** — HTTP, HTTPS, MQTT y MQTTS, en lotes por cantidad, y una segunda línea, con confirmación, para las alarmas; Home Assistant, Prometheus y syslog.
@@ -215,7 +219,7 @@ simut/
 │   ├── DisplayManager*     # Panel TFT y LCD del alpha (Core 1), táctil, temas
 │   ├── WebManager*         # Servidor web, API HTTP, sesiones, OTA, TLS
 │   ├── StorageManager*     # LittleFS, configuración, cuentas, archivos de histórico
-│   ├── SensorManager*      # Drivers DS18B20 / DHT22 / BMx280
+│   ├── SensorManager*      # El anfitrión de los sensores: registro de drivers, bucle de lectura, histéresis de error
 │   ├── NetworkManager*     # Wi-Fi, escalera de reconexión, AP de configuración, mDNS, NTP
 │   ├── TelemetryManager*   # Telemetría HTTP(S)/MQTT(S) y línea de alarmas
 │   ├── CommandManager*     # Consola serie y Bluetooth
@@ -223,12 +227,14 @@ simut/
 │   ├── HistoryV5.*         # Códec del histórico V5
 │   ├── air/                # Configuración del SIMUT Air
 │   ├── display/            # Teclados, fuentes y etiquetas comunes a las pantallas
-│   ├── sensors/            # Tabla de canales, curvas de calibración
+│   ├── net/                # La red como driver: Wi-Fi CYW43, ENC28J60 (el Wire)
+│   ├── sensors/            # Drivers de sensor (DS18B20, DHT22, BMx280), tabla de canales, curvas de calibración
 │   ├── ota/                # Preparación, validación y aplicación de la actualización
+│   ├── ui/                 # Los drivers de UI del panel: original y Ángulo
 │   └── SystemDefs*.h       # Constantes y límites del sistema
 ├── data/                   # Assets de LittleFS (packs de idioma, temas, favicon)
 ├── PCB_test/               # Diseño de la PCB en KiCad + archivos de fabricación (Gerber/DRL)
-├── test/                   # Tests unitarios nativos (Unity), diez suites
+├── test/                   # Tests unitarios nativos (Unity), once suites
 ├── tools/                  # Puertas de build, suites de banco, PicoHand, scripts de release, editor de temas
 ├── docs/                   # Documentación + sitio GitHub Pages
 ├── WebUI.h                 # Fuente de la web UI (se convierte en src/WebUI_GZ.h al compilar)
@@ -249,7 +255,11 @@ simut/
 | `pico_w_test_https` | `pico_w_test` más el servidor HTTPS, para validar TLS; tres de sus páginas se sirven desde LittleFS para que quepa | — |
 | `pico_w_asserts` | Release + aserciones de concurrencia | — |
 | `pico2_w_release` | La release del Pico 2 W (RP2350): arranca desde el slot A o B de una tabla de particiones y se actualiza por el aire en el otro, a prueba ([OTA_AB_RP2350.md](docs/analysis/OTA_AB_RP2350.md)). Su `.uf2` es una imagen de fábrica, con la tabla de particiones. Dibuja el panel táctil en el aspecto Ángulo (la v2.12.0 y las anteriores dibujaban el panel original) | `…_releasetwo` |
-| ocho entornos `native*` | Tests unitarios en el host — ver [Pruebas](#pruebas) | — |
+| `pico2_w_original` | La Pico 2 W con el panel original, el aspecto que llevó hasta la v2.12.0; la compila el CI, no se publica, no es check obligatorio | — |
+| `pico_wire` | El SIMUT Wire: una Pico sin radio, con un módulo Ethernet ENC28J60 (`src/net/`) y el LCD 16×2; en el banco desde el 12/10/2026, la compila el CI, no se publica | — |
+| `pico_wiretft` | El Wire con el panel TFT y el táctil en lugar del LCD, en el aspecto original | — |
+| `pico_wiretft_angulo` | El `pico_wiretft` dibujado por el driver de UI Ángulo (`src/ui/angulo/`) | — |
+| once entornos `native*` | Tests unitarios en el host — ver [Pruebas](#pruebas) | — |
 
 > **Nota de seguridad para `pico_w_alpha` y `pico_w_air`:** las dos compilan la
 > consola Bluetooth SPP (`SIMUT_BLUETOOTH=1`), así que en esas dos imágenes es
@@ -346,7 +356,7 @@ El comportamiento se comprueba en un banco: una Pico 2 W con el panel TFT y el t
 |----------|-------------|
 | [Manual de usuario (EN)](docs/MANUAL.md) | Montaje, pantalla/web/consola, OTA, referencia de la API, resolución de problemas — mantenido al día |
 | [Manual do usuário (pt-BR)](docs/MANUAL.pt-BR.md) | El mismo manual, en portugués |
-| [Manual completo (pt-BR)](docs/MANUAL.pt-BR.html) | El manual del producto en portugués, actualizado para la v2.14.0: instalación, configuración, uso diario e integración con servidores. Las pantallas se están recapturando; cada una que falta está marcada en su lugar |
+| [Manual completo (pt-BR)](docs/MANUAL.pt-BR.html) | El manual del producto en portugués, actualizado para la v2.14.0: instalación, configuración, uso diario e integración con servidores, con 245 figuras tomadas en el banco; las 10 que aún faltan (06/11/2026) están marcadas en su lugar |
 | [Guía de cableado](docs/WIRING.md) | Pinout completo y diagramas de conexión |
 | [Actualización por el aire](docs/OTA_USAGE.md) | Actualizar desde la página web, y lo que sobrevive |
 | [Guía de recuperación](docs/RECOVERY.md) | Recuperación de brick — BOOTSEL, picotool, reset 1200 bps |
@@ -361,7 +371,7 @@ El comportamiento se comprueba en un banco: una Pico 2 W con el panel TFT y el t
 ## Cómo se desarrolla SIMUT
 
 La mayor parte de los cambios la escribe un agente de IA (Claude Code) en sesiones que dirige el mantenedor: del 1 de septiembre al 2 de octubre de 2026, 275 de los 371 commits de `main` llevaban una línea `Co-Authored-By: Claude`. Las instrucciones que siguen esas sesiones son [CLAUDE.md](CLAUDE.md) y [AGENTS.md](AGENTS.md) (en portugués). Las reglas son las mismas para todo cambio, lo escriba quien lo escriba:
-- llega a `main` solo por pull request, después de nueve checks obligatorios: las diez suites de test en el host, también bajo AddressSanitizer y UBSan, 60 s de fuzzing, análisis estático y seis imágenes de firmware compiladas con la caché fría;
+- llega a `main` solo por pull request, después de nueve checks obligatorios: las once suites de test en el host, también bajo AddressSanitizer y UBSan, 60 s de fuzzing, análisis estático y seis de las once imágenes de firmware compiladas con la caché fría;
 - los tests van primero: una corrección trae una reproducción que falla antes y pasa después, y una refactorización muestra que el comportamiento no cambió;
 - una afirmación sobre bytes, velocidad o una corrección trae su medición, y lo que no se comprobó en el hardware lo dice;
 - las decisiones de producto, y la de hacer merge, son del mantenedor.

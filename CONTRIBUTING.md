@@ -2,7 +2,7 @@
 
 **English** | [Português](CONTRIBUTING.pt-BR.md) | [Español](CONTRIBUTING.es-ES.md)
 
-Thanks for your interest in contributing! SIMUT is an open-source IoT firmware for the Raspberry Pi Pico W. Here's how you can help.
+Thanks for your interest in contributing! SIMUT — Sistema Integrado de Monitoramento Universal e Telemetria — is open-source monitoring and telemetry firmware for the Raspberry Pi Pico W and Pico 2 W. It is meant to be universal: a sensor type is a driver under `src/sensors/`, and a driver for a part the firmware does not read yet is the contribution it most wants ([docs/adding-a-new-sensor.md](docs/adding-a-new-sensor.md)). Here's how you can help.
 
 ## Before You Start
 
@@ -15,7 +15,7 @@ Look for issues labeled [`good first issue`](https://github.com/angeloINTJ/simut
 
 | Skill | Example issues |
 |-------|---------------|
-| C/C++ embedded | HistoryCodec tests, CLI parser tests, fuzz testing |
+| C/C++ embedded | A sensor driver for a new part, HistoryCodec tests, CLI parser tests, fuzz testing |
 | Python / DevOps | Docker dev environment, cppcheck CI, pre-commit hooks |
 | Documentation / i18n | Documentation improvements, social proof badges |
 | Design | New built-in color theme |

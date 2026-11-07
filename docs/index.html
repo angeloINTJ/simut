@@ -3,14 +3,14 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>SIMUT — Integrated Universal Monitoring and Telemetry System</title>
-<meta name="description" content="Offline-first temperature monitoring firmware for the Raspberry Pi Pico W. TFT touch dashboard, local web interface, multi-user access control and over-the-air updates. Open source, MIT." />
+<title>SIMUT — Sistema Integrado de Monitoramento Universal e Telemetria</title>
+<meta name="description" content="Offline-first monitoring and telemetry firmware for the Raspberry Pi Pico W and Pico 2 W: sixteen universal sensor slots, a TFT touch dashboard, a local web interface, multi-user access control and signed over-the-air updates. Open source, MIT." />
 <link rel="canonical" href="https://angelointj.github.io/simut/" />
 
 <meta property="og:type" content="website" />
 <meta property="og:site_name" content="SIMUT" />
-<meta property="og:title" content="SIMUT — Integrated Universal Monitoring and Telemetry System" />
-<meta property="og:description" content="Offline-first temperature monitoring firmware for the Raspberry Pi Pico W. TFT dashboard, local web interface, and over-the-air updates." />
+<meta property="og:title" content="SIMUT — Sistema Integrado de Monitoramento Universal e Telemetria" />
+<meta property="og:description" content="Offline-first monitoring and telemetry firmware for the Raspberry Pi Pico W and Pico 2 W. Universal sensor slots, TFT dashboard, local web interface and signed over-the-air updates." />
 <meta property="og:url" content="https://angelointj.github.io/simut/" />
 <meta property="og:image" content="https://angelointj.github.io/simut/images/social-preview.png" />
 <meta property="og:image:width" content="1280" />
@@ -211,11 +211,11 @@ td:first-child { color: var(--tinta); font-weight: 600; white-space: nowrap; }
           <span class="selo">RP2350</span>
         </p>
         <h1>
-          <span data-i18n="hero.h1">Temperature monitoring that answers to nobody's cloud.</span>
+          <span data-i18n="hero.h1">Monitoring that answers to nobody's cloud.</span>
           <span class="expand">Sistema Integrado de Monitoramento Universal e Telemetria</span>
         </h1>
         <p class="lede" data-i18n="hero.lede">
-          Open-source firmware for the Raspberry Pi Pico W. It reads up to sixteen
+          Open-source firmware for the Raspberry Pi Pico W and Pico 2 W. It reads up to sixteen
           sensors, draws them on a touch display, serves its own web interface over
           your LAN, keeps an audit trail, and updates itself over the air — with no
           account to create and no service to depend on.
@@ -524,7 +524,9 @@ td:first-child { color: var(--tinta); font-weight: 600; white-space: nowrap; }
           The capture below is a real device: two DS18B20 probes, two DHT22s
           and a BMP280, reporting temperature, humidity and pressure through one
           model. Adding a part is a driver and an entry in a type list. It is
-          not a new special case, and that is the whole design goal.
+          not a new special case, and that is the whole design goal. The
+          direction is more drivers, contributed one at a time, and slots that
+          actuate as well as read; no image drives an output yet.
         </p>
       </div>
     </div>
@@ -638,8 +640,8 @@ td:first-child { color: var(--tinta); font-weight: 600; white-space: nowrap; }
     'nav.screens': 'Telas', 'nav.direction': 'Direção', 'nav.hardware': 'Hardware',
     'nav.start': 'Começar', 'nav.docs': 'Documentação',
     'tag.stable': 'Estável',
-    'hero.h1': 'Monitoramento de temperatura que não responde à nuvem de ninguém.',
-    'hero.lede': 'Firmware de código aberto para o Raspberry Pi Pico W. Ele lê até dezesseis sensores, desenha as leituras num display de toque, serve a própria interface web na sua rede local, mantém trilha de auditoria e se atualiza pelo ar — sem conta para criar e sem serviço do qual depender.',
+    'hero.h1': 'Monitoramento que não responde à nuvem de ninguém.',
+    'hero.lede': 'Firmware de código aberto para o Raspberry Pi Pico W e o Pico 2 W. Ele lê até dezesseis sensores, desenha as leituras num display de toque, serve a própria interface web na sua rede local, mantém trilha de auditoria e se atualiza pelo ar — sem conta para criar e sem serviço do qual depender.',
     'hero.download': 'Baixar firmware', 'hero.manual': 'Ler o manual', 'hero.source': 'Ver o código no GitHub',
     'alt.dashboard': 'O painel do dispositivo SIMUT: dois cartões de sensor mostrando temperatura e umidade, acima de uma fileira de botões de slot.',
     'cap.hero': 'Painel do dispositivo · capturado de uma tela de 320×240',
@@ -720,7 +722,7 @@ td:first-child { color: var(--tinta); font-weight: 600; white-space: nowrap; }
     'uni.eyebrow': 'A direção', 'uni.h2': 'Universal é o ponto, não um recurso',
     'uni.p1': 'O SIMUT vem sendo generalizado release após release, e o trabalho é sobretudo remoção: cada versão elimina um caso especial que só existia porque algo foi fixado no código uma vez.',
     'uni.p2': 'Não há sensor ambiente, pino privilegiado nem slot reservado. Dezesseis posições em GPIO0–GPIO15 aceitam qualquer peça suportada, em qualquer combinação, e cada uma é identificada pelo hardware ID do próprio sensor — então calibração, alarmes e histórico seguem o dispositivo que você ligou, não a posição em que por acaso o ligou.',
-    'uni.p3': 'A captura abaixo é de um dispositivo real: duas sondas DS18B20, dois DHT22 e um BMP280, reportando temperatura, umidade e pressão por um só modelo. Acrescentar uma peça é um driver e uma entrada numa lista de tipos. Não é um novo caso especial, e esse é todo o objetivo do projeto.',
+    'uni.p3': 'A captura abaixo é de um dispositivo real: duas sondas DS18B20, dois DHT22 e um BMP280, reportando temperatura, umidade e pressão por um só modelo. Acrescentar uma peça é um driver e uma entrada numa lista de tipos. Não é um novo caso especial, e esse é todo o objetivo do projeto. A direção é mais drivers, contribuídos um a um, e slots que acionam além de ler; nenhuma imagem aciona uma saída ainda.',
     'alt.slots': 'A página de configuração de sensores: um mapa de pinos GP0 a GP15 e uma tabela de cinco slots com sensores DS18B20, DHT22 e BMP280.',
     'cap.slots': 'Cinco slots · três tipos de sensor · um modelo',
     'hw.eyebrow': 'Hardware', 'hw.h2': 'O que você precisa',
@@ -763,14 +765,14 @@ td:first-child { color: var(--tinta); font-weight: 600; white-space: nowrap; }
   },
 
   es: {
-    'meta.title': 'SIMUT — Sistema Integrado de Monitorización Universal y Telemetría',
+    'meta.title': 'SIMUT — Sistema Integrado de Monitoramento Universal e Telemetria',
     'skip': 'Saltar al contenido',
     'nav.status': 'Cifras', 'nav.new': 'Novedades', 'nav.caps': 'Funciones',
     'nav.screens': 'Pantallas', 'nav.direction': 'Rumbo', 'nav.hardware': 'Hardware',
     'nav.start': 'Empezar', 'nav.docs': 'Documentación',
     'tag.stable': 'Estable',
-    'hero.h1': 'Monitorización de temperatura que no responde a la nube de nadie.',
-    'hero.lede': 'Firmware de código abierto para la Raspberry Pi Pico W. Lee hasta dieciséis sensores, los dibuja en una pantalla táctil, sirve su propia interfaz web en tu red local, mantiene un registro de auditoría y se actualiza por aire — sin cuenta que crear y sin servicio del que depender.',
+    'hero.h1': 'Monitoreo que no responde a la nube de nadie.',
+    'hero.lede': 'Firmware de código abierto para la Raspberry Pi Pico W y la Pico 2 W. Lee hasta dieciséis sensores, los dibuja en una pantalla táctil, sirve su propia interfaz web en tu red local, mantiene un registro de auditoría y se actualiza por aire — sin cuenta que crear y sin servicio del que depender.',
     'hero.download': 'Descargar firmware', 'hero.manual': 'Leer el manual', 'hero.source': 'Ver el código en GitHub',
     'alt.dashboard': 'El panel del dispositivo SIMUT: dos tarjetas de sensor con temperatura y humedad, sobre una fila de botones de ranura.',
     'cap.hero': 'Panel del dispositivo · capturado de una pantalla de 320×240',
@@ -851,7 +853,7 @@ td:first-child { color: var(--tinta); font-weight: 600; white-space: nowrap; }
     'uni.eyebrow': 'El rumbo', 'uni.h2': 'Universal es el objetivo, no una función',
     'uni.p1': 'SIMUT se generaliza release tras release, y el trabajo es sobre todo eliminación: cada versión quita un caso especial que solo existía porque algo se fijó en el código una vez.',
     'uni.p2': 'No hay sensor ambiente, ni pin privilegiado, ni ranura reservada. Dieciséis posiciones en GPIO0–GPIO15 admiten cualquier pieza soportada, en cualquier combinación, y cada una se identifica por el hardware ID del propio sensor — así la calibración, las alarmas y el historial siguen al dispositivo que cableaste, no a la posición en la que lo cableaste.',
-    'uni.p3': 'La captura de abajo es de un dispositivo real: dos sondas DS18B20, dos DHT22 y un BMP280, informando temperatura, humedad y presión mediante un solo modelo. Añadir una pieza es un driver y una entrada en una lista de tipos. No es un nuevo caso especial, y ese es todo el objetivo del diseño.',
+    'uni.p3': 'La captura de abajo es de un dispositivo real: dos sondas DS18B20, dos DHT22 y un BMP280, informando temperatura, humedad y presión mediante un solo modelo. Añadir una pieza es un driver y una entrada en una lista de tipos. No es un nuevo caso especial, y ese es todo el objetivo del diseño. El rumbo es más drivers, aportados uno a uno, y ranuras que accionan además de leer; ninguna imagen acciona una salida todavía.',
     'alt.slots': 'La página de configuración de sensores: un mapa de pines GP0 a GP15 y una tabla de cinco ranuras con sensores DS18B20, DHT22 y BMP280.',
     'cap.slots': 'Cinco ranuras · tres tipos de sensor · un modelo',
     'hw.eyebrow': 'Hardware', 'hw.h2': 'Lo que necesitas',
@@ -888,7 +890,7 @@ td:first-child { color: var(--tinta); font-weight: 600; white-space: nowrap; }
     'co.lede': 'Los informes de error de instalaciones reales son lo más útil que puedes enviar — sobre todo los que vienen con un log adjunto.',
     'co.bug': 'Informar de un error', 'co.feat': 'Pedir una función',
     'co.guide': 'Leer la guía de contribución', 'co.vuln': 'Informar de vulnerabilidad',
-    'ft.colophon': 'SIMUT — Sistema Integrado de Monitorización Universal y Telemetría<br />Licencia MIT · hecho para la Raspberry Pi Pico W y la Pico 2 W · v2.14.0',
+    'ft.colophon': 'SIMUT — Sistema Integrado de Monitoramento Universal e Telemetria<br />Licencia MIT · hecho para la Raspberry Pi Pico W y la Pico 2 W · v2.14.0',
     'ft.releases': 'Releases', 'ft.changelog': 'Changelog', 'ft.license': 'Licencia',
     'ft.edit': 'Editar esta página'
   }

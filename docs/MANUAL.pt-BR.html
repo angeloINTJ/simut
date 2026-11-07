@@ -204,7 +204,7 @@ svg.dg .dg-ponta-acento{fill:var(--acento)}
 <main>
 <div class="parte" id="parte-1"><p>Parte I</p><h2>Conhecer</h2></div><section class="capitulo" id="cap-01"><p class="rotulo-cap">Capítulo 1</p><h2>O SIMUT em uma página</h2><p class="lede">Este capítulo diz o que o SIMUT faz, para quem ele serve e o que ele não é, mostra os três aparelhos lado a lado e ensina a ler o resto do manual. É para todo leitor, antes de qualquer outro capítulo.</p>
 <h3 id="cap-01-o-que">O que o SIMUT faz</h3>
-<p>O SIMUT é um firmware para o Raspberry Pi Pico W que transforma a placa num monitor de temperatura, umidade e pressão. Um aparelho SIMUT:</p>
+<p>O SIMUT, Sistema Integrado de Monitoramento Universal e Telemetria, é um firmware para o Raspberry Pi Pico W e o Pico 2 W que transforma a placa num aparelho de monitoramento e telemetria: hoje de temperatura, umidade e pressão, e de qualquer grandeza para a qual se escreva um driver. Um aparelho SIMUT:</p>
 <ul>
 <li><strong>lê até 16 sensores</strong> dos tipos DS18B20, DHT22, BME280 e BMP280, ligados aos pinos GP0 a GP15 (<a href="#cap-02">capítulo 2</a>, <a href="#cap-06">capítulo 6</a>);</li>
 <li><strong>grava o histórico no próprio aparelho</strong>, um registro por intervalo, a partir de 1 min. Com 11 grandezas e um registro por minuto, cabem cerca de 116 dias (medido em 31/07/2026; <a href="#cap-15">capítulo 15</a>);</li>
@@ -251,7 +251,7 @@ svg.dg .dg-ponta-acento{fill:var(--acento)}
 <h3 id="cap-01-nao-e">O que o SIMUT não é</h3>
 <ul>
 <li><strong>Não é um instrumento metrológico certificado.</strong> Antes de usá-lo onde a norma exige instrumento certificado, compare-o com uma referência sua. A calibração por sensor está no <a href="#cap-06-calibracao">capítulo 6</a>.</li>
-<li><strong>Não aciona equipamentos.</strong> O aparelho não tem saídas para relés ou atuadores. Um alarme sai como som, como aviso na tela e como mensagem ao seu servidor.</li>
+<li><strong>Ainda não aciona equipamentos.</strong> Hoje o aparelho não tem saídas para relés ou atuadores: um alarme sai como som, como aviso na tela e como mensagem ao seu servidor. A direção do projeto é que os slots também acionem, e quando isso existir estará neste manual.</li>
 <li><strong>Não depende de nuvem.</strong> A interface web sai do próprio aparelho e funciona numa rede local sem internet. As medições só saem para um servidor que você configurar: de fábrica, a telemetria e a linha de alarmes estão desligadas. O que o aparelho procura na rede de fábrica é a hora certa, por NTP (<a href="#cap-10-ntp">capítulo 10</a>).</li>
 </ul>
 <h3 id="cap-01-aparelhos">Os três aparelhos</h3>
