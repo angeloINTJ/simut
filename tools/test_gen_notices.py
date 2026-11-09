@@ -10,7 +10,7 @@ outputs to the TOML; nothing held the TOML to the images. After C3 the Pico 2 W 
   2. the rows marked `ui = "angulo"` name exactly the images whose profile has `ui = "angulo"` (and no other), and no
      other row is marked: so the next switch of a product's panel breaks this test, not the page;
   3. the family lists of the page and of the panel (the nine) hold none of those rows, so the originals' pages do not move;
-  4. the Angulo rows' md label names their images and the original panel's FreeFont row does not name the Angulo images
+  4. the Angulo rows' md label names their images and the original panel's Liberation Fonts row does not name the Angulo images
      (nm of the eleven firmware.elf, 2026-10-30: the Angulo images keep none of the 9, 12 and 24 pt faces);
   5. the --check of the generator catches one image name removed from one row of the TOML, and a row whose `ui` mark is
      removed (a copy of the TOML given with --toml; the controls of the check, or it would not bite);
@@ -68,7 +68,7 @@ linhas = {l.split("|")[1].strip(): l for l in md.splitlines() if l.startswith("|
 for c in marcadas:
     l = [v for k, v in linhas.items() if c["name"] in k][0]
     check("pico2_w_release" in l and "pico_wiretft_angulo" in l, f"4 a linha de {c['name']} no md nao nomeia as duas imagens: {l}")
-orig = [v for k, v in linhas.items() if k.startswith("[GNU FreeFont (FreeSans Bold)")][0]
+orig = [v for k, v in linhas.items() if k.startswith("[Liberation Fonts")][0]
 check("pico2_w_release" not in orig and "pico_wiretft_angulo" not in orig, f"4 a linha das faces do painel original nomeia uma imagem Angulo: {orig}")
 check("pico2_w_original" in orig, "4 a linha das faces do painel original nao nomeia pico2_w_original")
 
@@ -133,13 +133,13 @@ for nome_fam, fam in (("radio", radio), ("wired", wired)):
             label = " ".join(lab.group(1).split())
             check(denota(label, fam) == set(c["images"]) & set(fam),
                   f"7 {nome_fam}: {c['name']}: a pagina diz '{label}' = {sorted(denota(label, fam))}, a linha tem {sorted(set(c['images']) & set(fam))}")
-orig = [c for c in data["component"] if c["name"] == "GNU FreeFont (FreeSans Bold)"][0]
+orig = [c for c in data["component"] if c["name"] == "Liberation Fonts"][0]
 check(set(orig["images"]) == {"release", "test", "test_https", "asserts", "wiretft", "pico2_original"}, f"7 a linha das faces do painel original tem {sorted(orig['images'])}")
 check(all(k in gn.ROW_KEYS for c in data["component"] for k in c) if hasattr(gn, "ROW_KEYS") else False, "7 uma linha tem uma chave que o gerador nao conhece (gn.ROW_KEYS)")
 with tempfile.TemporaryDirectory() as tmp:
     p = os.path.join(tmp, "m.toml")
     with open(p, "w", encoding="utf-8") as fh:
-        fh.write(toml.replace('name = "GNU FreeFont (FreeSans Bold)"', 'name = "GNU FreeFont (FreeSans Bold)"\npage_images = ["release"]', 1))
+        fh.write(toml.replace('name = "Liberation Fonts"', 'name = "Liberation Fonts"\npage_images = ["release"]', 1))
     rc, saida = roda_check(p)
     check(rc != 0 and "page_images" in saida, f"7 uma chave desconhecida (page_images) numa linha nao foi recusada: rc {rc}: {saida[:120]}")
 
@@ -164,7 +164,7 @@ with tempfile.TemporaryDirectory() as tmp:
     check(rc == 0, f"8 o --elf falha na imagem Angulo com os simbolos dela: rc {rc}: {saida[-300:]}")
     casos_elf = {
         "a linha das faces do painel original nomeando pico2_release (a imagem nao tem o componente)": (toml.replace('images = ["release", "test", "test_https", "asserts", "wiretft", "pico2_original"]',
-                                                                                                   'images = ["release", "test", "test_https", "asserts", "pico2_release", "wiretft", "pico2_original"]', 1), "FreeSansBold"),
+                                                                                                   'images = ["release", "test", "test_https", "asserts", "pico2_release", "wiretft", "pico2_original"]', 1), "SansBold"),
         "a linha do Bricolage sem pico2_release (a imagem tem o componente)": (toml.replace('images = ["wiretft_angulo", "pico2_release"]', 'images = ["wiretft_angulo"]', 1), "entrega::DISP"),
         "a linha do BTstack nomeando pico2_release (a imagem nao tem o componente)": (toml.replace('images = ["alpha", "air"]', 'images = ["alpha", "air", "pico2_release"]', 1), "btstack"),
     }

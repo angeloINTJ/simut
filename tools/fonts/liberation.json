@@ -1,5 +1,5 @@
 {
-  "_what": "The TTFs the panel's bitmap faces are generated from (tools/gen_gfx_font.py). The fonts stay out of the repository: tools/fonts/fetch_liberation.py downloads this tarball, checks every sha256 below and refuses any difference. Pinned on 2026-11-08 from the official release of liberationfonts/liberation-fonts, the attachment of release 2.1.5; the OFL-1.1 text of the package is LICENSES/liberation-fonts-OFL-1.1.txt.",
+  "_what": "The TTFs the panel's bitmap faces are generated from (tools/gen_gfx_font.py). The fonts stay out of the repository: tools/fonts/fetch_liberation.py downloads this tarball, checks every sha256 below and refuses any difference. Pinned on 2026-11-08 from the official release of liberationfonts/liberation-fonts, the attachment of release 2.1.5; the OFL-1.1 text of the package, verbatim, is LICENSES/Liberation-OFL-1.1.txt.",
   "version": "2.1.5",
   "url": "https://github.com/liberationfonts/liberation-fonts/files/7261482/liberation-fonts-ttf-2.1.5.tar.gz",
   "tarball_sha256": "7191c669bf38899f73a2094ed00f7b800553364f90e2637010a69c0e268f25d0",

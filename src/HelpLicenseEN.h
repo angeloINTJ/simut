@@ -355,8 +355,8 @@ BMx280PIO_RP2040
   Ângelo Moisés Alves - MIT
 PicoENC28J60
   Lukasz Janyst and Ângelo Moisés Alves - MIT
-GNU FreeFont (FreeSans Bold)
-  GNU FreeFont contributors - GPL-3.0-or-later with the font exception
+Liberation Fonts
+  Red Hat, Inc. (digitized data: Google, Arimo) - SIL Open Font License 1.1
 Liberation Sans Bold
   Red Hat, Inc. (digitized data: Google, Arimo) - SIL Open Font License 1.1
 SHA-256 for JavaScript
@@ -412,8 +412,8 @@ BMx280PIO_RP2040
   Ângelo Moisés Alves - MIT
 BTstack
   BlueKitchen GmbH - Raspberry Pi licence (LICENSE.RP)
-GNU FreeFont (FreeSans Bold)
-  GNU FreeFont contributors - GPL-3.0-or-later with the font exception
+Liberation Fonts
+  Red Hat, Inc. (digitized data: Google, Arimo) - SIL Open Font License 1.1
 Liberation Sans Bold
   Red Hat, Inc. (digitized data: Google, Arimo) - SIL Open Font License 1.1
 SHA-256 for JavaScript

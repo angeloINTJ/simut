@@ -279,20 +279,20 @@ what = "The Bluetooth stack behind the Bluetooth console of the alpha and Air im
 note = "Raspberry Pi Ltd licenses BTstack to the buyers of the Pico W and the Pico 2 W for use in the products they build on them. BTstack's own licence (non-commercial) does not apply to that use."
 text = "btstack-LICENSE.RP.txt"
 
-# Measured by nm on the eleven firmware.elf (2026-10-30): the original panel's faces (FreeSansBold9pt8b, FreeSansBold12pt8b, FreeSansBold24pt7b)
+# Measured by nm on the eleven firmware.elf (2026-10-30, under the names of then; the faces were regenerated from Liberation Sans Bold on 2026-11-09 and the probe follows
+# their names, which the CI's firmware job checks on every build): the original panel's faces (SansBold9pt8b_latin1, SansBold12pt8b_latin1, SansBold24pt7b_subset)
 # are in the six images of `images` and in none of the Angulo's, whose faces are the row "GNU FreeFont (FreeSans, FreeMono Bold)" below.
 # The family lists name exactly these images (the radio page: pico_w_release, pico_w_test, pico_w_test_https, pico_w_asserts; the Wire page: all images but pico_wire), and not the
 # "five images with the touch panel" of before C4, a label that counted pico2_w_release, which links none of these faces (S10c C4 review, 2026-10-30).
 [[component]]
-name = "GNU FreeFont (FreeSans Bold)"
-holder = "GNU FreeFont contributors"
-license = "GPL-3.0-or-later with the font exception"
+name = "Liberation Fonts"
+holder = "Red Hat, Inc. (digitized data: Google, Arimo)"
+license = "SIL Open Font License 1.1"
 images = ["release", "test", "test_https", "asserts", "wiretft", "pico2_original"]
-symbols = "FreeSansBold(9pt8b|12pt8b|24pt7b)"
-url = "https://www.gnu.org/software/freefont/"
-what = "The 9, 12 and 24 pt faces of the touch panel, converted to bitmaps and cut down to the glyphs SIMUT draws."
-text = "freefont-GPL-3.0-font-exception.txt"
-also = ["GPL-3.0.txt"]
+symbols = "SansBold(9pt8b_latin1|12pt8b_latin1|24pt7b_subset)"
+url = "https://github.com/liberationfonts/liberation-fonts"
+what = "The 9, 12 and 24 pt faces of the touch panel, converted to bitmaps from Liberation Sans Bold 2.1.5 and cut down to the glyphs SIMUT draws."
+text = "Liberation-OFL-1.1.txt"
 
 # The Angulo panel's kit (src/ui/angulo/kit/, 2026-10-14): fonts rasterized by the plan's renderer from
 # the typefaces named here (the headers of kit/fontes/*.h say which, and tools/tft_ui/ESPEC_UI_A.md),

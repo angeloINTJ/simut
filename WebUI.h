@@ -7812,14 +7812,15 @@ repository, published with every release: https://github.com/angeloINTJ/simut
                   use.
 
 ================================================================================
-23. GNU FreeFont (FreeSans Bold)
+23. Liberation Fonts
 ================================================================================
    Description:   The 9, 12 and 24 pt faces of the touch panel, converted to
-                  bitmaps and cut down to the glyphs SIMUT draws.
-   Holder:        GNU FreeFont contributors
-   License:       GPL-3.0-or-later with the font exception
+                  bitmaps from Liberation Sans Bold 2.1.5 and cut down to the
+                  glyphs SIMUT draws.
+   Holder:        Red Hat, Inc. (digitized data: Google, Arimo)
+   License:       SIL Open Font License 1.1
    Images:        pico_w_release, pico_w_test, pico_w_test_https, pico_w_asserts
-   URL:           https://www.gnu.org/software/freefont/
+   URL:           https://github.com/liberationfonts/liberation-fonts
 
 ================================================================================
 24. Liberation Sans Bold
@@ -8039,14 +8040,15 @@ repository, published with every release: https://github.com/angeloINTJ/simut
                   commit of v1.3.1 (4984e2f).
 
 ================================================================================
-19. GNU FreeFont (FreeSans Bold)
+19. Liberation Fonts
 ================================================================================
    Description:   The 9, 12 and 24 pt faces of the touch panel, converted to
-                  bitmaps and cut down to the glyphs SIMUT draws.
-   Holder:        GNU FreeFont contributors
-   License:       GPL-3.0-or-later with the font exception
+                  bitmaps from Liberation Sans Bold 2.1.5 and cut down to the
+                  glyphs SIMUT draws.
+   Holder:        Red Hat, Inc. (digitized data: Google, Arimo)
+   License:       SIL Open Font License 1.1
    Images:        all images but pico_wire
-   URL:           https://www.gnu.org/software/freefont/
+   URL:           https://github.com/liberationfonts/liberation-fonts
 
 ================================================================================
 20. Liberation Sans Bold

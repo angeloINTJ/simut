@@ -51,7 +51,7 @@ of the original panel on the radio images.
 | [BMx280PIO_RP2040](#bmx280pio_rp2040) | Ângelo Moisés Alves | MIT | all images, and pico_wiretft_angulo, pico2_w_original |
 | [PicoENC28J60](#picoenc28j60) | Lukasz Janyst and Ângelo Moisés Alves | MIT | pico_wire, pico_wiretft, and pico_wiretft_angulo |
 | [BTstack](#btstack) | BlueKitchen GmbH | Raspberry Pi licence (LICENSE.RP) | pico_w_alpha, pico_w_air |
-| [GNU FreeFont (FreeSans Bold)](#gnu-freefont-freesans-bold) | GNU FreeFont contributors | GPL-3.0-or-later with the font exception | pico_w_release, pico_w_test, pico_w_test_https, pico_w_asserts, pico_wiretft, and pico2_w_original |
+| [Liberation Fonts](#liberation-fonts) | Red Hat, Inc. (digitized data: Google, Arimo) | SIL Open Font License 1.1 | pico_w_release, pico_w_test, pico_w_test_https, pico_w_asserts, pico_wiretft, and pico2_w_original |
 | [Bricolage Grotesque](#bricolage-grotesque) | The Bricolage Grotesque Project Authors | SIL Open Font License 1.1 | pico2_w_release, and pico_wiretft_angulo |
 | [GNU FreeFont (FreeSans, FreeMono Bold)](#gnu-freefont-freesans-freemono-bold) | GNU FreeFont contributors | GPL-3.0-or-later with the font exception | pico2_w_release, and pico_wiretft_angulo |
 | [Lucide](#lucide) | Lucide Contributors (portions: Cole Bemis, as part of Feather) | ISC | pico2_w_release, and pico_wiretft_angulo |
@@ -277,14 +277,14 @@ The Bluetooth stack behind the Bluetooth console of the alpha and Air images.
 
 Raspberry Pi Ltd licenses BTstack to the buyers of the Pico W and the Pico 2 W for use in the products they build on them. BTstack's own licence (non-commercial) does not apply to that use.
 
-## GNU FreeFont (FreeSans Bold)
+## Liberation Fonts
 
-The 9, 12 and 24 pt faces of the touch panel, converted to bitmaps and cut down to the glyphs SIMUT draws.
+The 9, 12 and 24 pt faces of the touch panel, converted to bitmaps from Liberation Sans Bold 2.1.5 and cut down to the glyphs SIMUT draws.
 
-- Copyright holder: GNU FreeFont contributors
-- Licence: GPL-3.0-or-later with the font exception, text in [LICENSES/freefont-GPL-3.0-font-exception.txt](LICENSES/freefont-GPL-3.0-font-exception.txt), [LICENSES/GPL-3.0.txt](LICENSES/GPL-3.0.txt)
+- Copyright holder: Red Hat, Inc. (digitized data: Google, Arimo)
+- Licence: SIL Open Font License 1.1, text in [LICENSES/Liberation-OFL-1.1.txt](LICENSES/Liberation-OFL-1.1.txt)
 - Images: pico_w_release, pico_w_test, pico_w_test_https, pico_w_asserts, pico_wiretft, and pico2_w_original
-- Source: <https://www.gnu.org/software/freefont/>
+- Source: <https://github.com/liberationfonts/liberation-fonts>
 
 ## Bricolage Grotesque
 
