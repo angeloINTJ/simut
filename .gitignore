@@ -58,6 +58,7 @@ docs/MANUAL_with_images.md
 __pycache__/
 *.pyc
 .venv/
+.venv-tools/
 
 # Test server certs (self-signed)
 tools/test-server/certs/
