@@ -6,11 +6,19 @@ FT_RENDER_MODE_MONO, bits MSB-first contínuos, yOffset = 1 - bitmap_top,
 yAdvance = face.size.height >> 6. Gera cobertura Latin-1 (0x20..0xFF)
 para acentos pt-BR/es-ES e o ° tipográfico.
 
-Uso: gen_gfx_font.py <ttf> <size> <first> <last> <StructName> <out.h> [--require CHARS]
+Uso: gen_gfx_font.py <ttf> <size> <first> <last> <StructName> <out.h> [--require CHARS] [--y-advance N]
 
 --require CHARS (em qualquer posição da linha) lista os caracteres que o TTF precisa ter. Sem o
 glifo, load_char desenha o .notdef e não avisa; com a opção, se faltar algum o script escreve em
 stderr `missing glyphs: U+XXXX ...` (todos, na ordem de CHARS), sai com 1 e não grava o arquivo.
+
+--y-advance N (em qualquer posição da linha) grava N como yAdvance do GFXfont no lugar de
+face.size.height >> 6; N é um inteiro decimal de 1 a 255 (o campo é um uint8_t) e nada mais no arquivo
+muda. Sem a opção a saída é a de sempre. Os cabeçalhos do painel original têm yAdvance 22 (9 pt), 29
+(12 pt) e 56 (24 pt): o Adafruit_GFX soma o yAdvance a cada nova linha e a cada quebra automática, e
+o leiaute do painel foi desenhado com esses valores. A Liberation Sans Bold mede 20, 27 e 54 nos
+mesmos tamanhos (FreeType 2.13.2, 2026-11-09), então a face trocada passa o valor do cabeçalho que
+substitui.
 
 Receita das fontes Latin-1 do TFT (FreeSansBold9pt8b_latin1.h / 12pt):
   1. TTF: https://ftp.gnu.org/gnu/freefont/freefont-ttf-20120503.zip
@@ -24,34 +32,42 @@ import freetype
 
 DPI = 141
 USO = ('Uso: gen_gfx_font.py <ttf> <size> <first> <last> <StructName> <out.h> '
-       '[--require CHARS]')
+       '[--require CHARS] [--y-advance N]')
+OPCOES = ('--require', '--y-advance')
 
 def usage():
     print(USO, file=sys.stderr)
     sys.exit(2)
 
 def parse_args(argv):
-    """Os seis argumentos posicionais e o CHARS de --require, que pode estar em qualquer posição.
+    """Os seis argumentos posicionais, o CHARS de --require e o N de --y-advance, que podem estar em qualquer posição.
 
     --require=CHARS, --require sem a lista, --require repetido e posicional a mais ou a menos
     saem em usage(): uma conferência que a linha de comando pula em silêncio não confere nada.
+    O mesmo vale para --y-advance, e um N que não seja inteiro decimal de 1 a 255 também: um valor
+    fora do uint8_t do GFXfont seria gravado e quebraria só na compilação.
     """
-    pos, require = [], None
+    pos, found = [], {}
     it = iter(argv)
     for arg in it:
-        if arg != '--require':
+        if arg not in OPCOES:
             pos.append(arg)
             continue
         value = next(it, None)
-        if value is None or require is not None:
+        if value is None or arg in found:
             usage()
-        require = value
+        found[arg] = value
     if len(pos) != 6:
         usage()
-    return pos, require
+    y_advance = found.get('--y-advance')
+    if y_advance is not None:
+        if not (y_advance.isascii() and y_advance.isdecimal() and 1 <= int(y_advance) <= 255):
+            usage()
+        y_advance = int(y_advance)
+    return pos, found.get('--require'), y_advance
 
 def main():
-    args, require = parse_args(sys.argv[1:])
+    args, require, y_advance_given = parse_args(sys.argv[1:])
     ttf, size, first, last, name, out = (
         args[0], int(args[1]), int(args[2], 0), int(args[3], 0), args[4], args[5])
 
@@ -109,7 +125,7 @@ def main():
             'yo': 1 - g.bitmap_top,
         })
 
-    y_advance = face.size.height >> 6
+    y_advance = face.size.height >> 6 if y_advance_given is None else y_advance_given
 
     lines = []
     lines.append(f'const uint8_t {name}Bitmaps[] PROGMEM = {{')
