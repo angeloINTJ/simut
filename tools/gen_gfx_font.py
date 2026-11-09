@@ -6,7 +6,11 @@ FT_RENDER_MODE_MONO, bits MSB-first contínuos, yOffset = 1 - bitmap_top,
 yAdvance = face.size.height >> 6. Gera cobertura Latin-1 (0x20..0xFF)
 para acentos pt-BR/es-ES e o ° tipográfico.
 
-Uso: gen_gfx_font.py <ttf> <size> <first> <last> <StructName> <out.h>
+Uso: gen_gfx_font.py <ttf> <size> <first> <last> <StructName> <out.h> [--require CHARS]
+
+--require CHARS (em qualquer posição da linha) lista os caracteres que o TTF precisa ter. Sem o
+glifo, load_char desenha o .notdef e não avisa; com a opção, se faltar algum o script escreve em
+stderr `missing glyphs: U+XXXX ...` (todos, na ordem de CHARS), sai com 1 e não grava o arquivo.
 
 Receita das fontes Latin-1 do TFT (FreeSansBold9pt8b_latin1.h / 12pt):
   1. TTF: https://ftp.gnu.org/gnu/freefont/freefont-ttf-20120503.zip
@@ -19,13 +23,44 @@ import sys
 import freetype
 
 DPI = 141
+USO = ('Uso: gen_gfx_font.py <ttf> <size> <first> <last> <StructName> <out.h> '
+       '[--require CHARS]')
+
+def usage():
+    print(USO, file=sys.stderr)
+    sys.exit(2)
+
+def parse_args(argv):
+    """Os seis argumentos posicionais e o CHARS de --require, que pode estar em qualquer posição.
+
+    --require=CHARS, --require sem a lista, --require repetido e posicional a mais ou a menos
+    saem em usage(): uma conferência que a linha de comando pula em silêncio não confere nada.
+    """
+    pos, require = [], None
+    it = iter(argv)
+    for arg in it:
+        if arg != '--require':
+            pos.append(arg)
+            continue
+        value = next(it, None)
+        if value is None or require is not None:
+            usage()
+        require = value
+    if len(pos) != 6:
+        usage()
+    return pos, require
 
 def main():
+    args, require = parse_args(sys.argv[1:])
     ttf, size, first, last, name, out = (
-        sys.argv[1], int(sys.argv[2]), int(sys.argv[3], 0), int(sys.argv[4], 0),
-        sys.argv[5], sys.argv[6])
+        args[0], int(args[1]), int(args[2], 0), int(args[3], 0), args[4], args[5])
 
     face = freetype.Face(ttf)
+    # Antes de qualquer saída: o arquivo só nasce de um TTF que tem tudo o que se exigiu.
+    missing = [ch for ch in dict.fromkeys(require or '') if face.get_char_index(ord(ch)) == 0]
+    if missing:
+        print('missing glyphs: ' + ' '.join(f'U+{ord(ch):04X}' for ch in missing), file=sys.stderr)
+        sys.exit(1)
     face.set_char_size(size << 6, 0, DPI, 0)
 
     bitmap_bytes = []
