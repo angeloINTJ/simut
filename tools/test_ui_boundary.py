@@ -908,7 +908,7 @@ def real_tree_cases():
           "DisplayManager_Fonts.h, PasswordKeyboard.h, sensors/SensorDrawing.h) and DisplayManager_AlarmUi.h, and not the class",
           five <= derived and "src/DisplayManager_AlarmUi.h" in derived and "src/DisplayManager.h" not in derived
           and "src/DisplayManager_Auth.h" not in derived, str(sorted(derived))[:300])
-    fonts = {"src/ui/original/FreeSansBold9pt8b_latin1.h", "src/ui/original/FreeSansBold12pt8b_latin1.h", "src/ui/original/FreeSansBold24pt7b_subset.h"}   # moved in S11 A2; section 2.5 names them
+    fonts = {"src/ui/original/SansBold9pt8b_latin1.h", "src/ui/original/SansBold12pt8b_latin1.h", "src/ui/original/SansBold24pt7b_subset.h"}   # moved in S11 A2; section 2.5 names them
     left_out = {"src/DisplayManager_FmtFloat.h", "src/OtaScreen.h", "src/TextWrap.h", "src/display/ClockEntry.h",
                 "src/display/CountInText.h", "src/display/DisplayDriver.h", "src/display/SettingsMenu.h",
                 "src/sensors/SensorPanelDispatch.h"}
@@ -1046,7 +1046,7 @@ def real_tree_cases():
             mutated(angulo_any, f'\n#include "../../{h}"\n', "cross-driver",
                     f"real tree + an include of {h} in the Angulo unit {angulo_any}: one finding")
         # the three font tables live in src/ui/original/ since S11 A2: the path alone tells them, and the include goes through "../original/"
-        for h in ("FreeSansBold9pt8b_latin1.h", "FreeSansBold12pt8b_latin1.h", "FreeSansBold24pt7b_subset.h"):
+        for h in ("SansBold9pt8b_latin1.h", "SansBold12pt8b_latin1.h", "SansBold24pt7b_subset.h"):
             mutated(angulo_any, f'\n#include "../original/{h}"\n', "cross-driver",
                     f"real tree + an include of ui/original/{h} in the Angulo unit {angulo_any}: one finding")
         mutated(bare, "\n#if SIMUT_UI_CUSTOM_THEMES\n#endif\n", "include-caps",

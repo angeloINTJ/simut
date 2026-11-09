@@ -8,7 +8,7 @@
  * re-exported as references with external linkage.
  *
  * Use `&simutFont9pt`, `&simutFont12pt`, `&simutFont24pt` instead
- * of `&FreeSansBoldXpt7b` in all DisplayManager
+ * of `&SansBold9pt8b_latin1` and its siblings in all DisplayManager
  * sub-files. Each reference points to the struct defined
  * in DisplayManager_Fonts.cpp; bitmaps/glyphs live only in that TU.
  *

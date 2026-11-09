@@ -149,7 +149,7 @@ rm -f release/simut_alpha/ILI9341_320x240.h
 rm -f release/simut_alpha/XPT2046.h
 rm -f release/simut_alpha/simut_tft.ino
 # Note: WebUI_GZ.h is KEPT — Alpha still runs the web server
-# Note: TouchPriority.h, ParseFloat.h, FreeSansBold24pt7b_subset.h,
+# Note: TouchPriority.h, ParseFloat.h, SansBold24pt7b_subset.h,
 # TftWithOffset.h are KEPT — they are referenced by common code
 
 # --- Update README version ---

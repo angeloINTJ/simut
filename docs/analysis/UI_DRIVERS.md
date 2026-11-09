@@ -257,8 +257,8 @@ items 8 to 12 are what the audit found in the draw bodies **(S0)**.
   (`:1772-1948`); the geometry `CARD_*` (`DisplayManager.h:1095-1098`), `ALARM_EDIT_*`
   (`:235-255`), `CLOCK_*` (`:267-272`), `GRAPH_PBTN_*` (`:285-287`); `buildDashLayout`,
   the 3 s graph header name, `Themes.cpp`, `DisplayManager_Fonts.*` and the font data
-  it includes (`ui/original/FreeSansBold9pt8b_latin1.h`, `ui/original/FreeSansBold12pt8b_latin1.h`,
-  `ui/original/FreeSansBold24pt7b_subset.h`: they moved there in S11 A2), `UiWidgets.*`,
+  it includes (`ui/original/SansBold9pt8b_latin1.h`, `ui/original/SansBold12pt8b_latin1.h`,
+  `ui/original/SansBold24pt7b_subset.h`: the font data moved there in S11 A2, and since 2026-11-09 the faces are Liberation Sans Bold), `UiWidgets.*`,
   `PasswordKeyboard.h` and `sensors/SensorDrawing.h`.
 - **Not the original's, though only display units include them.** `DisplayManager_FmtFloat.h`, `OtaScreen.h`,
   `TextWrap.h`, `display/{ClockEntry,CountInText,DisplayDriver,SettingsMenu}.h` and
@@ -1462,8 +1462,8 @@ them (`DisplayManager.cpp`, `_Dashboard`, `_Auth`, `_Graph`, `_Users`,
 twelve units (`DisplayManager.cpp`, `_Dashboard`, `_Auth`, `_Graph`, `_Users`,
 `_i18n`, `_Calibration`, `_Ota`, `_Alarm`, `_Settings`, `_Calendar`, `_Touch`),
 by `UiWidgets.cpp`, and by `DisplayManager_Fonts.cpp`, the only file that
-includes the three font tables (`FreeSansBold9pt8b_latin1.h`,
-`FreeSansBold12pt8b_latin1.h`, `FreeSansBold24pt7b_subset.h`). The sensor
+includes the three font tables (`SansBold9pt8b_latin1.h`,
+`SansBold12pt8b_latin1.h`, `SansBold24pt7b_subset.h`). The sensor
 headers do not include it: they receive the font as a parameter.
 
 **Other original-side headers that something outside the units consumes**
@@ -1896,7 +1896,7 @@ lines) is the same byte for byte (`cmp`, 2026-10-14).
 The script lists every symbol with `nm -S -C`, attaches each one to a row of the
 TSV by its demangled name without the parameter list (clones, function-local
 statics and lambdas belong to their function; the three font rows match by
-prefix, so `FreeSansBold9pt8b` takes its `Bitmaps` and `Glyphs`), and adds up
+prefix, so `SansBold9pt8b_latin1` takes its `Bitmaps` and `Glyphs`), and adds up
 the sizes by class. **Original rows are counted whole. Mixed rows are counted
 apart and are never added to the original.** `--src` also estimates, for each
 mixed function, its original share from the TSV's line ranges (code lines only,
@@ -1908,7 +1908,7 @@ a measurement, and it is printed on its own line.
 | **original rows, whole (flash)** | **56,699 B** | **57,379 B** |
 | text | 44,799 | 45,479 |
 | rodata and data | 11,900 | 11,900 |
-| of which the three GFX font tables (`FreeSansBold9/12/24`) | 11,696 | 11,696 |
+| of which the three GFX font tables (`FreeSansBold9/12/24` when this was measured; since 2026-11-09 `SansBold9pt8b_latin1`, `SansBold12pt8b_latin1` and `SansBold24pt7b_subset`) | 11,696 | 11,696 |
 | of which `Themes.cpp` (functions and the one built-in palette) | 1,744 | 1,744 |
 | of which `UiWidgets.cpp` | 2,716 | 2,716 |
 | of which drawing in the `DisplayManager*.cpp` units | 40,543 | 41,223 |

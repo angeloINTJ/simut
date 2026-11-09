@@ -103,7 +103,7 @@ inline void drawBarometerMini(GFXcanvas16* cv, int16_t x, int16_t y,
 }
 
 /* ── "°C" unit ──────────────────────────────────────────────────────────────
- * The Latin-1 fonts (FreeSansBold*8b_latin1.h) carry a REAL degree glyph
+ * The Latin-1 fonts (SansBold*8b_latin1.h) carry a REAL degree glyph
  * at 0xB0, so the unit is simply typeset — this replaced first a printed
  * "o" and then a hand-drawn ring. "\xB0" below is that Latin-1 byte. */
 

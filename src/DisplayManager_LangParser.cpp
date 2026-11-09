@@ -451,7 +451,7 @@ void DisplayManager::unaccent(const char* utf8, char* out, size_t outSize) {
 /* ─────────────────────────────────────────────────────────────────
  * utf8ToLatin1: UTF-8 -> ISO-8859-1 bytes for the TFT fonts.
  *
- * The 8-bit GFX fonts (FreeSansBold*8b_latin1.h) index glyphs by
+ * The 8-bit GFX fonts (SansBold*8b_latin1.h) index glyphs by
  * Latin-1 code, so a 2-byte UTF-8 sequence 0xC2/0xC3 + cc maps to one
  * output byte. Anything outside Latin-1 (3/4-byte sequences) degrades
  * through unaccent()'s policy: '?'. Output is never longer than input,

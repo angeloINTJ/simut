@@ -18,7 +18,7 @@ How it works. `arm-none-eabi-nm -S -C` lists every symbol with its size. A symbo
 TSV row by its demangled name without the parameter list ("DisplayManager::drawTopBar(...)" ->
 "DisplayManager::drawTopBar"); a function-local static or a lambda belongs to its function; the
 compiler's clones (.constprop, .isra, .part, .cold) belong to the function they came from. The three
-GFX font rows match by prefix, so FreeSansBold9pt8b also takes ...Bitmaps and ...Glyphs.
+GFX font rows match by prefix, so SansBold9pt8b_latin1 also takes ...Bitmaps and ...Glyphs.
 A row that names several things ("A, B, C") names several symbols.
 
 By unit as well as by name (S10b, C4a). A name can be defined in two units: the original's Themes.cpp and the Angulo's Temas.cpp both define getThemePalette( ), and the
@@ -54,7 +54,7 @@ from elf_funcoes import TOOL  # noqa: E402  (one place says where the PlatformIO
 NM_DEFAULT = str(TOOL / "arm-none-eabi-nm")
 FLASH_TYPES = set("TtWwRrDdVv")
 RAM_TYPES = set("BbSs")
-FONT_ROWS = ("FreeSansBold9pt8b", "FreeSansBold12pt8b", "FreeSansBold24pt7b")
+FONT_ROWS = ("SansBold9pt8b_latin1", "SansBold12pt8b_latin1", "SansBold24pt7b_subset")
 
 
 def run_nm(nm, elf):

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """test_compare_gfx_fonts.py — o compare_gfx_fonts.py diz o que muda entre dois cabeçalhos GFXfont, e só isso.
 
-  (a) src/ui/original/FreeSansBold9pt8b_latin1.h contra ele mesmo: sai 0, o resumo começa com
+  (a) src/ui/original/SansBold9pt8b_latin1.h contra ele mesmo: sai 0, o resumo começa com
       `0 glyph(s) differ` e nada é escrito em disco (nem o bytecode do subset_font.py);
   (b) uma cópia em que o xAdvance da primeira entrada da tabela de glifos sobe 1: sai 1, uma só linha
       começa com `U+` (a desse glifo, com os dois valores) e o resumo diz `1 glyph(s) differ`;
@@ -27,7 +27,7 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 TOOL = HERE / "compare_gfx_fonts.py"
-FONT = HERE.parent / "src" / "ui" / "original" / "FreeSansBold9pt8b_latin1.h"
+FONT = HERE.parent / "src" / "ui" / "original" / "SansBold9pt8b_latin1.h"
 
 # Lidos aqui por conta própria, não com o parse_font_header que o comparador usa: o ensaio não pode
 # depender do que ele mede.
