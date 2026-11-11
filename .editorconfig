@@ -26,3 +26,12 @@ indent_size = 2
 
 [Makefile]
 indent_style = tab
+
+# A licence text is reproduced verbatim from the package that ships it, so the editor leaves it as it is:
+# LICENSES/Liberation-OFL-1.1.txt has a space at the end of lines 29, 86 and 90 and a blank last line, and its
+# sha256 (93fed460...) is the one of the LICENSE of the Liberation 2.1.5 tarball (2026-11-11). Four texts on
+# main (2026-11-11) already end lines with a space: bearssl-MIT.txt, bricolage-grotesque-OFL-1.1.txt,
+# littlefs-BSD-3-Clause.txt and newlib-COPYING.NEWLIB.txt. .pre-commit-config.yaml excludes the folder too.
+[LICENSES/*]
+trim_trailing_whitespace = false
+insert_final_newline = false
