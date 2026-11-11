@@ -53,7 +53,7 @@ of the original panel on the radio images.
 | [BTstack](#btstack) | BlueKitchen GmbH | Raspberry Pi licence (LICENSE.RP) | pico_w_alpha, pico_w_air |
 | [Liberation Fonts](#liberation-fonts) | Red Hat, Inc. (digitized data: Google, Arimo) | SIL Open Font License 1.1 | pico_w_release, pico_w_test, pico_w_test_https, pico_w_asserts, pico_wiretft, and pico2_w_original |
 | [Bricolage Grotesque](#bricolage-grotesque) | The Bricolage Grotesque Project Authors | SIL Open Font License 1.1 | pico2_w_release, and pico_wiretft_angulo |
-| [Liberation Fonts (Sans, Mono Bold)](#liberation-fonts-sans-mono-bold) | Red Hat, Inc. (digitized data: Google Corporation) | SIL Open Font License 1.1 | pico2_w_release, and pico_wiretft_angulo |
+| [Liberation Fonts (Sans, Mono Bold)](#liberation-fonts-sans-mono-bold) | Red Hat, Inc. (digitized data: Google, Arimo and Cousine) | SIL Open Font License 1.1 | pico2_w_release, and pico_wiretft_angulo |
 | [Lucide](#lucide) | Lucide Contributors (portions: Cole Bemis, as part of Feather) | ISC | pico2_w_release, and pico_wiretft_angulo |
 | [Liberation Sans Bold](#liberation-sans-bold) | Red Hat, Inc. (digitized data: Google, Arimo) | SIL Open Font License 1.1 | all images, and pico_wiretft_angulo, pico2_w_original |
 | [SHA-256 for JavaScript](#sha-256-for-javascript) | Geraint Luff | public domain | all images, and pico_wiretft_angulo, pico2_w_original |
@@ -299,7 +299,7 @@ The display face (weight 600) of the Angulo touch panel, converted to bitmaps at
 
 The Liberation Sans Regular and Sans Bold faces at 8.5 pt and the Liberation Mono Bold face at 9 and 12 pt of the Angulo touch panel, converted to bitmaps from version 2.1.5 and cut down to the glyphs SIMUT draws.
 
-- Copyright holder: Red Hat, Inc. (digitized data: Google Corporation)
+- Copyright holder: Red Hat, Inc. (digitized data: Google, Arimo and Cousine)
 - Licence: SIL Open Font License 1.1, text in [LICENSES/Liberation-OFL-1.1.txt](LICENSES/Liberation-OFL-1.1.txt)
 - Images: pico2_w_release, and pico_wiretft_angulo
 - Source: <https://github.com/liberationfonts/liberation-fonts>

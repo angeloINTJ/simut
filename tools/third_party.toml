@@ -314,7 +314,7 @@ text = "bricolage-grotesque-OFL-1.1.txt"
 
 [[component]]
 name = "Liberation Fonts (Sans, Mono Bold)"
-holder = "Red Hat, Inc. (digitized data: Google Corporation)"
+holder = "Red Hat, Inc. (digitized data: Google, Arimo and Cousine)"
 license = "SIL Open Font License 1.1"
 images = ["wiretft_angulo", "pico2_release"]
 symbols = "^entrega::(MONO|SANS)"

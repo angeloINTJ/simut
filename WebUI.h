@@ -8098,7 +8098,7 @@ B. Liberation Fonts (Sans, Mono Bold)
                   the Liberation Mono Bold face at 9 and 12 pt of the Angulo
                   touch panel, converted to bitmaps from version 2.1.5 and cut
                   down to the glyphs SIMUT draws.
-   Holder:        Red Hat, Inc. (digitized data: Google Corporation)
+   Holder:        Red Hat, Inc. (digitized data: Google, Arimo and Cousine)
    License:       SIL Open Font License 1.1
    Images:        pico_wiretft_angulo, pico2_w_release
    URL:           https://github.com/liberationfonts/liberation-fonts
