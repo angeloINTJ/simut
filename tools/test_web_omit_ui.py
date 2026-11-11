@@ -13,10 +13,11 @@ tools/build_webui_gz.py (`custom_web_omit`); compose( ) adds the UI's omit after
   2. the builder knows the feature (WEB_FEATURES, read from its source: the module only runs inside PlatformIO) and the
      cut pattern here is the builder's own;
   3. the page, cut the way the builder cuts it for each profile: the licence list names the Angulo's three sets
-     (Bricolage Grotesque, GNU FreeFont FreeSans/FreeMono Bold, Lucide) with their licences and sources on the Angulo
-     profiles and names none on the others; and the block is purely additive: the Angulo page without it is the page of the
-     sibling profile with the original panel, byte for byte (pico_wiretft_angulo / pico_wiretft, pico2_w_release /
-     pico2_w_original);
+     (Bricolage Grotesque, Liberation Fonts Sans/Mono Bold, Lucide) with their licences and sources on the Angulo
+     profiles, each one in the item of its own set (the Liberation's licence and URL are also in the original panel's
+     rows of the family list, so a search over the whole page would not see them go), and names none on the others; and
+     the block is purely additive: the Angulo page without it is the page of the sibling profile with the original panel,
+     byte for byte (pico_wiretft_angulo / pico_wiretft, pico2_w_release / pico2_w_original);
   4. the page marker mutated (the block no longer cut by the original's omit) gives a finding;
   5. check_manifest( ) refuses a [ui.*].web_omit that is not a simple name.
 
@@ -117,9 +118,17 @@ def lista(webui, omit):
 with open(os.path.join(ROOT, "WebUI.h"), encoding="utf-8") as fh:
     WEBUI = fh.read()
 CABECALHO = "Angulo touch panel: fonts and icons"
-SETS = ["Bricolage Grotesque", "GNU FreeFont (FreeSans, FreeMono Bold)", "Lucide",
-        "SIL Open Font License 1.1", "GPL-3.0-or-later with the font exception", "ISC",
-        "https://github.com/ateliertriay/bricolage", "https://www.gnu.org/software/freefont/", "https://lucide.dev"]
+# The Angulo's three sets: name -> (licence, source) as the page prints them. The text faces were GNU FreeFont (GPL-3.0-or-later with the font
+# exception) until 2026-11-11 and are the Liberation's now, under the same OFL-1.1 as Bricolage: the licence of two of the three is one string.
+SETS = {"Bricolage Grotesque": ("SIL Open Font License 1.1", "https://github.com/ateliertriay/bricolage"),
+        "Liberation Fonts (Sans, Mono Bold)": ("SIL Open Font License 1.1", "https://github.com/liberationfonts/liberation-fonts"),
+        "Lucide": ("ISC", "https://lucide.dev")}
+
+
+def itens_do_angulo(pre):
+    """{name: text of its item} of the Angulo block of a page: each item runs from the bar under its lettered heading ("B. Name") to the next bar."""
+    bloco = pre[pre.index(CABECALHO):]
+    return {m.group(1): m.group(2) for m in re.finditer(r"^[A-Z]\. ([^\n]+)\n={80}\n(.*?)^={80}$", bloco, re.S | re.M)}
 
 
 def paginas(M, WEBUI):
@@ -137,11 +146,17 @@ def achados_das_paginas(M, WEBUI):
     pg = paginas(M, WEBUI)
     for nome, (ang, pre) in pg.items():
         if ang:
-            falta = [s for s in SETS if s not in pre]
-            if falta or CABECALHO not in pre:
-                out.append(f"3 {nome} (Angulo) nao lista: {falta or CABECALHO}")
+            if CABECALHO not in pre:
+                out.append(f"3 {nome} (Angulo) nao lista: {CABECALHO}")
+                continue
+            itens = itens_do_angulo(pre)
+            for n, (lic, url) in SETS.items():
+                if n not in itens:
+                    out.append(f"3 {nome} (Angulo) nao lista {n}")
+                elif [x for x in (lic, url) if x not in itens[n]]:
+                    out.append(f"3 {nome} (Angulo): o item de {n} nao tem {[x for x in (lic, url) if x not in itens[n]]}")
         else:
-            tem = [s for s in SETS[:3] + ["Angulo"] if s in pre]
+            tem = [s for s in list(SETS) + ["Angulo"] if s in pre]
             if tem:
                 out.append(f"3 {nome} (original) lista do Angulo: {tem}")
     # additive: the Angulo page without its block is its sibling's page

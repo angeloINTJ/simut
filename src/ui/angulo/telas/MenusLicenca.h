@@ -53,7 +53,7 @@ int indexarLicenca( IndiceLicenca &ix, const FonteLicenca *fontes, int n );
 // count, and the page count and number for the pager.
 void paginaDaLicenca( const IndiceLicenca &ix, int pagina, VmLicenca &vm );
 
-// This panel's own fonts and icons (Bricolage Grotesque, GNU FreeFont, Lucide), appended to `fontes` after the licence text and the third-party list: a heading and
+// This panel's own fonts and icons (Bricolage Grotesque, Liberation Fonts, Lucide), appended to `fontes` after the licence text and the third-party list: a heading and
 // one paragraph each, in the device's language (UA_TXT( ), a line each in the @ANGULO section of both packs). Returns the new count: all LICENCA_FONTES_ANGULO sources or, when they do not fit `max`, none. Call it where the
 // text is indexed, not from an initialiser: the pack is loaded by then. tools/gen_notices.py --check holds its text to the rows of tools/third_party.toml.
 int anexarFontesDoAngulo( FonteLicenca *fontes, int n, int max );
