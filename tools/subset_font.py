@@ -26,6 +26,11 @@ import re
 import sys
 
 
+def _num(texto: str) -> int:
+    """0x20 ou 32: as faces do painel original gravam first e last em hexadecimal, as do Ângulo em decimal."""
+    return int(texto, 16) if texto.lower().startswith("0x") else int(texto)
+
+
 def parse_font_header(content: str):
     """Extrai bitmap_array, glyph_table, font_name, first, last, line_h."""
     # Match Bitmaps array
@@ -59,13 +64,13 @@ def parse_font_header(content: str):
 
     # Match GFXfont struct
     m_f = re.search(
-        r"const\s+GFXfont\s+(\w+)\s+PROGMEM\s*=\s*\{[^}]*\b(\w+Bitmaps)\b[^}]*\b(\w+Glyphs)\b[^}]*?,\s*0x([0-9a-fA-F]+)\s*,\s*0x([0-9a-fA-F]+)\s*,\s*(\d+)\s*\}",
+        r"const\s+GFXfont\s+(\w+)\s+PROGMEM\s*=\s*\{[^}]*\b(\w+Bitmaps)\b[^}]*\b(\w+Glyphs)\b[^}]*?,\s*(0x[0-9a-fA-F]+|\d+)\s*,\s*(0x[0-9a-fA-F]+|\d+)\s*,\s*(\d+)\s*\}",
         content, re.DOTALL)
     if not m_f:
         raise ValueError("GFXfont struct not found")
     font_name = m_f.group(1)
-    first = int(m_f.group(4), 16)
-    last = int(m_f.group(5), 16)
+    first = _num(m_f.group(4))
+    last = _num(m_f.group(5))
     line_h = int(m_f.group(6))
 
     return bitmap_bytes, glyphs, bitmap_name, glyph_name, font_name, first, last, line_h
