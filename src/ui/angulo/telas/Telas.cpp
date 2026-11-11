@@ -86,11 +86,11 @@ const char kMarca[] = "SIMUT";
 // a character with "…" and never inside a UTF-8 sequence; the words are measured whole, because a space has no
 // ink and the prefix alone would measure short by its advance. With no name, or no room for one letter of it, the
 // word alone.
-// Measured on the host kit, 2026-10-15 (9 pt, SANSB9): the badge's dot and padding take 26 px, so the 210 px that
-// the cable icon alone leaves hold 184 px of words, the 166 px with "3k" waiting hold 140 and the 156 px with a
-// three-character count hold 130. "Web: maria.aparecida" (15 characters, 183) fits the first whole;
-// with "3k" a 15-character name keeps 8 letters (132), and a 31-character name keeps 13 beside the cable
-// icon and 7 beside a three-character count; "Web: admin" (99) fits all three whole.
+// Measured on the host kit, 2026-11-11 (8.5 pt, SANSB9; MONO9 for the count): the badge's dot and padding take 26 px, so the 210 px that
+// the cable icon alone leaves hold 184 px of words, the 166 px with "3k" waiting hold 140 and the 155 px with a
+// three-character count hold 129. "Web: maria.aparecida" (15 characters, 172) fits the first whole;
+// with "3k" a 15-character name keeps 9 letters (138), and a 31-character name keeps 14 beside the cable
+// icon and 8 beside a three-character count; "Web: admin" (94) fits all three whole.
 bool textoDoAviso( const VmStatus &s, int16_t largura, char *out, int cap ) {
   if ( s.aviso == Aviso::SILENCIADO ) {
     snprintf( out, (size_t)cap, "%s \xC2\xB7 %u s", UA_TXT( "Silenced" ), (unsigned)s.avisoSeg );

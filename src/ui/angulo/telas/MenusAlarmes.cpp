@@ -161,7 +161,7 @@ void desenharSensorAlarme( Pintor &p, const VmSensorAlarme &vm ) {
   // The maintenance row is the one of two lines, the label over the window's state; lista( )
   // draws its icon and chevron, and the lines are laid over it below. Beside the label the
   // state ("1 h 30 min restantes", 150 px) did not fit the 224 px between icon and chevron
-  // at 9 pt (the label is 93).
+  // at 8.5 pt (the label is 89; 93 at 9 pt in the FreeSans; 2026-11-11).
   itens[2].icone = IconeNome::WRENCH;
   itens[2].chevron = l.ativa[2];
   // A row the account has no bit for: a lock instead of its icon, everything

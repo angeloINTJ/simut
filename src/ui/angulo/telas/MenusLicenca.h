@@ -14,10 +14,10 @@ namespace ua {
 namespace tela {
 
 // Lines the index holds; the rest of a longer text is left out. The real text (the opening, the MIT text and the
-// third-party list) is 139 lines in the wired build and 150 in the radio one in English (140 and 151 in pt-BR, 139 and
-// 150 in es-ES), and 152 and 163 with this panel's own four sources (153 and 164 in pt-BR, the longest of the three),
-// indexed on the host with the 9 pt text in the Liberation Sans, 2026-11-11. The FreeSans gave 135 and 146 for the text
-// alone on the same day (134 and 145 on 2026-10-15): 192 leaves 28 lines over the longest, 164.
+// third-party list) is 131 lines in the wired build and 141 in the radio one, in English, pt-BR and es-ES alike, and 141
+// and 151 with this panel's own four sources (142 and 152 in es-ES, the longest of the three), indexed on the host with the
+// 8.5 pt text in the Liberation Sans, 2026-11-11. The 9 pt text of the same face gave 139 and 150 for the text alone (140 and
+// 151 in pt-BR) and the FreeSans 135 and 146 (134 and 145 on 2026-10-15): 192 leaves 40 lines over the longest, 152.
 constexpr int LICENCA_INDICE_MAX = 192;
 // The sources of the licence screen, worst case (the glue, DisplayManager_UiA_Menus.cpp): the five strings of the English opening, used when the pack has none; LICENSE_TEXT_EN, which
 // is ONE source (the MIT text and the third-party list in a single string); and this panel's own fonts and icons (anexarFontesDoAngulo( ), S10c C4): 5 + 1 + 4 = 10. 12 leaves two.

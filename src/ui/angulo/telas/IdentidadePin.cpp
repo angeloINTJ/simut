@@ -161,12 +161,12 @@ const char *rotuloEntrar( const VmPin &vm ) {
 }
 
 // "<account><rest>" for another account's PIN, the name cut to the room the rest leaves in the
-// line (W_UTIL). The name goes first: the line has 296 px and one row of 9 pt text, there is no
+// line (W_UTIL). The name goes first: the line has 296 px and one row of 8.5 pt text, there is no
 // room under the field for a second (the keys start 28 px below it), and "Escolha de 6 a 12
-// caracteres para joao.silva.2026." was 385 px. Measured on the ink of the whole line, not of
+// caracteres para joao.silva.2026." was 369 px (385 at 9 pt in the FreeSans). Measured on the ink of the whole line, not of
 // its parts: the joint of the two shares the neighbours' side bearings, so the parts' sum is a
 // pixel or two short of the whole. A 15-character name (the device's longest) is whole up to
-// about 139 px of ink ("joao.silva.2026" is 115) beside the longest rest; the rest never is cut.
+// about 139 px of ink ("joao.silva.2026" is 111) beside the longest rest; the rest never is cut.
 void linhaDaConta( const char *conta, const char *resto, char *out, int cap ) {
   char nome[ident::NOME + 4];
   int16_t largura = (int16_t)( W_UTIL - larguraTinta( resto, tipo::apoio ) );
@@ -183,7 +183,7 @@ const char *unidadeDoPin( const VmPin &vm ) { return vm.alfanumerico ? UA_TXT( "
 
 // The line under the field: the refusal, the wait, or the help of this layout
 // and this pass. The device talks of digits, or of characters with 0-9 A-Z. Every text here is
-// one line of 296 px at 9 pt: the 7 pt copy ("Toque no cartão que tem cada dígito do PIN.",
+// one line of 296 px at 8.5 pt: the 7 pt copy ("Toque no cartão que tem cada dígito do PIN.",
 // 337 px) was cut ten times at the floor (2026-10-15), and so was the lengths' message below
 // with "caracteres" (300 to 310 px, in a layout the samples did not draw).
 void montarLinha( const VmPin &vm, const LayoutPin &l, char *out, int cap, Tom *tom ) {

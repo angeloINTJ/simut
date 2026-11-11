@@ -23,21 +23,21 @@ constexpr int16_t X_DIR = X_CARTAO + W_CARTAO - PAD;      // where a row's contr
 constexpr int16_t H_SEG = 28;                             // a segmented control
 constexpr int16_t H_LINHA_PASSO = L_BOTAO + 2 * ESP1;     // the stepper's row: 40 px buttons with 4 px clear above and below
 constexpr int16_t H_LINHA_SEG = H_SEG + 2 * ESP1;         // a control beside its label: 4 px clear above and below, likewise
-// The keypad's row is two lines, the label above its control: at 9 pt "Teclado" (62 px
-// of ink) and three segments that hold "18 cartões" (78 px of ink, 4 px of air each
-// side) take 336 px of the 280 the row has (2026-10-15), so the control takes the
-// row's whole width.
+// The keypad's row is two lines, the label above its control: at 8.5 pt "Teclado" (58 px
+// of ink) and three segments that hold "18 cartões" (76 px of ink, 4 px of air each
+// side) take 326 px of the 280 the row has (2026-11-11; 336 at 9 pt in the FreeSans,
+// 2026-10-15), so the control takes the row's whole width.
 constexpr int16_t Y_CONTROLE_TECLADO = ESP1 + ESP4 + ESP1;                    // under the label, 4 px clear
 constexpr int16_t H_LINHA_TECLADO = Y_CONTROLE_TECLADO + H_SEG + ESP1;       // 56
 constexpr int16_t W_VALOR = 40;                           // the room the stepper's number has between its buttons
-// The keypad control's three segments split the row's 280 px (91, 91 and 90 px, 6 px
-// of air each side of "18 cartões" in the regular face); the alphabet control sits
-// under the last two, whose room is what "Caracteres" (85 px of ink) leaves.
+// The keypad control's three segments split the row's 280 px (91, 91 and 90 px, 7 px
+// of air each side of "18 cartões" in the regular face at 8.5 pt, 2026-11-11); the alphabet control sits
+// under the last two, whose room is what "Caracteres" (80 px of ink) leaves.
 constexpr int16_t W_TECLADO = X_DIR - X_ESQ;
 
 // The labels of the keypad's three segments and the alphabet's two, looked up where the controls are drawn (UA_TXT( ) cannot initialise a table).
 // The card counts are fixed by the policy (4 or 6 with digits, 12 or 18 with A-Z), so each is a text of its own. The segments are 90 px wide and the
-// widest label in the regular face is 78 px of ink in pt-BR: tools/tft_ui/test_idiomas.py holds the English and the Spanish to the same room.
+// widest label in the regular face is 76 px of ink in pt-BR (8.5 pt, 2026-11-11): tools/tft_ui/test_idiomas.py holds the English and the Spanish (77 px) to the same room.
 void rotulosDoTeclado( bool alfabeto, const char **out ) {
   out[0] = UA_TXT( "Ordered" );
   out[1] = alfabeto ? UA_TXT( "18 cards" ) : UA_TXT( "6 cards" );
@@ -90,9 +90,9 @@ LayoutPolitica layoutPolitica( const VmPoliticaPin &vm ) {
 
 // What the keypad and the alphabet allow, under the stepper's label: the range the
 // minimum can take, which is also how long a PIN can be. It stands for the sentence
-// that was under the rows ("No teclado ordenado, o PIN vai até 16 caracteres.": 378 px
-// at 9 pt, on a glass that leaves 312, and no line of its own below the taller keypad
-// row, 2026-10-15), which also named the keypad, and the segment that is lit does.
+// that was under the rows ("No teclado ordenado, o PIN vai até 16 caracteres.": 366 px
+// at 8.5 pt, 2026-11-11, 378 at 9 pt in the FreeSans, on a glass that leaves 312, and no line of its own
+// below the taller keypad row, 2026-10-15), which also named the keypad, and the segment that is lit does.
 void textoFaixa( const VmPoliticaPin &vm, char *dst, int cap ) {
   snprintf( dst, (size_t)cap, "%u %s %u %s", (unsigned)vm.piso, UA_TXT( "to" ), (unsigned)vm.teto,
             vm.alfabeto ? UA_TXT( "characters" ) : UA_TXT( "digits" ) );

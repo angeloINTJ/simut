@@ -26,11 +26,12 @@ constexpr int N_CARTOES = 6, COLUNAS = 3;
 enum { C_MAXIMO, C_MINIMO, C_MEDIA, C_DESVIO, C_VARIACAO, C_AGORA };   // the cards, in reading order
 constexpr int16_t Y_VALOR = 44, Y_SUB = 48;
 
-// A card's texts start ESP2 in (the plan's PAD, 12, left 76 px, and the 9 pt
-// "dispersão" is 76, "início→fim" 75, "Desvio σ" 75). The labels and the lines
-// under the values may run to ESP2 short of the right edge: 80 px. The value
-// and its unit may run to ESP1 short of it: 84, for "1009,1 hPa" (82 px,
-// measured 2026-10-15), which 80 would cut.
+// A card's texts start ESP2 in (the plan's PAD, 12, left 76 px, and the 8.5 pt
+// "dispersão" is 71, "início→fim" 77, "Desvio σ" 69; 76, 75 and 75 at 9 pt in the
+// FreeSans). The labels and the lines under the values may run to ESP2 short of the
+// right edge: 80 px. The value and its unit may run to ESP1 short of it: 84, for
+// "1009,1 hPa" (81 px at 8.5 pt, 2026-11-11; 82 at 9 pt in the FreeSans, measured
+// 2026-10-15), which 80 would cut.
 constexpr int16_t X_TEXTO = ESP2;
 constexpr int16_t LARGURA_TEXTO = W_CARTAO - X_TEXTO - ESP2;
 constexpr int16_t LARGURA_VALOR = W_CARTAO - X_TEXTO - ESP1;
@@ -46,7 +47,7 @@ constexpr int16_t LARGURA_VALOR = W_CARTAO - X_TEXTO - ESP1;
 // and 6.42 (2.42 wide before). The "7" and the "4" are left wide, not pulled in to the mean:
 // at 3 px the "7"'s top bar read as glued to the "h" on the frame, and no digit is closer to
 // its unit than the 4 px they all have now. The widest value that keeps its unit still keeps
-// it ("1009,1 hPa" is 83 px of 84).
+// it ("1009,1 hPa" is 82 px of 84 at 8.5 pt, 83 at 9 pt in the FreeSans).
 int16_t folgaDaUnidade( const char *valor ) {
   const int n = (int)strlen( valor );
   return ( n > 0 && valor[n - 1] == '1' ) ? (int16_t)( ESP1 + 1 ) : (int16_t)ESP1;
@@ -111,7 +112,7 @@ LayoutDetalhe layoutDetalhe( const VmDetalhe &vm ) {
   const char *unidade;
   unidadeENome( e.grandeza, &unidade, &l.nome );
 
-  // "Desvio (σ)" is 86 px in 9 pt bold, over the card's 80.
+  // "Desvio (σ)" is 80 px in 8.5 pt bold, the card's whole 80 (86 at 9 pt in the FreeSans, over it); "Std dev σ" is 69.
   const char *const rotulos[N_CARTOES] = { UA_TXT( "Maximum" ), UA_TXT( "Minimum" ), UA_TXT( "Average" ), UA_TXT( "Std dev σ" ), UA_TXT( "Change" ),
                                            vm.passado ? UA_TXT( "End" ) : UA_TXT( "Now" ) };   // looked up here, in the layout: the draw takes them from the cards it holds
   const int16_t v[N_CARTOES] = { e.maximo, e.minimo, e.media, e.desvio, e.variacao, e.agora };
@@ -126,7 +127,7 @@ LayoutDetalhe layoutDetalhe( const VmDetalhe &vm ) {
     else n1( v[i], c.valor );
   }
   // What each card says under its value. A date with its time ("30/09 14:17")
-  // is 92 px in 9 pt, over the 80, so the extremes say what the chart's
+  // is 86 px in 8.5 pt (92 at 9 pt in the FreeSans), over the 80, so the extremes say what the chart's
   // statistics say: the time inside a day's window (it is unique there), the date
   // inside a week's.
   const bool semana = vm.periodo == N_PERIODOS - 1;
@@ -140,7 +141,7 @@ LayoutDetalhe layoutDetalhe( const VmDetalhe &vm ) {
   }
   leituras( e.leituras, l.cartao[C_MEDIA].sub, sizeof l.cartao[C_MEDIA].sub );
   copiar( l.cartao[C_DESVIO].sub, UA_TXT( "spread" ), sizeof l.cartao[C_DESVIO].sub );
-  copiar( l.cartao[C_VARIACAO].sub, UA_TXT( "start→end" ), sizeof l.cartao[C_VARIACAO].sub );   // "início → fim" is 83 px
+  copiar( l.cartao[C_VARIACAO].sub, UA_TXT( "start→end" ), sizeof l.cartao[C_VARIACAO].sub );   // "início → fim" is 87 px at 8.5 pt (83 at 9 pt in the FreeSans)
   if ( e.tAgora.dia ) {
     // In the past the date says which day "Fim" is (the time of a window's last
     // reading is the window's end, the same every day); now, the time is enough.

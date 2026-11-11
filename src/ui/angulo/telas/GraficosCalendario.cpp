@@ -83,15 +83,18 @@ const char *inicialDaSemana( int i ) {
   }
 }
 
-// The arrows are 32 px wide, not the plan's 36: with 36 the widest titles
-// ("Mar 2026", "Ago 2026", "Nov 2026", 107 to 108 px measured 2026-10-14) are 2
-// to 3 px too wide for the larger font and fall to the smaller, so the title
-// would change size from month to month. With 32 they all fit, up to "Mar 2000"
-// (111 px of 113). That is the pt-BR names' measure; with the pack's names (2026-10-22, every year
-// 2000 to 2099): English fits in every month ("May 2000", the widest, is 115 px of the 123 that
-// its "Back" leaves); Spanish has "Volver" 4 px wider than "Voltar", leaves 109 px, and draws "May 2026"
-// (112 px) in the smaller title font, as "Mar" and "Ago" in 3 of the years 2020 to 2099. Only a
-// narrower arrow would hold them, and that moves the pt-BR frames.
+// The arrows are 32 px wide, not the plan's 36: with 36 the title would change size from month to
+// month, falling to the smaller font when it does not fit beside the three actions. Measured on the
+// host on 2026-11-11 (the 8.5 pt bold labels: "Voltar" 48 px, "Back" 38, "Volver" 51; the title in the
+// larger font is 111 px at most in pt-BR for every year 2000 to 2099, "Mar 2000"): with 32 the room is
+// 116 px and every title fits, with 36 it is 108 and 62 of the 1200 do not (none in 2026: "Mar 2026",
+// "Ago 2026" and "Nov 2026", 107 to 108 px, just fit; at 9 pt in the FreeSans, 2026-10-14, they were
+// 2 to 3 px too wide). That is the pt-BR names' measure; with the pack's names (every year 2000 to
+// 2099): English fits in every month with either arrow ("May 2000", the widest, is 115 px of the
+// 126 that its "Back" leaves with 32); Spanish has "Volver" 3 px wider than "Voltar", leaves 113 px
+// with 32 and fits every month of 2026 ("May 2026" is 112 px) but not "May" in 3 of the years 2020
+// to 2099 (in 2026, with 36, it would lose Mar, May, Ago, Sep and Nov). Only a narrower arrow would
+// hold those 3, and that moves the pt-BR frames.
 constexpr int16_t W_SETA = 32;
 
 struct LayoutCalendario {
@@ -177,7 +180,7 @@ void desenharCalendario( Pintor &p, const VmCalendario &vm ) {
   }
 
   // The empty month's note is the legend's own words: "Nenhum dia com histórico
-  // neste mês." was 280 px of ink in 9 pt, under "Hoje" (the title already says
+  // neste mês." was 275 px of ink in 8.5 pt (2026-11-11; 280 at 9 pt in the FreeSans), under "Hoje" (the title already says
   // which month it is).
   textoCentrado( p, l.temAlgum ? UA_TXT( "Dot = day with history." ) : UA_TXT( "No days with history." ), ESP2, Y_PE, H_PE, tipo::apoio, T.tinta2,
                  'l' );

@@ -72,14 +72,14 @@ int alvosStatusSistema( const VmStatusSistema &vm, Alvo *out );
 /* Licença (MODE_SETTINGS_LICENSE)                                      */
 /* ------------------------------------------------------------------ */
 
-// Lines to a page: six, at the 9 pt text's pitch, so that the card and its note end above the pager
+// Lines to a page: six, at the 8.5 pt text's pitch, so that the card and its note end above the pager
 // (36 + 150 = 186; a seventh line would reach 204, into the pager at 196). It was seven at the 7 pt
-// text's 16 px; the real text takes 20 and 22 pages of seven at 9 pt (139 and 150 lines, indexed on
-// the host with the Liberation Sans, 2026-11-11; 134 and 145 lines and 20 and 21 pages with the FreeSans, 2026-10-15),
-// so 24 and 25 of six.
+// text's 16 px; the real text takes 19 and 21 pages of seven at 8.5 pt (131 and 141 lines, indexed on
+// the host with the Liberation Sans, 2026-11-11; 139 and 150 lines and 20 and 22 pages at 9 pt in the same face;
+// 134 and 145 lines and 20 and 21 pages with the FreeSans, 2026-10-15), so 22 and 24 of six.
 constexpr int LICENCA_LINHAS = 6;
 constexpr int LICENCA_BYTES = 96;          // bytes of one wrapped line (UTF-8)
-constexpr int16_t LICENCA_PASSO = 18;      // the 9 pt text's line pitch: its 13 px caps (14 in the FreeSans, until 2026-11-11) and 5 px apart (16 made the lines overlap with the 14)
+constexpr int16_t LICENCA_PASSO = 18;      // the 8.5 pt text's line pitch: its 12 px caps (13 at 9 pt in the same face, 14 in the FreeSans) and 6 px apart (16 made the lines overlap with the 14)
 constexpr int16_t LICENCA_BARRA = 4;       // the scroll bar's width
 // The ink the glue may give each line when it wraps the text with quebrar( ) in
 // tipo::apoio: the card's text column, up to the scroll bar.

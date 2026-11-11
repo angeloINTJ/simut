@@ -217,7 +217,7 @@ void desenharUsuarios( Pintor &p, const VmUsuarios &vm ) {
   } else {
     // The kit's lista( ) has one line per row, and a name, the permissions,
     // the badge and the chevron do not fit one (the permissions alone are
-    // 194 px of 280 at 9 pt). Same card, same dividers and chevron, the
+    // 194 px of 280 at 8.5 pt, 2026-11-11). Same card, same dividers and chevron, the
     // permissions on a second line in the support type. The badge shares the
     // name's line, which leaves the permissions the whole width under it:
     // beside it (it starts at x 175) the widest summary, "Limites · Alarmes ·
@@ -278,7 +278,7 @@ void desenharConta( Pintor &p, const VmConta &vm ) {
 
   if ( vm.nova ) {
     // What comes after Seguir, said before the tap. Two lines, 18 px apart: in one the sentence
-    // is 345 px and left the glass at 9 pt (2026-10-15), and 68 px are free under the switches.
+    // is 338 px and left the glass at 8.5 pt (2026-11-11; 345 at 9 pt in the FreeSans, 2026-10-15), and 68 px are free under the switches.
     textoCentrado( p, UA_TXT( "After Continue, you set" ), PAD, l.yNota, 18, tipo::apoio, T.tinta2, 'l' );
     textoCentrado( p, UA_TXT( "the account's PIN." ), PAD, l.yNota + 18, 18, tipo::apoio, T.tinta2, 'l' );
   } else {
