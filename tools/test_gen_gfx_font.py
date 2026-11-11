@@ -11,7 +11,8 @@ Cinco controles:
   (b) --require com caracteres que faltam: sai 1, escreve em stderr `missing glyphs: U+XXXX ...`
       (todos, na ordem de CHARS, sem repetir), não cria o arquivo e não toca em um que já existia;
   (c) sem --require nem --y-advance, a saída (o arquivo e o stdout) é a da versão sem as opções, a do
-      commit f0eba34c (`git show`), com os mesmos argumentos e o mesmo interpretador;
+      commit f0eba34c (`git show`), com os mesmos argumentos e o mesmo interpretador; num clone sem esse commit
+      (o checkout do CI traz um commit só) o controle é pulado e a saída diz que foi e por quê;
   (d) linha de comando errada (--require sem a lista, --require=CHARS, --require duas vezes): sai 2
       e não grava o arquivo, para que a conferência não seja pulada em silêncio;
   (e) --y-advance N, no fim, no começo e no meio da linha e junto de --require: o arquivo sai igual ao
@@ -109,6 +110,11 @@ def control_b(ttf, tmp):
 
 
 def control_c(ttf, tmp):
+    # O commit base pode não estar neste clone: num --depth 1, como o checkout do CI, `git show` falhava e o controle reprovava
+    # (2026-11-11). Sem o commit não há com que comparar: o controle diz que foi pulado e por quê, em vez de reprovar ou de passar
+    # calado; o que segura a saída do gerador no CI é o --check de tools/fonts/gen_original_faces.py.
+    if subprocess.run(["git", "cat-file", "-e", f"{BASE}^{{commit}}"], cwd=HERE, capture_output=True).returncode != 0:
+        return None, f"pulado: o commit {BASE} não está neste clone (um clone raso, como o do CI, não o traz)"
     git = subprocess.run(["git", "show", f"{BASE}:tools/gen_gfx_font.py"],
                          cwd=HERE, capture_output=True)
     if git.returncode != 0:
@@ -280,10 +286,10 @@ def main():
     with tempfile.TemporaryDirectory() as d:
         for name, control in CONTROLS:
             problems, detail = control(str(ttf), Path(d))
-            print(("[ok] " if not problems else "[FAIL] ") + name)
+            print(("[skip] " if problems is None else "[ok] " if not problems else "[FAIL] ") + name)
             if detail:
                 print("       " + detail)
-            for problem in problems:
+            for problem in problems or []:
                 print("       " + problem)
             passed = passed and not problems
     return 0 if passed else 1
