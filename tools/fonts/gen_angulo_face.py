@@ -13,8 +13,10 @@ que rasteriza com o Skia (@napi-rs/canvas) e corta o alfa em 50 %. Este script f
      LiberationMono-Bold). Com e sem FT_LOAD_FORCE_AUTOHINT as quatro faces saem byte a byte iguais (medido em
      2026-11-11); o script o pede mesmo assim, para que uma versão do FreeType que escolha o interpretador
      TrueType no modo leve não mude a face. O autohinter encaixa a caixa alta e a altura de x na grade: sem
-     hinting, a altura medida da caixa alta, do x ou do dígito muda em alguma das quatro faces (o mutante
-     "no hinting" de test_gen_angulo_face.py derruba o controle kcapx).
+     hinting os bits das quatro faces mudam (1628 contra 1655 B de bitmap na SANS9) e, num corpo de 9 pt, a
+     caixa alta da sans mede 12 em vez de 13; nos corpos de agora (8,5, 8,5, 9 e 12) as alturas medidas coincidem
+     (medido em 2026-11-11), e é o controle faces, e não o kcapx, que o mutante "no hinting" de
+     test_gen_angulo_face.py derruba.
   2. O alfa de um glifo branco passa pela tabela de gama do Skia, a curva sRGB: a cobertura 0x98 vira 0xCB, e
      0x0C vira 0x3D. O limiar de alfa >= 128 equivale a cobertura >= 55 do FreeType, não a 128; com 128 a tinta
      encolheria e a caixa de cada glifo junto.
@@ -48,7 +50,7 @@ Um glifo que o TTF não tem (o FreeType desenharia o .notdef sem avisar) ou uma 
 FREETYPE_PROPERTIES é ignorada (ver abaixo).
 
 A receita das quatro faces é tools/fonts/gen_angulo_faces.py; uma face à mão, como ela a gera:
-  gen_angulo_face.py LiberationSans-Regular.ttf 9 SANS9 SANS9.h --y-advance 22 --provenance "<TTF, versão, sha256, licença>"
+  gen_angulo_face.py LiberationSans-Regular.ttf 8.5 SANS9 SANS9.h --y-advance 22 --provenance "<TTF, versão, sha256, licença>"
 """
 import json
 import math

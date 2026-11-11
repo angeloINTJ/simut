@@ -47,12 +47,24 @@ COMMITTED_FREETYPE = "2.13.2"
 USO = "Uso: gen_angulo_faces.py [--check] DIR [--headers PASTA]"
 
 # A tabela das faces, uma vez só: símbolo (o nome do cabeçalho e da struct), TTF da Liberation (a sans regular, a sans negrito e a mono
-# negrito), tamanho em pt e o yAdvance. Os corpos 9, 9, 9 e 12 são aqueles com que o leiaute das telas foi desenhado, e o yAdvance 22, 22,
-# 22 e 29 é a regra da entrega, round(pt * 141 / 72 * 1,25), que o gerador aplicaria sozinho; a tabela o diz para que mudar o corpo não
-# mude o yAdvance sem ninguém ver.
+# negrito), corpo em pt e yAdvance.
+#
+# Os corpos: as duas sans a 8,5 pt, a mono a 9 e a 12 (decisão do dono de 2026-11-11, a D2 do plano da troca da FreeFont, revista depois de uma
+# medição). A 9 pt a Liberation Sans é mais larga que a FreeSans, para cujas larguras as telas foram desenhadas, e o arnês de host
+# (tools/tft_ui/host_telas.py, 6 grupos em 3 línguas, 18 execuções) dava 189 achados nos corpos 9, 9, 9 e 12; a 8,5 pt dá 34, e a 8 pt (com a
+# mono a 8 e a 11) dá 39. O corpo da mono não muda nenhum achado, nem a 9 e 12 pt nem a 8 e 11: ela fica em 9 e 12, com o avanço de 11 px a 9 pt
+# que as colunas de números supõem (todos medidos em 2026-11-11, com as telas como estavam).
+#
+# SANS9 e SANSB9 mantêm o nome embora o corpo seja 8,5 pt. Ele é o do enum Fonte e o dos aliases tipo::corpo, apoio, botao e rotulo (Angulo.h),
+# que as telas usam em 178 linhas de src/ui/angulo (grep de 2026-11-11); está também em AnguloMeta.h, em Angulo.cpp, nas ferramentas e na
+# documentação, e renomeá-lo é mexer em tudo isso sem que nada do que se vê mude. O 9 do nome deixou de dizer o corpo.
+#
+# O yAdvance (22, 22, 22 e 29) é o das faces entregues: a regra da entrega, round(pt * 141 / 72 * 1,25), o dá aos 9 e 12 pt, e aos 8,5 daria 21.
+# A tabela guarda o 22 e o diz, para que mudar o corpo não mude o yAdvance sem ninguém ver; o kit do Ângulo não o lê (grep em src/ui/angulo,
+# 2026-11-11: nenhuma ocorrência fora dos cabeçalhos das faces).
 FACES = (
-    ("SANS9", "LiberationSans-Regular.ttf", 9, 22),
-    ("SANSB9", "LiberationSans-Bold.ttf", 9, 22),
+    ("SANS9", "LiberationSans-Regular.ttf", 8.5, 22),
+    ("SANSB9", "LiberationSans-Bold.ttf", 8.5, 22),
     ("MONO9", "LiberationMono-Bold.ttf", 9, 22),
     ("MONO12", "LiberationMono-Bold.ttf", 12, 29),
 )

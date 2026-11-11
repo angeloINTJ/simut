@@ -271,7 +271,7 @@ def c_negativos(c):
     if c.sem_gen():
         return c.sem_gen()
     p = []
-    # Os glifos, não o texto: o dpi também sai no comentário do cabeçalho ("9 pt a 141 dpi"), e um gerador que ignorasse o dpi
+    # Os glifos, não o texto: o dpi também sai no comentário do cabeçalho ("<corpo> pt a 141 dpi"), e um gerador que ignorasse o dpi
     # ao rasterizar mudaria só esse comentário. Comparando o texto, o mutante "the dpi parameter is ignored" passava (2026-11-11).
     base = glifos(c.face("SANS9")[0])
     versionado = glifos((FONTES / "SANS9.h").read_text(encoding="utf-8"))
@@ -320,7 +320,9 @@ def c_yadv(c):
         return c.sem_gen()
     p, d = [], c.tmp / "y"
     d.mkdir()
-    base = [c.ttf("SANSB9"), str(c.pt("SANSB9")), "SANSB9", str(d / "base.h")]
+    # Um corpo inteiro fixo, e não o da receita: o controle prova a opção, e sem ela o yAdvance é o da regra da entrega, round( pt * dpi / 72 * 1,25 ),
+    # 22 aos 9 pt e 21 aos 8,5 que a receita dá à SANSB9. O yAdvance que a receita grava, 22, é o que `faces` confere.
+    base = [c.ttf("SANSB9"), "9", "SANSB9", str(d / "base.h")]
     r = c.run(base)
     if r.returncode != 0 or not (d / "base.h").exists():
         return ["no option: exit %s, %s" % (r.returncode, r.stderr.strip()[:200])]
@@ -421,12 +423,13 @@ def c_provenance(c):
         return c.sem_gen()
     p, d = [], c.tmp / "v"
     d.mkdir()
-    base = [c.ttf("SANSB9"), str(c.pt("SANSB9")), "SANSB9", str(d / "x.h")]
+    corpo = str(c.pt("SANSB9"))  # o da receita: o controle prova a opção, e qual corpo a face tem é com a receita e com `faces`
+    base = [c.ttf("SANSB9"), corpo, "SANSB9", str(d / "x.h")]
     texto = "LiberationSans-Bold.ttf 2.1.5 sha256 788abee4, SIL OFL 1.1 (pin: tools/fonts/liberation.json)"
     if c.run(base).returncode != 0:
         return ["no option: the run failed"]
     sem = (d / "x.h").read_text(encoding="utf-8")
-    if not sem.startswith("// SANSB9: LiberationSans-Bold 9 pt a ") or "gerar_fontes_gfx.js" not in sem.split("#pragma")[0]:
+    if not sem.startswith("// SANSB9: LiberationSans-Bold %s pt a " % corpo) or "gerar_fontes_gfx.js" not in sem.split("#pragma")[0]:
         p.append("without --provenance the file does not start with the face's own comment")
     cauda = sem[sem.index("#pragma"):]
     for pos, args in (("at the end", base + ["--provenance", texto]), ("at the start", ["--provenance", texto] + base),
@@ -439,7 +442,7 @@ def c_provenance(c):
             p.append("--provenance %s: exit %s, first line %r" % (pos, r.returncode, linhas[0][:80]))
             continue
         cab = com.split("#pragma")[0]
-        if not linhas[1].startswith("// SANSB9: LiberationSans-Bold 9 pt") or "gen_angulo_face.py" not in cab or "gerar_fontes_gfx.js" in cab:
+        if not linhas[1].startswith("// SANSB9: LiberationSans-Bold %s pt" % corpo) or "gen_angulo_face.py" not in cab or "gerar_fontes_gfx.js" in cab:
             p.append("--provenance %s: the comment block does not name gen_angulo_face.py instead of the delivery's generator" % pos)
         if com[com.index("#pragma"):] != cauda:
             p.append("--provenance %s: something besides the comment block changed" % pos)
@@ -666,10 +669,12 @@ MUTANTES = [
      'y = x * 12.92 if x <= 0.0031308 else 1.055 * x ** (1 / 2.4) - 0.055',
      'y = x',
      {'faces'}),
+    # A 9 pt a caixa alta das sans media 12 sem hinting e 13 com ele, e este mutante derrubava `kcapx` também. Nos corpos de agora (8,5, 8,5, 9 e
+    # 12) as alturas medidas coincidem com e sem hinting nas quatro faces e só os bits mudam (medido em 2026-11-11): cai só `faces`.
     ('no hinting',
      'FLAGS = freetype.FT_LOAD_TARGET_LIGHT | freetype.FT_LOAD_FORCE_AUTOHINT | freetype.FT_LOAD_NO_BITMAP',
      'FLAGS = freetype.FT_LOAD_NO_HINTING | freetype.FT_LOAD_NO_BITMAP',
-     {'faces', 'kcapx'}),
+     {'faces'}),
     ('xAdvance truncated, not rounded',
      'math.floor(g.linearHoriAdvance / 65536.0 + 0.5)',
      'int(g.linearHoriAdvance / 65536.0)',
@@ -678,10 +683,11 @@ MUTANTES = [
      'b = (b << 1) | (bits[i + k] if i + k < len(bits) else 0)',
      'b = (b >> 1) | ((bits[i + k] if i + k < len(bits) else 0) << 7)',
      {'faces'}),
+    # A regra da entrega dá 22 aos 9 pt e 21 aos 8,5 das sans: sem a opção o yAdvance delas sai 21 e deixa de ser o da tabela, o 22, que `faces` confere.
     ('--y-advance ignored',
      'y_adv = padrao if y_advance is None else y_advance',
      'y_adv = padrao',
-     {'yadv'}),
+     {'faces', 'yadv'}),
     ('the provenance line is blank',
      'primeira = None if provenance is None else comment_line(provenance)',
      "primeira = None if provenance is None else ''",
@@ -706,27 +712,29 @@ MUTANTES = [
      "cap, xh, dig = (por[c]['h'] for c in 'Hx0')",
      "cap, xh, dig = (por[c]['h'] for c in 'xx0')",
      {'faces', 'kcapx'}),
-    # O corpo com fração. A receita só tem corpos inteiros enquanto nenhuma face for 8,5: o %d e o int( ) não mudam nada nela, e só `corpo` os vê.
+    # O corpo com fração. A receita dá 8,5 pt às duas sans: um corpo fracionário passa pela linha de comando em `faces` e `receita` (a receita),
+    # `provenance` (SANSB9) e `ausente` (SANS9), além de `corpo`, e os conjuntos dizem quais um defeito de cada tipo derruba. Os corpos inteiros
+    # (a mono, 9 e 12) só os veem as trocas que mexem neles.
     ('the body is cut to an integer',
      'face.set_char_size(int(round(pt * 64)), 0, dpi, 0)',
      'face.set_char_size(int(pt) << 6, 0, dpi, 0)',
-     {'corpo'}),
+     {'corpo', 'faces'}),
     ('the comment writes the body with %d (no --provenance)',
      "'// %s: %s %s pt a %d dpi, limiar de 50 %% — gerada pelo mesmo'",
      "'// %s: %s %d pt a %d dpi, limiar de 50 %% — gerada pelo mesmo'",
-     {'corpo'}),
+     {'corpo', 'provenance'}),
     ('the comment writes the body with %d (with --provenance)',
      "'// %s: %s %s pt a %d dpi, limiar de 50 %% — gerada por'",
      "'// %s: %s %d pt a %d dpi, limiar de 50 %% — gerada por'",
-     {'corpo'}),
+     {'corpo', 'faces', 'provenance'}),
     ('a fraction is refused on the command line',
      r"re.fullmatch(r'[0-9]+(\.[0-9]+)?', pos[1])",
      r"re.fullmatch(r'[0-9]+', pos[1])",
-     {'corpo'}),
+     {'corpo', 'faces', 'provenance', 'receita', 'ausente'}),
     ('the body is always read as a float: 9 is written "9.0 pt"',
      'pt = int(pos[1]) if pos[1].isdecimal() else float(pos[1])',
      'pt = float(pos[1])',
-     {'corpo', 'faces', 'receita', 'provenance'}),
+     {'corpo', 'faces', 'receita'}),
     ('the body is checked by float() alone: "8.", "1e1", "+8" pass',
      r"re.fullmatch(r'[0-9]+(\.[0-9]+)?', pos[1])",
      'float(pos[1])',
@@ -739,16 +747,24 @@ MUTANTES = [
 # (nome, âncora que aparece uma vez na receita, troca, controles que têm de cair)
 MUTANTES_RECEITA = [
     ('SANS9 gets a yAdvance of 23',
-     '("SANS9", "LiberationSans-Regular.ttf", 9, 22),',
-     '("SANS9", "LiberationSans-Regular.ttf", 9, 23),',
+     '("SANS9", "LiberationSans-Regular.ttf", 8.5, 22),',
+     '("SANS9", "LiberationSans-Regular.ttf", 8.5, 23),',
      {'faces'}),
+    ('SANS9 goes back to the 9 pt it had',
+     '("SANS9", "LiberationSans-Regular.ttf", 8.5, 22),',
+     '("SANS9", "LiberationSans-Regular.ttf", 9, 22),',
+     {'faces', 'kcapx'}),
+    ('the recipe hands the body to the generator as an integer',
+     '[gen, work / ttf, size, symbol, target,',
+     '[gen, work / ttf, int(size), symbol, target,',
+     {'faces', 'receita'}),
     ('MONO12 is cut at 11 pt',
      '("MONO12", "LiberationMono-Bold.ttf", 12, 29),',
      '("MONO12", "LiberationMono-Bold.ttf", 11, 29),',
      {'faces', 'kcapx'}),
     ('SANSB9 is made from the Regular TTF',
-     '("SANSB9", "LiberationSans-Bold.ttf", 9, 22),',
-     '("SANSB9", "LiberationSans-Regular.ttf", 9, 22),',
+     '("SANSB9", "LiberationSans-Bold.ttf", 8.5, 22),',
+     '("SANSB9", "LiberationSans-Regular.ttf", 8.5, 22),',
      {'faces', 'provenance'}),
     ('--check exits 0 when a header differs',
      '            return 1\n        if in_use != COMMITTED_FREETYPE:',
