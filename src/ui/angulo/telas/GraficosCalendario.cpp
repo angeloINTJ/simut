@@ -27,11 +27,16 @@ constexpr int16_t X_CARTAO = ESP2, Y_CARTAO = 32, W_CARTAO = 304, H_CARTAO = 160
 constexpr int16_t H_CABECALHO = 16, H_LINHA = 24, MAX_LINHAS = 6;
 constexpr int16_t W_CEL = W_CARTAO / DIAS_SEMANA;       // 43, as the plan
 constexpr int16_t Y_LINHAS = Y_CARTAO + H_CABECALHO;    // the first week
-// The weekday letters are 13 px tall in 9 pt bold, in a 16 px header: with the
-// hairline at its foot they had 1 px of air under them. The hairline 2 px lower
-// (inside the first week's 5 px of air above its digits) leaves them 3. The
-// letters cannot go lower instead: their ink would enter the first week's
-// targets (host_telas.py failed on it, "crosses the edge of target 4/2").
+// The weekday letters are 12 px tall in 8.5 pt bold (2026-11-11). Centred in the 16 px header
+// from the card's top (Y_CARTAO, 32) their baseline is y 46 and the caps run from y 34 to 45;
+// the pt-BR "Q" (twice a week) has a leg 3 px under the baseline, whose last row, y 48, is 1 px
+// inside the first week's targets, which start at Y_LINHAS (host_telas.py failed on it: 16
+// findings in graficos, pt-BR, "crosses the edge of target 4/2"). The letters' box starts 2 px
+// above the card instead, at Y_LETRAS: the baseline is y 44, the caps run from y 32, the card's
+// own first row, to 43, and the leg ends at y 46, 1 px clear of the targets. The hairline stays
+// 2 px under the first week's top (Y_FIO, inside its 6 px of air above the digits, which start
+// at y 54): 6 px under the caps and 3 under the leg.
+constexpr int16_t Y_LETRAS = Y_CARTAO - 2;
 constexpr int16_t Y_FIO = Y_LINHAS + 2;
 static_assert( Y_LINHAS + MAX_LINHAS * H_LINHA == Y_CARTAO + H_CARTAO, "six weeks fill the card" );
 constexpr int16_t W_MARCA = 28;                         // today's box, 28 x 24 (the plan's)
@@ -157,7 +162,7 @@ void desenharCalendario( Pintor &p, const VmCalendario &vm ) {
 
   superficie( p, X_CARTAO, Y_CARTAO, W_CARTAO, H_CARTAO );
   for ( int i = 0; i < DIAS_SEMANA; i++ )
-    textoCentrado( p, inicialDaSemana( i ), (int16_t)( X_CARTAO + i * W_CEL + rd2( W_CEL ) ), Y_CARTAO, H_CABECALHO, tipo::rotulo, T.tinta2, 'c' );
+    textoCentrado( p, inicialDaSemana( i ), (int16_t)( X_CARTAO + i * W_CEL + rd2( W_CEL ) ), Y_LETRAS, H_CABECALHO, tipo::rotulo, T.tinta2, 'c' );
   p.hline( X_CARTAO + PAD, Y_FIO, W_CARTAO - 2 * PAD, T.linha );
 
   for ( int d = 1; d <= l.dias; d++ ) {

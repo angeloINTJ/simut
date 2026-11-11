@@ -18,8 +18,8 @@ painel | acao_nome_longo | Refrigerado | a 31-character sensor name; the sentenc
 painel | acao_erro_nome_longo | Refrige | a 31-character sensor name; "com erro no sensor" is whole
 painel | painel_web_ocupada_nome_longo | joao. | a 22-character account name; the sentence's fixed ending ("lê registros pela web." in pt-BR) is whole
 painel | painel_aviso_web_nome_31 | Web: maria.apa | a 31-character account name in the status bar's badge (the device keeps 15 bytes); "Web: " is whole
-painel | painel_aviso_web_nome_15_pendentes_3k | Web: maria.ap… | the 15 characters the device keeps, with 3k records waiting: 140 px of words against the 183 of "Web: maria.aparecida"; "Web: " is whole
-painel | painel_aviso_web_nome_31_pendentes_150 | Web: maria.a… | a 31-character account name beside a three-character count, the narrowest room (130 px of words); "Web: " is whole
+painel | painel_aviso_web_nome_15_pendentes_3k | Web: maria.apa… | the 15 characters the device keeps, with 3k records waiting: 140 px of words against the 172 of "Web: maria.aparecida" (2026-11-11); "Web: " is whole
+painel | painel_aviso_web_nome_31_pendentes_150 | Web: maria.ap… | a 31-character account name beside a three-character count, the narrowest room (129 px of words, 2026-11-11); "Web: " is whole
 painel | boot*_textos_longos | Acesse no celular | boot steps of 69 to 71 characters, made long on purpose; a step is one line
 painel | boot*_textos_longos | Iniciando Servidor | boot steps of 69 to 71 characters, made long on purpose; a step is one line
 painel | boot*_textos_longos | Carregando cache | boot steps of 69 to 71 characters, made long on purpose; a step is one line
