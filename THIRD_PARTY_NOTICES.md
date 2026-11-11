@@ -322,7 +322,7 @@ Its LICENSE says portions are held by Cole Bemis 2013-2022 as part of Feather (M
 Five glyph outlines traced into the SIMUT wordmark of the web pages. No font file is embedded.
 
 - Copyright holder: Red Hat, Inc. (digitized data: Google, Arimo)
-- Licence: SIL Open Font License 1.1, text in [LICENSES/liberation-fonts-OFL-1.1.txt](LICENSES/liberation-fonts-OFL-1.1.txt)
+- Licence: SIL Open Font License 1.1, text in [LICENSES/Liberation-OFL-1.1.txt](LICENSES/Liberation-OFL-1.1.txt)
 - Images: all images, and pico_wiretft_angulo, pico2_w_original
 - Source: <https://github.com/liberationfonts/liberation-fonts>
 

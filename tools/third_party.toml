@@ -343,7 +343,7 @@ license = "SIL Open Font License 1.1"
 images = "all"
 url = "https://github.com/liberationfonts/liberation-fonts"
 what = "Five glyph outlines traced into the SIMUT wordmark of the web pages. No font file is embedded."
-text = "liberation-fonts-OFL-1.1.txt"
+text = "Liberation-OFL-1.1.txt"
 
 [[component]]
 name = "SHA-256 for JavaScript"
