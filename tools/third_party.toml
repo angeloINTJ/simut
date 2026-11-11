@@ -320,7 +320,7 @@ images = ["wiretft_angulo", "pico2_release"]
 symbols = "^entrega::(MONO|SANS)"
 ui = "angulo"
 url = "https://github.com/liberationfonts/liberation-fonts"
-what = "The Liberation Sans Regular and Sans Bold faces at 9 pt and the Liberation Mono Bold face at 9 and 12 pt of the Angulo touch panel, converted to bitmaps from version 2.1.5 and cut down to the glyphs SIMUT draws."
+what = "The Liberation Sans Regular and Sans Bold faces at 8.5 pt and the Liberation Mono Bold face at 9 and 12 pt of the Angulo touch panel, converted to bitmaps from version 2.1.5 and cut down to the glyphs SIMUT draws."
 note = "The Angulo images carry these faces and none of the 9, 12 and 24 pt faces of the row \"Liberation Fonts\", which belong to the original panel (nm of the eleven images, 2026-10-30)."
 text = "Liberation-OFL-1.1.txt"
 

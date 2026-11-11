@@ -297,7 +297,7 @@ The display face (weight 600) of the Angulo touch panel, converted to bitmaps at
 
 ## Liberation Fonts (Sans, Mono Bold)
 
-The Liberation Sans Regular and Sans Bold faces at 9 pt and the Liberation Mono Bold face at 9 and 12 pt of the Angulo touch panel, converted to bitmaps from version 2.1.5 and cut down to the glyphs SIMUT draws.
+The Liberation Sans Regular and Sans Bold faces at 8.5 pt and the Liberation Mono Bold face at 9 and 12 pt of the Angulo touch panel, converted to bitmaps from version 2.1.5 and cut down to the glyphs SIMUT draws.
 
 - Copyright holder: Red Hat, Inc. (digitized data: Google Corporation)
 - Licence: SIL Open Font License 1.1, text in [LICENSES/Liberation-OFL-1.1.txt](LICENSES/Liberation-OFL-1.1.txt)

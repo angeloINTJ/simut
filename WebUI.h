@@ -8094,7 +8094,7 @@ A. Bricolage Grotesque
 ================================================================================
 B. Liberation Fonts (Sans, Mono Bold)
 ================================================================================
-   Description:   The Liberation Sans Regular and Sans Bold faces at 9 pt and
+   Description:   The Liberation Sans Regular and Sans Bold faces at 8.5 pt and
                   the Liberation Mono Bold face at 9 and 12 pt of the Angulo
                   touch panel, converted to bitmaps from version 2.1.5 and cut
                   down to the glyphs SIMUT draws.

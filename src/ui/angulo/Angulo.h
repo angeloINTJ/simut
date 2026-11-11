@@ -6,8 +6,8 @@
 // reference (tools/tft_ui/host_ui.py, 106 of 106 frames on 2026-10-14). The look
 // the maintainer approved on 2026-10-15 departs from the plan on purpose: the
 // panel's own colour tokens (kit/angulo_tokens.h, from tools/tft_ui/gen_tokens.py),
-// smoothed corners and circles (Pintor), and no type under 9 pt; the coordinate
-// rules below are still the renderer's.
+// smoothed corners and circles (Pintor), and no type under 8.5 pt (9 pt until
+// 2026-11-11, below); the coordinate rules below are still the renderer's.
 //
 // Every coordinate rule of the renderer is kept: Math.round( ) is rd2( )/rdiv( )
 // (half up, as JavaScript rounds), text is aligned by its ink, and every
@@ -95,7 +95,12 @@ int16_t rdiv( int32_t n, int32_t d );
 /* ------------------------------------------------------------------ */
 
 // No 7 pt: the delivery's SANS7 and SANSB7 left the kit with the 9 pt floor (2026-10-15), so a screen
-// cannot draw text smaller than the maintainer can read on the 3.5-inch panel.
+// cannot draw text smaller than the maintainer can read on the 3.5-inch panel. The floor is 8.5 pt since
+// 2026-11-11, the maintainer's decision when the faces moved to the Liberation: at 9 pt its sans did not fit
+// the screens laid out for the FreeSans (189 findings of tools/tft_ui/host_telas.py; 0 at 8.5 pt, once the
+// calendar's weekday row moved up 2 px and two accepted cuts moved by a character), so SANS9 and SANSB9 are
+// cut at 8.5 pt and keep their names. Their cap height is 12 px and their x height 9; the FreeSans at 9 pt had
+// caps of 14 (regular) and 13 (bold) and an x height of 10. It has not been looked at on the glass yet.
 enum class Fonte : uint8_t { SANS9, SANSB9, MONO9, MONO12, DISP9, DISP12, DISP18, DISP24, DISP32, MARCA };
 
 namespace tipo {

@@ -89,7 +89,11 @@ SEMANA = {'en': 'Su Mo Tu We Th Fr Sa', 'pt': 'D S T Q Q S S', 'es': 'D L M X J 
 # of paragraph), and the layout that was fixed by number left 2.
 PISO_OTA, FOLGA_OTA = 8, 12
 PISO_CALENDARIO = 7   # the calendar samples (amostras/graficos.cpp, counted 2026-10-22): October, July, a month being read, February, six weeks, a leap February, September
-DECIMAL = re.compile(r'(?<![\d.,])(?<![A-Za-z]-)\d+([.,])\d(?!\d|[.,]\d)')   # a number with one decimal; a version ("2.11.1") or an address ("192.168.4.1") has another digit or separator beside it, a licence id ("GPL-3.0") a letter and a hyphen before it
+# A number with one decimal. A version ("2.11.1") or an address ("192.168.4.1") has another digit or separator beside it, a licence
+# id ("GPL-3.0") a letter and a hyphen before it, and a licence's version the word License and a space ("SIL Open Font License 1.1"):
+# names, not quantities. The last joined on 2026-11-11, when the Licence screen at 8.5 pt drew that name on one line (the maintainer's
+# decision of that day: a version in a licence's name keeps its point in every language).
+DECIMAL = re.compile(r'(?<![\d.,])(?<![A-Za-z]-)(?<!License )\d+([.,])\d(?!\d|[.,]\d)')
 
 
 def caso(nome, ok, detalhe=''):
@@ -411,6 +415,13 @@ def main():
              '; '.join(f'{k}: ' + ', '.join(f'{i} {folgas[i].get(k)} px' for i in IDIOMAS) for k in mudou[:4]))
 
         # the decimal separator: the pack's text for "." in every language, in every group (S10c, B5a)
+        # The pattern first: it holds the numbers a screen draws, and lets the names pass. Without this case a pattern that let
+        # everything pass would make the checks below hold on nothing.
+        numeros = ('4.6 °C', '1009,1 hPa', 'x 4.5')
+        nomes = ('GPL-3.0', 'Inc., SIL Open Font License 1.1.', '2.11.1', '192.168.4.1')
+        caso('decimal separator: the pattern holds a number and lets a licence id, a licence version, a version and an address pass',
+             all(DECIMAL.search(t) for t in numeros) and not any(DECIMAL.search(t) for t in nomes),
+             str({t: bool(DECIMAL.search(t)) for t in numeros + nomes}))
         achados = {i: [(f'{g}/{n}', t, s) for g in TODOS for n, t, s in decimais(limpo / i / g)] for i in IDIOMAS}
         caso(f'decimal separator: the packs\' text for "{CHAVE_SEPARADOR}" is "," in pt-BR and in es-ES',
              all(traducao(i, CHAVE_SEPARADOR) == SEPARADOR[i] for i in ('pt', 'es')), str({i: traducao(i, CHAVE_SEPARADOR) for i in ('pt', 'es')}))
