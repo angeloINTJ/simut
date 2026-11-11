@@ -4,7 +4,7 @@
 tools/fonts/fetch_liberation.py lê o pino (tools/fonts/liberation.json), obtém o tarball (do URL do pino, ou de
 --source, um URL https ou um caminho local), confere o sha256 do tarball ANTES de abri-lo e o de cada TTF do pino
 contra os bytes que saem dele, e só então grava os TTF em DEST. Divergência sai 1 e não grava nada; o que não se
-consegue conferir sai 2. Sete controles; os quatro primeiros usam um tarball e um pino montados aqui (rápidos, sem
+consegue conferir sai 2. Nove controles; os quatro primeiros e os dois últimos usam um tarball e um pino montados aqui (rápidos, sem
 rede e sem o arquivo de 2,4 MB), os outros três o tarball oficial e o pino de verdade:
 
   (a) o que bate: sai 0, grava os TTF do pino com o caminho que têm no tarball e os bytes exatos, lista um caminho por
@@ -18,25 +18,34 @@ rede e sem o arquivo de 2,4 MB), os outros três o tarball oficial e o pino de v
       --pin sem valor, opção repetida, --source=X), um pino ilegível ou malformado (ausente, JSON inválido, chave que falta, hash
       que não é hex de 64, nome de arquivo com `..`, absoluto ou com barra invertida), uma fonte que não se obtém
       (caminho que não existe, file://, e http:// mesmo quando um servidor da própria máquina responde com o tarball
-      certo), um DEST que já é um arquivo e um tarball que bate com o pino mas não abre; um membro do tarball que
+      certo), o URL do pino que não é https (http://, ftp://, um esquema que só começa com http, um número: o pino não
+      carrega, mesmo com --source, que não usa o URL), um DEST que já é um arquivo e um tarball que bate com o pino mas não abre; um membro do tarball que
       não é arquivo comum (link simbólico) é recusado com 1;
   (e) o pino de verdade e o tarball oficial (--tarball): sai 0 e cada arquivo gravado tem o sha256 que o ensaio lê do
       JSON por conta própria, não pelo fetch_liberation.py;
   (f) o controle negativo do pino de verdade: uma cópia do JSON com um dígito trocado no hash do tarball, e outra com um
       dígito trocado no hash do LiberationSans-Bold.ttf, saem 1 e não gravam nada;
   (g) o URL do pino (--network, opcional, usa a rede): sem --source, sai 0 e grava os mesmos arquivos. Sem a opção o
-      controle é pulado, e a saída diz que foi.
+      controle é pulado, e a saída diz que foi;
+  (h) o limite de tamanho do tarball (MAX_BYTES, 32 MiB; o ensaio carrega o módulo e o baixa para 4096, para não montar um arquivo
+      de 32 MiB): um tarball acima dele, com o pino certo para os bytes inteiros, sai 2 e diz `more than` (sem o limite o que se
+      leria seria cortado, e sairia 1, por hash); em read_source( ), 4096 bytes passam inteiros e 4097 ou mais não;
+  (i) o limite de tamanho de um TTF no tarball: um de 4097 bytes, com o pino certo (hash do tarball e do membro), sai 1, diz
+      `more than` e nada é gravado (sem o limite sairia 0 e o arquivo seria gravado); um de 4096 passa e é gravado.
 
 Uso: python3 tools/test_fetch_liberation.py --tarball liberation-fonts-ttf-2.1.5.tar.gz [--network]
      O tarball é o do pino (o sha256 dele está em tools/fonts/liberation.json); o ensaio recusa outro.
 Saída: 0 se todos os controles passam, 1 se algum falha, 2 se não dá para montar o ensaio.
 """
 import argparse
+import contextlib
 import functools
 import hashlib
 import http.server
+import importlib.util
 import io
 import json
+import random
 import subprocess
 import sys
 import tarfile
@@ -256,6 +265,10 @@ def control_d(tmp):
         refuse(f"pino sem `{key}`", DEST, "--source", src, "--pin",
                pin_file(key, {k: v for k, v in good.items() if k != key}))
     refuse("pino com files vazio", DEST, "--source", src, "--pin", pin_file("vazio", {**good, "files": {}}))
+    # O URL do pino é https, e a conferência é do pino: com --source o URL nem é usado, então só ela recusa os outros esquemas.
+    for what, url in {"url http://": "http://example.invalid/x.tar.gz", "url ftp://": "ftp://example.invalid/x.tar.gz",
+                      "url httpsx://": "httpsx://example.invalid/x.tar.gz", "url que não é um texto": 7}.items():
+        refuse(f"pino com {what}", DEST, "--source", src, "--pin", pin_file(what, {**good, "url": url}))
     for what, bad in {"hash do tarball curto": {"tarball_sha256": good["tarball_sha256"][:-1]},
                       "hash do tarball em maiúsculas": {"tarball_sha256": good["tarball_sha256"].upper()},
                       "hash do tarball que não é hex": {"tarball_sha256": "z" * 64}}.items():
@@ -346,6 +359,75 @@ def control_g(tmp, network):
     return problems, f"baixado de {pin['url']}"
 
 
+LIMIT = 4096  # o MAX_BYTES do ensaio: o de verdade, 32 MiB, pediria um arquivo desse tamanho
+
+
+def load_tool():
+    """O fetch_liberation.py carregado como módulo, com o MAX_BYTES em LIMIT (cada chamada tem o seu módulo)."""
+    sys.dont_write_bytecode = True  # nem um __pycache__ em tools/fonts/
+    spec = importlib.util.spec_from_file_location("fetch_liberation_ensaiado", TOOL)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    module.MAX_BYTES = LIMIT
+    return module
+
+
+def run_in_process(tool, *args):
+    """tool.main( ) com a linha de comando `args`: (código de saída, stdout, stderr)."""
+    out, err = io.StringIO(), io.StringIO()
+    with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+        code = tool.main([str(a) for a in args])
+    return code, out.getvalue(), err.getvalue()
+
+
+def control_h(tmp):
+    tool = load_tool()
+    problems = []
+    # Um tarball acima do limite, com o pino certo para os bytes inteiros: só o limite o recusa. Ruído, para o gzip não o encolher.
+    members = {"pkg-1/A-Bold.ttf": random.Random(7).randbytes(LIMIT * 2)}
+    data = tarball(members)
+    if len(data) <= LIMIT + 1:
+        return [f"o tarball do ensaio tem {len(data)} bytes, devia passar de {LIMIT + 1}"], ""
+    dest = tmp / "h_dest"
+    code, out, err = run_in_process(tool, dest, "--source", write(tmp / "h.tar.gz", data), "--pin",
+                                    write(tmp / "h.json", pin_for(data, members)))
+    if code != 2 or "more than" not in err or dest.exists() or out:
+        problems.append(f"tarball de {len(data)} bytes, limite {LIMIT}: saiu {code} (esperava 2), stderr {last_line(err)!r}, "
+                        f"DEST criado: {dest.exists()}")
+    # A borda, em read_source( ): LIMIT bytes passam inteiros, LIMIT + 1 e mais não.
+    for size, accepted in ((LIMIT, True), (LIMIT + 1, False), (LIMIT + 50, False)):
+        path = write(tmp / f"h_{size}.bin", bytes(size))
+        try:
+            got = tool.read_source(str(path))
+        except tool.Unverifiable:
+            got = None
+        if (got is not None) != accepted or (accepted and len(got) != size):
+            problems.append(f"read_source( ) de {size} bytes, limite {LIMIT}: "
+                            f"{'devia passar inteiro' if accepted else 'devia recusar'}, deu {None if got is None else len(got)}")
+    return problems, f"limite de {LIMIT} bytes no lugar dos {32 * 1024 * 1024} de verdade"
+
+
+def control_i(tmp):
+    tool = load_tool()
+    problems = []
+    # Um TTF no limite e outro um byte acima, os dois com o pino certo (hash do tarball e do membro): só o tamanho do membro recusa
+    # o segundo. Zeros, para o gzip encolher o tarball e ele caber no limite.
+    for what, size, want in (("um TTF no limite", LIMIT, 0), ("um TTF um byte acima do limite", LIMIT + 1, 1)):
+        members = {"pkg-1/A-Bold.ttf": bytes(size)}
+        data = tarball(members)
+        dest = tmp / f"i_dest{size}"
+        code, out, err = run_in_process(tool, dest, "--source", write(tmp / f"i{size}.tar.gz", data), "--pin",
+                                        write(tmp / f"i{size}.json", pin_for(data, members)))
+        written = dest / "pkg-1" / "A-Bold.ttf"
+        if code != want:
+            problems.append(f"{what}: saiu {code}, esperava {want}; stderr {last_line(err)!r}")
+        if want == 1 and ("more than" not in err or dest.exists()):
+            problems.append(f"{what}: a mensagem não diz `more than` ou DEST foi criado: {last_line(err)!r}")
+        if want == 0 and (not written.is_file() or written.stat().st_size != size):
+            problems.append(f"{what}: o TTF não foi gravado inteiro")
+    return problems, ""
+
+
 def main():
     ap = argparse.ArgumentParser(description="Controles do fetch_liberation.py (veja a docstring).")
     ap.add_argument("--tarball", required=True, help="o tarball do pino, para os controles (e) e (f)")
@@ -374,6 +456,8 @@ def main():
         ("(e) o pino de verdade e o tarball oficial: sai 0 e cada TTF tem o sha256 do JSON", lambda t: control_e(t, tarball_path)),
         ("(f) o pino de verdade com um dígito trocado (tarball, TTF): sai 1 e não grava", lambda t: control_f(t, tarball_path)),
         ("(g) o URL do pino, pela rede (--network)", lambda t: control_g(t, args.network)),
+        ("(h) o tarball acima do limite de tamanho: sai 2 e diz o limite; a borda de read_source( )", lambda t: control_h(t)),
+        ("(i) um TTF acima do limite de tamanho no tarball: sai 1 e não grava; no limite, grava", lambda t: control_i(t)),
     ]
     passed = True
     with tempfile.TemporaryDirectory() as d:

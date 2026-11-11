@@ -12,7 +12,9 @@
       e sai 1 mesmo que só ele difira;
   (e) as faixas: os glifos se alinham pelo código, então faixas deslocadas comparam o que as duas têm;
       sem código em comum, ou com uma tabela que não tem um glifo por código, sai 2, para que
-      `0 glyph(s) differ` nunca queira dizer que nada foi comparado.
+      `0 glyph(s) differ` nunca queira dizer que nada foi comparado;
+  (f) a linha de comando errada (nenhum cabeçalho, um só, três): sai 2, com a linha `Uso:` em stderr e nada em stdout. Com zero
+      ou um cabeçalho o comparador também sairia 2 sem a verificação (não leu dois), mas calado: o `Uso:` é o que a prova.
 
 Uso: python3 tools/test_compare_gfx_fonts.py
 Saída: 0 se todos os controles passam, 1 se algum falha, 2 se não dá para montar o ensaio.
@@ -213,12 +215,22 @@ def control_e(tmp):
     return case.problems
 
 
+def control_f(tmp):
+    problems = []
+    for what, args in (("nenhum cabeçalho", ()), ("um só cabeçalho", (FONT,)), ("três cabeçalhos", (FONT, FONT, FONT))):
+        p = compare(*args)
+        if p.returncode != 2 or "Uso:" not in p.stderr or p.stdout:
+            problems.append(f"{what}: saiu {p.returncode} (esperava 2), stderr {p.stderr.strip()[-120:]!r}, stdout {p.stdout!r}")
+    return problems
+
+
 CONTROLS = [
     ("(a) o cabeçalho contra ele mesmo: sai 0, resumo `0 glyph(s) differ`, nada escrito em disco", control_a),
     ("(b) um xAdvance a mais no primeiro glifo: sai 1 e uma só linha U+, a desse glifo", control_b),
     ("(c) o que não se lê (texto, binário, inexistente): sai 2, com a mensagem em stderr", control_c),
     ("(d) o formato das linhas, do yAdvance e do resumo", control_d),
     ("(e) as faixas: alinhadas pelo código; sem código em comum ou sem um glifo por código, sai 2", control_e),
+    ("(f) a linha de comando errada (zero, um ou três cabeçalhos): sai 2 e mostra o Uso:", control_f),
 ]
 
 
