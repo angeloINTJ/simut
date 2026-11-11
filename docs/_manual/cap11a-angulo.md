@@ -569,7 +569,7 @@ Um texto que o pacote não traz aparece em inglês. O idioma gravado fica na con
 A tela **Licença MIT** (*MIT license*) mostra o texto legal em inglês, sob um título em português, e a nota **O texto legal fica no original (inglês).**. Cada página tem 6 linhas, e há uma barra de rolagem à direita e as setas de página embaixo. O texto vem em inglês, na ordem: a abertura (`Free software. Below, what that means in practice.`), o texto da licença MIT, a lista dos componentes de terceiros e, no fim, o bloco `--- Fontes e ícones deste painel ---`, que o painel escreve no idioma do aparelho.
 
 ::: {.figura #fig-11a-licenca tipo="tft" arquivo="11a-licenca.png" captura="desenhada pelo código do painel (tools/tft_ui), amostra licenca_p1 do grupo menus, modo claro, pacote pt-BR, ampliada 2x; refazer com python3 tools/tft_ui/manual_frames.py --write; página 1"}
-A primeira página da licença, em valores de exemplo: o texto em inglês, a barra de rolagem, a nota e o paginador `1 de 19`.
+A primeira página da licença, em valores de exemplo: o texto em inglês, a barra de rolagem, a nota e o paginador `1 de 18`.
 :::
 
 O bloco do fim lista o que é só deste painel:
@@ -577,7 +577,7 @@ O bloco do fim lista o que é só deste painel:
 | Componente | Onde o painel o usa | Licença |
 |---|---|---|
 | Bricolage Grotesque | Nos títulos | SIL Open Font License 1.1 |
-| GNU FreeFont (FreeSans, FreeMono Bold) | No texto e nos números | GPL-3.0-or-later, com a exceção de fontes |
+| Liberation Fonts (Sans, Mono Bold) | No texto e nos números | SIL Open Font License 1.1 |
 | Lucide | Nos ícones | ISC |
 
 As palavras em volta dos nomes seguem o idioma do aparelho; os nomes, os titulares e as licenças não se traduzem. A página `/license` da interface web ([A página Licença](#cap-13-licenca)) traz o mesmo bloco, que só as imagens com o painel Ângulo têm. A linha **Licença** do menu não pede permissão, a tela não envia pedidos, e nada é gravado.

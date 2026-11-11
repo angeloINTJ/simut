@@ -2,7 +2,8 @@
 """fetch_liberation.py — baixa os TTF da Liberation e só os entrega se batem com o pino.
 
 Lê o pino, tools/fonts/liberation.json: a versão, o URL do tarball oficial, o sha256 do tarball e o sha256 de
-cada TTF de que as faces do painel são geradas (tools/gen_gfx_font.py). Obtém o tarball (do URL do pino, ou de
+cada TTF de que as faces dos dois painéis são geradas (as três do painel original, por tools/fonts/gen_original_faces.py,
+e as quatro de texto do Ângulo, por tools/fonts/gen_angulo_faces.py). Obtém o tarball (do URL do pino, ou de
 --source, um URL https ou um caminho local), confere o sha256 do TARBALL antes de abri-lo, confere o sha256 de
 cada TTF do pino contra os bytes que saem do tarball e só então grava os TTF em DEST, com o caminho que têm no
 tarball (DEST/liberation-fonts-ttf-2.1.5/LiberationSans-Bold.ttf). Só os arquivos que o pino nomeia são
