@@ -164,17 +164,20 @@ void desenharAlinhar( Pintor &p, const VmAlinhar &vm ) {
 
   // The instruction at the top left, the offset at the bottom left (by "Reset", which
   // zeroes it) and the warning at the bottom right (by "Save", which it is about).
-  // "A moldura deve / encostar na borda." ran to x 162 at 9 pt, 22 px into the up arrow's
-  // box (its second line is 142 px); "tocar a borda." is 106 px, and the first line 119.
+  // In the FreeSans (until 2026-11-11) "A moldura deve / encostar na borda." ran to x 162 at 9 pt, 22 px into the
+  // up arrow's box (its second line was 142 px); "tocar a borda." was 106 px, and the first line 119.
   // The sentence is one text, wrapped to the column's 120 px (from X_TEXTO to 8 px short of
-  // the up arrow) in every language: the pt-BR breaks where it was broken by hand.
+  // the up arrow) in every language, in at most two lines. In the Liberation Sans (measured on the host on 2026-11-11) the
+  // same words are wider: "A moldura deve" is 125 px and no longer fits, so the pt-BR takes three lines (82, 99 and 49 px)
+  // and the two kept end in "…"; so does the English ("The frame" 81, "must touch the" 116, "edge." 44 px); the Spanish
+  // still takes two (114 and 114 px).
   char instrucao[2][48];
   const int nInstrucao = quebrar( UA_TXT( "The frame must touch the edge." ), tipo::apoio, X_SETA_MEIO - ESP2 - X_TEXTO,
                                   &instrucao[0][0], sizeof instrucao[0], 2 );
   for ( int i = 0; i < nInstrucao; i++ )
     textoCentrado( p, instrucao[i], X_TEXTO, Y0 + ESP2 + i * PASSO_APOIO, ESP4, tipo::apoio, T.tinta2, 'l' );
   // The two axes one under the other, centred on the lower arrow's row: on one line "x −4
-  // · y +4" is 119 px of the mono face, 1 px under the 120 the column has.
+  // · y +4" is 120 px of the mono face (Liberation Mono Bold, 2026-11-11; 119 in the FreeMono Bold), the 120 the column has.
   char valores[2][8];
   comSinal( vm.x, valores[0], sizeof valores[0] );
   comSinal( vm.y, valores[1], sizeof valores[1] );
@@ -184,7 +187,10 @@ void desenharAlinhar( Pintor &p, const VmAlinhar &vm ) {
     textoCentrado( p, valores[i], X_TEXTO + L_VALOR_EIXO, y, ESP4, tipo::dado, T.tinta, 'r' );
   }
   // The warning: three lines of the column's 120 px ("Salvar refaz a / calibração do /
-  // toque."); the two lines it had ended in "calibração do…" at 9 pt. It starts at the
+  // toque.": 110, 106 and 49 px in the Liberation Sans, 106, 104 and 46 in the FreeSans); the two lines it had ended in
+  // "calibração do…" at 9 pt. The English takes three too (113, 73 and 86 px); the Spanish takes four in the Liberation
+  // Sans ("Guardar / rehace la / calibración del / toque.": 65, 73, 114 and 49 px; three in the FreeSans), so its third
+  // line ends in "…" (all on the host, 2026-11-11). It starts at the
   // lower arrow's top: its 52 px are taller than the arrow's 40, and centred on the arrow
   // the first line would start 2 px under the right arrow's box.
   char aviso[3][48];
