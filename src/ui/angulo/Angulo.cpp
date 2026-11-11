@@ -143,7 +143,7 @@ const GFXfont *const kFontes[] = {
     &entrega::DISP9, &entrega::DISP12, &entrega::DISP18, &entrega::DISP24, &entrega::DISP32, &entrega::DISP24_MARCA,
 };
 // Both tables are indexed by ua::Fonte: an entry added to or taken from the enum must be taken here
-// and in tools/tft_ui/gerar_meta.js's FONTES too (the 7 pt fonts left all three on 2026-10-15).
+// and in the FONTES of tools/tft_ui/gen_angulo_meta.py too (the 7 pt fonts left all three on 2026-10-15).
 static_assert( sizeof kFontes / sizeof kFontes[0] == (size_t)Fonte::MARCA + 1, "kFontes follows ua::Fonte" );
 static_assert( sizeof meta::kCapX / sizeof meta::kCapX[0] == (size_t)Fonte::MARCA, "kCapX follows ua::Fonte" );
 

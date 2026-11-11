@@ -1,5 +1,5 @@
 {
- "source": "The EXTRA table of the Angulo's text faces: code 127..176 -> character. It is the order of gerar_fontes_gfx.js (the delivery's generator, not versioned) and of the `// 0xNN 'c'` comments of src/ui/angulo/kit/fontes/{SANS9,SANSB9,MONO9,MONO12}.h, which agree in the four; AnguloMeta.h's kExtra holds the same code points. gen_angulo_face.py reads it; test_gen_angulo_face.py holds it to those headers and to AnguloMeta.h.",
+ "source": "The EXTRA table of the Angulo's text faces: code 127..176 -> character. It is the order of gerar_fontes_gfx.js (the delivery's generator, not versioned) and of the `// 0xNN 'c'` comments of src/ui/angulo/kit/fontes/{SANS9,SANSB9,MONO9,MONO12}.h, which agree in the four; AnguloMeta.h's kExtra holds the same code points, and tools/tft_ui/gen_angulo_meta.py writes it from this table. gen_angulo_face.py reads it; test_gen_angulo_face.py holds it to those headers and to AnguloMeta.h.",
  "entries": [
   {"code": 127, "char": "á", "unicode": "U+00E1"},
   {"code": 128, "char": "à", "unicode": "U+00E0"},
