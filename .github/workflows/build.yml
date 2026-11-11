@@ -241,9 +241,9 @@ jobs:
       - name: GFXfont comparator (compare_gfx_fonts.py)
         run: python3 tools/test_compare_gfx_fonts.py
       # What the bits of the faces depend on is the FreeType inside freetype-py: 2.5.1 carries 2.13.2 (read under Python 3.11 on
-      # 2026-11-11), the one the committed headers came from (2026-11-09). The version is pinned here and not left to pip, and
-      # --check prints both FreeType versions when a header differs.
-      - name: freetype-py for the panel's faces (the version the committed headers came from)
+      # 2026-11-11), the one the committed headers came from (the original panel's on 2026-11-09, the Angulo's on 2026-11-11). The
+      # version is pinned here and not left to pip, and --check prints both FreeType versions when a header differs.
+      - name: freetype-py for the panels' faces (the version the committed headers came from)
         run: pip install freetype-py==2.5.1
       # fetch_liberation.py downloads the pin's tarball, checks its sha256 and each TTF's, and writes only the TTFs that match (exit 1
       # on any difference, 2 when it cannot check); the next steps read them from here.
@@ -262,6 +262,15 @@ jobs:
         run: python3 tools/test_gen_gfx_font.py --ttf "$(find "$RUNNER_TEMP/liberation" -name LiberationSans-Bold.ttf)"
       - name: Panel faces regeneration (gen_original_faces.py and its controls)
         run: python3 tools/test_gen_original_faces.py --dir "$RUNNER_TEMP/liberation"
+      # The Angulo's four text faces (src/ui/angulo/kit/fontes/{SANS9,SANSB9,MONO9,MONO12}.h) come from the same pin through their
+      # recipe, tools/fonts/gen_angulo_faces.py, which runs tools/fonts/gen_angulo_face.py once per face. The same gate as the original
+      # panel's: exit 1 names a face that differs, with the FreeType in use and the 2.13.2 the headers came from; exit 2 is that it could
+      # not look. Another FreeType is not skipped: the bytes decide. Under Python 3.11 and freetype-py 2.5.1 the check took 0.2 s and
+      # the test 3.7 s here on 2026-11-11.
+      - name: Angulo text faces are what the pinned TTFs generate
+        run: python3 tools/fonts/gen_angulo_faces.py --check "$RUNNER_TEMP/liberation"
+      - name: Angulo face generator and recipe (gen_angulo_face.py, gen_angulo_faces.py and their controls)
+        run: python3 tools/fonts/test_gen_angulo_face.py --fonts "$RUNNER_TEMP/liberation"
       # fetch_liberation.py does not keep the tarball, and its test runs on the real one (--tarball; the test refuses a file whose
       # sha256 is not the pin's). It is downloaded again here from the URL the pin gives, read from it and not copied; the test's
       # --network control is left out, because the fetch step above already went through that URL.

@@ -1,30 +1,29 @@
 #!/usr/bin/env python3
 """gen_angulo_face.py — uma face de texto do driver Ângulo (src/ui/angulo/kit/fontes/*.h) a partir de um TTF.
 
-SANS9, SANSB9, MONO9 e MONO12 saíram do gerador da entrega do designer (gerar_fontes_gfx.js, fora do git),
+SANS9, SANSB9, MONO9 e MONO12 saem deste script, dos TTF da Liberation 2.1.5 que tools/fonts/liberation.json
+fixa; a receita (o TTF, o corpo, o yAdvance e a linha de proveniência de cada face) é tools/fonts/gen_angulo_faces.py,
+que o roda uma vez por face. O formato é o do gerador da entrega do designer (gerar_fontes_gfx.js, fora do git),
 que rasteriza com o Skia (@napi-rs/canvas) e corta o alfa em 50 %. Este script faz o mesmo com o FreeType
-(freetype-py), para regerar a face de um TTF fixado sem node nem Skia. O que o Skia faz, e o que aqui se repete
-(medido em 2026-11-11, @napi-rs/canvas 1.0.11 contra o FreeType 2.13.2 do .venv-tools):
+(freetype-py), sem node nem Skia. O que o Skia faz, e o que aqui se repete (medido em 2026-11-11,
+@napi-rs/canvas 1.0.11 contra o FreeType 2.13.2 do .venv-tools):
 
   1. Hinting leve: FT_LOAD_TARGET_LIGHT, que no FreeType 2.13.2 é o autohinter só vertical, também nos TTF
-     que trazem instruções (as FreeFont e as Liberation trazem: maxSizeOfInstructions 1424, 664, 516 e 785 em
-     FreeSans, FreeMonoBold, LiberationSans-Regular e LiberationMono-Bold). Com e sem FT_LOAD_FORCE_AUTOHINT as
-     oito faces saem byte a byte iguais (medido em 2026-11-11); o script o pede mesmo assim, para que uma versão
-     do FreeType que escolha o interpretador TrueType no modo leve não mude a face. O autohinter encaixa a caixa
-     alta e a altura de x na grade: o 'H' do SANS9 tem 14 px de altura, e sem hinting teria 13.
-  2. O alfa de um glifo branco passa pela tabela de gama do Skia, a curva sRGB: a cobertura 0x98 0xFF 0x0C da
-     haste do 'H' vira 0xCB 0xFF 0x3D. O limiar de alfa >= 128 equivale a cobertura >= 55 do FreeType, não a 128;
-     com 128 a tinta encolheria e a caixa de cada glifo junto.
+     que trazem instruções (as Liberation trazem: maxSizeOfInstructions 516 em LiberationSans-Regular e 785 em
+     LiberationMono-Bold). Com e sem FT_LOAD_FORCE_AUTOHINT as quatro faces saem byte a byte iguais (medido em
+     2026-11-11); o script o pede mesmo assim, para que uma versão do FreeType que escolha o interpretador
+     TrueType no modo leve não mude a face. O autohinter encaixa a caixa alta e a altura de x na grade: sem
+     hinting, a altura medida da caixa alta, do x ou do dígito muda em alguma das quatro faces (o mutante
+     "no hinting" de test_gen_angulo_face.py derruba o controle kcapx).
+  2. O alfa de um glifo branco passa pela tabela de gama do Skia, a curva sRGB: a cobertura 0x98 vira 0xCB, e
+     0x0C vira 0x3D. O limiar de alfa >= 128 equivale a cobertura >= 55 do FreeType, não a 128; com 128 a tinta
+     encolheria e a caixa de cada glifo junto.
   3. O avanço é o linear (sem hinting), arredondado.
   4. A caixa do glifo é a da tinta (os pixels acima do limiar); os bits saem MSB primeiro, cada glifo alinhado
      ao byte, 12 bytes por linha, e o glifo vazio (o espaço) tem largura e altura 0.
 
-Contra o Skia daquele dia o alfa sai igual, pixel a pixel, em 128 a 137 dos 145 glifos de cada face; os que
-diferem são sobretudo os compostos (til, cedilha, trema, e o i e o j da FreeSansBold), que o Skia carrega por
-um caminho que o FreeType 2.13.2 não repete. Contra os cabeçalhos versionados sobra mais: o próprio gerador JS,
-rodado em 2026-11-11 sobre os mesmos TTF, também não os reproduz (6, 10, 8 e 17 glifos com métrica diferente
-nas quatro faces; a primeira divergência é a linha 85 do SANS9.h), então a versão do instrumento já tinha
-mudado. test_gen_angulo_face.py prende o que sobra, face a face.
+O que sai daqui, face a face, é o cabeçalho versionado byte a byte: test_gen_angulo_face.py compara os sha256,
+e gen_angulo_faces.py --check faz o mesmo no CI.
 
 Uso: gen_angulo_face.py <ttf> <pt> <SIMBOLO> <saida.h> [--face-label TEXTO] [--y-advance N] [--provenance TEXTO]
                         [--extra ARQUIVO.json]
@@ -35,7 +34,7 @@ Uso: gen_angulo_face.py <ttf> <pt> <SIMBOLO> <saida.h> [--face-label TEXTO] [--y
 --provenance TEXTO  grava `// TEXTO` como a PRIMEIRA linha (o TTF, a versão, o sha256) e troca o comentário que
                     cita o gerador da entrega por um que cita este script e a tabela EXTRA. TEXTO é uma linha de
                     ASCII imprimível sem barra invertida. Sem a opção o cabeçalho é o da entrega, letra por
-                    letra: é assim que o teste mostra o que difere das faces versionadas.
+                    letra; o controle provenance do teste confere as duas formas.
 --extra ARQUIVO     a tabela EXTRA (códigos 127..176 -> caractere); o padrão é angulo_extra.json, ao lado.
 
 As opções podem estar em qualquer posição; sem valor, repetidas, na forma --opcao=valor ou com valor fora do
@@ -43,8 +42,8 @@ intervalo o script sai 2 e não grava o arquivo. Um glifo que o TTF não tem (o 
 avisar) ou uma opção recusada sai 1, escreve `missing glyphs: U+XXXX ...` ou a recusa em stderr e também não grava.
 Duas execuções dão bytes iguais; FREETYPE_PROPERTIES é ignorada (ver abaixo).
 
-Receita das faces do Ângulo com este gerador (a etapa seguinte troca a FreeFont pela Liberation):
-  gen_angulo_face.py TTF 9 SANS9 SANS9.h --y-advance 22 --provenance "<TTF, versão, sha256, licença>"
+A receita das quatro faces é tools/fonts/gen_angulo_faces.py; uma face à mão, como ela a gera:
+  gen_angulo_face.py LiberationSans-Regular.ttf 9 SANS9 SANS9.h --y-advance 22 --provenance "<TTF, versão, sha256, licença>"
 """
 import json
 import math
@@ -53,8 +52,9 @@ import re
 import sys
 
 sys.dont_write_bytecode = True  # não deixa o .pyc do subset_font em tools/
-# FREETYPE_PROPERTIES muda o que o autohinter desenha (autofitter:no-stem-darkening=0 escurece as hastes: o 'H'
-# do SANS9 passa de 98 FF 0C a 98 FF 54, medido em 2026-11-11), e a face não pode depender do ambiente de quem a gera.
+# FREETYPE_PROPERTIES muda o que o autohinter desenha (autofitter:no-stem-darkening=0 escurece as hastes: na linha do
+# meio do 'H' do SANS9, a borda da haste direita passa de 0x4C a 0x6C, medido em 2026-11-11 na LiberationSans-Regular),
+# e a face não pode depender do ambiente de quem a gera.
 os.environ.pop('FREETYPE_PROPERTIES', None)
 import freetype  # noqa: E402
 
