@@ -1,6 +1,6 @@
 # tools/
 
-235 scripts. This file exists because until 2026-09-08 there was no way
+243 scripts. This file exists because until 2026-09-08 there was no way
 to tell a live bench tool from a leftover, and one of them —
 `compressor.py` — had been superseded for three months while still looking
 usable: it regenerated `WebUI_GZ.h` into the repository root, where nothing
@@ -219,7 +219,7 @@ step in a bench procedure. Run by hand, but with instructions somewhere.
 | `lcd_alpha/rom_extract.py` | Reads Table 4 (ROM code A00) of the HD44780U datasheet twice, from the vector squares of page 17 and from a 600 dpi render sampled on the dot lattice, requires the two to agree on every position of every cell, and writes `rom_hd44780.py` (`--write`) or checks that file against the PDF (`--check`); `--controls` puts one fault at a time into each read. **Needs what is not in the tree**: the PDF (the URL and sha256 are in the module header), `pdftoppm` and `pdftotext`. Named by `rom_hd44780.py`'s header. | 2026-11-04 |
 | `lcd_alpha/rom_proof.py` | The proof sheet of the ROM A00 table: `rom_hd44780.py` drawn in the datasheet's grid beside the same region of the datasheet's page 17 (and, with `--overlay`, the table's dots outlined in red over the page), for a person to run an eye down both. **Needs the page**, rendered by `rom_extract.py --render-dir`, and Pillow. Named by `rom_hd44780.py`'s header. | 2026-11-04 |
 
-## Standalone (64)
+## Standalone (66)
 
 Nothing in the repository names these. That is a statement about
 discoverability, **not** a verdict: several are ordinary bench and recovery
@@ -297,3 +297,5 @@ from a document. Anything genuinely dead should leave the tree, as
 | `test_subset_font.py` | Holds subset_font.py's `--provenance` (the header's first line) and the output it must not change (the sha256 of the commit before), with 16 refused command lines and the mutants of the option. | 2026-11-09 |
 | `fonts/fetch_liberation.py` | Downloads the pinned Liberation Fonts tarball (`fonts/liberation.json`), checks the sha256 of the tarball and of each TTF and writes only the TTFs that match; a divergence exits 1 and writes nothing, what it cannot check exits 2. | 2026-11-09 |
 | `test_fetch_liberation.py` | Holds fetch_liberation.py to its word on a tarball built in the test, on the real one (`--tarball`) and, with `--network`, on the pin's URL: a changed tarball or TTF, a missing TTF, a link, and 34 refused command lines and pins. | 2026-11-09 |
+| `fonts/gen_original_faces.py` | The recipe of the original panel's three faces (`src/ui/original/SansBold*.h`) as code, not as text to copy: from the LiberationSans-Bold.ttf in the folder `fonts/fetch_liberation.py` fills, it runs `gen_gfx_font.py` and `subset_font.py` in a temporary folder, once per face of its table (size, range, yAdvance and kept glyphs: the only copy of them), with the pin's version and sha256, read at run time, as the header's first line; the TTF is checked against the pin before it is used. `--check` regenerates and compares byte for byte with the committed headers (`--headers PASTA` points at other ones): exit 0 equal, 1 a face differs (named, with the FreeType in use and the 2.13.2 the headers came from), 2 it could not look (TTF missing or not the pin's, freetype-py missing, bad command line, a step that failed). Needs freetype-py==2.5.1: `.venv-tools/bin/python`. | 2026-11-11 |
+| `test_gen_original_faces.py` | Holds gen_original_faces.py to its word on the real pin and TTF (`--dir`): the tree as it is exits 0; one byte changed in a copy of each header exits 1 and names only that face; a TTF with a byte changed, an empty or missing DIR, no freetype module and 12 bad command lines exit 2; the write gives three files with the committed sha256; the first line follows a changed pin. Never touches a tracked file. Needs freetype-py: `.venv-tools/bin/python`. | 2026-11-11 |

@@ -20,16 +20,11 @@ o leiaute do painel foi desenhado com esses valores. A Liberation Sans Bold mede
 mesmos tamanhos (FreeType 2.13.2, 2026-11-09), então a face trocada passa o valor do cabeçalho que
 substitui.
 
-Receita das três faces do painel original (src/ui/original/SansBold*.h), da Liberation Sans Bold 2.1.5; nada à mão:
-  1. venv:  python3 -m venv .venv-tools && .venv-tools/bin/pip install freetype-py   (FreeType 2.13.2 em 2026-11-09)
-  2. TTF:   python3 tools/fonts/fetch_liberation.py DIR   (confere o pino tools/fonts/liberation.json e imprime o caminho de cada TTF)
-  3. numa pasta de trabalho vazia (a linha "Source:" do cabeçalho cita o nome relativo do intermediário), para cada face:
-       gen_gfx_font.py TTF SIZE FIRST LAST SYMBOL SYMBOL.full.h --require "KEPT" --y-advance Y
-       subset_font.py SYMBOL.full.h src/ui/original/SYMBOL.h "KEPT" --provenance "LiberationSans-Bold.ttf 2.1.5 sha256 <o do pino>, SIL OFL 1.1 (pin: tools/fonts/liberation.json)"
-     SYMBOL SIZE FIRST LAST Y: SansBold9pt8b_latin1 9 0x20 0xFF 22; SansBold12pt8b_latin1 12 0x20 0xFF 29; SansBold24pt7b_subset 24 0x20 0x7E 56.
-     KEPT é o que o cabeçalho que se regera guarda: o ASCII de 0x20 a 0x7E mais °ºª¿¡ÇçÃãÕõÁáÉéÍíÓóÚúÂâÊêÔôÀàÑñÜü nas de 9 e 12 pt
-     (128 caracteres), e -.0123456789CEIMORSTUcvor na de 24 pt (25).
-  4. conferir: tools/compare_gfx_fonts.py ANTIGO.h NOVO.h (os yAdvance iguais); duas gerações dão cabeçalhos byte a byte iguais.
+As três faces do painel original (src/ui/original/SansBold*.h), da Liberation Sans Bold 2.1.5, não têm receita em texto: tools/fonts/gen_original_faces.py DIR
+as regera com este script e o subset_font.py, do TTF que tools/fonts/fetch_liberation.py confere contra o pino, e `gen_original_faces.py --check DIR` as compara
+byte a byte com os cabeçalhos do repositório. A tabela delas (tamanho, faixa, yAdvance e glifos mantidos) mora lá, uma vez só. O interpretador precisa de
+freetype-py==2.5.1 (FreeType 2.13.2 em 2026-11-09): os bits vêm da rasterização do FreeType, e outra versão pode mudá-los sem que nada no repositório mude.
+Ao trocar de TTF, tools/compare_gfx_fonts.py ANTIGO.h NOVO.h lista o que muda entre os dois cabeçalhos.
 """
 import sys
 import freetype
