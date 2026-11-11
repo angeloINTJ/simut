@@ -266,7 +266,7 @@ jobs:
       # recipe, tools/fonts/gen_angulo_faces.py, which runs tools/fonts/gen_angulo_face.py once per face. The same gate as the original
       # panel's: exit 1 names a face that differs, with the FreeType in use and the 2.13.2 the headers came from; exit 2 is that it could
       # not look. Another FreeType is not skipped: the bytes decide. Under Python 3.11 and freetype-py 2.5.1 the check took 0.2 s and
-      # the test 3.7 s here on 2026-11-11.
+      # the test 4.7 s here on 2026-11-11 (3.8 s before its control of the body's fraction was added; median of three runs each).
       - name: Angulo text faces are what the pinned TTFs generate
         run: python3 tools/fonts/gen_angulo_faces.py --check "$RUNNER_TEMP/liberation"
       - name: Angulo face generator and recipe (gen_angulo_face.py, gen_angulo_faces.py and their controls)

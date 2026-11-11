@@ -28,6 +28,10 @@ e gen_angulo_faces.py --check faz o mesmo no CI.
 Uso: gen_angulo_face.py <ttf> <pt> <SIMBOLO> <saida.h> [--face-label TEXTO] [--y-advance N] [--provenance TEXTO]
                         [--extra ARQUIVO.json]
 
+<pt>                o corpo em pontos, de 1 a 255: um inteiro ou um decimal com ponto e dígitos dos dois lados (9, 8.5; não 8., .5, 8,5, 1e1).
+                    O FreeType o recebe em 26.6, 64 por ponto: 8.5 vira 544, e uma fração que não é múltiplo de 1/64 se arredonda ao 1/64 mais
+                    próximo (o comentário segue dizendo o que se pediu). O comentário do cabeçalho escreve o número lido: um inteiro é "9 pt", e
+                    não "9.0 pt"; um decimal sai como o float dele ("8.5 pt", e "9.0 pt" se alguém digitar 9.0).
 --face-label TEXTO  o nome da face na primeira linha do comentário (o padrão é o nome do TTF sem a extensão).
 --y-advance N       grava N (1 a 255) como yAdvance do GFXfont no lugar de round(pt * dpi / 72 * 1,25), a regra
                     da entrega (22 aos 9 pt, 29 aos 12 pt); nada mais no arquivo muda.
@@ -38,9 +42,10 @@ Uso: gen_angulo_face.py <ttf> <pt> <SIMBOLO> <saida.h> [--face-label TEXTO] [--y
 --extra ARQUIVO     a tabela EXTRA (códigos 127..176 -> caractere); o padrão é angulo_extra.json, ao lado.
 
 As opções podem estar em qualquer posição; sem valor, repetidas, na forma --opcao=valor ou com valor fora do
-intervalo o script sai 2 e não grava o arquivo. Um glifo que o TTF não tem (o FreeType desenharia o .notdef sem
-avisar) ou uma opção recusada sai 1, escreve `missing glyphs: U+XXXX ...` ou a recusa em stderr e também não grava.
-Duas execuções dão bytes iguais; FREETYPE_PROPERTIES é ignorada (ver abaixo).
+intervalo o script sai 2 e não grava o arquivo, e o mesmo vale para um corpo que não é um decimal de 1 a 255.
+Um glifo que o TTF não tem (o FreeType desenharia o .notdef sem avisar) ou uma opção recusada sai 1, escreve
+`missing glyphs: U+XXXX ...` ou a recusa em stderr e também não grava. Duas execuções dão bytes iguais;
+FREETYPE_PROPERTIES é ignorada (ver abaixo).
 
 A receita das quatro faces é tools/fonts/gen_angulo_faces.py; uma face à mão, como ela a gera:
   gen_angulo_face.py LiberationSans-Regular.ttf 9 SANS9 SANS9.h --y-advance 22 --provenance "<TTF, versão, sha256, licença>"
@@ -69,7 +74,8 @@ LINHA = 12
 FLAGS = freetype.FT_LOAD_TARGET_LIGHT | freetype.FT_LOAD_FORCE_AUTOHINT | freetype.FT_LOAD_NO_BITMAP
 EXTRA_PADRAO = os.path.join(HERE, 'angulo_extra.json')
 USO = ('Uso: gen_angulo_face.py <ttf> <pt> <SIMBOLO> <saida.h> '
-       '[--face-label TEXTO] [--y-advance N] [--provenance TEXTO] [--extra ARQUIVO.json]')
+       '[--face-label TEXTO] [--y-advance N] [--provenance TEXTO] [--extra ARQUIVO.json]\n'
+       '     <pt>: o corpo, de 1 a 255, inteiro ou com fração decimal (9, 8.5)')
 OPCOES = ('--face-label', '--y-advance', '--provenance', '--extra')
 
 
@@ -140,6 +146,7 @@ def empacotar(bits):
 def gerar(ttf, pt, simbolo, rotulo=None, y_advance=None, provenance=None, extra=None, dpi=DPI, limiar=ALFA_MIN):
     """(texto do cabeçalho, info) da face; ValueError ou Ausentes se não dá, antes de qualquer arquivo.
 
+    pt: o corpo em pontos, de 1 a 255, um int (o comentário diz "9 pt") ou um float ("8.5 pt"); o FreeType o recebe em 26.6.
     info: cap, xh e digito (altura da tinta do 'H', do 'x' e do '0', o que AnguloMeta.h guarda em kCapX),
     y_advance, bitmap_bytes e glifos."""
     if not re.fullmatch(r'[A-Za-z_]\w*', simbolo):
@@ -159,7 +166,7 @@ def gerar(ttf, pt, simbolo, rotulo=None, y_advance=None, provenance=None, extra=
     faltam = [ch for ch in dict.fromkeys(ch for _, ch in pares) if face.get_char_index(ord(ch)) == 0]
     if faltam:
         raise Ausentes(faltam)
-    face.set_char_size(pt << 6, 0, dpi, 0)
+    face.set_char_size(int(round(pt * 64)), 0, dpi, 0)  # 26.6, 64 por ponto; num corpo inteiro é o `pt << 6` de antes
 
     bitmaps, linhas_glifos, por = [], [], {}
     for code, ch in pares:
@@ -173,12 +180,12 @@ def gerar(ttf, pt, simbolo, rotulo=None, y_advance=None, provenance=None, extra=
     y_adv = padrao if y_advance is None else y_advance
 
     if provenance is None:
-        cab = ['// %s: %s %d pt a %d dpi, limiar de 50 %% — gerada pelo mesmo' % (simbolo, rotulo, pt, dpi),
+        cab = ['// %s: %s %s pt a %d dpi, limiar de 50 %% — gerada pelo mesmo' % (simbolo, rotulo, pt, dpi),
                '// rasterizador das telas de referencia (gerar_fontes_gfx.js). Nao editar a mao.']
         onde = 'ver fontes.json'
     else:
         cab = [primeira,
-               '// %s: %s %d pt a %d dpi, limiar de 50 %% — gerada por' % (simbolo, rotulo, pt, dpi),
+               '// %s: %s %s pt a %d dpi, limiar de 50 %% — gerada por' % (simbolo, rotulo, pt, dpi),
                '// tools/fonts/gen_angulo_face.py, no FreeType e com o limiar do rasterizador das telas de '
                'referencia. Nao editar a mao.']
         onde = 'ver tools/fonts/angulo_extra.json'
@@ -222,7 +229,8 @@ def parse_args(argv):
         if valor is None or arg in achadas:
             usage()
         achadas[arg] = valor
-    if len(pos) != 4 or not (pos[1].isascii() and pos[1].isdecimal() and 1 <= int(pos[1]) <= 255):
+    # O corpo é ASCII, com ou sem fração: um float() sozinho aceitaria "8.", "1e1", "1_0" e dígitos de outras escritas.
+    if len(pos) != 4 or not (re.fullmatch(r'[0-9]+(\.[0-9]+)?', pos[1]) and 1 <= float(pos[1]) <= 255):
         usage()
     y = achadas.get('--y-advance')
     if y is not None and not (y.isascii() and y.isdecimal() and 1 <= int(y) <= 255):
@@ -232,7 +240,8 @@ def parse_args(argv):
 
 def main(argv):
     pos, opcoes, y_advance = parse_args(argv)
-    ttf, pt, simbolo, saida = pos[0], int(pos[1]), pos[2], pos[3]
+    ttf, simbolo, saida = pos[0], pos[2], pos[3]
+    pt = int(pos[1]) if pos[1].isdecimal() else float(pos[1])  # 9 fica inteiro: o comentário diz "9 pt", e não "9.0 pt"
     try:
         texto, info = gerar(ttf, pt, simbolo, rotulo=opcoes.get('--face-label'), y_advance=y_advance,
                             provenance=opcoes.get('--provenance'), extra=opcoes.get('--extra'))

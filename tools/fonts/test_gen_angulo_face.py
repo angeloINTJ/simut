@@ -3,7 +3,7 @@
 
 SANS9, SANSB9, MONO9 e MONO12 (src/ui/angulo/kit/fontes/) são geradas dos TTF da Liberation 2.1.5 que tools/fonts/liberation.json fixa. A receita
 (o TTF, o corpo, o yAdvance e a linha de proveniência de cada face) é tools/fonts/gen_angulo_faces.py; gen_angulo_face.py é o gerador de uma
-face, que rasteriza com o FreeType. Dez controles:
+face, que rasteriza com o FreeType. Onze controles:
 
   extra        angulo_extra.json igual aos comentários `// 0xNN 'c'` dos quatro cabeçalhos e aos code points do kExtra de AnguloMeta.h (não
                precisa de TTF);
@@ -14,7 +14,11 @@ face, que rasteriza com o FreeType. Dez controles:
   kcapx        caixa alta e altura de x do gerador iguais às de kCapX (AnguloMeta.h), às da linha 3 do cabeçalho e às dos glifos 0x48 e 0x78
                da tabela que o gerador escreve, lida com parse_font_header de subset_font.py, o leitor com que gen_angulo_meta.py mede;
   yadv         --y-advance N manda no yAdvance e em nada mais; valor ruim sai 2 sem arquivo;
-  provenance   --provenance TEXTO é a primeira linha, e sem ela o arquivo começa pelo comentário da face; texto ruim sai 1 sem arquivo;
+  corpo        <pt> aceita fração, com corpos escolhidos aqui e não os da receita (que pode mudar sem que o gerador mude): 8,5 pt vai ao FreeType
+               como 544 (26.6, 64 por ponto) e o comentário diz "8.5 pt"; 9 e 12 seguem o de antes ("9 pt" e "12 pt", 576 e 768); o arquivo da
+               linha de comando é o que gerar( ) escreve para o mesmo número; o que não é um decimal de 1 a 255 ("8.", ".5", "8,5", "0", "256",
+               "1e1", "-1", "nan", vazio) sai 2 sem arquivo;
+  provenance--provenance TEXTO é a primeira linha, e sem ela o arquivo começa pelo comentário da face; texto ruim sai 1 sem arquivo;
   determinismo duas execuções dão bytes iguais, também com FREETYPE_PROPERTIES no ambiente;
   formato      o corpo do cabeçalho gerado (do `#pragma once` em diante) tem a forma do versionado (comparador que ignora bits e números), e o
                comparador morde (nove deformações do versionado, cada uma acusada);
@@ -343,6 +347,75 @@ def c_yadv(c):
     return p
 
 
+def c_corpo(c):
+    """O corpo, <pt>, aceita fração. Os corpos são escolhidos aqui e não lidos da receita: o controle prova o que o gerador faz com um corpo, e
+    a tabela da receita pode mudar sem que ele mude."""
+    if c.sem_gen():
+        return c.sem_gen()
+    p, d = [], c.tmp / "corpo"
+    d.mkdir()
+    ttf = c.ttf("SANS9")  # só o arquivo do TTF vem da receita
+    rotulo, saida, prov = Path(ttf).stem, d / "x.h", "ensaio do corpo"
+    # Cada corpo, o que o FreeType tem de receber (26.6: 64 por ponto) e como o comentário o escreve. À mão, são o oráculo; o 9 e o 12 são o que o
+    # gerador fazia antes de aceitar fração: pt << 6 e "9 pt", "12 pt".
+    esperado = ((8.5, 544, "8.5"), (9, 576, "9"), (12, 768, "12"))
+    # (1) o tamanho que chega ao FreeType, lido na chamada: um Face que anota o que o set_char_size recebe
+    chamadas, original = [], c.gen.freetype.Face
+
+    class Espiao(original):
+        def set_char_size(self, width=0, height=0, hres=72, vres=72):
+            chamadas.append((width, height, hres, vres))
+            return super().set_char_size(width, height, hres, vres)
+
+    textos = {}
+    c.gen.freetype.Face = Espiao
+    try:
+        for pt, tamanho, escrito in esperado:
+            chamadas.clear()
+            try:
+                textos[pt] = c.gen.gerar(ttf, pt, "SANS9")[0]
+            except Exception as e:  # o gerador recusa o corpo: sai dos outros passos, mas o motivo fica dito
+                p.append("gerar( %s pt ): raised %s: %s" % (escrito, type(e).__name__, str(e)[:100]))
+                continue
+            if chamadas != [(tamanho, 0, c.gen.DPI, 0)]:
+                p.append("%s pt: FreeType was handed %s, want [(%d, 0, %d, 0)]" % (escrito, chamadas, tamanho, c.gen.DPI))
+    finally:
+        c.gen.freetype.Face = original
+    # (2) o efeito: a 8,5 pt os glifos não são os de 8 (corpo cortado) nem os de 9 (arredondado para cima)
+    if 8.5 in textos:
+        feito = glifos(textos[8.5])
+        for outro in (8, 9):
+            if feito == glifos(textos[outro] if outro in textos else c.gen.gerar(ttf, outro, "SANS9")[0]):
+                p.append("8.5 pt: the glyphs are the %d pt ones (the body was cut or rounded to an integer)" % outro)
+    # (3) a linha de comando, sem e com --provenance (os dois comentários do cabeçalho): sai 0, o arquivo é o que gerar( ) escreve para o mesmo
+    # número (o "9" da linha de comando é um inteiro, e não "9.0") e a linha da face diz o corpo como o oráculo o escreve
+    for pt, _, escrito in esperado:
+        for com, extra in (("without --provenance", []), ("with --provenance", ["--provenance", prov])):
+            saida.unlink(missing_ok=True)
+            r = c.run([ttf, escrito, "SANS9", saida] + extra)
+            if r.returncode != 0 or not saida.exists():
+                p.append("%s pt on the command line, %s: exit %s (want 0), %s" % (escrito, com, r.returncode, ultima(r.stderr)))
+                continue
+            tem = saida.read_text(encoding="utf-8")
+            linha = next((x for x in tem.split("#pragma")[0].split("\n") if x.startswith("// SANS9: ")), "")
+            quer = "// SANS9: %s %s pt a %d dpi, " % (rotulo, escrito, c.gen.DPI)
+            if not linha.startswith(quer):
+                p.append("%s pt on the command line, %s: the face's comment is %r, want it to start with %r" % (escrito, com, linha[:60], quer))
+            try:
+                igual = tem == c.gen.gerar(ttf, pt, "SANS9", provenance=extra[1] if extra else None)[0]
+            except Exception:  # o mesmo número já foi recusado em (1)
+                continue
+            if not igual:
+                p.append("%s pt on the command line, %s: the file is not what gerar( %s ) writes" % (escrito, com, escrito))
+    # (4) o que não é um decimal de 1 a 255 sai 2 sem arquivo; o 2 é o da linha de comando, não o 1 de um corpo que o gerador recusa já lido
+    for ruim in ("8.", ".5", "8,5", "0", "256", "1e1", "-1", "nan", "", "+8", "٣"):
+        saida.unlink(missing_ok=True)
+        r = c.run([ttf, ruim, "SANS9", saida])
+        if r.returncode != 2 or saida.exists():
+            p.append("body %r: exit %s (want 2), file %s" % (ruim, r.returncode, "written" if saida.exists() else "not written"))
+    return p
+
+
 def c_provenance(c):
     if c.sem_gen():
         return c.sem_gen()
@@ -550,7 +623,7 @@ def c_receita(c):
 
 
 CONTROLES = [("extra", c_extra), ("faces", c_faces), ("negativos", c_negativos), ("kcapx", c_kcapx),
-             ("yadv", c_yadv), ("provenance", c_provenance), ("determinismo", c_determinismo),
+             ("yadv", c_yadv), ("corpo", c_corpo), ("provenance", c_provenance), ("determinismo", c_determinismo),
              ("formato", c_formato), ("ausente", c_ausente), ("receita", c_receita)]
 
 
@@ -578,8 +651,8 @@ MUTANTES = [
      'DPI = 140',
      {'faces'}),
     ('the dpi parameter is ignored',
-     'face.set_char_size(pt << 6, 0, dpi, 0)',
-     'face.set_char_size(pt << 6, 0, DPI, 0)',
+     'face.set_char_size(int(round(pt * 64)), 0, dpi, 0)',
+     'face.set_char_size(int(round(pt * 64)), 0, DPI, 0)',
      {'negativos'}),
     ('the threshold parameter is ignored',
      '>= limiar}',
@@ -633,6 +706,35 @@ MUTANTES = [
      "cap, xh, dig = (por[c]['h'] for c in 'Hx0')",
      "cap, xh, dig = (por[c]['h'] for c in 'xx0')",
      {'faces', 'kcapx'}),
+    # O corpo com fração. A receita só tem corpos inteiros enquanto nenhuma face for 8,5: o %d e o int( ) não mudam nada nela, e só `corpo` os vê.
+    ('the body is cut to an integer',
+     'face.set_char_size(int(round(pt * 64)), 0, dpi, 0)',
+     'face.set_char_size(int(pt) << 6, 0, dpi, 0)',
+     {'corpo'}),
+    ('the comment writes the body with %d (no --provenance)',
+     "'// %s: %s %s pt a %d dpi, limiar de 50 %% — gerada pelo mesmo'",
+     "'// %s: %s %d pt a %d dpi, limiar de 50 %% — gerada pelo mesmo'",
+     {'corpo'}),
+    ('the comment writes the body with %d (with --provenance)',
+     "'// %s: %s %s pt a %d dpi, limiar de 50 %% — gerada por'",
+     "'// %s: %s %d pt a %d dpi, limiar de 50 %% — gerada por'",
+     {'corpo'}),
+    ('a fraction is refused on the command line',
+     r"re.fullmatch(r'[0-9]+(\.[0-9]+)?', pos[1])",
+     r"re.fullmatch(r'[0-9]+', pos[1])",
+     {'corpo'}),
+    ('the body is always read as a float: 9 is written "9.0 pt"',
+     'pt = int(pos[1]) if pos[1].isdecimal() else float(pos[1])',
+     'pt = float(pos[1])',
+     {'corpo', 'faces', 'receita', 'provenance'}),
+    ('the body is checked by float() alone: "8.", "1e1", "+8" pass',
+     r"re.fullmatch(r'[0-9]+(\.[0-9]+)?', pos[1])",
+     'float(pos[1])',
+     {'corpo'}),
+    ('the range of the body is not checked',
+     ' and 1 <= float(pos[1]) <= 255',
+     '',
+     {'corpo'}),
 ]
 # (nome, âncora que aparece uma vez na receita, troca, controles que têm de cair)
 MUTANTES_RECEITA = [
