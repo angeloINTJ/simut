@@ -98,7 +98,7 @@ int16_t rdiv( int32_t n, int32_t d );
 // cannot draw text smaller than the maintainer can read on the 3.5-inch panel. The floor is 8.5 pt since
 // 2026-11-11, the maintainer's decision when the faces moved to the Liberation: at 9 pt its sans did not fit
 // the screens laid out for the FreeSans (189 findings of tools/tft_ui/host_telas.py; 0 at 8.5 pt, once the
-// calendar's weekday row moved up 2 px and two accepted cuts moved by a character), so SANS9 and SANSB9 are
+// calendar's weekday row moved up 1 px and two accepted cuts moved by a character), so SANS9 and SANSB9 are
 // cut at 8.5 pt and keep their names. Their cap height is 12 px and their x height 9; the FreeSans at 9 pt had
 // caps of 14 (regular) and 13 (bold) and an x height of 10. It has not been looked at on the glass yet.
 enum class Fonte : uint8_t { SANS9, SANSB9, MONO9, MONO12, DISP9, DISP12, DISP18, DISP24, DISP32, MARCA };

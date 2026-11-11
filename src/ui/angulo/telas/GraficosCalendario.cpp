@@ -31,12 +31,14 @@ constexpr int16_t Y_LINHAS = Y_CARTAO + H_CABECALHO;    // the first week
 // from the card's top (Y_CARTAO, 32) their baseline is y 46 and the caps run from y 34 to 45;
 // the pt-BR "Q" (twice a week) has a leg 3 px under the baseline, whose last row, y 48, is 1 px
 // inside the first week's targets, which start at Y_LINHAS (host_telas.py failed on it: 16
-// findings in graficos, pt-BR, "crosses the edge of target 4/2"). The letters' box starts 2 px
-// above the card instead, at Y_LETRAS: the baseline is y 44, the caps run from y 32, the card's
-// own first row, to 43, and the leg ends at y 46, 1 px clear of the targets. The hairline stays
-// 2 px under the first week's top (Y_FIO, inside its 6 px of air above the digits, which start
-// at y 54): 6 px under the caps and 3 under the leg.
-constexpr int16_t Y_LETRAS = Y_CARTAO - 2;
+// findings in graficos, pt-BR, "crosses the edge of target 4/2"). The letters' box starts 1 px
+// above the card instead, at Y_LETRAS: the baseline is y 45, the caps run from y 33, the first
+// row under the card's outline, to 44, and the leg ends at y 47, the row before the targets.
+// 2 px, the first fix, put the caps' first row on the outline itself, over 53 of its pixels (the
+// review of 2026-11-11; the maintainer chose 1 px). The hairline stays 2 px under the first
+// week's top (Y_FIO, inside its 6 px of air above the digits, which start at y 54): 5 px under
+// the caps and 2 under the leg.
+constexpr int16_t Y_LETRAS = Y_CARTAO - 1;
 constexpr int16_t Y_FIO = Y_LINHAS + 2;
 static_assert( Y_LINHAS + MAX_LINHAS * H_LINHA == Y_CARTAO + H_CARTAO, "six weeks fill the card" );
 constexpr int16_t W_MARCA = 28;                         // today's box, 28 x 24 (the plan's)
