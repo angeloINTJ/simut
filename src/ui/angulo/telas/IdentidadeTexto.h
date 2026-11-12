@@ -52,13 +52,13 @@ int alvosTexto( const VmTexto &vm, Alvo *out );
 // The refusals of a new account's name, said on the keyboard's help line (the
 // glue, DisplayManager_UiA_Identidade.cpp, writes them into VmTexto::erro). Here
 // so that the samples show the very texts; each says what happened or what to
-// do, and fits the line's 296 px in the support type (measured 2026-10-15, at the
-// 9 pt floor: 247, 252, 289 and 233 px in pt-BR; the copy of the 7 pt type measured 239,
-// 270, 247 and 275, and at 9 pt it was 310, 352, 319 and 356 and was cut at its
-// end, which is where the way out is said). In English and in Spanish (measured
-// 2026-10-23, S10c B5b, with the kit's larguraTinta( )): 228, 291, 287 and 294 px,
-// and 280, 285, 272 and 235; the first wordings of the reserved name's refusal
-// ("The name admin is reserved. Use another.", 318 px) were cut and were shortened.
+// do, and fits the line's 296 px in the support type (measured on the host with the kit's larguraTinta( ),
+// 2026-11-11, at 8.5 pt: 243, 242, 285 and 232 px in pt-BR, 223, 282, 282 and 288 in English, 273, 276, 267
+// and 234 in Spanish; in the FreeSans at 9 pt, 2026-10-15 and 2026-10-23, S10c B5b: 247, 252, 289 and 233 in
+// pt-BR, 228, 291, 287 and 294 in English, 280, 285, 272 and 235 in Spanish; the copy of the 7 pt type measured
+// 239, 270, 247 and 275, and at 9 pt it was 310, 352, 319 and 356 and was cut at its
+// end, which is where the way out is said). The first wordings of the reserved name's refusal
+// ("The name admin is reserved. Use another.", 313 px at 8.5 pt, 318 at 9 pt) were cut and were shortened.
 // The line has one row: the keys start 28 px under the field.
 // Functions and not constants: UA_TXT( ) answers from the pack the boot loads, so a constant built at start-up would hold the English for good (Textos.h).
 // Defined in IdentidadeTexto.cpp, which includes Textos.h after its own headers.

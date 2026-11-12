@@ -129,7 +129,7 @@ int anexarFontesDoAngulo( FonteLicenca *fontes, int n, int max ) {
   const FonteLicenca extra[] = {
     { UA_TXT( "--- Fonts and icons of this panel ---" ), 1 },
     { UA_TXT( "Bricolage Grotesque, in the titles: The Bricolage Grotesque Project Authors, SIL Open Font License 1.1." ), 0 },
-    { UA_TXT( "GNU FreeFont (FreeSans, FreeMono Bold), in the text and the figures: GNU FreeFont contributors, GPL-3.0-or-later with the font exception." ), 0 },
+    { UA_TXT( "Liberation Fonts (Sans, Mono Bold), in the text and the figures: Red Hat, Inc., SIL Open Font License 1.1." ), 0 },
     { UA_TXT( "Lucide, in the icons: Lucide Contributors, ISC." ), 0 },
   };
   constexpr int N = sizeof extra / sizeof extra[0];

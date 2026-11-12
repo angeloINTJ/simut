@@ -6,26 +6,76 @@ FT_RENDER_MODE_MONO, bits MSB-first contínuos, yOffset = 1 - bitmap_top,
 yAdvance = face.size.height >> 6. Gera cobertura Latin-1 (0x20..0xFF)
 para acentos pt-BR/es-ES e o ° tipográfico.
 
-Uso: gen_gfx_font.py <ttf> <size> <first> <last> <StructName> <out.h>
+Uso: gen_gfx_font.py <ttf> <size> <first> <last> <StructName> <out.h> [--require CHARS] [--y-advance N]
 
-Receita das fontes Latin-1 do TFT (FreeSansBold9pt8b_latin1.h / 12pt):
-  1. TTF: https://ftp.gnu.org/gnu/freefont/freefont-ttf-20120503.zip
-  2. pip install freetype-py (venv)
-  3. gen_gfx_font.py FreeSansBold.ttf 9 0x20 0xFF FreeSansBold9pt8b out9.h
-     (idem 12pt; conferir yAdvance legado: 9pt=22, 12pt=29)
-  4. tools/subset_font.py out9.h src/ui/original/FreeSansBold9pt8b_latin1.h "<ASCII+acentos pt/es>"
+--require CHARS (em qualquer posição da linha) lista os caracteres que o TTF precisa ter. Sem o
+glifo, load_char desenha o .notdef e não avisa; com a opção, se faltar algum o script escreve em
+stderr `missing glyphs: U+XXXX ...` (todos, na ordem de CHARS), sai com 1 e não grava o arquivo.
+
+--y-advance N (em qualquer posição da linha) grava N como yAdvance do GFXfont no lugar de
+face.size.height >> 6; N é um inteiro decimal de 1 a 255 (o campo é um uint8_t) e nada mais no arquivo
+muda. Sem a opção a saída é a de sempre. Os cabeçalhos do painel original têm yAdvance 22 (9 pt), 29
+(12 pt) e 56 (24 pt): o Adafruit_GFX soma o yAdvance a cada nova linha e a cada quebra automática, e
+o leiaute do painel foi desenhado com esses valores. A Liberation Sans Bold mede 20, 27 e 54 nos
+mesmos tamanhos (FreeType 2.13.2, 2026-11-09), então a face trocada passa o valor do cabeçalho que
+substitui.
+
+As três faces do painel original (src/ui/original/SansBold*.h), da Liberation Sans Bold 2.1.5, não têm receita em texto: tools/fonts/gen_original_faces.py DIR
+as regera com este script e o subset_font.py, do TTF que tools/fonts/fetch_liberation.py confere contra o pino, e `gen_original_faces.py --check DIR` as compara
+byte a byte com os cabeçalhos do repositório. A tabela delas (tamanho, faixa, yAdvance e glifos mantidos) mora lá, uma vez só. O interpretador precisa de
+freetype-py==2.5.1 (FreeType 2.13.2 em 2026-11-09): os bits vêm da rasterização do FreeType, e outra versão pode mudá-los sem que nada no repositório mude.
+Ao trocar de TTF, tools/compare_gfx_fonts.py ANTIGO.h NOVO.h lista o que muda entre os dois cabeçalhos.
 """
 import sys
 import freetype
 
 DPI = 141
+USO = ('Uso: gen_gfx_font.py <ttf> <size> <first> <last> <StructName> <out.h> '
+       '[--require CHARS] [--y-advance N]')
+OPCOES = ('--require', '--y-advance')
+
+def usage():
+    print(USO, file=sys.stderr)
+    sys.exit(2)
+
+def parse_args(argv):
+    """Os seis argumentos posicionais, o CHARS de --require e o N de --y-advance, que podem estar em qualquer posição.
+
+    --require=CHARS, --require sem a lista, --require repetido e posicional a mais ou a menos
+    saem em usage(): uma conferência que a linha de comando pula em silêncio não confere nada.
+    O mesmo vale para --y-advance, e um N que não seja inteiro decimal de 1 a 255 também: um valor
+    fora do uint8_t do GFXfont seria gravado e quebraria só na compilação.
+    """
+    pos, found = [], {}
+    it = iter(argv)
+    for arg in it:
+        if arg not in OPCOES:
+            pos.append(arg)
+            continue
+        value = next(it, None)
+        if value is None or arg in found:
+            usage()
+        found[arg] = value
+    if len(pos) != 6:
+        usage()
+    y_advance = found.get('--y-advance')
+    if y_advance is not None:
+        if not (y_advance.isascii() and y_advance.isdecimal() and 1 <= int(y_advance) <= 255):
+            usage()
+        y_advance = int(y_advance)
+    return pos, found.get('--require'), y_advance
 
 def main():
+    args, require, y_advance_given = parse_args(sys.argv[1:])
     ttf, size, first, last, name, out = (
-        sys.argv[1], int(sys.argv[2]), int(sys.argv[3], 0), int(sys.argv[4], 0),
-        sys.argv[5], sys.argv[6])
+        args[0], int(args[1]), int(args[2], 0), int(args[3], 0), args[4], args[5])
 
     face = freetype.Face(ttf)
+    # Antes de qualquer saída: o arquivo só nasce de um TTF que tem tudo o que se exigiu.
+    missing = [ch for ch in dict.fromkeys(require or '') if face.get_char_index(ord(ch)) == 0]
+    if missing:
+        print('missing glyphs: ' + ' '.join(f'U+{ord(ch):04X}' for ch in missing), file=sys.stderr)
+        sys.exit(1)
     face.set_char_size(size << 6, 0, DPI, 0)
 
     bitmap_bytes = []
@@ -74,7 +124,7 @@ def main():
             'yo': 1 - g.bitmap_top,
         })
 
-    y_advance = face.size.height >> 6
+    y_advance = face.size.height >> 6 if y_advance_given is None else y_advance_given
 
     lines = []
     lines.append(f'const uint8_t {name}Bitmaps[] PROGMEM = {{')

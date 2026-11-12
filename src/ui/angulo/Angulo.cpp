@@ -143,7 +143,7 @@ const GFXfont *const kFontes[] = {
     &entrega::DISP9, &entrega::DISP12, &entrega::DISP18, &entrega::DISP24, &entrega::DISP32, &entrega::DISP24_MARCA,
 };
 // Both tables are indexed by ua::Fonte: an entry added to or taken from the enum must be taken here
-// and in tools/tft_ui/gerar_meta.js's FONTES too (the 7 pt fonts left all three on 2026-10-15).
+// and in the FONTES of tools/tft_ui/gen_angulo_meta.py too (the 7 pt fonts left all three on 2026-10-15).
 static_assert( sizeof kFontes / sizeof kFontes[0] == (size_t)Fonte::MARCA + 1, "kFontes follows ua::Fonte" );
 static_assert( sizeof meta::kCapX / sizeof meta::kCapX[0] == (size_t)Fonte::MARCA, "kCapX follows ua::Fonte" );
 
@@ -1132,7 +1132,7 @@ int16_t selo( Pintor &p, int16_t x, int16_t y, int16_t h, const char *rotulo, To
   }
   const int16_t w = larguraSelo( rotulo );
 #ifdef UA_HOST
-  // The whole box, not the label's ink: on the bench (2026-10-15) the 9 pt status-bar badge covered the "T" of
+  // The whole box, not the label's ink: on the bench (2026-10-15) the status-bar badge, 9 pt in the FreeSans, covered the "T" of
   // "SIMUT" and was drawn over by the pending count, and no two inks overlapped, so host_telas.py saw nothing.
   hostAnotarTexto( rotulo, x, (int16_t)( x + w ), y, (int16_t)( y + h ), true );
 #endif

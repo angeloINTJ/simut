@@ -27,11 +27,18 @@ constexpr int16_t X_CARTAO = ESP2, Y_CARTAO = 32, W_CARTAO = 304, H_CARTAO = 160
 constexpr int16_t H_CABECALHO = 16, H_LINHA = 24, MAX_LINHAS = 6;
 constexpr int16_t W_CEL = W_CARTAO / DIAS_SEMANA;       // 43, as the plan
 constexpr int16_t Y_LINHAS = Y_CARTAO + H_CABECALHO;    // the first week
-// The weekday letters are 13 px tall in 9 pt bold, in a 16 px header: with the
-// hairline at its foot they had 1 px of air under them. The hairline 2 px lower
-// (inside the first week's 5 px of air above its digits) leaves them 3. The
-// letters cannot go lower instead: their ink would enter the first week's
-// targets (host_telas.py failed on it, "crosses the edge of target 4/2").
+// The weekday letters are 12 px tall in 8.5 pt bold (2026-11-11). Centred in the 16 px header
+// from the card's top (Y_CARTAO, 32) their baseline is y 46 and the caps run from y 34 to 45;
+// the pt-BR "Q" (twice a week) has a leg 3 px under the baseline, whose last row, y 48, is 1 px
+// inside the first week's targets, which start at Y_LINHAS (host_telas.py failed on it: 16
+// findings in graficos, pt-BR, "crosses the edge of target 4/2"). The letters' box starts 1 px
+// above the card instead, at Y_LETRAS: the baseline is y 45, the caps run from y 33, the first
+// row under the card's outline, to 44, and the leg ends at y 47, the row before the targets.
+// 2 px, the first fix, put the caps' first row on the outline itself, over 53 of its pixels (the
+// review of 2026-11-11; the maintainer chose 1 px). The hairline stays 2 px under the first
+// week's top (Y_FIO, inside its 6 px of air above the digits, which start at y 54): 5 px under
+// the caps and 2 under the leg.
+constexpr int16_t Y_LETRAS = Y_CARTAO - 1;
 constexpr int16_t Y_FIO = Y_LINHAS + 2;
 static_assert( Y_LINHAS + MAX_LINHAS * H_LINHA == Y_CARTAO + H_CARTAO, "six weeks fill the card" );
 constexpr int16_t W_MARCA = 28;                         // today's box, 28 x 24 (the plan's)
@@ -78,15 +85,18 @@ const char *inicialDaSemana( int i ) {
   }
 }
 
-// The arrows are 32 px wide, not the plan's 36: with 36 the widest titles
-// ("Mar 2026", "Ago 2026", "Nov 2026", 107 to 108 px measured 2026-10-14) are 2
-// to 3 px too wide for the larger font and fall to the smaller, so the title
-// would change size from month to month. With 32 they all fit, up to "Mar 2000"
-// (111 px of 113). That is the pt-BR names' measure; with the pack's names (2026-10-22, every year
-// 2000 to 2099): English fits in every month ("May 2000", the widest, is 115 px of the 123 that
-// its "Back" leaves); Spanish has "Volver" 4 px wider than "Voltar", leaves 109 px, and draws "May 2026"
-// (112 px) in the smaller title font, as "Mar" and "Ago" in 3 of the years 2020 to 2099. Only a
-// narrower arrow would hold them, and that moves the pt-BR frames.
+// The arrows are 32 px wide, not the plan's 36: with 36 the title would change size from month to
+// month, falling to the smaller font when it does not fit beside the three actions. Measured on the
+// host on 2026-11-11 (the 8.5 pt bold labels: "Voltar" 48 px, "Back" 38, "Volver" 51; the title in the
+// larger font is 111 px at most in pt-BR for every year 2000 to 2099, "Mar 2000"): with 32 the room is
+// 116 px and every title fits, with 36 it is 108 and 62 of the 1200 do not (none in 2026: "Mar 2026",
+// "Ago 2026" and "Nov 2026", 107 to 108 px, just fit; at 9 pt in the FreeSans, 2026-10-14, they were
+// 2 to 3 px too wide). That is the pt-BR names' measure; with the pack's names (every year 2000 to
+// 2099): English fits in every month with either arrow ("May 2000", the widest, is 115 px of the
+// 126 that its "Back" leaves with 32); Spanish has "Volver" 3 px wider than "Voltar", leaves 113 px
+// with 32 and fits every month of 2026 ("May 2026" is 112 px) but not "May" in 3 of the years 2020
+// to 2099 (in 2026, with 36, it would lose Mar, May, Ago, Sep and Nov). Only a narrower arrow would
+// hold those 3, and that moves the pt-BR frames.
 constexpr int16_t W_SETA = 32;
 
 struct LayoutCalendario {
@@ -157,7 +167,7 @@ void desenharCalendario( Pintor &p, const VmCalendario &vm ) {
 
   superficie( p, X_CARTAO, Y_CARTAO, W_CARTAO, H_CARTAO );
   for ( int i = 0; i < DIAS_SEMANA; i++ )
-    textoCentrado( p, inicialDaSemana( i ), (int16_t)( X_CARTAO + i * W_CEL + rd2( W_CEL ) ), Y_CARTAO, H_CABECALHO, tipo::rotulo, T.tinta2, 'c' );
+    textoCentrado( p, inicialDaSemana( i ), (int16_t)( X_CARTAO + i * W_CEL + rd2( W_CEL ) ), Y_LETRAS, H_CABECALHO, tipo::rotulo, T.tinta2, 'c' );
   p.hline( X_CARTAO + PAD, Y_FIO, W_CARTAO - 2 * PAD, T.linha );
 
   for ( int d = 1; d <= l.dias; d++ ) {
@@ -172,7 +182,7 @@ void desenharCalendario( Pintor &p, const VmCalendario &vm ) {
   }
 
   // The empty month's note is the legend's own words: "Nenhum dia com histórico
-  // neste mês." was 280 px of ink in 9 pt, under "Hoje" (the title already says
+  // neste mês." was 275 px of ink in 8.5 pt (2026-11-11; 280 at 9 pt in the FreeSans), under "Hoje" (the title already says
   // which month it is).
   textoCentrado( p, l.temAlgum ? UA_TXT( "Dot = day with history." ) : UA_TXT( "No days with history." ), ESP2, Y_PE, H_PE, tipo::apoio, T.tinta2,
                  'l' );

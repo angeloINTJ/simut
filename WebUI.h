@@ -7812,14 +7812,15 @@ repository, published with every release: https://github.com/angeloINTJ/simut
                   use.
 
 ================================================================================
-23. GNU FreeFont (FreeSans Bold)
+23. Liberation Fonts
 ================================================================================
    Description:   The 9, 12 and 24 pt faces of the touch panel, converted to
-                  bitmaps and cut down to the glyphs SIMUT draws.
-   Holder:        GNU FreeFont contributors
-   License:       GPL-3.0-or-later with the font exception
+                  bitmaps from Liberation Sans Bold 2.1.5 and cut down to the
+                  glyphs SIMUT draws.
+   Holder:        Red Hat, Inc. (digitized data: Google, Arimo)
+   License:       SIL Open Font License 1.1
    Images:        pico_w_release, pico_w_test, pico_w_test_https, pico_w_asserts
-   URL:           https://www.gnu.org/software/freefont/
+   URL:           https://github.com/liberationfonts/liberation-fonts
 
 ================================================================================
 24. Liberation Sans Bold
@@ -8039,14 +8040,15 @@ repository, published with every release: https://github.com/angeloINTJ/simut
                   commit of v1.3.1 (4984e2f).
 
 ================================================================================
-19. GNU FreeFont (FreeSans Bold)
+19. Liberation Fonts
 ================================================================================
    Description:   The 9, 12 and 24 pt faces of the touch panel, converted to
-                  bitmaps and cut down to the glyphs SIMUT draws.
-   Holder:        GNU FreeFont contributors
-   License:       GPL-3.0-or-later with the font exception
+                  bitmaps from Liberation Sans Bold 2.1.5 and cut down to the
+                  glyphs SIMUT draws.
+   Holder:        Red Hat, Inc. (digitized data: Google, Arimo)
+   License:       SIL Open Font License 1.1
    Images:        all images but pico_wire
-   URL:           https://www.gnu.org/software/freefont/
+   URL:           https://github.com/liberationfonts/liberation-fonts
 
 ================================================================================
 20. Liberation Sans Bold
@@ -8090,19 +8092,19 @@ A. Bricolage Grotesque
    URL:           https://github.com/ateliertriay/bricolage
 
 ================================================================================
-B. GNU FreeFont (FreeSans, FreeMono Bold)
+B. Liberation Fonts (Sans, Mono Bold)
 ================================================================================
-   Description:   The FreeSans and FreeSans Bold faces at 9 pt and the FreeMono
-                  Bold face at 9 and 12 pt of the Angulo touch panel, converted
-                  to bitmaps and cut down to the glyphs SIMUT draws.
-   Holder:        GNU FreeFont contributors
-   License:       GPL-3.0-or-later with the font exception
+   Description:   The Liberation Sans Regular and Sans Bold faces at 8.5 pt and
+                  the Liberation Mono Bold face at 9 and 12 pt of the Angulo
+                  touch panel, converted to bitmaps from version 2.1.5 and cut
+                  down to the glyphs SIMUT draws.
+   Holder:        Red Hat, Inc. (digitized data: Google, Arimo and Cousine)
+   License:       SIL Open Font License 1.1
    Images:        pico_wiretft_angulo, pico2_w_release
-   URL:           https://www.gnu.org/software/freefont/
-   Note:          The Angulo images cut this typeface at the sizes above and
-                  keep none of the 9, 12 and 24 pt faces of &quot;GNU FreeFont
-                  (FreeSans Bold)&quot;, which belong to the original panel (nm of
-                  the eleven images, 2026-10-30).
+   URL:           https://github.com/liberationfonts/liberation-fonts
+   Note:          The Angulo images carry these faces and none of the 9, 12 and
+                  24 pt faces of the row &quot;Liberation Fonts&quot;, which belong to the
+                  original panel (nm of the eleven images, 2026-10-30).
 
 ================================================================================
 C. Lucide

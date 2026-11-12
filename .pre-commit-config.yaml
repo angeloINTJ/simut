@@ -4,7 +4,7 @@
 #     pip install pre-commit && pre-commit install
 #
 # The hooks the issue proposed are here, with exclusions the issue did not
-# have. Two of them matter, and both were measured rather than assumed:
+# have. Three of them matter, and all were measured rather than assumed:
 #
 #   tools/arduino_pico_overrides/patches/*.patch — six of the eight carry
 #   context lines that are a single space, which is what a unified diff writes
@@ -20,6 +20,20 @@
 #   is 794 KB; both are tracked on purpose, and a limit that fires on editing
 #   the manual is a limit people learn to pass with --no-verify.
 #
+#   LICENSES/* — a licence text is copied verbatim from the package that ships it, which is the
+#   point of the copy: THIRD_PARTY_NOTICES.md links to it. Liberation-OFL-1.1.txt is the LICENSE of the
+#   Liberation 2.1.5 tarball (4,414 B, sha256 93fed46019c38bbe566b479d22148e2e8a1e85ada614accb0211c37b2c61c19b,
+#   equal to the tarball's, 2026-11-11), with a space at the end of lines 29, 86 and 90 and a blank last
+#   line: trailing-whitespace and end-of-file-fixer would rewrite it in the first commit that touched
+#   it, and it would stop being the upstream's text. It is not the first. On main (2026-11-11)
+#   bearssl-MIT.txt has 4 lines ending in a space, bricolage-grotesque-OFL-1.1.txt 1,
+#   littlefs-BSD-3-Clause.txt 1 and newlib-COPYING.NEWLIB.txt 35; cyw43-driver-LICENSE.RP.txt and
+#   pico-sdk-BSD-3-Clause.txt end with no newline; btstack-LICENSE.RP.txt, gcc-runtime-exception-3.1.txt
+#   and lwip-BSD-3-Clause.txt end with a blank line. The CI does not run these hooks (a grep of .github/
+#   for pre-commit finds one comment and no command, 2026-11-11), so excluding the folder changes no
+#   check that runs today; it keeps the next `git commit` from "fixing" a licence. No other hook has
+#   anything to say about a licence text.
+#
 # The language packs were suspected of the same fragility — they end without a
 # newline, and the @DICT section is partitioned positionally, so a hook that
 # appends one looked like it could push every key off by a line. Tested: adding
@@ -32,6 +46,7 @@ exclude: |
     tools/arduino_pico_overrides/patches/.*\.patch|
     src/WebUI_GZ\.h|
     PCB_test/.*|
+    LICENSES/.*|
     docs/MANUAL\.pt-BR\.html|
     release/.*
   )$

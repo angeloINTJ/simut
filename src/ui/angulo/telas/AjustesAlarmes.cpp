@@ -134,8 +134,9 @@ void tempoRestante( Pintor &p, int16_t cx, int16_t base, uint32_t minutos ) {
 
 // The notes under the content, in the quiet type, one row of PASSO_APOIO each, from
 // the card's left edge: the longest in pt-BR, "Os alarmes ficam suspensos até o fim.", is
-// 293 px of ink at 9 pt, under the 304 of the cards' width (2026-10-15: with "deste
-// sensor" it was 394, and the title already names the sensor). The English and Spanish
+// 284 px of ink at 8.5 pt, under the 304 of the cards' width (2026-11-11; 293 at 9 pt in
+// the FreeSans: with "deste sensor" it was 394 then and is 383 now, and the title already
+// names the sensor). The English and Spanish
 // notes are held to the safe area, in every sample, by tools/tft_ui/test_idiomas.py.
 void nota( Pintor &p, int16_t y, const char *texto, Tom tom ) {
   ajuda( p, ESP2, y, ESP4, texto, tom );
@@ -153,7 +154,7 @@ void desenharLimites( Pintor &p, const VmLimites &vm ) {
   char titulo[64];
   // The title is the sensor's name alone, as in the sensor's menu it comes from: with " · limites"
   // after it, "Ultracongelador" (15 characters, an ordinary length) was cut to "Ultracongelad… ·
-  // limites" at the 9 pt floor (2026-10-15). The screen still says what it is: the cards read
+  // limites" at the FreeSans's 9 pt floor (2026-10-15). The screen still says what it is: the cards read
   // "Minimum temperature" and "Maximum temperature" (pt-BR "Temperatura mínima", "Temperatura máxima")
   // and the footer "Save limits" ("Salvar limites").
   montarTitulo( titulo, sizeof titulo, "", vm.sensor, "" );
@@ -216,7 +217,8 @@ void desenharManutencao( Pintor &p, const VmManutencao &vm ) {
   // The alarms' note explains the state of a window that is open, and what starting
   // one does. Closed and without the permission nothing can start, so the account's
   // note has the row to itself: a second row, 18 px under the first (which starts at
-  // y 160), would have its ink end at y 197, 1 px into the footer's buttons (y 196).
+  // y 160), would have its ink end at y 195 (8.5 pt, 2026-11-11), 1 px above the footer's
+  // buttons (y 196); in the FreeSans at 9 pt it ended at y 197, 1 px into them.
   if ( vm.permitido || vm.aberta ) nota( p, l.yNota, UA_TXT( "Alarms stay suspended until the end." ), Tom::NEUTRO );
   if ( !vm.permitido )
     nota( p, vm.aberta ? l.yNota + PASSO_APOIO : l.yNota,

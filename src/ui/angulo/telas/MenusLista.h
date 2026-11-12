@@ -27,10 +27,10 @@ constexpr int16_t H_SELO = 20;
 constexpr int LISTA_FILAS = 4;          // rows to a page: y 36..195, the pager at 196
 constexpr int16_t LISTA_H_FILA = 40;
 
-// A row of two lines, a label over its value or its note: 48 px, three to a page (y 36..179). At
-// 9 pt, two lines of 14 px caps in 40 px left 4 px above, between and below them, and the first
-// line's descenders touched the second line (2026-10-15); in 48 px they are 7 above and below, and
-// 6 between the first baseline and the next line's caps.
+// A row of two lines, a label over its value or its note: 48 px, three to a page (y 36..179). In
+// the FreeSans at 9 pt, two lines of 14 px caps in 40 px left 4 px above, between and below them, and the first
+// line's descenders touched the second line (2026-10-15); in 48 px they are 8 above and below, and
+// 8 between the first baseline and the next line's caps with the 8.5 pt face's 12 px caps (2026-11-11; 7, 7 and 6 in the FreeSans).
 constexpr int LISTA_FILAS_2 = 3;
 constexpr int16_t LISTA_H_FILA_2 = 48;
 

@@ -298,9 +298,9 @@ const VmPainel kAvisoWeb15 = avisoWeb( kConta15, 0 );
 // ... and are cut with 3k waiting, which leaves 140 px.
 const VmPainel kAvisoWeb15Pendentes = avisoWeb( kConta15, 3000 );
 const VmPainel kAvisoWeb31 = avisoWeb( kConta31, 0 );
-// The narrowest room: a three-character count leaves 130 px.
+// The narrowest room: a three-character count leaves 129 px (2026-11-11; 130 before the faces' swap).
 const VmPainel kAvisoWeb31Pendentes150 = avisoWeb( kConta31, 150 );
-// The bench's case of 2026-10-15: "admin" with 3k records waiting. "Web: admin" is 99 px of the 140 that 3k leaves.
+// The bench's case of 2026-10-15: "admin" with 3k records waiting. "Web: admin" is 94 px of the 140 that 3k leaves (8.5 pt, 2026-11-11; 99 before the faces' swap).
 const VmPainel kAvisoWebPendentes = avisoWeb( "admin", 3000 );
 // Nothing on the right: the room runs to the panel's margin.
 const VmPainel kAvisoWebSemRede = avisoWeb( "admin", 0, Rede::NENHUMA );

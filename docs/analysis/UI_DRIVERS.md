@@ -257,8 +257,8 @@ items 8 to 12 are what the audit found in the draw bodies **(S0)**.
   (`:1772-1948`); the geometry `CARD_*` (`DisplayManager.h:1095-1098`), `ALARM_EDIT_*`
   (`:235-255`), `CLOCK_*` (`:267-272`), `GRAPH_PBTN_*` (`:285-287`); `buildDashLayout`,
   the 3 s graph header name, `Themes.cpp`, `DisplayManager_Fonts.*` and the font data
-  it includes (`ui/original/FreeSansBold9pt8b_latin1.h`, `ui/original/FreeSansBold12pt8b_latin1.h`,
-  `ui/original/FreeSansBold24pt7b_subset.h`: they moved there in S11 A2), `UiWidgets.*`,
+  it includes (`ui/original/SansBold9pt8b_latin1.h`, `ui/original/SansBold12pt8b_latin1.h`,
+  `ui/original/SansBold24pt7b_subset.h`: the font data moved there in S11 A2, and since 2026-11-09 the faces are Liberation Sans Bold), `UiWidgets.*`,
   `PasswordKeyboard.h` and `sensors/SensorDrawing.h`.
 - **Not the original's, though only display units include them.** `DisplayManager_FmtFloat.h`, `OtaScreen.h`,
   `TextWrap.h`, `display/{ClockEntry,CountInText,DisplayDriver,SettingsMenu}.h` and
@@ -358,8 +358,16 @@ Visual changes (contrast, font sizes) are made in the
 Ângulo's own files only: `src/ui/angulo/kit/angulo_tokens.h` for colours
 (the source of truth is the `simut-rx` tokens), `Angulo.cpp` for the themes,
 `Angulo.h` for spacing and the font roles, `kit/fontes/*.h`, `AnguloMeta.h`,
-and `telas/*.cpp`, checked by `tools/tft_ui/host_*.py`. `AGENTS.md` section 7
+and `telas/*.cpp`, checked by `tools/tft_ui/host_*.py`. `AnguloMeta.h` is
+generated, so a change goes to its sources and the header is written again
+(2026-11-11): `tools/tft_ui/gen_angulo_meta.py` reads `tools/fonts/angulo_extra.json`,
+the faces in `kit/fontes/` and the registry of `AnguloIcones.h`, and its `--check`
+runs in the `gates` job. `AGENTS.md` section 7
 ("the TFT panel is not Ângulo") changes when the Ângulo ships.
+
+**The four text faces are generated from a TTF (2026-11-11, `fonts/angulo-faces`).** `tools/fonts/gen_angulo_face.py` writes `SANS9`, `SANSB9`, `MONO9` and `MONO12` in the delivery's format (141 dpi, codes 32..176, the EXTRA table of `tools/fonts/angulo_extra.json`, which equals the `// 0xNN` comments of the four headers, the table of `gerar_fontes_gfx.js`, the delivery's `fontes.json` and `kExtra` in `AnguloMeta.h`). The delivery's rasterizer is Skia (`@napi-rs/canvas`): it hints lightly, passes the coverage through its sRGB gamma table (the `H` stem's 0x98, 0xFF, 0x0C become 0xCB, 0xFF, 0x3D) and cuts the alpha at 128, which is a coverage of 55; the generator does the same with FreeType 2.13.2 (`FT_LOAD_TARGET_LIGHT | FT_LOAD_FORCE_AUTOHINT`, the same table, the linear advance rounded). **It could not give the delivery's own faces back.** Run over the GNU FreeFont TTFs they came from (measured on 2026-11-11, before the faces moved to the Liberation), 0 of the 4 files were identical (the first differing line was 85, 84, 33 and 52); the glyphs identical in metrics and bits were 123, 129, 109 and 106 of 145; 14, 11, 11 and 17 glyphs had another metric, by at most 3, 3, 1 and 2 px; 33, 19, 59 and 123 bits differed in the glyphs whose box agreed, and 9, 11, 10 and 15 glyphs had another box. Cap and x heights equalled `kCapX`, and cap, x and digit heights equalled line 3 of every header. Two measured causes: the delivery's own generator, run the same day over the same TTFs (`@napi-rs/canvas` 1.0.11, from a scratch harness, since the delivery's `harness/` has no `@napi-rs/canvas`), does not reproduce the headers either (6, 10, 8 and 17 glyphs with another metric), so the instrument that made them is not the one that exists today; and against that Skia the model's alpha is identical pixel by pixel in 128, 134, 136 and 137 of 145 glyphs, the rest being mostly composed glyphs (tilde, cedilla, diaeresis, and the `i` and `j` of FreeSans Bold) that Skia loads by a path FreeType 2.13.2 does not repeat. So the FreeFont faces were replaced, not regenerated, and the committed faces have been the generator's own output since then, held to it byte for byte (the next paragraph).
+
+**The four text faces are the Liberation's (2026-11-11, `fonts/angulo-faces`).** `SANS9`, `SANSB9`, `MONO9` and `MONO12` are what `tools/fonts/gen_angulo_faces.py` generates from the Liberation 2.1.5 TTFs that `tools/fonts/liberation.json` pins by sha256 (Sans Regular, Sans Bold and Mono Bold), byte for byte; the first line of each header names the TTF, its version and its sha256, read from the pin. `tools/fonts/test_gen_angulo_face.py` holds the generator and the recipe with eleven controls and 32 one-line mutants (0 of 11 fail and 32 of 32 are caught, 2026-11-11), and the `gates` job runs the recipe's `--check`, that test, `tools/tft_ui/gen_angulo_meta.py --check` and its test. The recipe is the one place that has the bodies, so a change of size is a row of its table and a regeneration, never an edit of a header: 8.5 pt for the two sans and 9 and 12 pt for the mono (the maintainer's decision of 2026-11-11; the symbols keep the names `SANS9` and `SANSB9`). At 9 pt for all four, the screens, laid out for the FreeSans's widths, left 189 findings in the host harness (`tools/tft_ui/host_telas.py`, six groups in three languages, 18 runs; 0 with the FreeFont); with the two sans at 8.5 pt, 34; and after the calendar's weekday letters moved 1 px up and two lines of `tools/tft_ui/cortes_aceitos.txt` followed the Web badge's cuts, 0 in 18 of 18 runs. The mono's body changes no finding at either sans body, and 9 and 12 pt keep the 11 px advance that the fixed number columns assume. `kCapX` is read from the faces by `gen_angulo_meta.py`: { 12, 9 } for the two sans, { 12, 10 } for `MONO9` and { 16, 13 } for `MONO12`, against the FreeFont's { 14, 10 }, { 13, 10 }, { 10, 8 } and { 14, 11 }; the sans `0` and `M` advance 9 and 14 px, against 10 and 15. The four bitmaps add up to 8,549 B, against the FreeFont's 8,708 B (read from the headers, 2026-11-11). The eleven images were built from zero on 2026-11-11 on this tree, and only these two moved from their records, both down: `pico2_w_release` by 208 B, to 1,039,216 B used (`.bin` 1,039,240), and `pico_wiretft_angulo` by 232 B, to 817,668 B (`.bin` 829,704); `tools/flash_budget.json` records them. Not done: a board, and a look at the glass, since the faces were measured and drawn on the host.
 
 **The margin is black (2026-10-15, `fix/ui-angulo-margem`, 3ba3ea5 plus this change).** The 4 px around the safe area, the band the display alignment moves the image into, is RGB565 0x0000 in both themes; the light theme left it `#f6f6f4` (0xF7BE), the background, beside the black band the offset uncovers. `MARGEM` and `PRETO` are named once, in `src/ui/angulo/Angulo.h`; `ua::margemPreta( )` paints the four bands through the Pintor, `uaPintar( )` calls it after each strip's draw and clears the glass with `fastClearScreen( ua::PRETO )`, and `host_telas_main.cpp` calls it after each sample, so a host frame is the glass's. `host_telas.py` reads `MARGEM` from the header, as it reads `ALVO_INERTE`, and fails a frame of either theme with a margin pixel that is not 0x0000. Nothing else in `src/ui/angulo/` pushes pixels: `uiPaintOta( )` ends in `uaPintar( )`, the boot is the dashboard's frame, `fastClearScreen( )` has no other caller there (grep of 2026-10-15), and in the Ângulo image `blitCanvas( )`, `fastClearScreen( )` and `fastFillRect( )` return unless `_uaPintando` is set, which only `uaPintar( )` does. Proved on the host (`stages/margem/`): in a tree whose harness lacks the call the check fails all 560 frames of the 280 samples (4,416 of 4,416 margin pixels, 0xF7BE light and 0x10A2 dark), and with one pixel (319, 239) at 0x0001 after the call it fails every frame with exactly 1 of 4,416; with the call it passes 560 of 560. Against S8a's frames, in the dark and the light frame of all 280 samples exactly the 4,416 margin pixels changed (1,236,480 per theme), 0 pixels inside x 4..315, y 4..235 changed and 0 margin pixels are not black (`mascara.py`, bitten by doctored copies: a safe-area pixel, a non-black margin pixel, an overlay pixel, the old frames). The kit's host test gained two cases (`test_cantos.py`, 45 -> 47 checks), failed by four mutants of `margemPreta( )`. Not run on a board: a full repaint now clears the glass to black, so the strips not yet pushed show black where they showed the theme's background.
 
@@ -1462,8 +1470,8 @@ them (`DisplayManager.cpp`, `_Dashboard`, `_Auth`, `_Graph`, `_Users`,
 twelve units (`DisplayManager.cpp`, `_Dashboard`, `_Auth`, `_Graph`, `_Users`,
 `_i18n`, `_Calibration`, `_Ota`, `_Alarm`, `_Settings`, `_Calendar`, `_Touch`),
 by `UiWidgets.cpp`, and by `DisplayManager_Fonts.cpp`, the only file that
-includes the three font tables (`FreeSansBold9pt8b_latin1.h`,
-`FreeSansBold12pt8b_latin1.h`, `FreeSansBold24pt7b_subset.h`). The sensor
+includes the three font tables (`SansBold9pt8b_latin1.h`,
+`SansBold12pt8b_latin1.h`, `SansBold24pt7b_subset.h`). The sensor
 headers do not include it: they receive the font as a parameter.
 
 **Other original-side headers that something outside the units consumes**
@@ -1896,7 +1904,7 @@ lines) is the same byte for byte (`cmp`, 2026-10-14).
 The script lists every symbol with `nm -S -C`, attaches each one to a row of the
 TSV by its demangled name without the parameter list (clones, function-local
 statics and lambdas belong to their function; the three font rows match by
-prefix, so `FreeSansBold9pt8b` takes its `Bitmaps` and `Glyphs`), and adds up
+prefix, so `SansBold9pt8b_latin1` takes its `Bitmaps` and `Glyphs`), and adds up
 the sizes by class. **Original rows are counted whole. Mixed rows are counted
 apart and are never added to the original.** `--src` also estimates, for each
 mixed function, its original share from the TSV's line ranges (code lines only,
@@ -1908,7 +1916,7 @@ a measurement, and it is printed on its own line.
 | **original rows, whole (flash)** | **56,699 B** | **57,379 B** |
 | text | 44,799 | 45,479 |
 | rodata and data | 11,900 | 11,900 |
-| of which the three GFX font tables (`FreeSansBold9/12/24`) | 11,696 | 11,696 |
+| of which the three GFX font tables (`FreeSansBold9/12/24` when this was measured; since 2026-11-09 `SansBold9pt8b_latin1`, `SansBold12pt8b_latin1` and `SansBold24pt7b_subset`) | 11,696 | 11,696 |
 | of which `Themes.cpp` (functions and the one built-in palette) | 1,744 | 1,744 |
 | of which `UiWidgets.cpp` | 2,716 | 2,716 |
 | of which drawing in the `DisplayManager*.cpp` units | 40,543 | 41,223 |

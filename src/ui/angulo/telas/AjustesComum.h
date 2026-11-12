@@ -31,9 +31,9 @@ constexpr int16_t L_ICONE = 20, L_CHAVE = 40, H_CHAVE = 24;
 // The plan's square buttons (the stepper's minus and plus, the alignment arrows).
 constexpr int16_t L_BOTAO = 40;
 
-// Between the baselines of 9 pt text, the panel's smallest (tipo::apoio, tipo::rotulo,
-// since 2026-10-15): the capitals are 14 px, so the lines keep 4 px apart (the 7 pt
-// layout's 16 px kept 5 for its 11 px capitals).
+// Between the baselines of 8.5 pt text, the panel's smallest (tipo::apoio, tipo::rotulo; 9 pt
+// from 2026-10-15 to 2026-11-11): the capitals are 12 px, so the lines keep 6 px apart (2026-11-11;
+// 14 px and 4 apart in the FreeSans at 9 pt; the 7 pt layout's 16 px kept 5 for its 11 px capitals).
 constexpr int16_t PASSO_APOIO = ESP4 + 2;
 
 // The plan's stepper card: 8 above the button, the button, 8 below.
@@ -90,10 +90,11 @@ void botaoIcone( Pintor &p, const Caixa16 &c, IconeNome ic, bool ativo );
 // n = 2) stands exactly under the keypad's last two (2026-10-15).
 Caixa16 segmento( int16_t x, int16_t y, int16_t w, int16_t h, int n, int i );
 
-// The kit's segmentado( ) in the regular small face. Its bold one is 87 px of ink
-// for "18 cartões" at 9 pt, which in the 90 px segments the PIN policy has room for
-// leaves 1.5 px of air against the active segment's line; the regular face is 78 (6
-// px). Same colours; the boxes are segmento( )'s.
+// The kit's segmentado( ) in the regular small face. Its bold one is 80 px of ink
+// for "18 cartões" at 8.5 pt, which in the 90 px segments the PIN policy has room for
+// leaves 5 px of air against the active segment's line; the regular face is 76 (7
+// px) (2026-11-11; 87 and 78 at 9 pt in the FreeSans: 1.5 and 6 px). Same colours; the
+// boxes are segmento( )'s.
 void segmentadoLeve( Pintor &p, int16_t x, int16_t y, int16_t w, int16_t h, const char *const *opcoes, int16_t n,
                      int16_t ativa );
 

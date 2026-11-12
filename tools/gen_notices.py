@@ -54,7 +54,7 @@ The Angulo touch panel is in two images: pico_wiretft_angulo (outside the nine, 
 image no longer inherits the rows of the image it extends, because that was wrong for the original panel's FreeSans Bold faces,
 which the Angulo images do not link (nm of the eleven firmware.elf, 2026-10-30).
 
-A row marked `ui = "angulo"` (Bricolage Grotesque, the FreeSans and FreeMono faces, Lucide) is not in the family lists. The
+A row marked `ui = "angulo"` (Bricolage Grotesque, the Liberation Sans and Mono faces, Lucide) is not in the family lists. The
 /license page lists it in a block of its own, /* @IF ui_angulo */, which the build cuts from every image with the original
 panel ([ui.original].web_omit in tools/features.toml, read by tools/gen_features.py), so the pages of the originals stay
 byte for byte. The Angulo's License screen names it in the device's language (UA_TXT( ) in

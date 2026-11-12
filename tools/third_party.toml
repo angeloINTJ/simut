@@ -29,7 +29,7 @@
 # build uses (~/.platformio/packages, .pio/libdeps), from the source file's own
 # header when the library has no licence file, or from the project's upstream
 # when the toolchain package does not carry one (newlib, the GCC runtime
-# exception, GNU FreeFont, the SHA-256 statement).
+# exception, the SHA-256 statement).
 
 all_images = ["release", "test", "test_https", "asserts", "alpha", "air", "pico2_release",
               "wire", "wiretft"]
@@ -279,24 +279,25 @@ what = "The Bluetooth stack behind the Bluetooth console of the alpha and Air im
 note = "Raspberry Pi Ltd licenses BTstack to the buyers of the Pico W and the Pico 2 W for use in the products they build on them. BTstack's own licence (non-commercial) does not apply to that use."
 text = "btstack-LICENSE.RP.txt"
 
-# Measured by nm on the eleven firmware.elf (2026-10-30): the original panel's faces (FreeSansBold9pt8b, FreeSansBold12pt8b, FreeSansBold24pt7b)
-# are in the six images of `images` and in none of the Angulo's, whose faces are the row "GNU FreeFont (FreeSans, FreeMono Bold)" below.
+# Measured by nm on the eleven firmware.elf (2026-10-30, under the names of then; the faces were regenerated from Liberation Sans Bold on 2026-11-09 and the probe follows
+# their names, which the CI's firmware job checks on every build): the original panel's faces (SansBold9pt8b_latin1, SansBold12pt8b_latin1, SansBold24pt7b_subset)
+# are in the six images of `images` and in none of the Angulo's, whose faces are the row "Liberation Fonts (Sans, Mono Bold)" below.
 # The family lists name exactly these images (the radio page: pico_w_release, pico_w_test, pico_w_test_https, pico_w_asserts; the Wire page: all images but pico_wire), and not the
 # "five images with the touch panel" of before C4, a label that counted pico2_w_release, which links none of these faces (S10c C4 review, 2026-10-30).
 [[component]]
-name = "GNU FreeFont (FreeSans Bold)"
-holder = "GNU FreeFont contributors"
-license = "GPL-3.0-or-later with the font exception"
+name = "Liberation Fonts"
+holder = "Red Hat, Inc. (digitized data: Google, Arimo)"
+license = "SIL Open Font License 1.1"
 images = ["release", "test", "test_https", "asserts", "wiretft", "pico2_original"]
-symbols = "FreeSansBold(9pt8b|12pt8b|24pt7b)"
-url = "https://www.gnu.org/software/freefont/"
-what = "The 9, 12 and 24 pt faces of the touch panel, converted to bitmaps and cut down to the glyphs SIMUT draws."
-text = "freefont-GPL-3.0-font-exception.txt"
-also = ["GPL-3.0.txt"]
+symbols = "SansBold(9pt8b_latin1|12pt8b_latin1|24pt7b_subset)"
+url = "https://github.com/liberationfonts/liberation-fonts"
+what = "The 9, 12 and 24 pt faces of the touch panel, converted to bitmaps from Liberation Sans Bold 2.1.5 and cut down to the glyphs SIMUT draws."
+text = "Liberation-OFL-1.1.txt"
 
-# The Angulo panel's kit (src/ui/angulo/kit/, 2026-10-14): fonts rasterized by the plan's renderer from
-# the typefaces named here (the headers of kit/fontes/*.h say which, and tools/tft_ui/ESPEC_UI_A.md),
-# and icons rasterized from Lucide 0.468.0. Only the two images pico_wiretft_angulo and pico2_w_release carry them (nm of the eleven
+# The Angulo panel's kit (src/ui/angulo/kit/, 2026-10-14; the plan: tools/tft_ui/ESPEC_UI_A.md): the display faces (DISP*) rasterized by the plan's
+# renderer from Bricolage Grotesque, the text faces (SANS9, SANSB9, MONO9 and MONO12) generated from the Liberation TTFs that tools/fonts/liberation.json
+# pins, by tools/fonts/gen_angulo_faces.py (the first line of each kit/fontes/*.h says from which TTF), and icons rasterized from Lucide 0.468.0.
+# Only the two images pico_wiretft_angulo and pico2_w_release carry them (nm of the eleven
 # firmware.elf, 2026-10-30: the kit's DISP*, MONO* and SANS* faces and its 42 icons are in those two and in no other). `ui = "angulo"` takes a row
 # out of the family lists and into the Angulo block of the /license page (tools/gen_notices.py); the Angulo's own License screen names them in
 # src/ui/angulo/telas/MenusLicenca.cpp, a text that `gen_notices.py --check` holds to these rows (name, holder, licence).
@@ -312,17 +313,16 @@ what = "The display face (weight 600) of the Angulo touch panel, converted to bi
 text = "bricolage-grotesque-OFL-1.1.txt"
 
 [[component]]
-name = "GNU FreeFont (FreeSans, FreeMono Bold)"
-holder = "GNU FreeFont contributors"
-license = "GPL-3.0-or-later with the font exception"
+name = "Liberation Fonts (Sans, Mono Bold)"
+holder = "Red Hat, Inc. (digitized data: Google, Arimo and Cousine)"
+license = "SIL Open Font License 1.1"
 images = ["wiretft_angulo", "pico2_release"]
 symbols = "^entrega::(MONO|SANS)"
 ui = "angulo"
-url = "https://www.gnu.org/software/freefont/"
-what = "The FreeSans and FreeSans Bold faces at 9 pt and the FreeMono Bold face at 9 and 12 pt of the Angulo touch panel, converted to bitmaps and cut down to the glyphs SIMUT draws."
-note = "The Angulo images cut this typeface at the sizes above and keep none of the 9, 12 and 24 pt faces of \"GNU FreeFont (FreeSans Bold)\", which belong to the original panel (nm of the eleven images, 2026-10-30)."
-text = "freefont-GPL-3.0-font-exception.txt"
-also = ["GPL-3.0.txt"]
+url = "https://github.com/liberationfonts/liberation-fonts"
+what = "The Liberation Sans Regular and Sans Bold faces at 8.5 pt and the Liberation Mono Bold face at 9 and 12 pt of the Angulo touch panel, converted to bitmaps from version 2.1.5 and cut down to the glyphs SIMUT draws."
+note = "The Angulo images carry these faces and none of the 9, 12 and 24 pt faces of the row \"Liberation Fonts\", which belong to the original panel (nm of the eleven images, 2026-10-30)."
+text = "Liberation-OFL-1.1.txt"
 
 [[component]]
 name = "Lucide"
@@ -343,7 +343,7 @@ license = "SIL Open Font License 1.1"
 images = "all"
 url = "https://github.com/liberationfonts/liberation-fonts"
 what = "Five glyph outlines traced into the SIMUT wordmark of the web pages. No font file is embedded."
-text = "liberation-fonts-OFL-1.1.txt"
+text = "Liberation-OFL-1.1.txt"
 
 [[component]]
 name = "SHA-256 for JavaScript"

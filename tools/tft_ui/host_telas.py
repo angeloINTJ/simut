@@ -317,8 +317,8 @@ def conferir_contagem(nome, dados, erros):
 def conferir_encaixe(nome, tema, textos, superficies, erros):
     """Each text against the surface it is drawn on (S10c, B3). `textos` is [(x0, x1, y0, y1, text)], `superficies` [(x, y, w, h)] in drawing order. A text sits on
     the smallest surface that holds the middle of its ink; with none (the status bar's brand, a title over the page itself) there is nothing to hold it to. The ink must lie
-    between that surface's left and right edges: one failure per text. Only the width is held: a language changes it, the height is the layout's, and a descender of the 9 pt label
-    reaches a pixel below a pill (the badge check below says so too). Returns how many texts sat on a surface."""
+    between that surface's left and right edges: one failure per text. Only the width is held: a language changes it, the height is the layout's, and a descender of the 8.5 pt label
+    reaches a pixel below a 16 px pill (the badge check below says so too). Returns how many texts sat on a surface."""
     sobre = 0
     for x0, x1, y0, y1, t in textos:
         donos = [s for s in superficies if 2 * s[0] <= x0 + x1 < 2 * (s[0] + s[2]) and 2 * s[1] <= y0 + y1 < 2 * (s[1] + s[3])]
@@ -567,10 +567,10 @@ def main():
                         if sobrepoe(textos[i], textos[j]):
                             erros.append(f'{nome}_{tema}: "{textos[i][4]}" overlaps "{textos[j][4]}"')
                 # A badge's fill hides everything under it, not only the badge's own words. On the
-                # bench (2026-10-15) the 9 pt badge of the status bar covered the "T" of "SIMUT" and
+                # bench (2026-10-15) the badge of the status bar, 9 pt in the FreeSans, covered the "T" of "SIMUT" and
                 # the pending count was drawn over its "web", while no two inks overlapped. What is
                 # inside a badge must be its label: the text that carries its words, once, within its
-                # width (not within its rows: a descender of the 9 pt label reaches 1 px below the pill).
+                # width (not within its rows: a descender of the 8.5 pt label reaches 1 px below the dashboard's 16 px pill, 2026-11-11).
                 for sx0, sx1, sy0, sy1, rotulo in selos:
                     proprio = False
                     for x0, x1, y0, y1, t in textos:
@@ -583,7 +583,7 @@ def main():
                         erros.append(f'{nome}_{tema}: badge "{rotulo}" {sx0}..{sx1} x {sy0}..{sy1} covers "{t}" '
                                      f'ink {x0}..{x1} x {y0}..{y1}')
                 # A text that crosses a target's edge has outgrown its button or row: the
-                # 9 pt floor of 2026-10-15 cut "Gráfico" on both sides of a 56 px button,
+                # 9 pt floor of 2026-10-15 (the FreeSans) cut "Gráfico" on both sides of a 56 px button,
                 # and neither check above saw it (the text stayed on the glass and clear
                 # of the other texts).
                 for x0, x1, y0, y1, t in textos:
@@ -594,7 +594,7 @@ def main():
                             erros.append(f'{nome}_{tema}: "{t}" ink {x0}..{x1} x {y0}..{y1} crosses the edge of '
                                          f'target {tipo}/{ind} at {ax},{ay} {aw}x{ah}')
                 # A text cut with "…" stays on the glass and inside its box, so no check above
-                # sees it: at the 9 pt floor (2026-10-15) the PIN screen's hint and four error
+                # sees it: at the 9 pt floor of the FreeSans (2026-10-15) the PIN screen's hint and four error
                 # messages lost their ends this way, and only an eye on the frames caught it.
                 for x0, x1, y0, y1, t in textos:
                     if RETIC not in t or t in proprios:

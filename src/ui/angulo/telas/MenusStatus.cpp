@@ -168,8 +168,8 @@ void paginaSensores( LayoutStatus &l, const VmStatusSistema &vm ) {
     snprintf( r.k, sizeof r.k, "%s %u %s", UA_TXT( "and" ), (unsigned)( vm.ativos - mostrar ), UA_TXT( "more sensors" ) );
     r.suave = true;
   }
-  // "Nenhum sensor ativo." is the row above ("Ativos  0 de 11"): with it the note was 364 px
-  // and left the glass at 9 pt (2026-10-15).
+  // "Nenhum sensor ativo." is the row above ("Ativos  0 de 11"): with it the note was 358 px
+  // and left the glass at 8.5 pt (2026-11-11; 364 at 9 pt in the FreeSans, 2026-10-15).
   if ( vm.ativos == 0 ) copiar( l.nota, UA_TXT( "Activate a sensor on the web." ), (int)sizeof l.nota );
 }
 

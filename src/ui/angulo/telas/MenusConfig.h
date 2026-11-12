@@ -82,8 +82,8 @@ constexpr int16_t TEMA_Y_NOME = 168;
 constexpr int16_t TEMA_Y_APLICAR = 192;
 constexpr int16_t TEMA_H_ROTULO = 12;       // the label's box under the icon: a segment is ESP1, icon, ESP1, label, ESP1
 constexpr int16_t TEMA_ANEL = 2;            // the selected swatch's ring, and the gap between the ring and the disc
-// 9 pt regular, the size and weight the plan measured: "Automático" is 86 px in the 88 px of a segment (tools/tft_ui/test_temas.py, 2026-10-22). The bold of the kit's
-// segmented control (tipo::rotulo) makes it 97 px, which does not fit.
+// Regular, the weight the plan measured (at 9 pt): "Automático" is 83 px in the 88 px of a segment at 8.5 pt (2026-11-11; 86 at 9 pt in the FreeSans, tools/tft_ui/test_temas.py,
+// 2026-10-22). The bold of the kit's segmented control (tipo::rotulo) makes it 92 px (97 then), which does not fit.
 constexpr Fonte TEMA_FONTE_SEGMENTO = tipo::corpo;
 constexpr int16_t TEMA_W_ROTULO = TEMA_W_SEGMENTO - 2 * ESP1;   // the room of a segment's label
 

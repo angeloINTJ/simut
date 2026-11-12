@@ -347,9 +347,9 @@ DisplayManager_LangParser.cpp	430	430	DisplayManager::getListedLangName	core			T
 DisplayManager_LangParser.cpp	431	431	DisplayManager::getListedLangCode	core			TFT builds only (#294): one-line accessor for the code of the pack that is loaded or only listed, empty when there is none.
 DisplayManager_LangParser.cpp	445	449	DisplayManager::unaccent	core			Folds UTF-8 to 7-bit ASCII through utf8FoldAscii for the CLI and boot lines.
 DisplayManager_LangParser.cpp	461	484	DisplayManager::utf8ToLatin1	core			Converts UTF-8 to ISO-8859-1 bytes for the TFT fonts; text conversion with no drawing.
-DisplayManager_Fonts.cpp	20	20	FreeSansBold9pt8b	original			data pulled in by the #include at line 20: the 9 pt Latin-1 bitmaps, glyphs and GFXfont (static const PROGMEM in FreeSansBold9pt8b_latin1.h); anchored at the include line
-DisplayManager_Fonts.cpp	21	21	FreeSansBold12pt8b	original			data pulled in by the #include at line 21: the 12 pt Latin-1 bitmaps, glyphs and GFXfont (FreeSansBold12pt8b_latin1.h); anchored at the include line
-DisplayManager_Fonts.cpp	22	22	FreeSansBold24pt7b	original			data pulled in by the #include at line 22: the 24 pt subset bitmaps, glyphs and GFXfont (FreeSansBold24pt7b_subset.h); anchored at the include line
+DisplayManager_Fonts.cpp	20	20	SansBold9pt8b_latin1	original			data pulled in by the #include at line 20: the 9 pt Latin-1 bitmaps, glyphs and GFXfont (static const PROGMEM in SansBold9pt8b_latin1.h); anchored at the include line
+DisplayManager_Fonts.cpp	21	21	SansBold12pt8b_latin1	original			data pulled in by the #include at line 21: the 12 pt Latin-1 bitmaps, glyphs and GFXfont (SansBold12pt8b_latin1.h); anchored at the include line
+DisplayManager_Fonts.cpp	22	22	SansBold24pt7b_subset	original			data pulled in by the #include at line 22: the 24 pt subset bitmaps, glyphs and GFXfont (SansBold24pt7b_subset.h); anchored at the include line
 DisplayManager_Fonts.cpp	24	24	simutFont9pt	original			external reference to the 9 pt font; fonts belong to the look
 DisplayManager_Fonts.cpp	25	25	simutFont12pt	original			external reference to the 12 pt font; fonts belong to the look
 DisplayManager_Fonts.cpp	26	26	simutFont24pt	original			external reference to the 24 pt font; fonts belong to the look

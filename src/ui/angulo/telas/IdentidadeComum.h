@@ -33,9 +33,9 @@ constexpr int16_t H_LINHA = 40;
 
 // The list of accounts (Usuários) is the exception: its rows hold two lines, the name over what the
 // account may do, in 48 px and three to a page (y 36..180), as the alarm list's rows (MenusLista.h,
-// LISTA_FILAS_2). At the 9 pt text floor (2026-10-15) the 40 px row left 4 px between the two lines
-// and the name's descenders touched the summary under it; in 48 px the two 20 px boxes leave 7 px
-// above and below, and 6 between the name's baseline and the summary's caps.
+// LISTA_FILAS_2). At the 9 pt text floor of the FreeSans (2026-10-15) the 40 px row left 4 px between the two
+// lines and the name's descenders touched the summary under it; in 48 px the two 20 px boxes leave 8 px
+// above and below, and 8 between the name's baseline and the summary's caps at 8.5 pt (2026-11-11; 7, 7 and 6 with 14 px caps).
 constexpr int LINHAS_2 = 3;
 constexpr int16_t H_LINHA_2 = 48;
 

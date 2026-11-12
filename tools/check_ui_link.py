@@ -165,7 +165,7 @@ def selftest():
         print('%s %s%s' % ('ok  ' if ok else 'FAIL', label, (' | ' + detail) if detail else ''))
     def row(unit, symbol, cls): return {'unit': unit, 'symbol': symbol, 'class': cls}
     ROWS = [row('Dash.cpp', 'DisplayManager::keepMe', 'original'), row('Dash.cpp', 'DisplayManager::coreOne', 'core'), row('Dash.cpp', 'DisplayManager::halfHalf', 'mixed'), row('Dash.cpp', 'kbPopupCard', 'original'),
-            row('Dash.cpp', 'DisplayManager::blitTitleBar', 'original'), row('Wid.cpp', 'uiWidget', 'original'), row('Wid.cpp', 'uiShared', 'original'), row('Wid.cpp', 'uiButton', 'original'), row('Fon.cpp', 'FreeSansBold9pt8b', 'original'),
+            row('Dash.cpp', 'DisplayManager::blitTitleBar', 'original'), row('Wid.cpp', 'uiWidget', 'original'), row('Wid.cpp', 'uiShared', 'original'), row('Wid.cpp', 'uiButton', 'original'), row('Fon.cpp', 'SansBold9pt8b_latin1', 'original'),
             row('Wid.cpp', 'uiHalf', 'mixed'), row('Dash.cpp', 'twiceNamed', 'core'), row('Wid.cpp', 'twiceNamed', 'original'), row('Kb.h', 'PwdKb::popupHit', 'original'), row('Kb.h', 'PwdKb::GROUPS', 'original'), row('Kb.h', 'KbModel::cellAt', 'core')]
     LISTED = {'Wid.cpp'}
     ALLOW = {'DisplayManager::redrawTopPanel()': ('core, pattern side', None), 'DisplayManager::keepMe(int)': ('keeper, table side', None), 'uiShared(int)': ('collision with the Angulo\'s own', 'Wid.cpp'), 'DisplayManager::halfHalf(int)': ('mixed row, table side', None)}
@@ -189,8 +189,8 @@ def selftest():
         case("C6 review's plant %s gives exactly one finding, that one" % p, len(f) == 1 and f[0][0] == p, str(f))
     a, f, u = run(BASE + ['00001000 T kbPopupCard(int)'])
     case('the table alone: kbPopupCard matches no pattern and is an original row of a unit the image compiles: one finding that names the table and Dash.cpp', len(f) == 1 and 'function table' in f[0][1] and 'Dash.cpp' in f[0][1] and not any(rx.search('kbPopupCard(int)') for w, rx in RULES) and not FREE.search('kbPopupCard'), str(f))
-    a, f, u = run(BASE + ['00001000 T FreeSansBold9pt8bGlyphs'])
-    case("bytes_original's font rule is the table's: FreeSansBold9pt8bGlyphs is one finding", len(f) == 1 and f[0][0] == 'FreeSansBold9pt8bGlyphs', str(f))
+    a, f, u = run(BASE + ['00001000 T SansBold9pt8b_latin1Glyphs'])
+    case("bytes_original's font rule is the table's: SansBold9pt8b_latin1Glyphs is one finding", len(f) == 1 and f[0][0] == 'SansBold9pt8b_latin1Glyphs', str(f))
     a, f, u = run(BASE + ['00001000 T uiWidget(int)'])
     a2, f2, u2 = run(BASE + ['00001000 T uiWidget(int)'], files={'Wid.cpp'})
     fw, fw2 = [x for x in f if x[0] == 'uiWidget(int)'], [x for x in f2 if x[0] == 'uiWidget(int)']

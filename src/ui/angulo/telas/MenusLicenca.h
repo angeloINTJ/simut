@@ -13,9 +13,11 @@
 namespace ua {
 namespace tela {
 
-// Lines the index holds; the rest of a longer text is left out. The real text is 134 lines in the
-// wired build and 145 in the radio one (indexed on the host with the 9 pt text, 2026-10-15; 115 and
-// 125 at 7 pt, the day before): 192 leaves a third more.
+// Lines the index holds; the rest of a longer text is left out. The real text (the opening, the MIT text and the
+// third-party list) is 131 lines in the wired build and 141 in the radio one, in English, pt-BR and es-ES alike, and 141
+// and 151 with this panel's own four sources (142 and 152 in es-ES, the longest of the three), indexed on the host with the
+// 8.5 pt text in the Liberation Sans, 2026-11-11. The 9 pt text of the same face gave 139 and 150 for the text alone (140 and
+// 151 in pt-BR) and the FreeSans 135 and 146 (134 and 145 on 2026-10-15): 192 leaves 40 lines over the longest, 152.
 constexpr int LICENCA_INDICE_MAX = 192;
 // The sources of the licence screen, worst case (the glue, DisplayManager_UiA_Menus.cpp): the five strings of the English opening, used when the pack has none; LICENSE_TEXT_EN, which
 // is ONE source (the MIT text and the third-party list in a single string); and this panel's own fonts and icons (anexarFontesDoAngulo( ), S10c C4): 5 + 1 + 4 = 10. 12 leaves two.
@@ -53,7 +55,7 @@ int indexarLicenca( IndiceLicenca &ix, const FonteLicenca *fontes, int n );
 // count, and the page count and number for the pager.
 void paginaDaLicenca( const IndiceLicenca &ix, int pagina, VmLicenca &vm );
 
-// This panel's own fonts and icons (Bricolage Grotesque, GNU FreeFont, Lucide), appended to `fontes` after the licence text and the third-party list: a heading and
+// This panel's own fonts and icons (Bricolage Grotesque, Liberation Fonts, Lucide), appended to `fontes` after the licence text and the third-party list: a heading and
 // one paragraph each, in the device's language (UA_TXT( ), a line each in the @ANGULO section of both packs). Returns the new count: all LICENCA_FONTES_ANGULO sources or, when they do not fit `max`, none. Call it where the
 // text is indexed, not from an initialiser: the pack is loaded by then. tools/gen_notices.py --check holds its text to the rows of tools/third_party.toml.
 int anexarFontesDoAngulo( FonteLicenca *fontes, int n, int max );

@@ -51,9 +51,9 @@ of the original panel on the radio images.
 | [BMx280PIO_RP2040](#bmx280pio_rp2040) | Ângelo Moisés Alves | MIT | all images, and pico_wiretft_angulo, pico2_w_original |
 | [PicoENC28J60](#picoenc28j60) | Lukasz Janyst and Ângelo Moisés Alves | MIT | pico_wire, pico_wiretft, and pico_wiretft_angulo |
 | [BTstack](#btstack) | BlueKitchen GmbH | Raspberry Pi licence (LICENSE.RP) | pico_w_alpha, pico_w_air |
-| [GNU FreeFont (FreeSans Bold)](#gnu-freefont-freesans-bold) | GNU FreeFont contributors | GPL-3.0-or-later with the font exception | pico_w_release, pico_w_test, pico_w_test_https, pico_w_asserts, pico_wiretft, and pico2_w_original |
+| [Liberation Fonts](#liberation-fonts) | Red Hat, Inc. (digitized data: Google, Arimo) | SIL Open Font License 1.1 | pico_w_release, pico_w_test, pico_w_test_https, pico_w_asserts, pico_wiretft, and pico2_w_original |
 | [Bricolage Grotesque](#bricolage-grotesque) | The Bricolage Grotesque Project Authors | SIL Open Font License 1.1 | pico2_w_release, and pico_wiretft_angulo |
-| [GNU FreeFont (FreeSans, FreeMono Bold)](#gnu-freefont-freesans-freemono-bold) | GNU FreeFont contributors | GPL-3.0-or-later with the font exception | pico2_w_release, and pico_wiretft_angulo |
+| [Liberation Fonts (Sans, Mono Bold)](#liberation-fonts-sans-mono-bold) | Red Hat, Inc. (digitized data: Google, Arimo and Cousine) | SIL Open Font License 1.1 | pico2_w_release, and pico_wiretft_angulo |
 | [Lucide](#lucide) | Lucide Contributors (portions: Cole Bemis, as part of Feather) | ISC | pico2_w_release, and pico_wiretft_angulo |
 | [Liberation Sans Bold](#liberation-sans-bold) | Red Hat, Inc. (digitized data: Google, Arimo) | SIL Open Font License 1.1 | all images, and pico_wiretft_angulo, pico2_w_original |
 | [SHA-256 for JavaScript](#sha-256-for-javascript) | Geraint Luff | public domain | all images, and pico_wiretft_angulo, pico2_w_original |
@@ -277,14 +277,14 @@ The Bluetooth stack behind the Bluetooth console of the alpha and Air images.
 
 Raspberry Pi Ltd licenses BTstack to the buyers of the Pico W and the Pico 2 W for use in the products they build on them. BTstack's own licence (non-commercial) does not apply to that use.
 
-## GNU FreeFont (FreeSans Bold)
+## Liberation Fonts
 
-The 9, 12 and 24 pt faces of the touch panel, converted to bitmaps and cut down to the glyphs SIMUT draws.
+The 9, 12 and 24 pt faces of the touch panel, converted to bitmaps from Liberation Sans Bold 2.1.5 and cut down to the glyphs SIMUT draws.
 
-- Copyright holder: GNU FreeFont contributors
-- Licence: GPL-3.0-or-later with the font exception, text in [LICENSES/freefont-GPL-3.0-font-exception.txt](LICENSES/freefont-GPL-3.0-font-exception.txt), [LICENSES/GPL-3.0.txt](LICENSES/GPL-3.0.txt)
+- Copyright holder: Red Hat, Inc. (digitized data: Google, Arimo)
+- Licence: SIL Open Font License 1.1, text in [LICENSES/Liberation-OFL-1.1.txt](LICENSES/Liberation-OFL-1.1.txt)
 - Images: pico_w_release, pico_w_test, pico_w_test_https, pico_w_asserts, pico_wiretft, and pico2_w_original
-- Source: <https://www.gnu.org/software/freefont/>
+- Source: <https://github.com/liberationfonts/liberation-fonts>
 
 ## Bricolage Grotesque
 
@@ -295,16 +295,16 @@ The display face (weight 600) of the Angulo touch panel, converted to bitmaps at
 - Images: pico2_w_release, and pico_wiretft_angulo
 - Source: <https://github.com/ateliertriay/bricolage>
 
-## GNU FreeFont (FreeSans, FreeMono Bold)
+## Liberation Fonts (Sans, Mono Bold)
 
-The FreeSans and FreeSans Bold faces at 9 pt and the FreeMono Bold face at 9 and 12 pt of the Angulo touch panel, converted to bitmaps and cut down to the glyphs SIMUT draws.
+The Liberation Sans Regular and Sans Bold faces at 8.5 pt and the Liberation Mono Bold face at 9 and 12 pt of the Angulo touch panel, converted to bitmaps from version 2.1.5 and cut down to the glyphs SIMUT draws.
 
-- Copyright holder: GNU FreeFont contributors
-- Licence: GPL-3.0-or-later with the font exception, text in [LICENSES/freefont-GPL-3.0-font-exception.txt](LICENSES/freefont-GPL-3.0-font-exception.txt), [LICENSES/GPL-3.0.txt](LICENSES/GPL-3.0.txt)
+- Copyright holder: Red Hat, Inc. (digitized data: Google, Arimo and Cousine)
+- Licence: SIL Open Font License 1.1, text in [LICENSES/Liberation-OFL-1.1.txt](LICENSES/Liberation-OFL-1.1.txt)
 - Images: pico2_w_release, and pico_wiretft_angulo
-- Source: <https://www.gnu.org/software/freefont/>
+- Source: <https://github.com/liberationfonts/liberation-fonts>
 
-The Angulo images cut this typeface at the sizes above and keep none of the 9, 12 and 24 pt faces of "GNU FreeFont (FreeSans Bold)", which belong to the original panel (nm of the eleven images, 2026-10-30).
+The Angulo images carry these faces and none of the 9, 12 and 24 pt faces of the row "Liberation Fonts", which belong to the original panel (nm of the eleven images, 2026-10-30).
 
 ## Lucide
 
@@ -322,7 +322,7 @@ Its LICENSE says portions are held by Cole Bemis 2013-2022 as part of Feather (M
 Five glyph outlines traced into the SIMUT wordmark of the web pages. No font file is embedded.
 
 - Copyright holder: Red Hat, Inc. (digitized data: Google, Arimo)
-- Licence: SIL Open Font License 1.1, text in [LICENSES/liberation-fonts-OFL-1.1.txt](LICENSES/liberation-fonts-OFL-1.1.txt)
+- Licence: SIL Open Font License 1.1, text in [LICENSES/Liberation-OFL-1.1.txt](LICENSES/Liberation-OFL-1.1.txt)
 - Images: all images, and pico_wiretft_angulo, pico2_w_original
 - Source: <https://github.com/liberationfonts/liberation-fonts>
 
