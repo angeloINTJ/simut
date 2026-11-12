@@ -19,8 +19,8 @@ namespace {
 
 // The plan's cards: 96 x 72, ESP2 apart, from Y0, three to a row. In a card the
 // label sits ESP2 under the top, the value's baseline 44 px down and the line
-// under it, a box of H_APOIO, at 48 (the plan's 48 and 52: the 9 pt line is 14
-// px of caps and its descenders reached the card's border).
+// under it, a box of H_APOIO, at 48 (the plan's 48 and 52: the 9 pt line was 14 px of caps in
+// the FreeSans and its descenders reached the card's border, 2026-10-15; at 8.5 pt it is 12 px).
 constexpr int16_t W_CARTAO = 96, H_CARTAO = 72;
 constexpr int N_CARTOES = 6, COLUNAS = 3;
 enum { C_MAXIMO, C_MINIMO, C_MEDIA, C_DESVIO, C_VARIACAO, C_AGORA };   // the cards, in reading order

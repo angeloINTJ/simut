@@ -1132,7 +1132,7 @@ int16_t selo( Pintor &p, int16_t x, int16_t y, int16_t h, const char *rotulo, To
   }
   const int16_t w = larguraSelo( rotulo );
 #ifdef UA_HOST
-  // The whole box, not the label's ink: on the bench (2026-10-15) the 9 pt status-bar badge covered the "T" of
+  // The whole box, not the label's ink: on the bench (2026-10-15) the status-bar badge, 9 pt in the FreeSans, covered the "T" of
   // "SIMUT" and was drawn over by the pending count, and no two inks overlapped, so host_telas.py saw nothing.
   hostAnotarTexto( rotulo, x, (int16_t)( x + w ), y, (int16_t)( y + h ), true );
 #endif

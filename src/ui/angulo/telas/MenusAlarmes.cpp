@@ -20,9 +20,9 @@ constexpr int16_t W_INTERRUPTOR = 40, H_INTERRUPTOR = 24;
 
 // A row holds two lines, the name over its range (desenharDuasLinhas( )), in the
 // 48 px of LISTA_H_FILA_2, three to a page. One line would put the range between
-// the name and the badge, and "Sala de coleta" (107 px) would be cut on a row
+// the name and the badge, and "Sala de coleta" (104 px at 8.5 pt, 2026-11-11; 107 in the FreeSans) would be cut on a row
 // that has 280 px inside its padding. The row was 40 px, four to a page, until
-// the panel's text floor rose to 9 pt (2026-10-15): two lines of 14 px caps left
+// the panel's text floor rose to 9 pt (2026-10-15): two lines of 14 px caps (the FreeSans's) left
 // 4 px between them, and the name's descenders touched the range.
 // The badge sits on the name's line (its 20 px box is the name's, so the two share
 // a baseline), which leaves the range the whole width under it: beside the badge,

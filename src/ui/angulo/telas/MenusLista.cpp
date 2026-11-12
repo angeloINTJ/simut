@@ -141,7 +141,7 @@ void desenharNota( Pintor &p, int16_t y, const char *texto ) {
 void desenharDuasLinhas( Pintor &p, const Caixa16 &c, int16_t x, const char *linha1, uint16_t cor1,
                          const char *linha2, Fonte fonte2, uint16_t cor2 ) {
   // Two boxes of 20 px, 4 px under the row's top and the first's bottom: the caps of the first
-  // line then start 7 px under the row's edge and the baseline of the second is 7 above its foot.
+  // line then start 8 px under the row's edge and the baseline of the second is 8 above its foot (7 and 7 in the FreeSans at 9 pt).
   constexpr int16_t H_CAIXA = 20, Y_CAIXA_1 = ESP1;
   textoCentrado( p, linha1, x, c.y + Y_CAIXA_1, H_CAIXA, tipo::corpo, cor1, 'l' );
   textoCentrado( p, linha2, x, c.y + Y_CAIXA_1 + H_CAIXA, H_CAIXA, fonte2, cor2, 'l' );

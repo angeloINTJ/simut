@@ -38,8 +38,8 @@ constexpr int16_t Y_NAV = 196, H_NAV = 40, W_NAV = 56, X_NAV = ESP3, PASSO_NAV =
 
 /* The Gráfico button carries its word: an icon alone does not say what a
  * button does (Ângulo §6) and the panel has no tooltip to say it. 72 px wide:
- * the word is 62 px of ink in 9 pt bold, the floor of the panel's text since
- * 2026-10-15, and 56 px cut it on both sides. */
+ * the word is 58 px of ink in 8.5 pt bold (2026-11-11; 62 in the FreeSans at 9 pt,
+ * 2026-10-15), and 56 px cut it on both sides (by 1 px each, 3 in the FreeSans). */
 constexpr int16_t W_GRAFICO = 72, H_GRAFICO = 48;
 
 /* The name row sits 4 px under the upper card's top edge. The lower card's
@@ -53,11 +53,11 @@ constexpr int16_t H_NOME_CIMA = H_TEXTO, H_NOME_BAIXO = 12, H_SELO = 16;
  * lower card's big number keeps the plan's 176. */
 constexpr int16_t BASE_CIMA = Y_CIMA + 56, BASE_NUMERO = Y_BAIXO + 68;
 
-/* The lower card's right column: 18 px between baselines (the 9 pt text's 14 px
- * caps and 4 px apart). Two lines fit between the badge and the number's
- * baseline; a third would run into the badge (2026-10-15, when the floor of the
- * panel's text rose from 7 to 9 pt: its 7 pt caps were 2.4 mm on the 3.5-inch
- * 320x240 panel, under what reads at arm's length). */
+/* The lower card's right column: 18 px between baselines (the 8.5 pt text's 12 px
+ * caps and 6 px apart; 14 and 4 in the FreeSans at 9 pt). Two lines fit between the badge and
+ * the number's baseline; a third would run 2 px into the badge (3 in the FreeSans; harness
+ * boxes, 2026-11-11) (2026-10-15, when the floor of the panel's text rose from 7 to 9 pt: its
+ * 7 pt caps were 2.4 mm on the 3.5-inch 320x240 panel, under what reads at arm's length). */
 constexpr int16_t PASSO_LINHA = ESP4 + 2;
 
 /* The web-busy notice floats over the lower card's foot, its bottom on the
@@ -191,8 +191,8 @@ struct Segundo {
 
 // A limit of the alarm's range, in tenths, without a trailing ",0": the range
 // line has to leave the big number its size (2026-10-15: "faixa 15,0 a 30,0 °C"
-// in 9 pt pushed a BME280 card's 22,4 from DISP32 down a size; "faixa 15 a
-// 30 °C" does not). A limit with tenths keeps them.
+// in the FreeSans at 9 pt pushed a BME280 card's 22,4 from DISP32 down a size; "faixa 15 a
+// 30 °C" did not). A limit with tenths keeps them.
 char *limite( int32_t d, char *buf ) {
   if ( d % 10 ) return n1( d, buf );
   snprintf( buf, 16, "%ld", (long)( d / 10 ) );
@@ -395,13 +395,13 @@ void desenharCartaoBaixo( Pintor &p, const VmPainel &vm, const LayoutPainel &l )
   textoCentrado( p, nome, X_INT, yNome, H_NOME_BAIXO, tipo::subtitulo, a.tinta, 'l' );
   if ( !corpo ) return;
 
-  // The right column, right-aligned, its last line on the number's baseline. At
-  // 9 pt it is wide, and the big number takes what is left (the next block), so it
-  // carries only what the badge needs: the sensor's second value by its unit alone
-  // ("58 %UR", "1013 hPa") when it has one, and the alarm's range without the word
-  // ("2 a 8 °C"; the badge above it says "Na faixa", "Acima" or "Abaixo"). With the
-  // day's extremes in it too, a BME280 card's 22,4 and a 125,0 lost a size
-  // (2026-10-15); the extremes are a tap away, in the card's min/max mode, and in
+  // The right column, right-aligned, its last line on the number's baseline. At 8.5 pt it is
+  // wide ("1013 hPa" is 69 px, 2026-11-11; 72 in the FreeSans at 9 pt), and the big number takes
+  // what is left (the next block), so it carries only what the badge needs: the sensor's second
+  // value by its unit alone ("58 %UR", "1013 hPa") when it has one, and the alarm's range without
+  // the word ("2 a 8 °C"; the badge above it says "Na faixa", "Acima" or "Abaixo"). With the
+  // day's extremes in it too, a BME280 card's 22,4 and a 125,0 lost a size (2026-10-15, in the
+  // FreeSans); the extremes are a tap away, in the card's min/max mode, and in
   // the graph.
   char b1[16], b2[16];
   char linhaSeg[40], linhaFaixa[40];

@@ -23,14 +23,14 @@ namespace {
 /* ------------------------------------------------------------------ */
 
 // The plan's chart card; the plot sits inside it, with the time axis under it.
-// Since the panel's text floor is 9 pt (2026-10-15) the card is 4 px lower and 4
+// Since the panel's text floor rose to 9 pt (2026-10-15) the card is 4 px lower and 4
 // px taller than the plan's (68, 112): the statistics' two lines are 18 px apart
-// (14 px caps and 4 px of air), and the plot keeps the 88 px it had. Above it
-// PAD_CIMA = 10: the right scale's top label is 14 px tall, centred on the
-// plot's top, so it clears the card's border by 2 px. Under it 18: the axis
-// labels' 14 px of ink start 1 px under the plot's foot (no line is drawn
-// there, and the range leaves the data an eighth of itself above it, 8 px at
-// least) and end 2 px above the border (the 7 pt labels, 11 px, had 16).
+// (12 px caps and 6 px of air at 8.5 pt, 2026-11-11; 14 and 4 in the FreeSans at 9 pt), and
+// the plot keeps the 88 px it had. Above it PAD_CIMA = 10: the right scale's top label is
+// 12 px tall, centred on the plot's top, so it clears the card's border by 3 px (FreeSans:
+// 14 and 2). Under it 18: the axis labels' 12 px of ink start 2 px under the plot's foot (no
+// line is drawn there, and the range leaves the data an eighth of itself above it, 8 px at
+// least) and end 3 px above the border (FreeSans: 14, 1 and 2; the 7 pt labels, 11 px, had 16).
 constexpr int16_t X_CARTAO = ESP2, Y_CARTAO = 72, W_CARTAO = 304, H_CARTAO = 116;
 constexpr int16_t PAD_CIMA = 10, ALTO_PLOT = 88;
 
@@ -46,10 +46,10 @@ static_assert( 2 * W_SETA + N_PERIODOS * W_CHIP + ( N_PERIODOS - 1 ) * ESP1 + 4 
                "two arrows and five chips fill the footer between its ESP2 margins" );
 
 // The scales, in tenths. At most MAX_GRADE horizontal grid lines: with 88 px of
-// plot that keeps their labels more than 17 px apart, the 17 px of ink a 9 pt
-// label with a comma has (measured 2026-10-15: 14 of caps, 3 of the comma); the
-// 5 lines of the 7 pt labels would be 14,7 px apart and their ink boxes would
-// overlap. The range is never
+// plot that keeps their labels more than 17 px apart; an 8.5 pt label with a comma has 14 px
+// of ink (measured 2026-11-11: 12 of digits, 2 of the comma; 17 in the FreeSans at 9 pt,
+// 2026-10-15: 14 and 3), and 5 lines, 14,7 px apart, would clear by 0,7 px where the FreeSans's
+// would have overlapped (MAX_GRADE stays 4, the layout is not touched). The range is never
 // narrower than FAIXA_MIN (1,0), so a steady sensor reads as steady and not as
 // a magnified wobble, and has an eighth of itself (0,3 at least) as air above
 // and below, so the line does not touch the card. The second curve's scale
@@ -207,14 +207,14 @@ bool linha( Dado *d, int n, int16_t y ) {
 }
 
 // The first line is the two extremes, each with where it happened; the second
-// is the other four, bare. At 9 pt a line holds 300 px, and the old first line,
-// "máx 6,0 °C às 12:10 mín 3,0 °C às 22:57", is 326 (items of 161 and 157, and
-// the narrowest gap): the words "às" and "em" are gone (the colon and the slash
+// is the other four, bare. A line holds 300 px, and the old first line,
+// "máx 6,0 °C às 12:10 mín 3,0 °C às 22:57", was 326 in the FreeSans at 9 pt (items of 161
+// and 157, and the narrowest gap): the words "às" and "em" are gone (the colon and the slash
 // say it is a time and a date, and the value is bold where the time is not; the
 // time stands ESP2 from the unit, at ESP1 "°C 12:10" read as one word),
 // and the unit stands on the first line only, since the second one cannot hold
-// it (the 7 pt line held "média 4,4 °C σ 0,7 Δ -0,7 °C agora 5,1 °C"; at 9 pt
-// it is 338 px; widths measured with larguraTinta( ) on 2026-10-15).
+// it (the 7 pt line held "média 4,4 °C σ 0,7 Δ -0,7 °C agora 5,1 °C"; in the FreeSans at 9 pt
+// it was 338 px, at 8.5 pt it is 311 regular and 318 bold; larguraTinta( ), 2026-10-15 and 2026-11-11).
 void montarStats( const VmGrafico &vm, LayoutGrafico &l ) {
   for ( int tentativa = 0; tentativa < 2; tentativa++ ) {
     // The second attempt leaves the "°C" off the minimum, and the unit stands once.
@@ -296,8 +296,8 @@ LayoutGrafico layoutGrafico( const VmGrafico &vm ) {
     for ( int32_t s : kPassos ) {
       if ( contar( l.lo, l.hi, s ) <= MAX_GRADE ) { passo = s; break; }
     }
-    // A whole step gives whole labels ("6", "-20"): the ",0" of "-20,0" is 15 px
-    // of the plot's width at 9 pt, and the unit is on the statistics' line.
+    // A whole step gives whole labels ("6", "-20"): the ",0" of "-20,0" is 14 px
+    // of the plot's width at 8.5 pt (2026-11-11; 15 in the FreeSans at 9 pt), and the unit is on the statistics' line.
     const bool inteiros = passo % 10 == 0;
     for ( int32_t v = ( chao( l.lo, passo ) + 1 ) * passo; v < l.hi && l.nGrade < MAX_GRADE; v += passo ) {
       l.grade[l.nGrade] = v;
@@ -336,9 +336,9 @@ LayoutGrafico layoutGrafico( const VmGrafico &vm ) {
     else horaMin( t, l.eixo[k], sizeof l.eixo[k] );
   }
   // Every other tick: the middle label goes when it would come within ESP2 of
-  // the first or the last. The first one, "12/10 11:32", is 90 px at 9 pt and
-  // the middle one meets it whenever the second curve's scale narrows the plot
-  // to about 200 px.
+  // the first or the last. The first one, "12/10 11:32", is 86 px at 8.5 pt (2026-11-11; 90 in
+  // the FreeSans at 9 pt) and a middle one of 40 px ("11:32") meets it whenever the second curve's
+  // scale narrows the plot under 2 x 86 + 40 + 2 x ESP2 = 228 px (237 in the FreeSans).
   if ( l.eixo[1][0] ) {
     const int16_t meio = rd2( larguraTinta( l.eixo[1], tipo::apoio ) ), xm = rd2( l.px0 + l.px1 );
     const int16_t fimEsq = (int16_t)( l.px0 + larguraTinta( l.eixo[0], tipo::apoio ) );
@@ -578,8 +578,8 @@ void desenharPlot( Pintor &p, const VmGrafico &vm, const LayoutGrafico &l ) {
     p.repetivel( desenharSegundaCurva, &s_plot );
     // Its scale, at the right of the plot: top, unit, bottom.
     const int16_t xr = (int16_t)( l.px1 + ESP2 );
-    // Each centred on its row (at 9 pt the top label's baseline 4 px under the
-    // plot's top put its caps 10 px above it, across the card's border).
+    // Each centred on its row (in the FreeSans at 9 pt the top label's baseline 4 px under the
+    // plot's top put its caps 10 px above it, across the card's border; 2026-10-15).
     textoCentrado( p, l.rot2Cima, xr, (int16_t)( l.py0 - rd2( H_APOIO ) ), H_APOIO, tipo::apoio, T.tinta2, 'l' );
     textoCentrado( p, l.un2, xr, (int16_t)( rd2( l.py0 + l.py1 ) - rd2( H_APOIO ) ), H_APOIO, tipo::apoio, T.tinta2, 'l' );
     textoCentrado( p, l.rot2Baixo, xr, (int16_t)( l.py1 - rd2( H_APOIO ) ), H_APOIO, tipo::apoio, T.tinta2, 'l' );

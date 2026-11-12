@@ -1,7 +1,7 @@
 # The texts the Ângulo panel may draw cut with "…", read by tools/tft_ui/host_telas.py.
 #
 # A cut stays on the glass and inside its box, so the other checks never see it; at the
-# 9 pt floor (2026-10-15) the PIN screen's hint and four error messages lost their ends
+# 9 pt floor of the FreeSans (2026-10-15) the PIN screen's hint and four error messages lost their ends
 # that way. Every other cut fails: fixed copy must fit, and so must data of an ordinary
 # length (a 10-character account name cut in a sentence is a layout to fix, not a line
 # here). A line here accepts the cut of data a sample makes long on purpose, and says how

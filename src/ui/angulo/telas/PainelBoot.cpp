@@ -13,12 +13,12 @@ constexpr int16_t CENTRO = 160;
 
 /* The plan's boot_wifi, lifted 36 px so that the log fits between the subtitle
  * and the foot: the brand and its subtitle, the log growing downwards from
- * Y_PASSOS, the foot. Four lines of it since the panel's text floor is 9 pt
- * (2026-10-15): five at 20 px would reach the foot. */
+ * Y_PASSOS, the foot. Four lines of it since the panel's text floor rose to 9 pt (2026-10-15;
+ * 8.5 pt since 2026-11-11, and the 20 px pitch stayed): five at 20 px would reach the foot. */
 constexpr int16_t Y_MARCA = 20, H_MARCA = 40;
 constexpr int16_t Y_SUBTITULO = Y_MARCA + H_MARCA + ESP1, H_SUBTITULO = 16;
 constexpr int16_t Y_PASSOS = 96;
-constexpr int16_t H_ANTERIOR = 20;       // an earlier step: apoio (9 pt), 20 px apart
+constexpr int16_t H_ANTERIOR = 20;       // an earlier step: apoio (8.5 pt), 20 px apart
 constexpr int16_t H_ATUAL = 20;          // the step in progress: corpo
 constexpr int16_t LARGURA_PASSO = 320 - 2 * PAD;
 

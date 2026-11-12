@@ -31,9 +31,9 @@ constexpr int16_t L_ICONE = 20, L_CHAVE = 40, H_CHAVE = 24;
 // The plan's square buttons (the stepper's minus and plus, the alignment arrows).
 constexpr int16_t L_BOTAO = 40;
 
-// Between the baselines of 9 pt text, the panel's smallest (tipo::apoio, tipo::rotulo,
-// since 2026-10-15): the capitals are 14 px, so the lines keep 4 px apart (the 7 pt
-// layout's 16 px kept 5 for its 11 px capitals).
+// Between the baselines of 8.5 pt text, the panel's smallest (tipo::apoio, tipo::rotulo; 9 pt
+// from 2026-10-15 to 2026-11-11): the capitals are 12 px, so the lines keep 6 px apart (2026-11-11;
+// 14 px and 4 apart in the FreeSans at 9 pt; the 7 pt layout's 16 px kept 5 for its 11 px capitals).
 constexpr int16_t PASSO_APOIO = ESP4 + 2;
 
 // The plan's stepper card: 8 above the button, the button, 8 below.

@@ -154,7 +154,7 @@ void desenharLimites( Pintor &p, const VmLimites &vm ) {
   char titulo[64];
   // The title is the sensor's name alone, as in the sensor's menu it comes from: with " · limites"
   // after it, "Ultracongelador" (15 characters, an ordinary length) was cut to "Ultracongelad… ·
-  // limites" at the 9 pt floor (2026-10-15). The screen still says what it is: the cards read
+  // limites" at the FreeSans's 9 pt floor (2026-10-15). The screen still says what it is: the cards read
   // "Minimum temperature" and "Maximum temperature" (pt-BR "Temperatura mínima", "Temperatura máxima")
   // and the footer "Save limits" ("Salvar limites").
   montarTitulo( titulo, sizeof titulo, "", vm.sensor, "" );

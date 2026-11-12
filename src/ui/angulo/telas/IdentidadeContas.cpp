@@ -78,8 +78,8 @@ struct LayoutUsuarios {
 };
 
 // The two lines of a row, each in a box of 20 px (the pitch of `corpo`) 4 px under the row's top and
-// under the first box: the name's caps start 7 px under the row's edge and the summary's baseline
-// is 7 px above its foot, as MenusLista's desenharDuasLinhas( ).
+// under the first box: the name's caps start 8 px under the row's edge and the summary's baseline
+// is 8 px above its foot (7 and 7 in the FreeSans at 9 pt), as MenusLista's desenharDuasLinhas( ).
 constexpr int16_t H_CAIXA = 20, Y_CAIXA = ESP1;
 
 // "Limites · Alarmes · Manut." for the bits an account has; "Só leitura" for none. The names are looked up as they are needed (UA_TXT( ) cannot initialise a table).

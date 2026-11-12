@@ -53,7 +53,7 @@ USO = 'Usage: gen_angulo_meta.py [--check] [--fontes DIR] [--extra FILE] [--icon
 OPCOES = ('--fontes', '--extra', '--icones', '--out')
 
 # The faces of ua::Fonte (Angulo.h), in its order; MARCA reuses DISP24's row and has none of its own. The 7 pt faces left this list
-# on 2026-10-15 (the panel's smallest type is 9 pt).
+# on 2026-10-15 (the panel's smallest type was 9 pt then; it is 8.5 pt since 2026-11-11).
 FONTES = ('SANS9', 'SANSB9', 'MONO9', 'MONO12', 'DISP9', 'DISP12', 'DISP18', 'DISP24', 'DISP32')
 CAIXA_ALTA, ALTURA_X = 0x48, 0x78   # the glyphs whose height is the cap height and the x height
 PRIMEIRO_EXTRA = 0x7F               # the GFX code of the first entry of the EXTRA table
